@@ -276,7 +276,8 @@ function checkBalance(d: Draft, f: string): Diagnostic[] {
   const out: Diagnostic[] = [];
   const tpl = d.src.slice(d.template.start, d.template.end);
   const stack: Array<{ tag: string; index: number }> = [];
-  const re = /<(\/?)([a-zA-Z][a-zA-Z0-9-]*)([^>]*?)(\/?)>/g;
+  // 引号感知：[^>]* 会被属性值里的裸 `>`（比如 data-props 的 "()=>void"）截断
+  const re = /<(\/?)([a-zA-Z][a-zA-Z0-9-]*)((?:"[^"]*"|'[^']*'|[^>"'])*?)(\/?)>/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(tpl))) {
     const abs = d.template.start + m.index;

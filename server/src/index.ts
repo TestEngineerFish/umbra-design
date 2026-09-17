@@ -19,6 +19,10 @@ import { validateDraft } from "./validate.js";
 import { patchDraft, writeDraft } from "./write.js";
 import { missingRuntime } from "./normalize.js";
 import { findBrowser, renderCheck } from "./render.js";
+import {
+  changesSince, diffDrafts, listVersions, projectChangesSince, readSnapshot,
+  resolveSnapshot, toMarkdown,
+} from "./history.js";
 
 const VERSION = "0.1.0";
 
@@ -326,6 +330,99 @@ server.registerTool("check_browser", {
     "找不到可用的 Chromium / Chrome",
     { fix: "装一个 Chrome，或把可执行文件路径写进环境变量 UMBRADESIGN_CHROMIUM" })];
   return envelope({ browser: f, autoDownload: false }, diags);
+}));
+
+// ───────────────────────── 变更交付（doc/07）─────────────────────────
+
+server.registerTool("list_versions", {
+  title: "列出一份稿的版本",
+  description: "列出这份稿的快照版本序列（v1、v2 …），以及项目有没有 git 兜底。版本在每次 write_draft 落盘时递增，按稿独立计数。",
+  inputSchema: { project: z.string(), path: z.string() },
+}, async ({ project, path }) => run(async () => {
+  const p = await loadProject(project);
+  const vs = await listVersions(p, path);
+  return envelope({ path, versions: vs, latest: vs[vs.length - 1] ?? null, gitEnabled: p.gitEnabled },
+    [], { count: vs.length });
+}));
+
+server.registerTool("snapshot_draft", {
+  title: "取一份稿的语义快照",
+  description: "把 .dc.html 抽成归一化的语义快照（props / state / 状态分支 / 列表 / 子组件 / 用到的 token / 文案 / 节点与指纹）。write_draft 会自动存快照，这个工具用来看某一版的快照内容。",
+  inputSchema: {
+    project: z.string(), path: z.string(),
+    version: z.string().optional().describe("v<N> / git ref / 「工作区」。默认「工作区」"),
+  },
+}, async ({ project, path, version }) => run(async () => {
+  const p = await loadProject(project);
+  const snap = await resolveSnapshot(p, path, version ?? "工作区");
+  return envelope(snap, [], {
+    nodes: snap.nodes.length, texts: snap.texts.length,
+    tokensUsed: snap.tokensUsed.length, branches: snap.branches.length,
+  });
+}));
+
+server.registerTool("diff_drafts", {
+  title: "两版之间的语义变更清单",
+  description: [
+    "对两版做**语义** diff，不是文本 diff —— 对 inline-style HTML 做文本 diff 没用（doc/07 §一）。",
+    "四级分类，唯一目的是回答「要不要动代码」：",
+    "  L1 契约 → 必须改代码（props / 状态分支 / 事件名 / 子组件契约变了）",
+    "  L2 取值 → 照抄新值（颜色 / 间距 / 字号 / token 引用）",
+    "  L3 文案 → 改字符串",
+    "  L4 等价 → 无需处理",
+    "节点配对不靠路径（靠指纹 + LCS），所以在模板中间插一个元素不会把后面全报成变更。",
+    "from / to 可以是 v<N>、git ref、或「工作区」。",
+  ].join("\n"),
+  inputSchema: {
+    project: z.string(), path: z.string(),
+    from: z.string().describe("v<N> / git ref / 「工作区」"),
+    to: z.string().optional().describe("默认最新的一版快照"),
+    markdown: z.boolean().optional().describe("true 时附一份给人看的纯文本清单"),
+  },
+}, async ({ project, path, from, to, markdown }) => run(async () => {
+  const p = await loadProject(project);
+  const d = await diffDrafts(p, path, { from, to });
+  const data: Record<string, unknown> = { ...d };
+  if (markdown) data.markdown = toMarkdown(d);
+  return envelope(data, [], { ...d.counts, total: d.changes.length });
+}));
+
+server.registerTool("get_changes_since", {
+  title: "跨版本净变更",
+  description: [
+    "回答「我实现的是 v217，现在最新 v221，我要改什么」—— **不是把四份 diff 拼起来**。",
+    "合并规则：同一属性多次变化只报最终值；加了又删不报；删了又加回同值不报；级别取最高。",
+    "不给 path 就出整个项目的汇总，按稿分节。",
+  ].join("\n"),
+  inputSchema: {
+    project: z.string(),
+    since: z.string().describe("起点版本，如 v3"),
+    path: z.string().optional().describe("不给就整个项目"),
+    markdown: z.boolean().optional(),
+  },
+}, async ({ project, since, path, markdown }) => run(async () => {
+  const p = await loadProject(project);
+  if (path) {
+    const d = await changesSince(p, path, since);
+    const data: Record<string, unknown> = { ...d };
+    if (markdown) data.markdown = toMarkdown(d);
+    return envelope(data, [], { ...d.counts, spans: d.spans.length });
+  }
+  const drafts = (await listDrafts(p)).map((a) => a.slice(p.dir.length + 1).split("\\").join("/"));
+  const rows = await projectChangesSince(p, drafts, since);
+  const withChange = rows.filter((r) => r.diff && r.diff.changes.length);
+  const data = {
+    since,
+    drafts: rows.map((r) => ({
+      path: r.path,
+      counts: r.diff?.counts ?? null,
+      conclusion: r.diff ? undefined : r.note,
+      changes: r.diff?.changes ?? [],
+      spans: r.diff?.spans ?? [],
+    })),
+    markdown: markdown ? withChange.map((r) => toMarkdown(r.diff!)).join("\n\n———\n\n") : undefined,
+  };
+  return envelope(data, [], { draftsScanned: rows.length, draftsChanged: withChange.length });
 }));
 
 // ──────────────────────────── 启动 ────────────────────────────

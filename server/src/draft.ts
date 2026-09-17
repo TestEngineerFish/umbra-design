@@ -63,6 +63,14 @@ export interface Draft {
 }
 
 const HOLE_RE = /\{\{([^}]*)\}\}/g;
+
+/** 标签内属性区的引号感知片段。
+ *
+ * ⚠️ 不能用 [^>]* —— HTML 允许引号内出现 `>`，而 data-props 里的
+ * `()=>void` 就有一个裸 `>`。用 [^>]* 会让开标签提前收尾，把属性值的后半段
+ * 当成标签外内容（回归时把 data-props 的一半当成了逻辑类代码，报 E_LOGIC_SYNTAX）。
+ */
+const ATTRS = '(?:"[^"]*"|\'[^\']*\'|[^>"\'])*';
 /** 点号路径：a / a.b.c；不允许括号、运算符、引号 */
 const DOT_PATH = /^[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*$/;
 const LITERALS = new Set(["true", "false", "$index"]);
@@ -111,8 +119,8 @@ function region(src: string, openRe: RegExp, closeTag: string): { start: number;
 export function parseDraft(src: string, path: string): Draft {
   const at = lineIndex(src);
 
-  const template = region(src, /<x-dc(?:\s[^>]*)?>/i, "</x-dc>");
-  const logicOpen = /<script[^>]*\bdata-dc-script\b[^>]*>/i.exec(src);
+  const template = region(src, new RegExp(`<x-dc${ATTRS}>`, "i"), "</x-dc>");
+  const logicOpen = new RegExp(`<script${ATTRS}\\bdata-dc-script\\b${ATTRS}>`, "i").exec(src);
   const logic = logicOpen
     ? (() => {
         const start = logicOpen.index + logicOpen[0].length;
@@ -169,7 +177,7 @@ export function parseDraft(src: string, path: string): Draft {
 
   // dc-import
   const imports: ImportRef[] = [];
-  const impRe = /<dc-import\b([^>]*?)(\/?)>/gi;
+  const impRe = new RegExp(`<dc-import\\b(${ATTRS}?)(/?)>`, "gi");
   let im: RegExpExecArray | null;
   while ((im = impRe.exec(src))) {
     if (inComment(im.index)) continue;
@@ -192,13 +200,13 @@ export function parseDraft(src: string, path: string): Draft {
 
   // sc-if / sc-for
   const branches: Draft["branches"] = [];
-  for (const bm of src.matchAll(/<sc-if\b([^>]*)>/gi)) {
+  for (const bm of src.matchAll(new RegExp(`<sc-if\\b(${ATTRS})>`, "gi"))) {
     if (inComment(bm.index)) continue;
     const v = /\bvalue\s*=\s*["']\s*\{\{([^}]*)\}\}\s*["']/i.exec(bm[1] ?? "");
     branches.push({ cond: v?.[1]?.trim() ?? null, index: bm.index, pos: at(bm.index) });
   }
   const lists: Draft["lists"] = [];
-  for (const fm of src.matchAll(/<sc-for\b([^>]*)>/gi)) {
+  for (const fm of src.matchAll(new RegExp(`<sc-for\\b(${ATTRS})>`, "gi"))) {
     if (inComment(fm.index)) continue;
     const attrs = fm[1] ?? "";
     const l = /\blist\s*=\s*["']\s*\{\{([^}]*)\}\}\s*["']/i.exec(attrs);
@@ -208,7 +216,7 @@ export function parseDraft(src: string, path: string): Draft {
 
   // helmet 外链
   const helmetLinks: Draft["helmetLinks"] = [];
-  const helmet = region(src, /<helmet(?:\s[^>]*)?>/i, "</helmet>");
+  const helmet = region(src, new RegExp(`<helmet${ATTRS}>`, "i"), "</helmet>");
   if (helmet) {
     const h = src.slice(helmet.start, helmet.end);
     for (const lm of h.matchAll(/(?:href|src)\s*=\s*["']([^"']+)["']/gi)) {

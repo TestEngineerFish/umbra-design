@@ -14,12 +14,14 @@ import { dirname, join } from "node:path";
 import { execFile } from "node:child_process";
 import { X } from "./codes.js";
 import { err, ToolError, warn, type Diagnostic } from "./envelope.js";
+import { conclusion as conclusionOf } from "./diff.js";
 import { draftPath, type Project } from "./project.js";
 import { validateDraft } from "./validate.js";
 import {
   ensureRuntimeBeside, prepareForDisk, readIfExists, resolveInProject, writeAtomic,
 } from "./normalize.js";
 import { buildSnapshot } from "./snapshot.js";
+import { listVersions, recordChange, snapDir } from "./history.js";
 
 export interface WriteOutcome {
   path: string;
@@ -32,22 +34,17 @@ export interface WriteOutcome {
   snapshot: string | null;
   runtimeCopied: string[];
   unchanged: boolean;
-}
-
-function snapDir(p: Project, relPath: string): string {
-  return join(p.dir, ".umbradesign", "snapshots", relPath.replace(/[\\/]/g, "__"));
+  /** 跟上一版比出来的变更清单摘要；第一版为 null */
+  change: { counts: Record<string, number>; conclusion: string } | null;
+  changelog: { written: boolean; reason?: string; section?: string } | null;
 }
 
 /** 下一个版本号：按稿独立计数，取已有最大值 + 1（doc/07 §五） */
 async function nextVersion(p: Project, relPath: string): Promise<string> {
-  const dir = snapDir(p, relPath);
-  if (!existsSync(dir)) return "v1";
-  let max = 0;
-  for (const f of await readdir(dir)) {
-    const m = /^v(\d+)\.json$/.exec(f);
-    if (m) max = Math.max(max, Number(m[1]));
-  }
-  return `v${max + 1}`;
+  const vs = await listVersions(p, relPath);
+  if (!vs.length) return "v1";
+  const last = vs[vs.length - 1] as string;
+  return `v${Number(last.slice(1)) + 1}`;
 }
 
 async function gitHead(p: Project): Promise<string | null> {
@@ -91,7 +88,7 @@ export async function writeDraft(
         path: relPath, written: false,
         refused: `有 ${diags.filter((d) => d.level === "error").length} 条 error 级诊断，按契约拒绝落盘`,
         steps: prep.steps, bytes: prep.content.length, version: null, snapshot: null,
-        runtimeCopied: [], unchanged: false,
+        runtimeCopied: [], unchanged: false, change: null, changelog: null,
       },
       diags, stats,
     };
@@ -103,7 +100,7 @@ export async function writeDraft(
         path: relPath, written: false, refused: null,
         steps: [...prep.steps, "内容与盘上一致，不落盘、不新增快照"],
         bytes: prep.content.length, version: null, snapshot: null,
-        runtimeCopied: await ensureRuntimeBeside(abs), unchanged: true,
+        runtimeCopied: await ensureRuntimeBeside(abs), unchanged: true, change: null, changelog: null,
       },
       diags, stats,
     };
@@ -128,13 +125,21 @@ export async function writeDraft(
   const snapFile = join(dir, `${version}.json`);
   await writeFile(snapFile, JSON.stringify(snap, null, 1) + "\n", "utf8");
 
+  // ③ 的后半段：跟上一版比，产变更清单并追加 CHANGELOG-设计侧.md（doc/07 §五）
+  const rec = await recordChange(p, relPath, version);
+  const steps = [...prep.steps, `快照 ${version}`];
+  if (rec.changelog.written) steps.push(`changelog ${rec.changelog.section}`);
+  else if (rec.diff) steps.push(`changelog 未写（${rec.changelog.reason}）`);
+
   return {
     outcome: {
       path: relPath, written: true, refused: null,
-      steps: [...prep.steps, `快照 ${version}`],
+      steps,
       bytes: prep.content.length, version,
       snapshot: snapFile.slice(p.dir.length + 1),
       runtimeCopied, unchanged: false,
+      change: rec.diff ? { counts: rec.diff.counts, conclusion: conclusionOf(rec.diff) } : null,
+      changelog: rec.changelog,
     },
     diags: [...diags, ...rtDiags],
     stats: { ...stats, kind },

@@ -27,6 +27,9 @@ export interface Snapshot {
   file: string;
   version: string;
   capturedAt: string;
+  /** 只覆盖语义部分（不含 capturedAt / gitCommit / version）。
+   *  两次快照的 semanticSha256 相同 ⇔ 语义完全没变 —— diff 可以据此短路。 */
+  semanticSha256: string;
   sourceSha256: string;
   gitCommit: string | null;
   stats: { elements: number; holes: number; imports: number };
@@ -153,11 +156,22 @@ export function buildSnapshot(p: Project, relPath: string, src: string, opts: Sn
     }
   }
 
+  const semantic = {
+    props: d.props ?? {}, state,
+    valKeys: audit.union,
+    branches: d.branches.map((b) => [b.cond, b.pos.line]),
+    lists: d.lists.map((l) => [l.list, l.as]),
+    imports: d.imports.map((im) => [im.name, im.props.slice().sort()]),
+    tokensUsed: [...tokensUsed].sort(),
+    nodes: nodes.map((n) => [n.tag, n.fp, n.style, n.attrs, n.holes, n.text ?? ""]),
+  };
+
   return {
     schema: SNAPSHOT_SCHEMA,
     file: relPath,
     version: opts.version,
     capturedAt: new Date().toISOString(),
+    semanticSha256: sha(JSON.stringify(semantic)),
     sourceSha256: sha(src),
     gitCommit: opts.gitCommit ?? null,
     stats: { elements: d.elements, holes: d.holes.length, imports: d.imports.length },
