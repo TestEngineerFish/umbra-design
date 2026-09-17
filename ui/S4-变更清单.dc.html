@@ -229,6 +229,10 @@ const LIVE = (function () {
   catch (e) { return null; }
 })();
 
+/* 带 ?file= 看单稿；不带但本地 API 在 → **项目级汇总**（doc/00 §二十六）。
+   两者都没有就是演示态。 */
+const hasApi = () => !!(typeof window !== "undefined" && window.__UD_API);
+
 const BASE = [
   { level: "L1", kind: "prop_added", target: "onRetry", to: "() => void", at: "L45",
     message: "新增 props onRetry: () => void", impact: "实现侧需要接这个回调" },
@@ -289,7 +293,7 @@ const DEMOS = [
 ];
 
 class Component extends DCLogic {
-  state = { demo: 1, open: {}, copied: false, live: null, apiErr: null };
+  state = { demo: 1, open: {}, copied: false, live: null, proj: null, apiErr: null };
 
   componentDidMount() {
     this.onKey = (e) => {
@@ -330,18 +334,26 @@ class Component extends DCLogic {
 
   componentDidUpdate() { /* 占位：数据只在挂载时拉一次，改稿后刷新页面 */ }
 
-  pull() {
+  api(route, params) {
     const A = window.__UD_API;
-    if (!LIVE) return;
-    if (!A) { this.setState({ apiErr: "本地 API 没起来（先 serve_start 再 build_index）" }); return; }
-    const u = new URL(A.base + "changes", location.href);
-    u.searchParams.set("file", LIVE);
-    fetch(u.toString(), { headers: { "x-ud-token": A.token } })
+    if (!A) return Promise.reject(new Error("本地 API 没起来（先 serve_start 再 build_index）"));
+    const u = new URL(A.base + route, location.href);
+    for (const k of Object.keys(params || {})) u.searchParams.set(k, params[k]);
+    return fetch(u.toString(), { headers: { "x-ud-token": A.token } })
       .then((r) => r.json())
-      .then((j) => {
-        if (j.errors && j.errors.length) throw new Error(j.errors[0].message);
-        this.setState({ live: j.data, apiErr: null });
-      })
+      .then((j) => { if (j.errors && j.errors.length) throw new Error(j.errors[0].message); return j.data; });
+  }
+
+  pull() {
+    if (LIVE) {
+      this.api("changes", { file: LIVE })
+        .then((d) => this.setState({ live: d, apiErr: null }))
+        .catch((e) => this.setState({ apiErr: e.message }));
+      return;
+    }
+    if (!hasApi()) return;              // 纯演示态
+    this.api("project_changes", {})
+      .then((d) => this.setState({ proj: d, apiErr: null }))
       .catch((e) => this.setState({ apiErr: e.message }));
   }
 
@@ -412,7 +424,8 @@ class Component extends DCLogic {
     const s = this.state;
     const demo = DEMOS[s.demo - 1];
     const L = s.live;
-    const projectLevel = s.demo === 7;
+    const liveProject = !LIVE && hasApi();
+    const projectLevel = liveProject || s.demo === 7;
     const changes = this.data();
 
     const counts = { L1: 0, L2: 0, L3: 0, L4: 0 };
@@ -420,7 +433,16 @@ class Component extends DCLogic {
 
     let sections;
     if (projectLevel) {
-      const files = [
+      /* 项目级：LIVE 时每一份稿一节，来自 /__ud/project_changes；
+         演示态还是下面那四份假数据。接口只给有变更的稿 ——
+         一个项目几十份稿，大半「只有一版没可比的」，全给过来等于让人在噪声里找。 */
+      const files = liveProject
+        ? ((s.proj && s.proj.rows) || []).map((r) => ({
+            title: r.path,
+            subtitle: r.diff ? r.diff.from + " → " + r.diff.to : "—",
+            take: r.diff ? r.diff.changes : []
+          }))
+        : [
         { title: "日志.dc.html", subtitle: "v216 → v217", take: ALL },
         { title: "设置 · 账号与凭据.dc.html", subtitle: "v65 → v66", take: ALL.filter((c) => c.level === "L2" || c.level === "L3") },
         { title: "PC 空态.dc.html", subtitle: "v22 → v23", take: ALL.filter((c) => c.level === "L1") },
@@ -462,9 +484,13 @@ class Component extends DCLogic {
 
     return {
       theme: this.props.theme === "dark" ? "dark" : null,
-      scopeLabel: LIVE ? LIVE : (projectLevel ? "umbra · 4 份稿" : "日志.dc.html"),
-      fromLabel: LIVE ? (L ? L.diff ? L.diff.from : "—" : "…") : (s.demo === 5 ? "v217" : projectLevel ? "各稿上一版" : "v216"),
-      toLabel: LIVE ? (L ? L.diff ? L.diff.to : "—" : "…") : (s.demo === 5 ? "v221" : projectLevel ? "当前" : "v217"),
+      scopeLabel: LIVE ? LIVE
+        : liveProject ? ((s.proj ? s.proj.title + " · " + s.proj.changed + " / " + s.proj.scanned + " 份稿有变更" : "正在读…"))
+        : (projectLevel ? "umbra · 4 份稿" : "日志.dc.html"),
+      fromLabel: LIVE ? (L ? L.diff ? L.diff.from : "—" : "…")
+        : liveProject ? "各稿首版" : (s.demo === 5 ? "v217" : projectLevel ? "各稿上一版" : "v216"),
+      toLabel: LIVE ? (L ? L.diff ? L.diff.to : "—" : "…")
+        : liveProject ? "当前" : (s.demo === 5 ? "v221" : projectLevel ? "当前" : "v217"),
       multiSpan: spans.length > 1,
       spanCount: String(spans.length),
       spans: spans.map((v) => ({ label: v })),
@@ -490,12 +516,17 @@ class Component extends DCLogic {
 
       sections: sections,
 
-      showDemoBar: !LIVE,
-      demoNote: LIVE
+      showDemoBar: !LIVE && !liveProject,
+      demoNote: liveProject
+        ? (s.apiErr ? "⚠️ 本地 API 读不到：" + s.apiErr
+           : !s.proj ? "正在读…"
+           : s.proj.changed === 0 ? "扫了 " + s.proj.scanned + " 份稿，没有可比的变更"
+           : "项目级汇总 · 跳过 " + s.proj.skipped.length + " 份（没有可比的版本）")
+        : LIVE
         ? (s.apiErr ? "⚠️ 本地 API 读不到：" + s.apiErr
            : L ? (L.note || ("版本序列 " + L.versions.join(" → "))) : "正在读…")
         : demo.note,
-      demoStates: LIVE ? [] : DEMOS.map((x) => ({
+      demoStates: (LIVE || liveProject) ? [] : DEMOS.map((x) => ({
         n: x.n, name: x.name, short: x.short, active: x.n === s.demo,
         fw: x.n === s.demo ? "600" : "400",
         bg: x.n === s.demo ? "var(--tool-accent)" : "var(--tool-panel)",

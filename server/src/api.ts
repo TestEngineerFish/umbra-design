@@ -33,13 +33,13 @@ import { validateDraft } from "./validate.js";
 import { listComponents, listIcons, searchTokens } from "./assets.js";
 import { renderCheck } from "./render.js";
 import { get as getJob, start as startJob, view as jobView } from "./jobs.js";
-import { changesSince, listVersions, toMarkdown } from "./history.js";
+import { changesSince, listVersions, projectChangesSince, toMarkdown } from "./history.js";
 import { draftPath, listDrafts, type Project } from "./project.js";
 import { resolveDraft } from "./locate.js";
 import { readFile } from "node:fs/promises";
 import { relative, sep } from "node:path";
 import { ToolError } from "./envelope.js";
-import { isToolPage } from "./indexpage.js";
+import { indexStatus, isToolPage } from "./indexpage.js";
 import { readCheck, sha256 } from "./check.js";
 
 export const API_PREFIX = "/__ud/";
@@ -188,6 +188,29 @@ export async function handleApi(
         str(b.kind, "kind") as SlotKind, str(b.name, "name"),
         typeof b.value === "string" ? b.value : "");
       json(reply, 200, { ok: true, data: r });
+      return true;
+    }
+
+    if (route === "project_changes" && req.method === "GET") {
+      const files = (await listDrafts(p))
+        .map((a) => relative(p.dir, a).split(sep).join("/"))
+        .filter((r) => !isToolPage(r));
+      const since = url.searchParams.get("since");
+      const rows = await projectChangesSince(p, files, since);
+      // 只把有变更的稿给界面 —— 一个项目几十份稿，大半是「只有一版，没有可比的」，
+      // 全给过去等于让人自己在噪声里找
+      const changed = rows.filter((r) => r.diff && r.diff.changes.length > 0);
+      json(reply, 200, { ok: true, data: {
+        project: p.name, title: p.title,
+        scanned: rows.length, changed: changed.length,
+        rows: changed,
+        skipped: rows.filter((r) => !r.diff).map((r) => ({ path: r.path, note: r.note })),
+      } });
+      return true;
+    }
+
+    if (route === "index_status" && req.method === "GET") {
+      json(reply, 200, { ok: true, data: await indexStatus(p) });
       return true;
     }
 

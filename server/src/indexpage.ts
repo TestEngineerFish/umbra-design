@@ -180,6 +180,53 @@ export async function collectIndex(p: Project): Promise<IndexData> {
   };
 }
 
+/** 索引过不过期。
+ *
+ * 为什么需要：`build_index` 是一次性扫目录，之后改稿它不知道 ——
+ * 于是索引页上的元素数、健康、更新时间全是旧的，**而它看起来是新的**。
+ * 「看起来是新的旧数据」比明显缺数据坏，所以要能说出来（和 §十五 的
+ * 体检读数过期是同一条道理）。
+ *
+ * 判据：任一份稿的 mtime 晚于 index-data.json 的 generatedAt，或者稿的
+ * 数量/名单变了。只比 mtime 不比内容 —— 便宜，而且「碰过就该重扫」这个判断
+ * 偏保守的方向是对的。
+ */
+export async function indexStatus(p: Project): Promise<{
+  exists: boolean; generatedAt: string | null; stale: boolean; reason: string | null;
+  changed: string[]; added: string[]; removed: string[]; draftCount: number;
+}> {
+  const dataFile = join(p.dir, ".umbradesign", "index-data.json");
+  const files = (await listDrafts(p))
+    .map((a) => rel(p, a)).filter((r) => !isToolPage(r));
+  if (!existsSync(dataFile)) {
+    return { exists: false, generatedAt: null, stale: true, reason: "还没跑过 build_index",
+      changed: [], added: files, removed: [], draftCount: files.length };
+  }
+  const data = JSON.parse(await readFile(dataFile, "utf8")) as IndexData;
+  const at = Date.parse(data.project.generatedAt);
+  const known = new Map(data.drafts.map((d) => [d.file, d]));
+
+  const changed: string[] = [];
+  const added: string[] = [];
+  for (const f of files) {
+    if (!known.has(f)) { added.push(f); continue; }
+    const m = (await stat(join(p.dir, f))).mtime.getTime();
+    if (m > at) changed.push(f);
+  }
+  const removed = [...known.keys()].filter((f) => !files.includes(f));
+
+  const bits: string[] = [];
+  if (added.length) bits.push(`新增 ${added.length} 份`);
+  if (removed.length) bits.push(`少了 ${removed.length} 份`);
+  if (changed.length) bits.push(`${changed.length} 份在索引之后改过`);
+  return {
+    exists: true, generatedAt: data.project.generatedAt,
+    stale: bits.length > 0,
+    reason: bits.length ? bits.join(" · ") + " —— 重跑 build_index" : null,
+    changed, added, removed, draftCount: files.length,
+  };
+}
+
 // ───────────────────────── 入口页模板 ─────────────────────────
 
 const HEALTH_LABEL: Record<Health, string> = { ok: "通过", warn: "有提醒", error: "有错误", unchecked: "未体检" };

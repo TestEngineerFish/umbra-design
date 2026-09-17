@@ -140,6 +140,23 @@
         </div>
       </div>
 
+      <!-- 索引过期横幅。⚠️ 形制照超限那条抄的，待设计侧过一眼（doc/10 §五）。
+           但这条**本身不能省**：build_index 是一次性扫目录，之后改稿它不知道，
+           于是这一页的元素数/健康/更新时间全是旧的，**而它看起来是新的**
+           —— 「看起来是新的旧数据」比明显缺数据坏（doc/00 §二十六）。 -->
+      <sc-if value="{{ indexStale }}" hint-placeholder-val="{{ false }}">
+        <div style="display: flex; align-items: center; gap: 10px; margin: 14px 20px 0; padding: 10px 14px; background: var(--tool-warn-soft); border: 1px solid var(--tool-warn-border); border-radius: var(--tool-radius); color: var(--tool-warn);">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="flex: none;" aria-hidden="true">
+            <circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.4"></circle>
+            <path d="M8 5v3.2l2.2 1.4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"></path>
+          </svg>
+          <span style="font-weight: 560;">这一页的数据已经过期</span>
+          <span style="color: var(--tool-text-2);">{{ indexStaleReason }}</span>
+          <span style="flex: 1;"></span>
+          <span style="font-family: var(--tool-mono); font-size: 11px; color: var(--tool-text-2);">{{ indexStaleFiles }}</span>
+        </div>
+      </sc-if>
+
       <sc-if value="{{ hasOverLimit }}" hint-placeholder-val="{{ false }}">
         <div style="display: flex; align-items: center; gap: 10px; margin: 14px 20px 0; padding: 10px 14px; background: var(--tool-warn-soft); border: 1px solid var(--tool-warn-border); border-radius: var(--tool-radius); color: var(--tool-warn);">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="flex: none;" aria-hidden="true">
@@ -408,7 +425,8 @@ class Component extends DCLogic {
      原来写死 top: 76px —— 那是「标题行 + 演示态行」的高度。接真实数据后演示态
      那行不出现（43px），窄窗里顶栏还会折行，写死的 76px 两种情况都会把下面的
      卡片头盖掉。所以量出来用。 */
-  state = { demo: 1, view: null, query: "", kind: "all", health: "all", sort: "updated", cursor: 0, barH: 76 };
+  state = { demo: 1, view: null, query: "", kind: "all", health: "all", sort: "updated", cursor: 0, barH: 76,
+            stale: null };
 
   measure() {
     const el = this.barRef && this.barRef.current;
@@ -419,8 +437,21 @@ class Component extends DCLogic {
 
   componentDidUpdate() { this.measure(); }
 
+  /* 索引过不过期要问服务端 —— 这一页读的是落盘时注入的静态数据，
+     它自己不可能知道之后有没有人改稿（doc/00 §二十六）。 */
+  pullStale() {
+    const A = typeof window !== "undefined" ? window.__UD_API : null;
+    if (!LIVE || !A) return;
+    fetch(new URL(A.base + "index_status", location.href).toString(),
+      { headers: { "x-ud-token": A.token } })
+      .then((r) => r.json())
+      .then((j) => { if (j.data) this.setState({ stale: j.data }); })
+      .catch(() => { /* 问不到就不显示，不打扰 */ });
+  }
+
   componentDidMount() {
     this.searchRef = React.createRef();
+    this.pullStale();
     this.barRef = React.createRef();
     this.onResize = () => this.measure();
     window.addEventListener("resize", this.onResize);
@@ -658,6 +689,14 @@ class Component extends DCLogic {
       wallBtnBg: view === "wall" ? "var(--tool-panel)" : "transparent",
       wallBtnFg: view === "wall" ? "var(--tool-text)" : "var(--tool-muted)",
       wallBtnSh: view === "wall" ? "var(--tool-shadow-1)" : "none",
+      indexStale: !!(s.stale && s.stale.stale),
+      indexStaleReason: s.stale ? (s.stale.reason || "") : "",
+      indexStaleFiles: (function (st) {
+        if (!st) return "";
+        const xs = (st.changed || []).concat(st.added || []);
+        if (!xs.length) return "";
+        return xs.slice(0, 2).join(" · ") + (xs.length > 2 ? " 等 " + xs.length + " 份" : "");
+      })(s.stale),
       hasOverLimit: showLimit && over.length > 0,
       overLimitHeadline: hardOver.length ? hardOver.length + " 份稿已超过 " + NUM(LIMIT) + " 个元素的上限" : over.length + " 份稿接近 " + NUM(WARN_AT) + " 个元素的建议上限",
       overLimitDetail: hardOver.length ? "超限的稿落盘会被拒。按顶层 section 或 dc-import 边界拆开。" : "还能落盘，但已经是拆稿的信号了。",
