@@ -26,6 +26,7 @@ import {
 import { serveStart, serveStatus, serveStop } from "./serve.js";
 import { buildIndex, collectIndex } from "./indexpage.js";
 import { locateNode } from "./locate.js";
+import { revertTo, setProp } from "./edit.js";
 
 const VERSION = "0.1.0";
 
@@ -469,7 +470,7 @@ server.registerTool("serve_status", {
   return envelope({ servers: list }, [], { count: list.length });
 }));
 
-// ───────────────────── 节点定位（三层修改的地基） ─────────────────────
+// ───────────────────── 节点定位与属性级编辑（三层修改的地基） ─────────────────────
 
 server.registerTool("locate_node", {
   title: "把预览里点中的节点对回源码",
@@ -501,6 +502,62 @@ server.registerTool("locate_node", {
     inList: r.inList,
     holeAuditSkipped: r.auditSkipped,
   });
+}));
+
+server.registerTool("set_prop", {
+  title: "改一个节点上的一个属性",
+  description: [
+    "按节点地址改**一处**：一条样式声明、一个属性、或紧跟开标签的那段文本。",
+    "其余字节不动。给人拖滑块 / 选颜色用，也给模型做小修用。",
+    "",
+    "**目标是洞就会被拒绝**，并告诉你该改 renderVals 里哪个键 ——",
+    "把洞覆盖成字面量等于把一个联动的值改成死值，那是静默破坏，所以不做。",
+    "先调 locate_node 看 slots[].editable，别猜。",
+    "",
+    "value 传空串 = 删掉这条样式声明 / 这个属性。",
+    "",
+    "⚠️ 一次调用 = 一次落盘 = 一个版本。**拖动的中间态不要调这个** ——",
+    "用运行时自带的 window.__dcSetProps(name, overrides) 做实时预览，松手才调一次。",
+    "⚠️ 返回里的 newNode 是改完之后的新地址（开标签变了，哈希就变了），界面要用它接着调。",
+  ].join("\n"),
+  inputSchema: {
+    project: z.string(),
+    file: z.string().describe("稿的相对路径，或预览里 data-sc-name 给的组件名"),
+    node: z.string().describe("data-ud-node 的值"),
+    kind: z.enum(["style", "attr", "text"]),
+    name: z.string().describe("style 时是 CSS 属性名；attr 时是属性名；text 时随便填，如 (文本)"),
+    value: z.string().describe("新值。空串 = 删掉"),
+  },
+}, async ({ project, file, node, kind, name, value }) => run(async () => {
+  const p = await loadProject(project);
+  const r = await setProp(p, file, node, kind, name, value);
+  return envelope(r, [], {
+    written: r.write.written,
+    version: r.write.version,
+    newNode: r.newNode,
+    bytesDelta: r.write.bytes,
+  });
+}));
+
+server.registerTool("revert_to", {
+  title: "把一份稿退回某一版",
+  description: [
+    "把 v<N> 的源码作为**新的一版**落盘。历史只增不改 ——",
+    "changelog 会照常记下这次回退，实现侧看得见「退回到了哪一版」。",
+    "悄悄改历史等于变更交付有个洞（doc/07）。",
+    "",
+    "先用 list_versions 看有哪些版本。",
+    "源码副本是从 §18.2 那一版功能上线之后才开始存的，更老的版本只能靠 git 兜底。",
+  ].join("\n"),
+  inputSchema: {
+    project: z.string(),
+    file: z.string(),
+    version: z.string().describe("如 v3"),
+  },
+}, async ({ project, file, version }) => run(async () => {
+  const p = await loadProject(project);
+  const r = await revertTo(p, file, version);
+  return envelope(r, [], { written: r.write.written, newVersion: r.write.version, restored: r.restored });
 }));
 
 server.registerTool("build_index", {

@@ -20,6 +20,7 @@ import { validateDraft } from "./validate.js";
 import {
   ensureRuntimeBeside, prepareForDisk, readIfExists, resolveInProject, writeAtomic,
 } from "./normalize.js";
+import { gzipSync } from "node:zlib";
 import { buildSnapshot } from "./snapshot.js";
 import { listVersions, recordChange, snapDir } from "./history.js";
 
@@ -57,7 +58,7 @@ async function gitHead(p: Project): Promise<string | null> {
 
 /** 写一份稿。内容相同则不落盘也不新增快照（避免版本号空转）。 */
 export async function writeDraft(
-  p: Project, relPath: string, content: string, kind: "page" | "component"
+  p: Project, relPath: string, content: string, kind: "page" | "component", note?: string
 ): Promise<{ outcome: WriteOutcome; diags: Diagnostic[]; stats: Record<string, unknown> }> {
   if (!/\.dc\.html$/.test(relPath)) {
     throw new ToolError(
@@ -125,8 +126,13 @@ export async function writeDraft(
   const snapFile = join(dir, `${version}.json`);
   await writeFile(snapFile, JSON.stringify(snap, null, 1) + "\n", "utf8");
 
+  // 语义快照存不了源码（它只有 sourceSha256），所以 revert_to 需要真正的源码。
+  // 每版存一份 gzip：3.78MB 的全量语料压下来一版几百 KB，.umbradesign/ 本来就不进
+  // 仓库，本地磁盘换「能撤销」很值 —— L1 拖滑块没有撤销不能给人用（doc/09 决策 4）。
+  await writeFile(join(dir, `${version}.src.html.gz`), gzipSync(Buffer.from(prep.content, "utf8")));
+
   // ③ 的后半段：跟上一版比，产变更清单并追加 CHANGELOG-设计侧.md（doc/07 §五）
-  const rec = await recordChange(p, relPath, version);
+  const rec = await recordChange(p, relPath, version, note);
   const steps = [...prep.steps, `快照 ${version}`];
   if (rec.changelog.written) steps.push(`changelog ${rec.changelog.section}`);
   else if (rec.diff) steps.push(`changelog 未写（${rec.changelog.reason}）`);

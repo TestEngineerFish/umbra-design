@@ -12,6 +12,8 @@ export const E = {
   COMMENT_TAG: "E_COMMENT_TAG",
   DS_PATH: "E_DS_PATH",
   CONTROL_IN_TABLE: "E_CONTROL_IN_TABLE",
+  /** set_prop 的目标不是字面量（值来自洞），不能直接覆盖 —— doc/09 §3.2 */
+  SLOT_NOT_EDITABLE: "E_SLOT_NOT_EDITABLE",
 } as const;
 
 /** warning：放行但必须回报（00 §6.2） */

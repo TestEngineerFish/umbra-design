@@ -147,7 +147,7 @@ function nowMinute(): string {
 
 /** 写入纪律：只有 L1/L2/L3 至少一条非空才写。纯 L4 不写，否则清单很快没人看。 */
 export async function appendChangelog(
-  p: Project, relPath: string, d: DiffResult
+  p: Project, relPath: string, d: DiffResult, note?: string
 ): Promise<{ written: boolean; reason?: string; section?: string }> {
   const { L1, L2, L3 } = d.counts;
   if (L1 + L2 + L3 === 0) {
@@ -159,7 +159,9 @@ export async function appendChangelog(
 
   const minute = nowMinute();
   const head = sectionKey(d.to, minute, relPath);   // 顺序照 doc/07 §五：版本 · 时间 · 稿名
-  const section = `${head}\n\n${toMarkdown(d)}\n`;
+  // 备注紧跟标题 —— 回退、批量改这类「这次改动是怎么来的」必须写在清单里，
+  // 否则实现侧看「有人把 padding 改回去了」和「这是退回 v1」是两回事（doc/00 §18.4）
+  const section = `${head}\n\n${note ? `> ${note}\n\n` : ""}${toMarkdown(d)}\n`;
 
   // 同一分钟、同一份稿、同一版本 → 覆盖那一节，而不是再加一节
   const esc = (x: string) => x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -174,7 +176,7 @@ export async function appendChangelog(
 
 /** write_draft 落盘之后调：跟上一版比，产变更清单并追加 changelog。 */
 export async function recordChange(
-  p: Project, relPath: string, version: string
+  p: Project, relPath: string, version: string, note?: string
 ): Promise<{ diff: DiffResult | null; changelog: { written: boolean; reason?: string; section?: string } }> {
   const vs = await listVersions(p, relPath);
   const i = vs.indexOf(version);
@@ -184,7 +186,7 @@ export async function recordChange(
   const a = await readSnapshot(p, relPath, vs[i - 1] as string);
   const b = await readSnapshot(p, relPath, version);
   const d = diffSnapshots(a, b);
-  const cl = await appendChangelog(p, relPath, d);
+  const cl = await appendChangelog(p, relPath, d, note);
   return { diff: d, changelog: cl };
 }
 
