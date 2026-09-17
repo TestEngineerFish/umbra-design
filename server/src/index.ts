@@ -16,6 +16,8 @@ import {
 } from "./project.js";
 import { getComponent, getIcon, getToken, listComponents, listIcons, searchTokens } from "./assets.js";
 import { validateDraft } from "./validate.js";
+import { patchDraft, writeDraft } from "./write.js";
+import { missingRuntime } from "./normalize.js";
 
 const VERSION = "0.1.0";
 
@@ -213,6 +215,70 @@ server.registerTool("validate_draft", {
   const src = await readFile(abs, "utf8");
   const { diags, stats } = validateDraft(p, path, src, path);
   return envelope({ project: p.name, path }, diags, stats);
+}));
+
+// ───────────────────────── 写入（唯一写入口） ─────────────────────────
+
+server.registerTool("write_draft", {
+  title: "整份写一份稿（唯一写入口）",
+  description: [
+    "把一份 .dc.html 整份落盘。文件不得由别的途径写入。",
+    "落盘前做三件确定性改写：归一化（UTF-8 无 BOM / LF / 末尾单换行）、",
+    "@ds 别名展开成真实相对路径、注入 __resources 离线映射（幂等）。",
+    "然后跑一遍 validate_draft：**有 error 就拒绝落盘**并原样返回诊断。",
+    "落盘后把运行时三件套分发到稿所在目录，并写一份语义快照。",
+    "",
+    "写法上你只管两件事：ds 路径写 @ds/... 别名；不要自己写 __resources 块。",
+  ].join("\n"),
+  inputSchema: {
+    project: z.string(),
+    path: z.string().describe("相对项目根的路径，必须以 .dc.html 结尾"),
+    content: z.string().describe("完整文件内容"),
+    kind: z.enum(["page", "component"]).optional(),
+  },
+}, async ({ project, path, content, kind }) => run(async () => {
+  const p = await loadProject(project);
+  const r = await writeDraft(p, path, content, kind ?? "page");
+  return envelope(r.outcome, r.diags, r.stats);
+}));
+
+server.registerTool("patch_draft", {
+  title: "增量改一份稿",
+  description: [
+    "按 {old, new} 替换。改一行不必重传整份文件。",
+    "old 必须唯一命中（含空白逐字一致），否则返回 E_PATCH_ANCHOR，",
+    "并把文件里最接近的几段回给你 —— 照它改 old，一轮就能对。",
+    "替换完走的是 write_draft 的同一条路：改写、校验、落盘、快照。",
+  ].join("\n"),
+  inputSchema: {
+    project: z.string(),
+    path: z.string(),
+    edits: z.array(z.object({
+      old: z.string().describe("要替换的原文，逐字一致"),
+      new: z.string().describe("替换成什么；空串表示删除"),
+      count: z.number().int().min(1).optional().describe("期望命中几次，默认 1"),
+    })).min(1),
+  },
+}, async ({ project, path, edits }) => run(async () => {
+  const p = await loadProject(project);
+  const r = await patchDraft(p, path, edits);
+  return envelope(r.outcome, r.diags, r.stats);
+}));
+
+server.registerTool("check_runtime", {
+  title: "查稿所在目录缺不缺运行时",
+  description: "列出项目里每个放稿的目录缺哪些运行时文件（support.js 与两个 React UMD）。缺了直接打开会白屏。write_draft 会自动补，这个工具只报告。",
+  inputSchema: { project: z.string() },
+}, async ({ project }) => run(async () => {
+  const p = await loadProject(project);
+  const drafts = await listDrafts(p);
+  const byDir = new Map<string, string[]>();
+  for (const abs of drafts) {
+    const miss = missingRuntime(abs);
+    if (miss.length) byDir.set(abs.slice(0, abs.lastIndexOf("/")).slice(p.dir.length + 1) || ".", miss);
+  }
+  return envelope({ missing: [...byDir.entries()].map(([dir, files]) => ({ dir, files })) },
+    [], { dirsMissing: byDir.size, draftsScanned: drafts.length });
 }));
 
 // ──────────────────────────── 启动 ────────────────────────────

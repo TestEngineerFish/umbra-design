@@ -471,3 +471,60 @@ MCP 握手实测通过（stdio，protocolVersion 2024-11-05）。
 `write_draft` / `patch_draft`（唯一写入口 + 归一化 + `@ds` 展开 + `__resources` 注入）→
 `render_check`（Playwright）→ `snapshot_draft` / `diff_drafts` / `get_changes_since` →
 `build_index` + 静态服务。
+
+---
+
+## 十一、第二批实现记录（唯一写入口）
+
+日期：2026-09-17　新增 `write_draft` / `patch_draft` / `check_runtime`，共 13 个工具。
+
+### 11.1 三条保证的落地
+
+| 保证 | 实现 | 实测 |
+| --- | --- | --- |
+| ① 归一化落盘 | `normalize.ts` —— UTF-8 无 BOM / LF / 末尾单换行 → `@ds` 展开 → `__resources` 注入（幂等），顺序固定 | 传 BOM + CRLF + 三个尾换行进去，盘上是干净的 LF 单换行 |
+| ② 落盘即校验 | 校验的是**改写后**的内容，也就是真正会落盘的那份。有 error 则拒绝落盘 | 塞一个 `{{ title + 1 }}` → 返回 `E_HOLE_EXPRESSION`，**文件根本没创建** |
+| ③ 落盘即留痕 | 写语义快照到 `.umbradesign/snapshots/<稿名>/v<N>.json`，版本号按稿独立计数 | v1 / v2 依次生成；内容与盘上一致时**不落盘也不升版本**，避免版本号空转 |
+
+另加一条：**运行时副本与稿同层**。`write_draft` 把 `runtime/` 的三件套分发到稿所在目录
+（大小不一致时刷新），所以写完就能直接打开。`check_runtime` 只报告不改盘。
+
+### 11.2 `@ds` 与 `__resources`：模型只管写抽象
+
+落盘后的文件里没有任何别名，也没有模型手写的映射块 —— 两者都是工具在落盘那一刻填的。
+写稿的人/模型只需要两条：ds 路径写 `@ds/...`；不要自己写 `__resources`。
+
+注入块用 `<!-- umbradesign:resources -->` 包起来，**改写幂等**：先删旧块再写新块。
+`patch_draft` 走同一条路，所以增量改也不会把块叠加。
+
+### 11.3 `E_PATCH_ANCHOR` 的回报内容
+
+`old` 命中数不对时，不只报错 —— 还把**文件里最接近的几段上下文**一起回给模型：
+
+- 命中多次：给前 3 处的命中位置与前后各 90 字
+- 命中 0 次：拿 `old` 的第一行做探针找最像的 3 段
+
+目的是让模型**一轮内改对**，而不是反复试。实测：`old: "div"` 命中 2 次 →
+报 `E_PATCH_ANCHOR`，附 2 段上下文与「把 old 加上相邻文本直到唯一命中，或显式传 count」。
+
+### 11.4 快照里排掉了一类噪声
+
+节点的直接文本整段都是洞（`{{ x }}`）时**不进 `texts`**，只留在节点指纹里。
+不排掉的话，`07` 的 L3 文案级会把每一处数据绑定都报成「改字符串」。
+真文案（去掉洞之后还有字）才算文案。
+
+### 11.5 闭环实测：写出来的稿能渲染
+
+按 `04` §2.2 的纪律 —— 静态校验全绿不算验收，**唯一的证据是它真的画出来了**。
+
+用 `write_draft` 写一份带 `helmet` + `@ds` 引用 + `sc-for` + 事件洞的稿，
+然后在 headless Chromium 里**断网**打开：`alive` · 30 节点 · `sc-for` 三行都展开 ·
+事件洞绑上 · **零外部请求 · 零 console error**。
+
+### 11.6 还没做的
+
+`CHANGELOG-设计侧.md` 现在不产内容 —— 它的正文要靠语义 diff（`07` §四）。
+**快照从第一次落盘就开始攒，所以不会丢历史**，diff 一上线就能回溯。
+
+下一批：`render_check`（Playwright）→ `diff_drafts` / `get_changes_since` + changelog →
+`build_index` + 静态服务。
