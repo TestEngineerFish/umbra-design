@@ -45,9 +45,33 @@ for (const c of comps.filter((cc) => cc.props.length).slice(0, 5)) {
   console.log(`      ${c.name}  ${c.elements} 元素  props: ${c.props.map((x) => x.name).join(", ").slice(0, 70)}`);
 }
 
+/** 已确认为**真缺陷**的 error —— 不是误报，是存量稿里真的有问题。
+ *
+ * 为什么要这张表：回归的判据从来不是「零 error」，是「零误报」。
+ * 洞审计的注释 bug 修掉之后（doc/00 §16.2），审计从 32 份扩到 54 份，
+ * 立刻抓出两个真缺陷 —— 工具是对的，稿是错的。这时候把判据放成「零 error」
+ * 只有两条路：改稿（但怎么改是设计决定，不是我的），或者把工具改回瞎。都不行。
+ *
+ * 所以：**这张表里的照旧放过，表外的任何 error 都算回归失败。**
+ * 修好一份稿就从表里删一行。
+ */
+const KNOWN_REAL: Array<{ file: string; code: string; at: string; why: string }> = [
+  { file: "PC 端/任务.dc.html", code: "E_HOLE_UNRESOLVED", at: "decideMeta",
+    why: "模板 291 行把 {{ decideMeta }} 传给 PC 错误卡 的 meta prop（{label,value}[]），renderVals() 里没有这个键 —— 那张错误卡的信息行是空的" },
+  { file: "PC 端/任务.dc.html", code: "E_HOLE_UNRESOLVED", at: "decideActions",
+    why: "同上，actions prop（{label,kind?,act?}[]）也没给 —— 那张错误卡一颗按钮都没有" },
+  { file: "PC 端/Pages/任务.dc.html", code: "E_HOLE_UNRESOLVED", at: "decideMeta", why: "同上，这是同一份稿的副本" },
+  { file: "PC 端/Pages/任务.dc.html", code: "E_HOLE_UNRESOLVED", at: "decideActions", why: "同上，这是同一份稿的副本" },
+];
+
+const isKnown = (file: string, code: string, at: string) =>
+  KNOWN_REAL.some((k) => k.file === file && k.code === code && k.at === at);
+
 bar("validate_draft · 全量回归");
 const files = await listDrafts(p);
 const byCode = new Map<string, number>();
+const known: Array<{ f: string; code: string; at: string; msg: string }> = [];
+const unknown: Array<{ f: string; code: string; at: string; msg: string }> = [];
 const rows: Array<{ f: string; e: number; w: number; el: number; skipped: boolean; codes: string[] }> = [];
 for (const abs of files) {
   const rel = relative(p.dir, abs).split(sep).join("/");
@@ -56,6 +80,10 @@ for (const abs of files) {
   const e = diags.filter((d) => d.level === "error");
   const w = diags.filter((d) => d.level === "warning");
   for (const d of diags) byCode.set(d.code, (byCode.get(d.code) ?? 0) + 1);
+  for (const d of e) {
+    const at = d.locator?.name ?? "";
+    (isKnown(rel, d.code, at) ? known : unknown).push({ f: rel, code: d.code, at, msg: d.message });
+  }
   rows.push({
     f: basename(rel), e: e.length, w: w.length,
     el: stats.elements as number,
@@ -76,5 +104,17 @@ for (const [c, n] of [...byCode.entries()].sort((a, b) => b[1] - a[1])) {
 }
 const totalErr = rows.reduce((s, r) => s + r.e, 0);
 const skipped = rows.filter((r) => r.skipped).length;
-console.log(`\n合计 error ${totalErr} · 洞审计放弃 ${skipped}/${rows.length} 份`);
-console.log(totalErr === 0 ? "✓ 零 error" : "⚠️ 有 error，逐条核对是不是误报");
+console.log(`\n合计 error ${totalErr}（已确认真缺陷 ${known.length} · 待核 ${unknown.length}）· 洞审计放弃 ${skipped}/${rows.length} 份`);
+
+if (known.length) {
+  bar("已确认的真缺陷（稿的问题，不是工具的）");
+  for (const k of known) console.log(`  ${k.f}  ${k.code}  ${k.at}`);
+}
+if (unknown.length) {
+  bar("⚠️ 表外的 error —— 逐条核对是不是误报");
+  for (const u of unknown) console.log(`  ${u.f}  ${u.code}  ${u.at}\n      ${u.msg}`);
+}
+console.log(unknown.length === 0
+  ? "✓ 零误报（表外 error 为 0）"
+  : `✗ 回归失败：有 ${unknown.length} 条不在已确认清单里的 error`);
+process.exitCode = unknown.length === 0 ? 0 : 1;

@@ -78,13 +78,35 @@ export interface ObjectShape {
   spreads: string[];
   /** true = 结构里有搞不定的东西（计算键等），审计要放弃而不是误报 */
   opaque: boolean;
+  /** opaque 是怎么来的 —— 分类用，也让诊断能说清楚 */
+  why: string[];
 }
 
 /** 取对象字面量的顶层键。open 必须指向 '{'。 */
+/** 剥掉一个片段开头的所有 // 与 /* * / 注释（可以连着好几个） */
+function stripLeadingComments(seg: string): string {
+  let s = seg;
+  for (;;) {
+    const t = s.replace(/^\s+/, "");
+    if (t.startsWith("//")) {
+      const n = t.indexOf("\n");
+      if (n < 0) return "";            // 整段都是行注释
+      s = t.slice(n + 1); continue;
+    }
+    if (t.startsWith("/*")) {
+      const n = t.indexOf("*/", 2);
+      if (n < 0) return "";            // 注释没闭合 —— 交给上层判
+      s = t.slice(n + 2); continue;
+    }
+    return t;
+  }
+}
+
 export function objectTopLevel(src: string, open: number): ObjectShape {
   const close = matchBrace(src, open);
-  const out: ObjectShape = { keys: [], spreads: [], opaque: false };
-  if (close < 0) { out.opaque = true; return out; }
+  const out: ObjectShape = { keys: [], spreads: [], opaque: false, why: [] };
+  const bail = (r: string) => { out.opaque = true; if (!out.why.includes(r)) out.why.push(r); };
+  if (close < 0) { bail("对象括号不配平"); return out; }
 
   let i = open + 1;
   let depth = 0;          // 顶层 = 0（括号 / 方括号 / 花括号都算）
@@ -95,10 +117,10 @@ export function objectTopLevel(src: string, open: number): ObjectShape {
     const c = src[i] as string;
     if (c === "/" && src[i + 1] === "/") { const n = src.indexOf("\n", i); i = n < 0 ? close : n; continue; }
     if (c === "/" && src[i + 1] === "*") { const n = src.indexOf("*/", i + 2); i = n < 0 ? close : n + 1; continue; }
-    if (c === '"' || c === "'") { const n = skipQuoted(src, i, c); if (n < 0) { out.opaque = true; return out; } i = n; continue; }
-    if (c === "`") { const n = skipTemplate(src, i); if (n < 0) { out.opaque = true; return out; } i = n; continue; }
+    if (c === '"' || c === "'") { const n = skipQuoted(src, i, c); if (n < 0) { bail("字符串没闭合"); return out; } i = n; continue; }
+    if (c === "`") { const n = skipTemplate(src, i); if (n < 0) { bail("模板字符串没闭合"); return out; } i = n; continue; }
     if (c === "{" || c === "(" || c === "[") {
-      if (c === "{") { const n = matchBrace(src, i); if (n < 0) { out.opaque = true; return out; } i = n; continue; }
+      if (c === "{") { const n = matchBrace(src, i); if (n < 0) { bail("花括号不配平"); return out; } i = n; continue; }
       depth++; continue;
     }
     if (c === "}" || c === ")" || c === "]") { depth--; continue; }
@@ -107,14 +129,19 @@ export function objectTopLevel(src: string, open: number): ObjectShape {
   segs.push([segStart, close]);
 
   for (const [a, b] of segs) {
-    const seg = src.slice(a, b).trim();
+    // ⚠️ 切段时注释被跳过了（找逗号用），但段里还留着 —— 于是
+    // `/* 说明 */ key: value` 这种段以 "/*" 开头，键名匹配不上，整份稿被判 opaque。
+    // 实测：57 份稿里 25 份放弃审计，52 条原因中的 48 条就是这一个 bug
+    // （设计稿里逐键写说明是常态，见 doc/06）。这里剥掉前导注释，
+    // 不是放宽判据 —— 判据本来就该认得出这些键。
+    const seg = stripLeadingComments(src.slice(a, b)).trim();
     if (!seg) continue;
     if (seg.startsWith("...")) { out.spreads.push(seg.slice(3).trim()); continue; }
     // key: value / 'key': value / "key": value / key（简写）/ key(){}（方法简写）
     const m = seg.match(/^(?:(['"])([^'"]+)\1|([A-Za-z_$][\w$]*))\s*(?::|\(|$)/);
     if (m) { out.keys.push((m[2] ?? m[3]) as string); continue; }
-    if (/^\[/.test(seg)) { out.opaque = true; continue; }   // 计算键
-    out.opaque = true;                                       // 认不出来的形态
+    if (/^\[/.test(seg)) { bail("计算键 [expr]"); continue; }
+    bail("认不出的键形态：" + seg.slice(0, 40).replace(/\s+/g, " "));
   }
   return out;
 }

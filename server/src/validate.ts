@@ -252,7 +252,8 @@ export function validateDraft(p: Project, relPath: string, src: string, fileLabe
       returnPaths: audit.paths.length,
       holeAuditSkipped: !auditable,
       holeAuditSkippedWhy: auditable ? null
-        : audit.missing ? "没有 renderVals()" : !logicOk ? "逻辑类编译不过" : "renderVals 里有搞不定的展开或计算键",
+        : audit.missing ? "没有 renderVals()" : !logicOk ? "逻辑类编译不过"
+        : audit.opaqueWhy.join("；") || "renderVals 里有搞不定的展开或计算键",
     },
   };
 }

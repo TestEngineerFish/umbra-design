@@ -260,13 +260,16 @@ export interface ValsAudit {
   union: string[];
   /** true = 有搞不定的展开或计算键，审计放弃（不报不能证明的错） */
   opaque: boolean;
+  /** 放弃的具体原因，可能多条。分类与改进都靠它 —— 没有它只能猜 */
+  opaqueWhy: string[];
   /** renderVals 根本找不到 */
   missing: boolean;
 }
 
 /** 收集 renderVals()（含它展开的 this.xxxVals()）在各条 return 路径上的顶层键 */
 export function auditRenderVals(d: Draft): ValsAudit {
-  const out: ValsAudit = { paths: [], union: [], opaque: false, missing: false };
+  const out: ValsAudit = { paths: [], union: [], opaque: false, opaqueWhy: [], missing: false };
+  const bail = (r: string) => { out.opaque = true; if (!out.opaqueWhy.includes(r)) out.opaqueWhy.push(r); };
   if (!d.logic) { out.missing = true; return out; }
   const js = d.src.slice(d.logic.start, d.logic.end);
   const base = d.logic.start;
@@ -274,34 +277,34 @@ export function auditRenderVals(d: Draft): ValsAudit {
   const bodyOpen = methodBodyBrace(js, "renderVals");
   if (bodyOpen < 0) { out.missing = true; return out; }
   const bodyClose = matchBrace(js, bodyOpen);
-  if (bodyClose < 0) { out.opaque = true; return out; }
+  if (bodyClose < 0) { bail("renderVals 方法体括号不配平"); return out; }
 
   const seenMethods = new Set<string>(["renderVals"]);
 
   /** 解析一个方法体里的所有 return 对象；返回每条路径的键 */
   const collect = (open: number, close: number, depth = 0): Array<{ keys: string[]; index: number }> => {
-    if (depth > 4) { out.opaque = true; return []; }
+    if (depth > 4) { bail("展开链超过 4 层，不再往下解"); return []; }
     const res: Array<{ keys: string[]; index: number }> = [];
     for (const abs of ownReturns(js, open, close)) {
       let i = abs + 6;
       while (i < close && /\s/.test(js[i] as string)) i++;
       if (js[i] !== "{") {
         // return 了别的东西（表达式 / 方法调用）—— 拿不准，标 opaque
-        out.opaque = true;
+        bail("return 的不是字面量对象：" + js.slice(abs, abs + 48).replace(/\s+/g, " "));
         continue;
       }
       const shape = objectTopLevel(js, i);
-      if (shape.opaque) out.opaque = true;
+      if (shape.opaque) for (const r of shape.why) bail(r);
       const keys = [...shape.keys];
       for (const sp of shape.spreads) {
         const mm = /^this\.([A-Za-z_$][\w$]*)\s*\(/.exec(sp);
-        if (!mm) { out.opaque = true; continue; }
+        if (!mm) { bail("展开的不是 this.xxx()：..." + sp.slice(0, 40)); continue; }
         const name = mm[1] as string;
         if (seenMethods.has(name)) continue;
         seenMethods.add(name);
         const o2 = methodBodyBrace(js, name);
         const c2 = o2 >= 0 ? matchBrace(js, o2) : -1;
-        if (o2 < 0 || c2 < 0) { out.opaque = true; continue; }
+        if (o2 < 0 || c2 < 0) { bail(`展开的方法 this.${name}() 找不到方法体`); continue; }
         for (const p of collect(o2, c2, depth + 1)) keys.push(...p.keys);
       }
       res.push({ keys, index: abs });
@@ -313,6 +316,6 @@ export function auditRenderVals(d: Draft): ValsAudit {
     out.paths.push({ keys: p.keys, index: base + p.index, pos: d.at(base + p.index) });
   }
   out.union = [...new Set(out.paths.flatMap((p) => p.keys))].sort();
-  if (out.paths.length === 0) out.opaque = true;
+  if (out.paths.length === 0) bail("renderVals 里一条 return 都没解出来");
   return out;
 }
