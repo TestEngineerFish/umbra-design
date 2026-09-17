@@ -1,0 +1,315 @@
+/** validate_draft 的静态校验。分级与码值见 doc/00 §六。
+ *
+ * 一条纪律：**不报不能证明的错**（doc/04 §2.5）。
+ * 逻辑类里出现搞不定的展开时，洞审计整块放弃，并在 stats 里说明放弃了。
+ */
+import { existsSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
+import { E, W } from "./codes.js";
+import { err, warn, type Diagnostic } from "./envelope.js";
+import { auditRenderVals, parseDraft, type Draft } from "./draft.js";
+import { matchBrace } from "./scan.js";
+import type { Project } from "./project.js";
+
+const VOID_TAGS = new Set(["area","base","br","col","embed","hr","img","input","link","meta",
+  "param","source","track","wbr"]);
+// ⚠️ SVG 的 path / circle / rect / use 这些【不是】void 元素 —— 它们能写成 <path></path>。
+// 把它们当 void 会让 </path> 去跟外层的 <svg> 配对，一份 1,500 元素的稿能凭空报出几十条
+// E_TAG_UNBALANCED（回归时实测到的第一个误报）。自闭合写法由 selfClosed 分支处理，够了。
+
+const FRAMEWORK_TAGS = new Set(["x-dc","helmet","sc-if","sc-for","dc-import","x-import"]);
+
+const KNOWN_TAGS = new Set([...FRAMEWORK_TAGS,
+  "html","head","body","div","span","p","a","button","input","textarea","select","option","optgroup",
+  "label","form","fieldset","legend","table","thead","tbody","tfoot","tr","td","th","caption","colgroup","col",
+  "ul","ol","li","dl","dt","dd","h1","h2","h3","h4","h5","h6","header","footer","main","nav","aside","section",
+  "article","figure","figcaption","hr","br","img","picture","source","video","audio","track","canvas","iframe",
+  "svg","g","path","circle","ellipse","line","rect","polygon","polyline","text","tspan","defs","clippath",
+  "lineargradient","radialgradient","stop","mask","pattern","use","symbol","filter","fegaussianblur","feoffset",
+  "feblend","fecolormatrix","femerge","femergenode","foreignobject","marker","title","desc",
+  "strong","em","b","i","u","s","small","sub","sup","code","pre","kbd","samp","var","mark","q","blockquote",
+  "cite","abbr","time","data","dfn","ruby","rt","rp","bdi","bdo","wbr","details","summary","dialog","menu",
+  "meter","progress","output","datalist","template","slot","style","script","link","meta","base","noscript",
+  "address","hgroup","search","fencedframe","portal",
+]);
+
+export interface ValidateResult {
+  diags: Diagnostic[];
+  stats: Record<string, unknown>;
+}
+
+export function validateDraft(p: Project, relPath: string, src: string, fileLabel: string): ValidateResult {
+  const d = parseDraft(src, relPath);
+  const diags: Diagnostic[] = [];
+  const f = fileLabel;
+
+  // ── 结构前提 ──
+  if (!d.template) {
+    diags.push(err(E.TAG_UNBALANCED, f, { kind: "tag", name: "x-dc" },
+      "找不到 <x-dc>…</x-dc> 模板区间",
+      { fix: "骨架见 doc/02 §一：<x-dc> 装模板，<script data-dc-script> 装逻辑类" }));
+    return { diags, stats: { elements: 0 } };
+  }
+
+  // ── E_TAG_UNBALANCED：按栈逐标签配平 ──
+  diags.push(...checkBalance(d, f));
+
+  // ── 注释里的标签字面量 ──
+  // ⚠️ 降级为 warning。旧记录说它「会把注释提前关掉」，那是**流式**解析下的隐患；
+  // 一次性渲染时 HTML 注释只在 --> 处结束，标签字面量无害。回归实测：《Umbra PC 端》
+  // 与《窗口骨架》都带这种注释且都能渲染。真正会坏事的是没闭合的注释，那一条仍是 error。
+  for (const c of d.comments) {
+    const m = /<\/?([a-zA-Z][a-zA-Z0-9-]*)/.exec(c.text);
+    if (!m) continue;
+    diags.push(warn(W.COMMENT_TAG, f, { kind: "tag", name: m[1] as string },
+      `注释里出现了标签字面量 <${m[1]}>`,
+      { ...d.at(c.start), fix: `流式渲染打开后这会把注释提前关掉；写成 ${m[1]} 而不是 <${m[1]}> 更稳` }));
+  }
+  if (/<!--(?:(?!-->)[\s\S])*$/.test(d.src)) {
+    diags.push(err(E.COMMENT_TAG, f, { kind: "tag", name: "comment" },
+      "有一个 <!-- 没有对应的 -->，后面整段都会被吞掉",
+      { fix: "补上 -->" }));
+  }
+
+  // ── E_LOGIC_SYNTAX：逻辑类能不能编译 ──
+  let logicOk = true;
+  if (d.logic) {
+    const js = d.src.slice(d.logic.start, d.logic.end);
+    try {
+      // 与运行时同样的编译方式（doc/02 §2.3），只编译不执行
+      new Function("DCLogic", "React", js + "\n; return typeof Component;");
+    } catch (e) {
+      logicOk = false;
+      diags.push(err(E.LOGIC_SYNTAX, f, { kind: "key", name: "Component" },
+        `逻辑类编译不过：${(e as Error).message}`,
+        { ...d.at(d.logic.start), fix: "经典 JS，无 import / export / TS 语法（doc/03 §4.1）" }));
+    }
+  }
+
+  // ── E_HOLE_EXPRESSION：洞里出现表达式 ──
+  for (const h of d.holes) {
+    if (h.path || h.literal) continue;
+    diags.push(err(E.HOLE_EXPRESSION, f, { kind: "hole", name: h.raw || "(空)" },
+      `洞里出现了表达式 "{{ ${h.raw} }}"，模板只允许点号路径`,
+      { ...h.pos, fix: "在 renderVals() 里算好，起个名字暴露出来（doc/02 §4.2）" }));
+  }
+
+  // ── 洞的正反向审计 ──
+  const audit = auditRenderVals(d);
+  const aliases = new Set(d.lists.map((l) => l.as).filter(Boolean) as string[]);
+  const propKeys = new Set(Object.keys(d.props ?? {}).filter((k) => !k.startsWith("$")));
+  const builtin = new Set(["children", "$index"]);
+  const auditable = !audit.opaque && !audit.missing && logicOk;
+
+  if (auditable) {
+    const valid = new Set([...audit.union, ...propKeys, ...aliases, ...builtin]);
+
+    // 正向：模板里的根名必须有出处
+    const reported = new Set<string>();
+    for (const h of d.holes) {
+      if (!h.root || h.literal) continue;
+      if (valid.has(h.root) || reported.has(h.root + ":" + h.pos.line)) continue;
+      reported.add(h.root + ":" + h.pos.line);
+      const isCallable = h.position === "attr-whole" && /^on[A-Z]|Ref$/.test(h.root);
+      diags.push(err(E.HOLE_UNRESOLVED, f, { kind: "hole", name: h.root },
+        `模板第 ${h.pos.line} 行的洞 "${h.root}" 在 renderVals() 的顶层键里找不到`,
+        { ...h.pos,
+          fix: isCallable
+            ? `在 renderVals() 的每一条返回路径里补 ${h.root}: P.${h.root} ?? NOOP`
+            : `在 renderVals() 里返回 ${h.root}，或确认拼写` }));
+    }
+
+    // E_RETURN_PATH_GAP：某条返回路径缺模板用到的键
+    const used = new Set(d.holes.map((h) => h.root).filter(Boolean) as string[]);
+    if (audit.paths.length > 1) {
+      for (const path of audit.paths) {
+        const have = new Set(path.keys);
+        const miss = [...used].filter(
+          (k) => audit.union.includes(k) && !have.has(k) && !propKeys.has(k) && !aliases.has(k) && !builtin.has(k)
+        );
+        if (!miss.length) continue;
+        diags.push(err(E.RETURN_PATH_GAP, f, { kind: "key", name: miss.slice(0, 4).join(", ") },
+          `第 ${path.pos.line} 行那条 return 路径少了模板用到的键：${miss.slice(0, 6).join("、")}${miss.length > 6 ? ` 等 ${miss.length} 个` : ""}`,
+          { ...path.pos, fix: "每一条返回路径（含早返回）都要给出模板用到的每一个键（doc/06 §3.2）" }));
+      }
+    }
+
+    // W_DEAD_KEY：反向审计
+    const tpl = d.src.slice(d.template.start, d.template.end);
+    for (const k of audit.union) {
+      if (used.has(k)) continue;
+      if (tpl.includes(k)) continue; // 出现在别处（比如别名字段）就不算死键
+      diags.push(warn(W.DEAD_KEY, f, { kind: "key", name: k },
+        `renderVals() 返回的 "${k}" 在模板里零命中`,
+        { fix: `删掉它，或在注释里说出它为什么留着（doc/06 §3.2）` }));
+    }
+  }
+
+  // ── dc-import ──
+  for (const im of d.imports) {
+    if (im.selfClosing) {
+      diags.push(err(E.IMPORT_SELF_CLOSING, f, { kind: "import", name: im.name },
+        `<dc-import name="${im.name}"> 写成了自闭合`,
+        { ...im.pos, fix: "必须写显式闭合标签 </dc-import>（doc/03 §3.1）" }));
+    }
+    if (!im.name) continue;
+    const baseDir = dirname(resolve(p.dir, relPath));
+    const target = resolve(baseDir, im.name + ".dc.html");
+    if (!existsSync(target)) {
+      diags.push(err(E.IMPORT_MISSING, f, { kind: "import", name: im.name },
+        `dc-import 指向的 "${im.name}" 从 ${relPath} 所在目录解析不到`,
+        { ...im.pos,
+          fix: `路径以引用方文件为基准。跨目录要写相对路径，如 name="../Components/${im.name.split("/").pop()}"` }));
+    }
+  }
+
+  // ── E_DS_PATH：展开后的 ds 引用要能落到真实文件 ──
+  if (p.dsDir) {
+    for (const l of d.helmetLinks) {
+      const isDs = l.url.startsWith(p.dsAlias + "/") || l.url.startsWith(p.dsDir);
+      if (!isDs) continue;
+      const realRel = l.url.startsWith(p.dsAlias + "/")
+        ? p.dsDir + l.url.slice(p.dsAlias.length)
+        : l.url;
+      if (!existsSync(join(p.dir, realRel))) {
+        diags.push(err(E.DS_PATH, f, { kind: "path", name: l.url },
+          `设计系统引用 "${l.url}" 解析不到真实文件`,
+          { ...l.pos, fix: `project.json 里 designSystem.dir = "${p.dsDir}"，确认这个目录下有这个文件` }));
+      }
+    }
+  }
+
+  // ── W_HELMET_DUP：同一解析后 URL 重复 ──
+  const seen = new Map<string, number>();
+  for (const l of d.helmetLinks) {
+    const key = normalizeUrl(l.url, p);
+    const n = (seen.get(key) ?? 0) + 1;
+    seen.set(key, n);
+    if (n === 2) {
+      diags.push(warn(W.HELMET_DUP, f, { kind: "path", name: l.url },
+        `helmet 里 "${key}" 被引用了多次，整份资源会跑两遍`,
+        { ...l.pos, fix: "按解析后的绝对 URL 去重（doc/02 §4.4）" }));
+    }
+  }
+
+  // ── W_FIXED_BLUR ──
+  for (const sm of d.src.matchAll(/style\s*=\s*"([^"]*)"/gi)) {
+    const v = sm[1] ?? "";
+    if (!/position\s*:\s*fixed/i.test(v) || !/backdrop-filter\s*:/i.test(v)) continue;
+    const idx = sm.index ?? 0;
+    diags.push(warn(W.FIXED_BLUR, f, { kind: "tag", name: "style" },
+      "同一个元素上同时有 position:fixed 与 backdrop-filter",
+      { ...d.at(idx), fix: "保留 fixed，去掉滤镜，底色不透明度补偿（doc/06 §4.6）" }));
+  }
+
+  // ── W_HINT_IGNORED ──
+  if (d.hints.length) {
+    const first = d.hints[0] as { attr: string; pos: { line: number; col: number } };
+    diags.push(warn(W.HINT_IGNORED, f, { kind: "tag", name: first.attr },
+      `用了 ${d.hints.length} 处 hint-* 属性；第一阶段解析但忽略`,
+      { ...first.pos, fix: "第一阶段不做流式渲染，新稿不必写 hint-*（doc/03 §八）" }));
+  }
+
+  // ── W_UNKNOWN_TAG ──
+  for (const t of d.tags) {
+    if (KNOWN_TAGS.has(t)) continue;
+    if (t.includes("-")) continue; // 自定义元素（image-slot 这类），运行时会按外部组件处理
+    diags.push(warn(W.UNKNOWN_TAG, f, { kind: "tag", name: t },
+      `出现了既非 HTML/SVG 标准、也非框架标签的 <${t}>，大概率是拼错`,
+      { fix: "标签名写错不报错，只会安静渲染成 0×0（doc/06 §6.2）" }));
+  }
+
+  // ── 元素数阈值 ──
+  const { elementsWarn, elementsHard } = p.limits;
+  if (d.elements > elementsHard) {
+    diags.push(warn(W.ELEMENTS_HARD, f, { kind: "key", name: "elements" },
+      `${d.elements} 个元素，超过 ${elementsHard} 的硬上限`,
+      { fix: splitHint(d) }));
+  } else if (d.elements > elementsWarn) {
+    diags.push(warn(W.ELEMENTS_WARN, f, { kind: "key", name: "elements" },
+      `${d.elements} 个元素，接近 ${elementsWarn} 的建议上限`,
+      { fix: splitHint(d) }));
+  }
+
+  return {
+    diags,
+    stats: {
+      elements: d.elements,
+      holes: d.holes.length,
+      imports: d.imports.length,
+      branches: d.branches.length,
+      lists: d.lists.length,
+      valKeys: audit.union.length,
+      returnPaths: audit.paths.length,
+      holeAuditSkipped: !auditable,
+      holeAuditSkippedWhy: auditable ? null
+        : audit.missing ? "没有 renderVals()" : !logicOk ? "逻辑类编译不过" : "renderVals 里有搞不定的展开或计算键",
+    },
+  };
+}
+
+function splitHint(d: Draft): string {
+  if (d.imports.length) return `按 dc-import 边界拆（现有 ${d.imports.length} 处）`;
+  const sections = (d.src.match(/<section\b/gi) ?? []).length;
+  if (sections > 1) return `按顶层 section 拆（现有 ${sections} 个）`;
+  if (d.branches.length > 1) return `按模块级 sc-if 分支拆（现有 ${d.branches.length} 处）`;
+  return "按顶层 section 或 dc-import 边界拆（doc/00 §6.3）";
+}
+
+function normalizeUrl(url: string, p: Project): string {
+  let u = url;
+  if (p.dsDir && u.startsWith(p.dsAlias + "/")) u = p.dsDir + u.slice(p.dsAlias.length);
+  u = u.replace(/^\.\//, "");
+  // 折掉 ../ ，让"本层"与"上跳"写法归一（doc/02 §4.4 踩过的坑）
+  const parts: string[] = [];
+  for (const seg of u.split("/")) {
+    if (seg === "." || seg === "") continue;
+    if (seg === "..") { parts.pop(); continue; }
+    parts.push(seg);
+  }
+  return parts.join("/");
+}
+
+/** 按栈逐标签配平（doc/06 自检 4）。只看模板区间。 */
+function checkBalance(d: Draft, f: string): Diagnostic[] {
+  if (!d.template) return [];
+  const out: Diagnostic[] = [];
+  const tpl = d.src.slice(d.template.start, d.template.end);
+  const stack: Array<{ tag: string; index: number }> = [];
+  const re = /<(\/?)([a-zA-Z][a-zA-Z0-9-]*)([^>]*?)(\/?)>/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(tpl))) {
+    const abs = d.template.start + m.index;
+    if (d.comments.some((c) => abs >= c.start && abs < c.end)) continue;
+    const closing = m[1] === "/";
+    const tag = (m[2] as string).toLowerCase();
+    const selfClosed = m[4] === "/";
+    if (tag === "script" || tag === "style") {
+      // 内容当不透明：跳到对应结束标签
+      const close = tpl.toLowerCase().indexOf(`</${tag}>`, m.index);
+      if (close >= 0 && !closing) { re.lastIndex = close + tag.length + 3; continue; }
+    }
+    if (closing) {
+      const top = stack.pop();
+      if (!top) {
+        out.push(err(E.TAG_UNBALANCED, f, { kind: "tag", name: tag },
+          `多了一个 </${tag}>，前面没有对应的开标签`, { ...d.at(abs) }));
+      } else if (top.tag !== tag) {
+        out.push(err(E.TAG_UNBALANCED, f, { kind: "tag", name: tag },
+          `</${tag}> 对不上：最近没闭合的是第 ${d.at(top.index).line} 行的 <${top.tag}>`,
+          { ...d.at(abs), fix: "按栈逐标签配平，不要只数 sc-if（doc/06 自检 4）" }));
+        stack.push(top); // 不吞掉，避免一处错引发连环报
+      }
+      continue;
+    }
+    if (selfClosed || VOID_TAGS.has(tag)) continue;
+    stack.push({ tag, index: abs });
+  }
+  for (const left of stack.slice(0, 3)) {
+    out.push(err(E.TAG_UNBALANCED, f, { kind: "tag", name: left.tag },
+      `<${left.tag}> 没有闭合`, { ...d.at(left.index) }));
+  }
+  return out;
+}
+
+export { parseDraft };

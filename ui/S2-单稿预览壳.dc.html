@@ -106,19 +106,18 @@
 
       <span style="color: var(--tool-muted); white-space: nowrap;">{{ lastCheckLabel }}</span>
 
-      <div style="display: flex; align-items: center; gap: 6px; flex: none;">
-        <span style="font-size: 11px; color: var(--tool-muted);">演示态</span>
-        <sc-for list="{{ demoStates }}" as="st" hint-placeholder-count="9">
-          <button type="button" onClick="{{ st.pick }}" title="{{ st.name }}" aria-pressed="{{ st.active }}" style="width: 22px; height: 22px; display: grid; place-items: center; border-radius: var(--tool-radius-sm); border: 1px solid; cursor: pointer; font-family: var(--tool-mono); font-size: 11px; transition: background .13s ease, border-color .13s ease, color .13s ease; background: {{ st.bg }}; border-color: {{ st.bd }}; color: {{ st.fg }};" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">{{ st.n }}</button>
-        </sc-for>
-      </div>
     </div>
 
-    <div style="padding: 0 16px 9px; display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--tool-muted);">
-      <span>当前演示态</span>
-      <span style="font-weight: 600; color: var(--tool-text);">{{ demoLabel }}</span>
-      <span style="color: var(--tool-border-strong);">·</span>
-      <span>{{ demoNote }}</span>
+    <div style="padding: 0 16px 9px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px;">
+      <span style="font-size: 11px; color: var(--tool-muted); flex: none;">演示态</span>
+      <sc-for list="{{ demoStates }}" as="st" hint-placeholder-count="9">
+        <button type="button" onClick="{{ st.pick }}" title="{{ st.name }}" aria-pressed="{{ st.active }}" style="display: inline-flex; align-items: center; gap: 5px; height: 23px; padding: 0 9px 0 6px; border-radius: var(--tool-radius-sm); border: 1px solid; cursor: pointer; font-size: 11px; white-space: nowrap; transition: background .13s ease, border-color .13s ease, color .13s ease; background: {{ st.bg }}; border-color: {{ st.bd }}; color: {{ st.fg }};" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">
+          <span style="font-family: var(--tool-mono); opacity: 0.6;">{{ st.n }}</span>
+          <span style="font-weight: {{ st.fw }};">{{ st.short }}</span>
+        </button>
+      </sc-for>
+      <span style="color: var(--tool-border-strong); flex: none;">·</span>
+      <span style="color: var(--tool-muted); min-width: 0;">{{ demoNote }}</span>
     </div>
   </div>
 
@@ -349,7 +348,7 @@
 </x-dc>
 <script type="text/x-dc" data-dc-script data-props="{
   &quot;railWidth&quot;: { &quot;editor&quot;: &quot;int&quot;, &quot;default&quot;: 340, &quot;min&quot;: 280, &quot;max&quot;: 480, &quot;step&quot;: 20, &quot;unit&quot;: &quot;px&quot;, &quot;tsType&quot;: &quot;number&quot;, &quot;section&quot;: &quot;预览壳&quot; },
-  &quot;theme&quot;: { &quot;editor&quot;: &quot;enum&quot;, &quot;options&quot;: [&quot;light&quot;, &quot;dark&quot;], &quot;default&quot;: &quot;light&quot;, &quot;tsType&quot;: &quot;'light'|'dark'&quot;, &quot;section&quot;: &quot;工具皮肤&quot; }
+  &quot;theme&quot;: { &quot;editor&quot;: &quot;enum&quot;, &quot;options&quot;: [&quot;跟随外层&quot;, &quot;dark&quot;], &quot;default&quot;: &quot;跟随外层&quot;, &quot;tsType&quot;: &quot;'dark'|null&quot;, &quot;section&quot;: &quot;工具皮肤&quot; }
 }">
 const PRESETS = [
   { name: "PC", w: 1440, h: 900 },
@@ -359,15 +358,15 @@ const PRESETS = [
 ];
 
 const DEMOS = [
-  { n: 1, name: "正常 · 体检通过", note: "0 error 0 warning，缩略图与节点数都拿到了" },
-  { n: 2, name: "体检进行中", note: "匀速旋转，不做弹跳" },
-  { n: 3, name: "页面卡死（alive: false）", note: "最坏的结果，要最醒目" },
-  { n: 4, name: "有 error 诊断", note: "落盘会被拒" },
-  { n: 5, name: "只有 warning", note: "能落盘，但有要看的东西" },
-  { n: 6, name: "从没跑过体检", note: "unchecked，不是“没有数据”" },
-  { n: 7, name: "稿文件不存在", note: "索引里有记录，磁盘上没了" },
-  { n: 8, name: "窄窗口", note: "壳被压窄时侧栏让位给预览" },
-  { n: 9, name: "自适应视口", note: "宽度跟着画布走，不做自动撑高" }
+  { n: 1, short: "通过", name: "正常 · 体检通过", note: "0 error 0 warning，缩略图与节点数都拿到了" },
+  { n: 2, short: "体检中", name: "体检进行中", note: "匀速旋转，不做弹跳" },
+  { n: 3, short: "卡死", name: "页面卡死（alive: false）", note: "最坏的结果，要最醒目" },
+  { n: 4, short: "有报错", name: "有 error 诊断", note: "落盘会被拒" },
+  { n: 5, short: "只有提醒", name: "只有 warning", note: "能落盘，但有要看的东西" },
+  { n: 6, short: "未体检", name: "从没跑过体检", note: "unchecked，不是“没有数据”" },
+  { n: 7, short: "文件没了", name: "稿文件不存在", note: "索引里有记录，磁盘上没了" },
+  { n: 8, short: "窄窗", name: "窄窗口", note: "壳压到 720px，诊断退化成底部抽屉" },
+  { n: 9, short: "自适应", name: "自适应视口", note: "宽度跟着画布走，不做自动撑高" }
 ];
 
 const HEALTH = {
@@ -417,8 +416,10 @@ class Component extends DCLogic {
 
   componentDidMount() {
     this.onKey = (e) => {
-      const tag = (e.target && e.target.tagName) || "";
-      if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const t = e.target || {};
+      const tag = t.tagName || "";
+      if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA" || t.isContentEditable === true) return;
       const k = e.key.toLowerCase();
       if (k === "r") { e.preventDefault(); this.recheck(); }
       if (k === "d") { e.preventDefault(); this.setState((s) => ({ rail: !s.rail, sheet: !s.sheet, tab: "diag" })); }
@@ -472,7 +473,7 @@ class Component extends DCLogic {
     const diagPill = unchecked ? "—" : dead ? "!" : errCount ? String(errCount + warnCount) : warnCount ? String(warnCount) : "0";
 
     return {
-      theme: this.props.theme === "dark" ? "dark" : "light",
+      theme: this.props.theme === "dark" ? "dark" : null,
       title: "日志",
       file: missing ? "日志.dc.html（缺失）" : "日志.dc.html",
       kindLabel: "页稿",
@@ -559,10 +560,11 @@ class Component extends DCLogic {
       demoLabel: demo.name,
       demoNote: demo.note,
       demoStates: DEMOS.map((d) => ({
-        n: d.n, name: d.name, active: d.n === s.demo,
+        n: d.n, name: d.name, short: d.short, active: d.n === s.demo,
+        fw: d.n === s.demo ? "600" : "400",
         bg: d.n === s.demo ? "var(--tool-accent)" : "var(--tool-panel)",
         bd: d.n === s.demo ? "var(--tool-accent)" : "var(--tool-border-strong)",
-        fg: d.n === s.demo ? "var(--tool-on-accent)" : "var(--tool-muted)",
+        fg: d.n === s.demo ? "var(--tool-on-accent)" : "var(--tool-text-2)",
         pick: () => this.setState({ demo: d.n, spin: false, zoom: 1, preset: d.n === 9 ? 3 : 0, rail: d.n !== 8, sheet: true })
       })),
 

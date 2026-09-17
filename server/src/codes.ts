@@ -1,0 +1,42 @@
+/** 诊断码。与 doc/00 §六 逐条对应，值是稳定标识，不要改字面。 */
+
+/** error：拒绝落盘（00 §6.1） */
+export const E = {
+  TAG_UNBALANCED: "E_TAG_UNBALANCED",
+  LOGIC_SYNTAX: "E_LOGIC_SYNTAX",
+  HOLE_EXPRESSION: "E_HOLE_EXPRESSION",
+  HOLE_UNRESOLVED: "E_HOLE_UNRESOLVED",
+  RETURN_PATH_GAP: "E_RETURN_PATH_GAP",
+  IMPORT_MISSING: "E_IMPORT_MISSING",
+  IMPORT_SELF_CLOSING: "E_IMPORT_SELF_CLOSING",
+  COMMENT_TAG: "E_COMMENT_TAG",
+  DS_PATH: "E_DS_PATH",
+} as const;
+
+/** warning：放行但必须回报（00 §6.2） */
+export const W = {
+  DEAD_KEY: "W_DEAD_KEY",
+  ELEMENTS_WARN: "W_ELEMENTS_WARN",
+  ELEMENTS_HARD: "W_ELEMENTS_HARD",
+  UNKNOWN_TAG: "W_UNKNOWN_TAG",
+  HELMET_DUP: "W_HELMET_DUP",
+  FIXED_BLUR: "W_FIXED_BLUR",
+  HINT_IGNORED: "W_HINT_IGNORED",
+  COMMENT_TAG: "W_COMMENT_TAG",
+} as const;
+
+/** 非校验类（00 §6.4） */
+export const X = {
+  PATCH_ANCHOR: "E_PATCH_ANCHOR",
+  GIT_DISABLED: "E_GIT_DISABLED",
+  PROJECT_UNKNOWN: "E_PROJECT_UNKNOWN",
+  DRAFT_NOT_FOUND: "E_DRAFT_NOT_FOUND",
+  SNAPSHOT_MISSING: "E_SNAPSHOT_MISSING",
+  BAD_INPUT: "E_BAD_INPUT",
+  IO: "E_IO",
+} as const;
+
+export type Code =
+  | (typeof E)[keyof typeof E]
+  | (typeof W)[keyof typeof W]
+  | (typeof X)[keyof typeof X];

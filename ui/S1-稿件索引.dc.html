@@ -43,18 +43,17 @@
         <span style="font-family: var(--tool-mono); font-size: 11px; color: var(--tool-muted); white-space: nowrap;">{{ projectName }}</span>
       </div>
       <span style="flex: 1;"></span>
-      <div style="display: flex; align-items: center; gap: 6px; flex: none;">
-        <span style="font-size: 11px; color: var(--tool-muted); margin-right: 2px;">演示态</span>
-        <sc-for list="{{ demoStates }}" as="st" hint-placeholder-count="9">
-          <button type="button" onClick="{{ st.pick }}" title="{{ st.name }}" aria-pressed="{{ st.active }}" style="width: 22px; height: 22px; display: grid; place-items: center; border-radius: var(--tool-radius-sm); border: 1px solid; cursor: pointer; font-family: var(--tool-mono); font-size: 11px; transition: background .13s ease, border-color .13s ease, color .13s ease; background: {{ st.bg }}; border-color: {{ st.bd }}; color: {{ st.fg }};" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">{{ st.n }}</button>
-        </sc-for>
-      </div>
     </div>
-    <div style="display: flex; align-items: center; gap: 8px; padding: 0 20px 10px; font-size: 12px; color: var(--tool-text-2);">
-      <span style="color: var(--tool-muted);">当前演示态</span>
-      <span style="font-weight: 600; color: var(--tool-text);">{{ demoLabel }}</span>
-      <span style="color: var(--tool-border-strong);">·</span>
-      <span style="color: var(--tool-muted);">{{ demoNote }}</span>
+    <div style="display: flex; align-items: center; gap: 8px; padding: 0 20px 10px; flex-wrap: wrap; font-size: 12px;">
+      <span style="font-size: 11px; color: var(--tool-muted); flex: none;">演示态</span>
+      <sc-for list="{{ demoStates }}" as="st" hint-placeholder-count="9">
+        <button type="button" onClick="{{ st.pick }}" title="{{ st.name }}" aria-pressed="{{ st.active }}" style="display: inline-flex; align-items: center; gap: 5px; height: 23px; padding: 0 9px 0 6px; border-radius: var(--tool-radius-sm); border: 1px solid; cursor: pointer; font-size: 11px; white-space: nowrap; transition: background .13s ease, border-color .13s ease, color .13s ease; background: {{ st.bg }}; border-color: {{ st.bd }}; color: {{ st.fg }};" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">
+          <span style="font-family: var(--tool-mono); opacity: 0.6;">{{ st.n }}</span>
+          <span style="font-weight: {{ st.fw }};">{{ st.short }}</span>
+        </button>
+      </sc-for>
+      <span style="color: var(--tool-border-strong); flex: none;">·</span>
+      <span style="color: var(--tool-muted); min-width: 0;">{{ demoNote }}</span>
     </div>
   </div>
 
@@ -308,7 +307,7 @@
   &quot;defaultView&quot;: { &quot;editor&quot;: &quot;enum&quot;, &quot;options&quot;: [&quot;list&quot;, &quot;wall&quot;], &quot;default&quot;: &quot;list&quot;, &quot;tsType&quot;: &quot;'list'|'wall'&quot;, &quot;section&quot;: &quot;索引&quot; },
   &quot;density&quot;: { &quot;editor&quot;: &quot;enum&quot;, &quot;options&quot;: [&quot;comfortable&quot;, &quot;compact&quot;], &quot;default&quot;: &quot;comfortable&quot;, &quot;tsType&quot;: &quot;'comfortable'|'compact'&quot;, &quot;section&quot;: &quot;索引&quot; },
   &quot;showLimitBadge&quot;: { &quot;editor&quot;: &quot;boolean&quot;, &quot;default&quot;: true, &quot;tsType&quot;: &quot;boolean&quot;, &quot;section&quot;: &quot;索引&quot; },
-  &quot;theme&quot;: { &quot;editor&quot;: &quot;enum&quot;, &quot;options&quot;: [&quot;light&quot;, &quot;dark&quot;], &quot;default&quot;: &quot;light&quot;, &quot;tsType&quot;: &quot;'light'|'dark'&quot;, &quot;section&quot;: &quot;工具皮肤&quot; }
+  &quot;theme&quot;: { &quot;editor&quot;: &quot;enum&quot;, &quot;options&quot;: [&quot;跟随外层&quot;, &quot;dark&quot;], &quot;default&quot;: &quot;跟随外层&quot;, &quot;tsType&quot;: &quot;'dark'|null&quot;, &quot;section&quot;: &quot;工具皮肤&quot; }
 }">
 const LIMIT = 1200;
 const WARN_AT = 1020;
@@ -362,15 +361,15 @@ function mk(row, i) {
 const BASE = NAMES.map(mk);
 
 const DEMOS = [
-  { n: 1, name: "正常 · 列表", note: "22 份稿全部通过体检，按更新时间排" },
-  { n: 2, name: "正常 · 缩略图墙", note: "同一批稿的墙视图" },
-  { n: 3, name: "空项目", note: "一份稿都没有，给引导" },
-  { n: 4, name: "搜索无结果", note: "查询串命中零条" },
-  { n: 5, name: "缩略图未生成", note: "全部 unchecked，占位" },
-  { n: 6, name: "有 error / warning", note: "2 份报错 3 份有提醒，排到最上面" },
-  { n: 7, name: "元素数超限", note: "1 份已超 1,200，1 份逼近，排到最上面" },
-  { n: 8, name: "项目配置读不到", note: "project.json 缺失或不合法" },
-  { n: 9, name: "稿很多（112 份）", note: "高密度下的可读性" }
+  { n: 1, short: "列表", name: "正常 · 列表", note: "22 份稿全部通过体检，按更新时间排" },
+  { n: 2, short: "墙", name: "正常 · 缩略图墙", note: "同一批稿的墙视图" },
+  { n: 3, short: "空项目", name: "空项目", note: "一份稿都没有，给引导" },
+  { n: 4, short: "无结果", name: "搜索无结果", note: "查询串命中零条" },
+  { n: 5, short: "未体检", name: "缩略图未生成", note: "全部 unchecked，占位" },
+  { n: 6, short: "有报错", name: "有 error / warning", note: "2 份报错 3 份有提醒，排到最上面" },
+  { n: 7, short: "超限", name: "元素数超限", note: "1 份已超 1,200，1 份逼近，排到最上面" },
+  { n: 8, short: "配置缺失", name: "项目配置读不到", note: "project.json 缺失或不合法" },
+  { n: 9, short: "高密度", name: "稿很多（112 份）", note: "112 份稿，高密度下的可读性" }
 ];
 
 const HEALTH = {
@@ -388,8 +387,10 @@ class Component extends DCLogic {
   componentDidMount() {
     this.searchRef = React.createRef();
     this.onKey = (e) => {
-      const tag = (e.target && e.target.tagName) || "";
-      const typing = tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA";
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const t = e.target || {};
+      const tag = t.tagName || "";
+      const typing = tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA" || t.isContentEditable === true;
       if (e.key === "/" && !typing) {
         e.preventDefault();
         if (this.searchRef.current) this.searchRef.current.focus();
@@ -540,16 +541,17 @@ class Component extends DCLogic {
     });
 
     return {
-      theme: this.props.theme === "dark" ? "dark" : "light",
+      theme: this.props.theme === "dark" ? "dark" : null,
       projectTitle: configBroken ? "项目未识别" : "Umbra 私人 AI 助手",
       projectName: configBroken ? "?" : "umbra · " + pool.length + " 份稿",
       demoLabel: demo.name,
       demoNote: demo.note,
       demoStates: DEMOS.map((d) => ({
-        n: d.n, name: d.name, active: d.n === s.demo,
+        n: d.n, name: d.name, short: d.short, active: d.n === s.demo,
+        fw: d.n === s.demo ? "600" : "400",
         bg: d.n === s.demo ? "var(--tool-accent)" : "var(--tool-panel)",
         bd: d.n === s.demo ? "var(--tool-accent)" : "var(--tool-border-strong)",
-        fg: d.n === s.demo ? "var(--tool-on-accent)" : "var(--tool-muted)",
+        fg: d.n === s.demo ? "var(--tool-on-accent)" : "var(--tool-text-2)",
         pick: () => this.setState({ demo: d.n, view: null, query: "", kind: "all", health: "all", cursor: 0 })
       })),
       configBroken: configBroken,

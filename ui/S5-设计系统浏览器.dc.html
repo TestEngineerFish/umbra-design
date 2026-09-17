@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- umbradesign:resources -->
+<script>window.__resources = {
+    "https://unpkg.com/react@18.3.1/umd/react.production.min.js": "./react.production.min.js",
+    "https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js": "./react-dom.production.min.js"
+  };</script>
+<!-- /umbradesign:resources -->
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="./_ds-tool/tokens.css">
+<style>
+  html, body { margin: 0; padding: 0; }
+  body { background: var(--tool-bg); }
+  * { box-sizing: border-box; }
+  a { color: var(--tool-accent); text-decoration: none; }
+  a:hover { color: var(--tool-accent-hover); text-decoration: underline; }
+  input, button, select { font: inherit; color: inherit; }
+</style>
+</helmet>
+
+<div style="min-height: 100vh; background: var(--tool-bg); color: var(--tool-text); font-family: var(--tool-sans); font-size: 13px; -webkit-font-smoothing: antialiased;" data-tool-theme="{{ theme }}">
+
+  <div style="position: sticky; top: 0; z-index: 6; background: var(--tool-panel); border-bottom: 1px solid var(--tool-border);">
+    <div style="display: flex; align-items: center; gap: 12px; padding: 11px 20px; flex-wrap: wrap;">
+      <a href="./S1-稿件索引.dc.html" style="display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px 0 8px; border-radius: var(--tool-radius); border: 1px solid var(--tool-border-strong); background: var(--tool-panel); color: var(--tool-text); font-size: 12px; flex: none; transition: background .13s ease;" style-hover="background: var(--tool-hover); text-decoration: none;" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M9.6 3.6L5.2 8l4.4 4.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+        索引
+      </a>
+      <div style="display: flex; align-items: baseline; gap: 9px; min-width: 0; flex: 1 1 200px;">
+        <span style="font-size: 15px; font-weight: 620; letter-spacing: -0.01em; white-space: nowrap;">设计系统</span>
+        <span style="font-family: var(--tool-mono); font-size: 12px; color: var(--tool-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ sourceLabel }}</span>
+      </div>
+      <div style="display: flex; padding: 2px; gap: 2px; background: var(--tool-panel-2); border: 1px solid var(--tool-border); border-radius: var(--tool-radius); flex: none;">
+        <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="3">
+          <button type="button" onClick="{{ t.pick }}" aria-pressed="{{ t.active }}" style="display: inline-flex; align-items: center; gap: 6px; height: 25px; padding: 0 11px; border: 0; border-radius: var(--tool-radius-sm); cursor: pointer; font-size: 12px; transition: background .13s ease, color .13s ease; background: {{ t.bg }}; color: {{ t.fg }}; font-weight: {{ t.fw }}; box-shadow: {{ t.sh }};" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">
+            {{ t.label }}
+            <span style="font-family: var(--tool-mono); font-size: 10px; opacity: 0.7;">{{ t.count }}</span>
+          </button>
+        </sc-for>
+      </div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 8px; padding: 0 20px 10px; flex-wrap: wrap; font-size: 12px;">
+      <span style="font-size: 11px; color: var(--tool-muted); flex: none;">演示态</span>
+      <sc-for list="{{ demoStates }}" as="st" hint-placeholder-count="7">
+        <button type="button" onClick="{{ st.pick }}" title="{{ st.name }}" aria-pressed="{{ st.active }}" style="display: inline-flex; align-items: center; gap: 5px; height: 23px; padding: 0 9px 0 6px; border-radius: var(--tool-radius-sm); border: 1px solid; cursor: pointer; font-size: 11px; white-space: nowrap; transition: background .13s ease, border-color .13s ease, color .13s ease; background: {{ st.bg }}; border-color: {{ st.bd }}; color: {{ st.fg }};" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">
+          <span style="font-family: var(--tool-mono); opacity: 0.6;">{{ st.n }}</span>
+          <span style="font-weight: {{ st.fw }};">{{ st.short }}</span>
+        </button>
+      </sc-for>
+      <span style="color: var(--tool-border-strong); flex: none;">·</span>
+      <span style="color: var(--tool-muted); min-width: 0;">{{ demoNote }}</span>
+    </div>
+  </div>
+
+  <div style="max-width: 1040px; margin: 0 auto; padding: 18px 20px 32px;">
+
+    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px; flex-wrap: wrap;">
+      <div style="position: relative; flex: 1 1 280px; min-width: 220px;">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" style="position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--tool-muted); pointer-events: none;" aria-hidden="true">
+          <circle cx="7" cy="7" r="4.6" stroke="currentColor" stroke-width="1.4"></circle>
+          <path d="M10.6 10.6L14 14" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"></path>
+        </svg>
+        <input type="text" ref="{{ searchRef }}" value="{{ query }}" onChange="{{ onQuery }}" placeholder="{{ placeholder }}" aria-label="检索设计系统" style="width: 100%; height: 38px; padding: 0 46px 0 34px; border-radius: var(--tool-radius); border: 1px solid var(--tool-border-strong); background: var(--tool-panel); color: var(--tool-text); font-family: var(--tool-mono); font-size: 13px; outline: none; transition: border-color .13s ease, box-shadow .13s ease;" style-focus="border-color: var(--tool-accent); box-shadow: 0 0 0 3px var(--tool-accent-soft);">
+        <kbd style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); font-family: var(--tool-mono); font-size: 11px; color: var(--tool-muted); background: var(--tool-panel-2); border: 1px solid var(--tool-border); border-radius: var(--tool-radius-sm); padding: 1px 5px; pointer-events: none;">/</kbd>
+      </div>
+      <span style="font-size: 12px; color: var(--tool-muted); flex: none;">{{ resultLabel }}</span>
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 7px; margin-bottom: 16px; flex-wrap: wrap;">
+      <span style="font-size: 11px; color: var(--tool-muted); flex: none;">常用</span>
+      <sc-for list="{{ suggestions }}" as="q" hint-placeholder-count="5">
+        <button type="button" onClick="{{ q.pick }}" style="height: 23px; padding: 0 9px; border-radius: 999px; border: 1px solid var(--tool-border); background: var(--tool-panel); cursor: pointer; font-family: var(--tool-mono); font-size: 11px; color: var(--tool-text-2); transition: background .13s ease, border-color .13s ease;" style-hover="background: var(--tool-hover); border-color: var(--tool-border-strong);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">{{ q.text }}</button>
+      </sc-for>
+    </div>
+
+    <sc-if value="{{ showNoResult }}" hint-placeholder-val="{{ false }}">
+      <div style="background: var(--tool-panel); border: 1px solid var(--tool-border); border-radius: var(--tool-radius-lg); padding: 52px 24px; text-align: center; box-shadow: var(--tool-shadow-1);">
+        <div style="font-size: 16px; font-weight: 600; margin-bottom: 7px;">{{ noResultTitle }}</div>
+        <div style="max-width: 420px; margin: 0 auto 18px; color: var(--tool-text-2); line-height: 1.7;">{{ noResultBody }}</div>
+        <button type="button" onClick="{{ onClear }}" style="padding: 7px 13px; border-radius: var(--tool-radius); border: 1px solid var(--tool-border-strong); background: var(--tool-panel); cursor: pointer; transition: background .13s ease;" style-hover="background: var(--tool-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">清空检索</button>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showTokens }}" hint-placeholder-val="{{ true }}">
+      <div style="background: var(--tool-panel); border: 1px solid var(--tool-border); border-radius: var(--tool-radius-lg); overflow: hidden; box-shadow: var(--tool-shadow-1);">
+        <sc-for list="{{ tokens }}" as="t" hint-placeholder-count="8">
+          <div style="display: grid; grid-template-columns: minmax(0, 1fr) 78px 200px; gap: 14px; align-items: center; padding: 10px 15px; border-bottom: 1px solid var(--tool-border);">
+            <div style="min-width: 0;">
+              <div style="font-family: var(--tool-mono); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="{{ t.path }}">{{ t.path }}</div>
+              <div style="font-size: 11px; color: var(--tool-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ t.note }}</div>
+            </div>
+            <div>
+              <span style="display: inline-block; padding: 1px 7px; border-radius: var(--tool-radius-sm); font-size: 11px; border: 1px solid var(--tool-border); background: var(--tool-panel-2); color: var(--tool-text-2);">{{ t.kind }}</span>
+            </div>
+            <div style="min-width: 0; display: flex; align-items: center; gap: 9px; justify-content: flex-end;">
+
+              <sc-if value="{{ t.isColor }}" hint-placeholder-val="{{ false }}">
+                <span style="width: 22px; height: 22px; border-radius: 4px; flex: none; border: 1px solid var(--tool-border-strong); background: {{ t.swatch }};"></span>
+              </sc-if>
+              <sc-if value="{{ t.isSpace }}" hint-placeholder-val="{{ false }}">
+                <span style="display: flex; align-items: center; gap: 0; flex: none;">
+                  <span style="width: 1px; height: 13px; background: var(--tool-border-strong);"></span>
+                  <span style="height: 3px; background: var(--tool-accent); width: {{ t.rule }};"></span>
+                  <span style="width: 1px; height: 13px; background: var(--tool-border-strong);"></span>
+                </span>
+              </sc-if>
+              <sc-if value="{{ t.isType }}" hint-placeholder-val="{{ false }}">
+                <span style="flex: none; color: var(--tool-text); line-height: 1.2; font-size: {{ t.sample }};">永 Ag</span>
+              </sc-if>
+              <sc-if value="{{ t.isElevation }}" hint-placeholder-val="{{ false }}">
+                <span style="width: 34px; height: 20px; border-radius: 4px; flex: none; background: var(--tool-panel); border: 1px solid var(--tool-border); box-shadow: {{ t.shadow }};"></span>
+              </sc-if>
+
+              <sc-if value="{{ t.hasResolved }}" hint-placeholder-val="{{ true }}">
+                <span style="font-family: var(--tool-mono); font-size: 12px; color: var(--tool-text-2); white-space: nowrap;">{{ t.resolvedLabel }}</span>
+              </sc-if>
+              <sc-if value="{{ t.noResolved }}" hint-placeholder-val="{{ false }}">
+                <span title="别名链没解开，工具不猜最终值" style="font-family: var(--tool-mono); font-size: 11px; color: var(--tool-warn); background: var(--tool-warn-soft); border: 1px dashed var(--tool-warn-border); border-radius: var(--tool-radius-sm); padding: 1px 6px; white-space: nowrap;">别名未解开</span>
+              </sc-if>
+            </div>
+          </div>
+        </sc-for>
+        <div style="padding: 10px 15px; font-size: 12px; color: var(--tool-muted);">{{ tokenFootnote }}</div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showIcons }}" hint-placeholder-val="{{ false }}">
+      <div style="background: var(--tool-panel); border: 1px solid var(--tool-border); border-radius: var(--tool-radius-lg); padding: 14px; box-shadow: var(--tool-shadow-1);">
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px;">
+          <sc-for list="{{ icons }}" as="i" hint-placeholder-count="12">
+            <div title="{{ i.title }}" style="display: grid; place-items: center; gap: 7px; padding: 12px 6px; border: 1px solid var(--tool-border); border-radius: var(--tool-radius); background: var(--tool-panel-2); transition: border-color .13s ease, background .13s ease;" style-hover="background: var(--tool-panel); border-color: var(--tool-border-strong);">
+              <svg width="20" height="20" viewBox="0 0 16 16" fill="none" style="color: var(--tool-text);" aria-hidden="true"><path d="{{ i.d }}" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+              <span style="font-family: var(--tool-mono); font-size: 10px; color: var(--tool-muted); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ i.name }}</span>
+            </div>
+          </sc-for>
+        </div>
+        <div style="padding: 12px 2px 2px; font-size: 12px; color: var(--tool-muted);">{{ iconFootnote }}</div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showNoIcons }}" hint-placeholder-val="{{ false }}">
+      <div style="background: var(--tool-panel); border: 1px solid var(--tool-border); border-radius: var(--tool-radius-lg); padding: 44px 24px; text-align: center; box-shadow: var(--tool-shadow-1);">
+        <div style="width: 44px; height: 44px; margin: 0 auto 14px; border-radius: var(--tool-radius); background: var(--tool-panel-2); border: 1px dashed var(--tool-border-strong); display: grid; place-items: center; color: var(--tool-muted);">
+          <svg width="20" height="20" viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="2.4" y="2.4" width="11.2" height="11.2" rx="2" stroke="currentColor" stroke-width="1.3" stroke-dasharray="3 2.6"></rect></svg>
+        </div>
+        <div style="font-size: 16px; font-weight: 600; margin-bottom: 7px;">这个项目没有配图标</div>
+        <div style="max-width: 440px; margin: 0 auto 18px; color: var(--tool-text-2); line-height: 1.7;">project.json 里没有 icons 字段。图标是可选的 —— 稿子里照样可以写 inline SVG，只是没法在这里统一检索。</div>
+        <div style="font-family: var(--tool-mono); font-size: 12px; color: var(--tool-text-2); background: var(--tool-panel-2); border: 1px solid var(--tool-border); border-radius: var(--tool-radius); padding: 10px 12px; display: inline-block; text-align: left;">"icons": "_ds/umbra/icons/*.svg"</div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showComponents }}" hint-placeholder-val="{{ false }}">
+      <div style="display: grid; gap: 12px;">
+        <sc-for list="{{ components }}" as="c" hint-placeholder-count="3">
+          <div style="background: var(--tool-panel); border: 1px solid var(--tool-border); border-radius: var(--tool-radius-lg); overflow: hidden; box-shadow: var(--tool-shadow-1);">
+            <div style="display: flex; align-items: baseline; gap: 10px; padding: 12px 15px; border-bottom: 1px solid var(--tool-border); flex-wrap: wrap;">
+              <span style="font-weight: 620;">{{ c.name }}</span>
+              <span style="font-family: var(--tool-mono); font-size: 11px; color: var(--tool-muted);">{{ c.file }}</span>
+              <span style="flex: 1;"></span>
+              <span style="font-size: 12px; color: var(--tool-text-2);">{{ c.summary }}</span>
+            </div>
+            <div style="padding: 12px 15px; display: grid; gap: 12px;">
+              <div>
+                <div style="font-size: 11px; font-weight: 600; letter-spacing: 0.04em; color: var(--tool-muted); margin-bottom: 7px;">props</div>
+                <div style="display: grid; gap: 5px;">
+                  <sc-for list="{{ c.props }}" as="p" hint-placeholder-count="3">
+                    <div style="display: grid; grid-template-columns: 116px minmax(0, 1fr) 96px; gap: 10px; align-items: center; padding: 6px 9px; background: {{ p.bg }}; border: 1px solid {{ p.bd }}; border-radius: var(--tool-radius);">
+                      <span style="font-family: var(--tool-mono); font-size: 12px; font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis;">{{ p.name }}</span>
+                      <span style="font-family: var(--tool-mono); font-size: 12px; color: var(--tool-text-2); min-width: 0; overflow: hidden; text-overflow: ellipsis;" title="{{ p.type }}">{{ p.type }}</span>
+                      <span style="justify-self: end;">
+                        <sc-if value="{{ p.editable }}" hint-placeholder-val="{{ true }}">
+                          <span style="display: inline-block; padding: 1px 7px; border-radius: var(--tool-radius-sm); font-family: var(--tool-mono); font-size: 11px; background: var(--tool-accent-soft); border: 1px solid var(--tool-accent-border); color: var(--tool-accent);">{{ p.editor }}</span>
+                        </sc-if>
+                        <sc-if value="{{ p.notEditable }}" hint-placeholder-val="{{ false }}">
+                          <span title="editor: null —— 回调或复杂对象，不给控件" style="display: inline-block; padding: 1px 7px; border-radius: var(--tool-radius-sm); font-size: 11px; background: var(--tool-panel-2); border: 1px dashed var(--tool-border-strong); color: var(--tool-muted);">不可调</span>
+                        </sc-if>
+                      </span>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+              <div>
+                <div style="font-size: 11px; font-weight: 600; letter-spacing: 0.04em; color: var(--tool-muted); margin-bottom: 7px;">states</div>
+                <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                  <sc-for list="{{ c.states }}" as="st2" hint-placeholder-count="3">
+                    <span style="display: inline-block; padding: 2px 9px; border-radius: 999px; font-family: var(--tool-mono); font-size: 11px; background: var(--tool-panel-2); border: 1px solid var(--tool-border); color: var(--tool-text-2);">{{ st2.name }}</span>
+                  </sc-for>
+                </div>
+              </div>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </sc-if>
+
+    <div style="display: flex; align-items: center; gap: 12px; padding: 16px 2px 0; font-size: 11px; color: var(--tool-muted); flex-wrap: wrap;">
+      <span>人用它对色，模型用同一份数据的检索接口</span>
+      <span style="flex: 1;"></span>
+      <span style="display: flex; align-items: center; gap: 5px;"><kbd style="font-family: var(--tool-mono); background: var(--tool-panel-2); border: 1px solid var(--tool-border); border-radius: var(--tool-radius-sm); padding: 1px 5px;">/</kbd> 聚焦检索</span>
+      <span style="display: flex; align-items: center; gap: 5px;"><kbd style="font-family: var(--tool-mono); background: var(--tool-panel-2); border: 1px solid var(--tool-border); border-radius: var(--tool-radius-sm); padding: 1px 5px;">Esc</kbd> 清空</span>
+    </div>
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{
+  &quot;theme&quot;: { &quot;editor&quot;: &quot;enum&quot;, &quot;options&quot;: [&quot;跟随外层&quot;, &quot;dark&quot;], &quot;default&quot;: &quot;跟随外层&quot;, &quot;tsType&quot;: &quot;'dark'|null&quot;, &quot;section&quot;: &quot;工具皮肤&quot; }
+}">
+const TOKENS = [
+  { path: "color.semantic.danger.soft", value: "var(--danger-soft)", resolved: "#FBE9E7", kind: "color", note: "平底上的失败态底色" },
+  { path: "color.semantic.danger.base", value: "var(--danger)", resolved: "#C0392B", kind: "color", note: "失败态的文字与描边" },
+  { path: "color.semantic.warning.soft", value: "var(--warning-soft)", resolved: "#FDF2DC", kind: "color", note: "需要注意但不阻塞" },
+  { path: "color.semantic.success.soft", value: "var(--success-soft)", resolved: "#E2EFE6", kind: "color", note: "成功态底色" },
+  { path: "color.brand.accent", value: "#E8590C", resolved: "#E8590C", kind: "color", note: "品牌主色，只用于主操作" },
+  { path: "color.surface.card", value: "var(--card)", resolved: "#F3F1ED", kind: "color", note: "卡片底" },
+  { path: "color.surface.page", value: "var(--bg)", resolved: "#DEDBD5", kind: "color", note: "页面底" },
+  { path: "color.semantic.danger.onSoft", value: "var(--danger-on-soft)", resolved: null, kind: "color", note: "别名指向另一个别名，链没解开" },
+  { path: "space.gap.row", value: "10px", resolved: "10px", kind: "space", note: "日志行之间" },
+  { path: "space.gap.section", value: "24px", resolved: "24px", kind: "space", note: "区块之间" },
+  { path: "space.inset.card", value: "14px", resolved: "14px", kind: "space", note: "卡片内边距" },
+  { path: "space.inset.page", value: "28px", resolved: "28px", kind: "space", note: "页面内边距" },
+  { path: "type.size.body", value: "14px", resolved: "14px", kind: "type", note: "正文" },
+  { path: "type.size.caption", value: "12px", resolved: "12px", kind: "type", note: "时间戳、辅助说明" },
+  { path: "type.size.title", value: "26px", resolved: "26px", kind: "type", note: "页面标题" },
+  { path: "type.size.section", value: "18px", resolved: "18px", kind: "type", note: "区块标题" },
+  { path: "elevation.card", value: "0 1px 2px rgba(36,31,26,.08)", resolved: "0 1px 2px rgba(36,31,26,.08)", kind: "elevation", note: "卡片投影" },
+  { path: "elevation.popover", value: "0 8px 24px rgba(36,31,26,.16)", resolved: "0 8px 24px rgba(36,31,26,.16)", kind: "elevation", note: "浮层投影" },
+  { path: "radius.card", value: "10px", resolved: "10px", kind: "space", note: "卡片圆角" },
+  { path: "radius.pill", value: "999px", resolved: "999px", kind: "space", note: "胶囊" },
+  { path: "color.semantic.info.soft", value: "var(--info-soft)", resolved: "#E6EDF5", kind: "color", note: "中性提示底色" },
+  { path: "color.text.muted", value: "var(--muted)", resolved: "#6F675E", kind: "color", note: "次级文字" },
+  { path: "color.text.base", value: "var(--text)", resolved: "#241F1A", kind: "color", note: "正文文字" },
+  { path: "color.border.hairline", value: "var(--border)", resolved: "#C9C4BB", kind: "color", note: "1px 分隔线" }
+];
+
+const PATHS = [
+  "M8 3.2v9.6M3.2 8h9.6",
+  "M3.6 8.4l3 3 5.8-6.4",
+  "M4.4 4.4l7.2 7.2M11.6 4.4l-7.2 7.2",
+  "M13.2 8a5.2 5.2 0 11-1.9-4.02M13.4 2.4v2.9h-2.9",
+  "M9.6 3.6L5.2 8l4.4 4.4",
+  "M6.4 3.6L10.8 8l-4.4 4.4",
+  "M2.6 8h10.8M8 2.6v10.8",
+  "M2.4 4.4h11.2M2.4 8h11.2M2.4 11.6h7.2",
+  "M8 2.4l5.6 3.2v6.8L8 13.6 2.4 12.4V5.6z",
+  "M2.8 12.8V6.4L8 2.8l5.2 3.6v6.4z",
+  "M4 8h8M8 4v8",
+  "M3.2 10.4l3.2-3.2 2.4 2.4 3.9-3.9"
+];
+
+const ICON_NAMES = [
+  "log.retry", "log.success", "log.failed", "log.refresh", "nav.back", "nav.forward",
+  "action.add", "action.menu", "shape.cube", "shape.home", "action.close", "chart.line",
+  "mail.inbox", "mail.draft", "mail.sent", "cal.week", "cal.day", "todo.check",
+  "todo.box", "search.glass", "settings.gear", "user.avatar", "file.doc", "file.image"
+];
+
+function icons(n) {
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const base = ICON_NAMES[i % ICON_NAMES.length];
+    const name = i < ICON_NAMES.length ? base : base + "." + Math.floor(i / ICON_NAMES.length);
+    out.push({ name: name, size: 16, viewBox: "0 0 16 16", d: PATHS[i % PATHS.length] });
+  }
+  return out;
+}
+
+const COMPONENTS = [
+  {
+    name: "PC 空态", file: "PC 空态.dc.html", summary: "空 / 失败 / 离线三态的占位卡",
+    props: [
+      { name: "kind", type: "'empty'|'error'|'offline'", editor: "enum" },
+      { name: "title", type: "string", editor: "text" },
+      { name: "body", type: "string", editor: "text" },
+      { name: "onAction", type: "()=>void", editor: null }
+    ],
+    states: ["empty", "error", "offline"]
+  },
+  {
+    name: "窗口骨架", file: "窗口骨架.dc.html", summary: "PC / 笔记本 / 窄窗三档的外壳",
+    props: [
+      { name: "preset", type: "'pc'|'laptop'|'narrow'", editor: "enum" },
+      { name: "sidebarCollapsed", type: "boolean", editor: "boolean" },
+      { name: "sidebarWidth", type: "number", editor: "number" },
+      { name: "children", type: "ReactNode", editor: null }
+    ],
+    states: ["PC", "笔记本", "窄窗"]
+  },
+  {
+    name: "行内二次确认条", file: "行内二次确认条.dc.html", summary: "替代 confirm 的页内确认，不阻塞主线程",
+    props: [
+      { name: "message", type: "string", editor: "text" },
+      { name: "confirmLabel", type: "string", editor: "text" },
+      { name: "danger", type: "boolean", editor: "boolean" },
+      { name: "onConfirm", type: "()=>void", editor: null },
+      { name: "onCancel", type: "()=>void", editor: null }
+    ],
+    states: ["待确认", "确认中"]
+  }
+];
+
+const DEMOS = [
+  { n: 1, short: "token 有结果", name: "token 检索有结果", note: "1,447 个叶子，只显示命中的" },
+  { n: 2, short: "token 无结果", name: "token 检索无结果", note: "告诉人怎么换个词" },
+  { n: 3, short: "切到组件", name: "三个分类的切换", note: "token / 图标 / 组件" },
+  { n: 4, short: "别名未解开", name: "只有 value 没有 resolved", note: "工具不猜最终值" },
+  { n: 5, short: "回调不可调", name: "props 里有 editor: null", note: "回调和复杂对象不给控件" },
+  { n: 6, short: "142 个图标", name: "图标很多时的网格密度", note: "142 个，网格自适应列数" },
+  { n: 7, short: "没配图标", name: "项目没有配 icons", note: "字段缺失，不是空数组" }
+];
+
+class Component extends DCLogic {
+  state = { demo: 1, tab: null, query: null };
+
+  componentDidMount() {
+    this.searchRef = React.createRef();
+    this.onKey = (e) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const t = e.target || {};
+      const tag = t.tagName || "";
+      const typing = tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA" || t.isContentEditable === true;
+      if (e.key === "/" && !typing) {
+        e.preventDefault();
+        if (this.searchRef.current) this.searchRef.current.focus();
+      }
+      if (e.key === "Escape") {
+        this.setState({ query: "" });
+        if (this.searchRef.current) this.searchRef.current.blur();
+      }
+    };
+    document.addEventListener("keydown", this.onKey);
+    this.forceUpdate();
+  }
+
+  componentWillUnmount() { document.removeEventListener("keydown", this.onKey); }
+
+  tab() {
+    if (this.state.tab) return this.state.tab;
+    const d = this.state.demo;
+    if (d === 3 || d === 5) return "components";
+    if (d === 6 || d === 7) return "icons";
+    return "tokens";
+  }
+
+  query() {
+    if (this.state.query !== null) return this.state.query;
+    const d = this.state.demo;
+    if (d === 2) return "color.semantic.hover";
+    if (d === 4) return "danger";
+    return "danger";
+  }
+
+  renderVals() {
+    const s = this.state;
+    const demo = DEMOS[s.demo - 1];
+    const tab = this.tab();
+    const q = this.query().trim().toLowerCase();
+    const iconCount = s.demo === 7 ? null : s.demo === 6 ? 142 : 24;
+
+    const tokenHits = q ? TOKENS.filter((t) => (t.path + " " + (t.note || "")).toLowerCase().indexOf(q) >= 0) : TOKENS;
+    const iconList = iconCount === null ? [] : icons(Math.min(iconCount, s.demo === 6 ? 142 : 24));
+    const iconHits = q ? iconList.filter((i) => i.name.toLowerCase().indexOf(q) >= 0) : iconList;
+    const compHits = q ? COMPONENTS.filter((c) => (c.name + " " + c.summary + " " + c.props.map((p) => p.name).join(" ")).toLowerCase().indexOf(q) >= 0) : COMPONENTS;
+
+    const shownIcons = tab === "icons" && q && iconHits.length === 0 ? iconList : iconHits;
+    const noResult = tab === "tokens" ? tokenHits.length === 0 : tab === "components" ? compHits.length === 0 : false;
+
+    return {
+      theme: this.props.theme === "dark" ? "dark" : null,
+      sourceLabel: "umbra-tokens.json · 1,447 个叶子 · 810 KB",
+
+      tabs: [
+        { key: "tokens", label: "token", count: "1,447" },
+        { key: "icons", label: "图标", count: iconCount === null ? "—" : String(iconCount) },
+        { key: "components", label: "组件契约", count: String(COMPONENTS.length) }
+      ].map((t) => ({
+        label: t.label, count: t.count, active: t.key === tab,
+        bg: t.key === tab ? "var(--tool-panel)" : "transparent",
+        fg: t.key === tab ? "var(--tool-text)" : "var(--tool-muted)",
+        fw: t.key === tab ? "560" : "400",
+        sh: t.key === tab ? "var(--tool-shadow-1)" : "none",
+        pick: () => this.setState({ tab: t.key })
+      })),
+
+      searchRef: this.searchRef,
+      query: this.query(),
+      onQuery: (e) => this.setState({ query: e.target.value }),
+      onClear: () => this.setState({ query: "" }),
+      placeholder: tab === "tokens" ? "按路径检索，如 color.semantic.danger" : tab === "icons" ? "按图标名检索，如 log.retry" : "按组件名或 props 检索",
+      resultLabel: tab === "tokens" ? tokenHits.length + " / 1,447 命中" : tab === "icons" ? (iconCount === null ? "没有图标源" : shownIcons.length + " / " + iconCount + " 命中") : compHits.length + " / " + COMPONENTS.length + " 个组件",
+
+      suggestions: (tab === "tokens"
+        ? ["danger", "space.gap", "type.size", "elevation", "color.surface"]
+        : tab === "icons" ? ["log.", "nav.", "action.", "mail.", "cal."]
+        : ["空态", "骨架", "确认", "onAction", "boolean"]
+      ).map((x) => ({ text: x, pick: () => this.setState({ query: x }) })),
+
+      showNoResult: noResult,
+      noResultTitle: tab === "tokens" ? "没有 token 匹配 “" + this.query() + "”" : "没有组件匹配 “" + this.query() + "”",
+      noResultBody: tab === "tokens"
+        ? "路径是点号分段的，按段检索命中率更高 —— 试 color.semantic 或 danger，而不是整条路径。1,447 个叶子不会全列出来，只显示命中的。"
+        : "组件契约按组件名、摘要和 props 名检索。也可能这个组件还没写成 .dc.html。",
+
+      showTokens: tab === "tokens" && !noResult,
+      tokens: tokenHits.slice(0, 40).map((t) => {
+        const px = parseInt(t.value, 10);
+        return {
+          path: t.path,
+          note: t.note || "",
+          kind: t.kind,
+          isColor: t.kind === "color",
+          isSpace: t.kind === "space",
+          isType: t.kind === "type",
+          isElevation: t.kind === "elevation",
+          swatch: t.resolved || "transparent",
+          rule: t.kind === "space" ? Math.min(60, isNaN(px) ? 20 : px * 1.6) + "px" : "0",
+          sample: t.kind === "type" ? t.resolved : "13px",
+          shadow: t.kind === "elevation" ? t.resolved : "none",
+          hasResolved: !!t.resolved,
+          noResolved: !t.resolved,
+          resolvedLabel: t.kind === "color" ? t.resolved : t.value
+        };
+      }),
+      tokenFootnote: tokenHits.length > 40
+        ? "只显示前 40 条（共 " + tokenHits.length + " 条命中）—— 810 KB 的 token 树不整棵渲染，按路径缩小检索"
+        : "810 KB 的 token 树不整棵渲染，按路径缩小检索",
+
+      showIcons: tab === "icons" && iconCount !== null,
+      showNoIcons: tab === "icons" && iconCount === null,
+      icons: shownIcons.map((i) => ({
+        name: i.name,
+        d: i.d,
+        title: i.name + " · " + i.size + "px · viewBox " + i.viewBox
+      })),
+      iconFootnote: "全部 16px viewBox，inline SVG，不用图标字体 · 这些是形状占位，真实图标从项目的 icons 目录读",
+
+      showComponents: tab === "components" && !noResult,
+      components: compHits.map((c) => ({
+        name: c.name,
+        file: c.file,
+        summary: c.summary,
+        props: c.props.map((p) => ({
+          name: p.name,
+          type: p.type,
+          editor: p.editor || "",
+          editable: p.editor !== null,
+          notEditable: p.editor === null,
+          bg: p.editor === null ? "var(--tool-panel-2)" : "var(--tool-panel)",
+          bd: p.editor === null ? "var(--tool-border)" : "var(--tool-border)"
+        })),
+        states: c.states.map((x) => ({ name: x }))
+      })),
+
+      demoNote: demo.note,
+      demoStates: DEMOS.map((x) => ({
+        n: x.n, name: x.name, short: x.short, active: x.n === s.demo,
+        fw: x.n === s.demo ? "600" : "400",
+        bg: x.n === s.demo ? "var(--tool-accent)" : "var(--tool-panel)",
+        bd: x.n === s.demo ? "var(--tool-accent)" : "var(--tool-border-strong)",
+        fg: x.n === s.demo ? "var(--tool-on-accent)" : "var(--tool-text-2)",
+        pick: () => this.setState({ demo: x.n, tab: null, query: null })
+      }))
+    };
+  }
+}
+
+</script>
+</body>
+</html>

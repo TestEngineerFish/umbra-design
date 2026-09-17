@@ -413,3 +413,61 @@ MCP server 的 server instructions 里要写明这个顺序，让模型不用猜
 | props 面板 / 直接编辑 / 主题切换 / 导出 PDF | 给人和秘书用的，第二阶段（`01` §3.2） |
 | 删除稿的工具 | 避免误删 |
 | 拆分 `Umbra PC 端.dc.html` | 工具跑通后再决定拆不拆 |
+
+---
+
+## 十、第一批实现记录（v0.1.0）
+
+日期：2026-09-17　代码在 `server/`，Node 22 + TypeScript，`npx tsc -p server` 零报错。
+
+### 10.1 已实现的十个工具
+
+`list_projects` · `get_project` · `search_tokens` · `get_token` · `list_icons` ·
+`get_icon` · `list_components` · `get_component` · `get_syntax_guide` · `validate_draft`
+
+MCP 握手实测通过（stdio，protocolVersion 2024-11-05）。
+所有返回都是 §四的信封；`errors` 非空时同时置 MCP 的 `isError`。
+
+### 10.2 回归结果：57 份存量稿，零 error
+
+`server/dist/selftest.js` 直接打模块，对 `Umbra_design_next` 全部 57 份稿跑校验。
+**判据是「能渲染的稿一条 error 都不该报」**，现在达成。
+
+诊断分布：`W_HINT_IGNORED` 52 · `W_COMMENT_TAG` 3 · `W_ELEMENTS_HARD` 3 ·
+`W_ELEMENTS_WARN` 2 · `W_FIXED_BLUR` 2 · `W_DEAD_KEY` 2。
+`W_FIXED_BLUR` 那两处与 `04` 缺陷 #6 的旧记录对得上。
+
+### 10.3 回归抓出的两个校验器缺陷（已修）
+
+**① SVG 的 `path` / `circle` 不是 void 元素。** 我把它们放进了 VOID_TAGS，
+于是 `</path>` 去跟外层 `<svg>` 配对 —— 一份 1,500 元素的稿凭空报出 20 条
+`E_TAG_UNBALANCED`，而那份稿是实测能完整渲染的。VOID_TAGS 现在只留真正的 HTML void 元素。
+
+**② `return` 的归属。** `rows: items.map(it => { if (it.divider) return {…} })`
+里的 return 属于回调，不是 `renderVals` 的返回路径。直接 grep `return` 让 5 份
+能渲染的稿报出 11 条 `E_RETURN_PATH_GAP`。现在用 `ownReturns()` 维护花括号栈，
+每帧判是函数体还是块级 —— `if (x) return …` 算本方法的，`=> { return … }` 不算。
+
+### 10.4 `E_COMMENT_TAG` 降级为 warning
+
+旧记录（`06` 自检 3）说注释里的标签字面量「会把注释提前关掉」。
+那是**流式**解析下的隐患：一次性渲染时 HTML 注释只在 `-->` 处结束，标签字面量无害。
+实测《Umbra PC 端》与《窗口骨架》都带这种注释且都能渲染。
+
+所以：`W_COMMENT_TAG` 警告（提示流式打开后会坏事），
+`E_COMMENT_TAG` 只留给**没闭合的注释**（`<!--` 没有对应 `-->`，后面整段被吞）。
+
+### 10.5 一个已知的覆盖缺口
+
+**57 份里有 25 份的洞审计被放弃**（`stats.holeAuditSkipped`）——
+它们的 `renderVals` 里有解析不了的展开（`...DATA`、`...this.foo().bar` 之类）
+或计算键。按「不报不能证明的错」（`04` §2.5），这时整块审计放弃而不是猜。
+
+`stats.holeAuditSkippedWhy` 会说明放弃的原因。提高覆盖率是后面的事，
+但**放弃优于误报**这一条不改。
+
+### 10.6 下一批
+
+`write_draft` / `patch_draft`（唯一写入口 + 归一化 + `@ds` 展开 + `__resources` 注入）→
+`render_check`（Playwright）→ `snapshot_draft` / `diff_drafts` / `get_changes_since` →
+`build_index` + 静态服务。

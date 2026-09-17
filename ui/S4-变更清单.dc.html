@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- umbradesign:resources -->
+<script>window.__resources = {
+    "https://unpkg.com/react@18.3.1/umd/react.production.min.js": "./react.production.min.js",
+    "https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js": "./react-dom.production.min.js"
+  };</script>
+<!-- /umbradesign:resources -->
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="./_ds-tool/tokens.css">
+<style>
+  html, body { margin: 0; padding: 0; }
+  body { background: var(--tool-bg); }
+  * { box-sizing: border-box; }
+  a { color: var(--tool-accent); text-decoration: none; }
+  a:hover { color: var(--tool-accent-hover); text-decoration: underline; }
+  input, button, select { font: inherit; color: inherit; }
+</style>
+</helmet>
+
+<div style="min-height: 100vh; background: var(--tool-bg); color: var(--tool-text); font-family: var(--tool-sans); font-size: 13px; -webkit-font-smoothing: antialiased;" data-tool-theme="{{ theme }}">
+
+  <div style="position: sticky; top: 0; z-index: 6; background: var(--tool-panel); border-bottom: 1px solid var(--tool-border);">
+    <div style="display: flex; align-items: center; gap: 12px; padding: 11px 20px; flex-wrap: wrap;">
+      <a href="./S2-单稿预览壳.dc.html" style="display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px 0 8px; border-radius: var(--tool-radius); border: 1px solid var(--tool-border-strong); background: var(--tool-panel); color: var(--tool-text); font-size: 12px; flex: none; transition: background .13s ease;" style-hover="background: var(--tool-hover); text-decoration: none;" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M9.6 3.6L5.2 8l4.4 4.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+        预览壳
+      </a>
+      <div style="display: flex; align-items: baseline; gap: 9px; min-width: 0; flex: 1 1 220px;">
+        <span style="font-size: 15px; font-weight: 620; letter-spacing: -0.01em; white-space: nowrap;">变更清单</span>
+        <span style="font-family: var(--tool-mono); font-size: 12px; color: var(--tool-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ scopeLabel }}</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 7px; flex: none;">
+        <span style="font-family: var(--tool-mono); font-size: 12px; color: var(--tool-muted);">{{ fromLabel }}</span>
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style="color: var(--tool-muted);" aria-hidden="true"><path d="M3 8h9.4M9.4 4.8L12.8 8l-3.4 3.2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+        <span style="font-family: var(--tool-mono); font-size: 12px; font-weight: 600;">{{ toLabel }}</span>
+      </div>
+      <sc-if value="{{ multiSpan }}" hint-placeholder-val="{{ false }}">
+        <div style="display: flex; align-items: center; gap: 5px; flex: none; padding: 3px 8px; border-radius: 999px; background: var(--tool-accent-soft); border: 1px solid var(--tool-accent-border);">
+          <span style="font-size: 11px; color: var(--tool-accent); font-weight: 560;">跨 {{ spanCount }} 版合并</span>
+          <sc-for list="{{ spans }}" as="v" hint-placeholder-count="4">
+            <span style="font-family: var(--tool-mono); font-size: 11px; color: var(--tool-accent); opacity: 0.8;">{{ v.label }}</span>
+          </sc-for>
+        </div>
+      </sc-if>
+      <button type="button" onClick="{{ onCopy }}" style="display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 11px; border-radius: var(--tool-radius); border: 1px solid var(--tool-border-strong); background: var(--tool-panel); cursor: pointer; font-size: 12px; flex: none; transition: background .13s ease;" style-hover="background: var(--tool-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="5.4" y="2.4" width="8.2" height="8.2" rx="1.6" stroke="currentColor" stroke-width="1.3"></rect><path d="M10.6 13.6H3.9a1.5 1.5 0 01-1.5-1.5V5.4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"></path></svg>
+        {{ copyLabel }}
+      </button>
+    </div>
+    <div style="display: flex; align-items: center; gap: 8px; padding: 0 20px 10px; flex-wrap: wrap; font-size: 12px;">
+      <span style="font-size: 11px; color: var(--tool-muted); flex: none;">演示态</span>
+      <sc-for list="{{ demoStates }}" as="st" hint-placeholder-count="8">
+        <button type="button" onClick="{{ st.pick }}" title="{{ st.name }}" aria-pressed="{{ st.active }}" style="display: inline-flex; align-items: center; gap: 5px; height: 23px; padding: 0 9px 0 6px; border-radius: var(--tool-radius-sm); border: 1px solid; cursor: pointer; font-size: 11px; white-space: nowrap; transition: background .13s ease, border-color .13s ease, color .13s ease; background: {{ st.bg }}; border-color: {{ st.bd }}; color: {{ st.fg }};" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">
+          <span style="font-family: var(--tool-mono); opacity: 0.6;">{{ st.n }}</span>
+          <span style="font-weight: {{ st.fw }};">{{ st.short }}</span>
+        </button>
+      </sc-for>
+      <span style="color: var(--tool-border-strong); flex: none;">·</span>
+      <span style="color: var(--tool-muted); min-width: 0;">{{ demoNote }}</span>
+    </div>
+  </div>
+
+  <div style="max-width: 1040px; margin: 0 auto; padding: 16px 20px 32px;">
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 9px; margin-bottom: 8px;">
+      <sc-for list="{{ summary }}" as="l" hint-placeholder-count="4">
+        <div style="padding: 11px 13px; border: 1px solid; border-radius: var(--tool-radius-lg); background: {{ l.bg }}; border-color: {{ l.bd }}; opacity: {{ l.opacity }};">
+          <div style="display: flex; align-items: baseline; gap: 8px; margin-bottom: 4px;">
+            <span style="font-family: var(--tool-mono); font-size: 12px; font-weight: 700; color: {{ l.fg }};">{{ l.key }}</span>
+            <span style="font-weight: 600;">{{ l.name }}</span>
+            <span style="flex: 1;"></span>
+            <span style="font-family: var(--tool-mono); font-size: 19px; font-weight: 650; line-height: 1; font-variant-numeric: tabular-nums; color: {{ l.fg }};">{{ l.count }}</span>
+          </div>
+          <div style="font-size: 12px; color: var(--tool-text-2);">{{ l.action }}</div>
+        </div>
+      </sc-for>
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 9px; padding: 10px 2px 14px; flex-wrap: wrap;">
+      <span style="font-size: 12px; color: var(--tool-text-2);">{{ verdict }}</span>
+      <span style="flex: 1;"></span>
+      <a href="./S6-版本对比.dc.html" style="font-size: 12px; pointer-events: none; color: var(--tool-muted); border: 1px dashed var(--tool-border-strong); border-radius: var(--tool-radius-sm); padding: 2px 7px;">同一份数据的画面投影 · S6 待建</a>
+    </div>
+
+    <sc-if value="{{ noChange }}" hint-placeholder-val="{{ false }}">
+      <div style="background: var(--tool-panel); border: 1px solid var(--tool-border); border-radius: var(--tool-radius-lg); padding: 44px 24px; text-align: center; box-shadow: var(--tool-shadow-1);">
+        <div style="width: 44px; height: 44px; margin: 0 auto 14px; border-radius: 999px; background: var(--tool-ok-soft); border: 1px solid var(--tool-ok-border); display: grid; place-items: center; color: var(--tool-ok);">
+          <svg width="20" height="20" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.4 8h9.2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path></svg>
+        </div>
+        <div style="font-size: 17px; font-weight: 620; margin-bottom: 7px;">两版完全相同</div>
+        <div style="max-width: 400px; margin: 0 auto; color: var(--tool-text-2); line-height: 1.7;">{{ noChangeBody }}</div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ hasChanges }}" hint-placeholder-val="{{ true }}">
+      <div style="display: grid; gap: 14px;">
+        <sc-for list="{{ sections }}" as="sec" hint-placeholder-count="1">
+          <div style="background: var(--tool-panel); border: 1px solid var(--tool-border); border-radius: var(--tool-radius-lg); overflow: hidden; box-shadow: var(--tool-shadow-1);">
+
+            <sc-if value="{{ sec.showHeader }}" hint-placeholder-val="{{ false }}">
+              <div style="display: flex; align-items: center; gap: 10px; padding: 11px 15px; background: var(--tool-panel-2); border-bottom: 1px solid var(--tool-border); flex-wrap: wrap;">
+                <span style="font-weight: 620; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ sec.title }}</span>
+                <span style="font-family: var(--tool-mono); font-size: 11px; color: var(--tool-muted);">{{ sec.subtitle }}</span>
+                <span style="flex: 1;"></span>
+                <sc-for list="{{ sec.pills }}" as="p" hint-placeholder-count="4">
+                  <span style="display: inline-flex; align-items: center; gap: 4px; height: 19px; padding: 0 7px; border-radius: var(--tool-radius-sm); font-family: var(--tool-mono); font-size: 11px; font-weight: 600; background: {{ p.bg }}; color: {{ p.fg }};">{{ p.text }}</span>
+                </sc-for>
+              </div>
+            </sc-if>
+
+            <sc-for list="{{ sec.groups }}" as="g" hint-placeholder-count="3">
+              <div style="border-bottom: 1px solid var(--tool-border);">
+                <button type="button" onClick="{{ g.toggle }}" aria-expanded="{{ g.open }}" style="display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 15px; border: 0; border-left: 3px solid {{ g.edge }}; background: {{ g.headBg }}; cursor: pointer; text-align: left; transition: background .13s ease;" style-hover="background: var(--tool-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: -2px;">
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" style="flex: none; color: var(--tool-muted); transform: rotate({{ g.arrow }}); transition: transform .13s ease;" aria-hidden="true"><path d="M6.2 4.4L9.8 8l-3.6 3.6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                  <span style="font-family: var(--tool-mono); font-size: 12px; font-weight: 700; color: {{ g.fg }}; flex: none;">{{ g.key }}</span>
+                  <span style="font-weight: 600; flex: none;">{{ g.name }}</span>
+                  <span style="font-size: 12px; color: var(--tool-text-2); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ g.action }}</span>
+                  <span style="flex: 1;"></span>
+                  <span style="font-family: var(--tool-mono); font-size: 13px; font-weight: 600; color: {{ g.fg }}; flex: none;">{{ g.count }}</span>
+                </button>
+
+                <sc-if value="{{ g.open }}" hint-placeholder-val="{{ true }}">
+                  <div style="border-top: 1px solid var(--tool-border);">
+                    <sc-for list="{{ g.changes }}" as="c" hint-placeholder-count="2">
+                      <div style="padding: 11px 15px 12px 30px; border-bottom: 1px solid var(--tool-border);">
+                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px; flex-wrap: wrap;">
+                          <span style="font-family: var(--tool-mono); font-size: 10px; font-weight: 600; letter-spacing: 0.03em; padding: 1px 6px; border-radius: var(--tool-radius-sm); background: var(--tool-panel-2); border: 1px solid var(--tool-border); color: var(--tool-text-2);">{{ c.kind }}</span>
+                          <span style="font-family: var(--tool-mono); font-size: 12px; font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ c.target }}</span>
+                          <sc-if value="{{ c.hasProp }}" hint-placeholder-val="{{ false }}">
+                            <span style="font-family: var(--tool-mono); font-size: 11px; color: var(--tool-muted);">{{ c.prop }}</span>
+                          </sc-if>
+                          <span style="flex: 1;"></span>
+                          <a href="#" style="font-family: var(--tool-mono); font-size: 11px; font-weight: 600;">{{ c.at }}</a>
+                        </div>
+
+                        <div style="line-height: 1.6; margin-bottom: 8px;">{{ c.message }}</div>
+
+                        <sc-if value="{{ c.hasValues }}" hint-placeholder-val="{{ false }}">
+                          <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px;">
+                            <div style="display: flex; align-items: center; gap: 7px; padding: 5px 9px; background: var(--tool-panel-2); border: 1px solid var(--tool-border); border-radius: var(--tool-radius); min-width: 0;">
+                              <sc-if value="{{ c.hasSwatch }}" hint-placeholder-val="{{ false }}">
+                                <span style="width: 16px; height: 16px; border-radius: 3px; flex: none; border: 1px solid var(--tool-border-strong); background: {{ c.fromSwatch }};"></span>
+                              </sc-if>
+                              <span style="font-family: var(--tool-mono); font-size: 12px; color: var(--tool-muted); text-decoration: line-through; min-width: 0; word-break: break-all;">{{ c.from }}</span>
+                            </div>
+                            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" style="flex: none; color: var(--tool-muted);" aria-hidden="true"><path d="M3 8h9.4M9.4 4.8L12.8 8l-3.4 3.2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                            <div style="display: flex; align-items: center; gap: 7px; padding: 5px 9px; background: var(--tool-accent-soft); border: 1px solid var(--tool-accent-border); border-radius: var(--tool-radius); min-width: 0;">
+                              <sc-if value="{{ c.hasSwatch }}" hint-placeholder-val="{{ false }}">
+                                <span style="width: 16px; height: 16px; border-radius: 3px; flex: none; border: 1px solid var(--tool-border-strong); background: {{ c.toSwatch }};"></span>
+                              </sc-if>
+                              <span style="font-family: var(--tool-mono); font-size: 12px; font-weight: 600; min-width: 0; word-break: break-all;">{{ c.to }}</span>
+                            </div>
+                          </div>
+                        </sc-if>
+
+                        <sc-if value="{{ c.hasImpact }}" hint-placeholder-val="{{ false }}">
+                          <div style="display: flex; gap: 9px; padding: 8px 11px; background: var(--tool-err-soft); border: 1px solid var(--tool-err-border); border-radius: var(--tool-radius); font-size: 12px;">
+                            <span style="flex: none; font-weight: 700; color: var(--tool-err); font-size: 11px; letter-spacing: 0.04em;">实现侧</span>
+                            <span style="color: var(--tool-text-2); line-height: 1.55; min-width: 0;">{{ c.impact }}</span>
+                          </div>
+                        </sc-if>
+                        <sc-if value="{{ c.noImpact }}" hint-placeholder-val="{{ false }}">
+                          <div style="display: flex; gap: 9px; padding: 8px 11px; background: var(--tool-panel-2); border: 1px dashed var(--tool-border-strong); border-radius: var(--tool-radius); font-size: 12px;">
+                            <span style="flex: none; font-weight: 700; color: var(--tool-muted); font-size: 11px; letter-spacing: 0.04em;">缺 impact</span>
+                            <span style="color: var(--tool-text-2); line-height: 1.55; min-width: 0;">这条契约变更没写清对实现侧的影响 —— 落盘前要补，别让实现侧自己猜。</span>
+                          </div>
+                        </sc-if>
+                      </div>
+                    </sc-for>
+                  </div>
+                </sc-if>
+
+                <sc-if value="{{ g.collapsedNote }}" hint-placeholder-val="{{ false }}">
+                  <div style="padding: 9px 15px 11px 30px; font-size: 12px; color: var(--tool-muted); border-top: 1px solid var(--tool-border);">{{ g.noteText }}</div>
+                </sc-if>
+              </div>
+            </sc-for>
+          </div>
+        </sc-for>
+      </div>
+    </sc-if>
+
+    <div style="display: flex; align-items: center; gap: 12px; padding: 16px 2px 0; font-size: 11px; color: var(--tool-muted); flex-wrap: wrap;">
+      <span>分级的唯一目的是回答「要不要动代码」</span>
+      <span style="flex: 1;"></span>
+      <span style="display: flex; align-items: center; gap: 5px;"><kbd style="font-family: var(--tool-mono); background: var(--tool-panel-2); border: 1px solid var(--tool-border); border-radius: var(--tool-radius-sm); padding: 1px 5px;">C</kbd> 复制成纯文本</span>
+      <span style="display: flex; align-items: center; gap: 5px;"><kbd style="font-family: var(--tool-mono); background: var(--tool-panel-2); border: 1px solid var(--tool-border); border-radius: var(--tool-radius-sm); padding: 1px 5px;">4</kbd> 展开 / 折叠 L4</span>
+    </div>
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{
+  &quot;collapseL4&quot;: { &quot;editor&quot;: &quot;boolean&quot;, &quot;default&quot;: true, &quot;tsType&quot;: &quot;boolean&quot;, &quot;section&quot;: &quot;变更清单&quot; },
+  &quot;theme&quot;: { &quot;editor&quot;: &quot;enum&quot;, &quot;options&quot;: [&quot;跟随外层&quot;, &quot;dark&quot;], &quot;default&quot;: &quot;跟随外层&quot;, &quot;tsType&quot;: &quot;'dark'|null&quot;, &quot;section&quot;: &quot;工具皮肤&quot; }
+}">
+const LEVELS = {
+  L1: { name: "契约", action: "必须改代码", fg: "var(--tool-err)", bg: "var(--tool-err-soft)", bd: "var(--tool-err-border)" },
+  L2: { name: "取值", action: "照抄新值", fg: "var(--tool-warn)", bg: "var(--tool-warn-soft)", bd: "var(--tool-warn-border)" },
+  L3: { name: "文案", action: "改字符串", fg: "var(--tool-accent)", bg: "var(--tool-accent-soft)", bd: "var(--tool-accent-border)" },
+  L4: { name: "等价", action: "无需处理", fg: "var(--tool-muted)", bg: "var(--tool-panel-2)", bd: "var(--tool-border)" }
+};
+
+const SWATCH = {
+  "var(--danger-soft)": "#fbe9e7",
+  "var(--warning-soft)": "#fdf2dc",
+  "var(--accent)": "#e8590c",
+  "var(--accent-hover)": "#d24f08",
+  "#DEDBD5": "#dedbd5",
+  "#E8590C": "#e8590c"
+};
+
+const BASE = [
+  { level: "L1", kind: "prop_added", target: "onRetry", to: "() => void", at: "L45",
+    message: "新增 props onRetry: () => void", impact: "实现侧需要接这个回调" },
+  { level: "L1", kind: "branch_added", target: "hasFailed", at: "L128",
+    message: "新增状态分支 filter = 'failed'", impact: "列表要多一条筛选路径，空态文案也跟着分叉" },
+  { level: "L2", kind: "style_changed", target: "日志行", prop: "line-height", from: "20px", to: "22px", at: "L131",
+    message: "日志行的行高从 20px 改到 22px" },
+  { level: "L2", kind: "token_changed", target: "失败态底色", from: "var(--danger-soft)", to: "var(--warning-soft)", at: "L136",
+    message: "失败态底色换了语义 token" },
+  { level: "L2", kind: "style_changed", target: "行间距", prop: "gap", from: "8px", to: "10px", at: "L118" },
+  { level: "L2", kind: "style_changed", target: "时间戳", prop: "font-size", from: "11px", to: "12px", at: "L124" },
+  { level: "L2", kind: "token_changed", target: "重试按钮", from: "var(--accent)", to: "var(--accent-hover)", at: "L142",
+    message: "重试按钮常态色换成了 hover 档" },
+  { level: "L3", kind: "text_changed", target: "空态标题", from: "暂无日志", to: "这段时间没有日志", at: "L96" },
+  { level: "L3", kind: "text_changed", target: "重试按钮", from: "重试", to: "再试一次", at: "L143" },
+  { level: "L3", kind: "text_changed", target: "权限不足提示", from: "无权限", to: "这台设备还没被授权读日志", at: "L161" },
+  { level: "L4", kind: "reordered", target: "2 处容器重排", at: "L78" },
+  { level: "L4", kind: "wrapper_changed", target: "外层 div 换成 section", at: "L12" }
+];
+
+function fill(msg) {
+  return BASE.map((c) => {
+    const out = Object.assign({}, c);
+    if (!out.message) {
+      if (out.kind === "style_changed") out.message = out.target + " 的 " + out.prop + " 从 " + out.from + " 改到 " + out.to;
+      else if (out.kind === "text_changed") out.message = out.target + "文案改了";
+      else if (out.kind === "reordered") out.message = "渲染等价的容器重排，画面没变";
+      else if (out.kind === "wrapper_changed") out.message = "外层容器标签换了，渲染等价";
+      else out.message = out.target;
+    }
+    return out;
+  });
+}
+
+const ALL = fill();
+
+function many() {
+  const out = [];
+  for (let i = 0; i < 84; i++) {
+    const b = ALL[i % ALL.length];
+    out.push(Object.assign({}, b, {
+      at: "L" + (40 + i * 7),
+      target: i < ALL.length ? b.target : b.target + " · " + Math.floor(i / ALL.length)
+    }));
+  }
+  return out;
+}
+
+const DEMOS = [
+  { n: 1, short: "四级都有", name: "四级都有", note: "L4 默认折叠，但计数露着" },
+  { n: 2, short: "只有 L4", name: "只有 L4（等价）", note: "这一版其实什么都没改" },
+  { n: 3, short: "只有 L1", name: "只有 L1（纯契约）", note: "最需要醒目的一种" },
+  { n: 4, short: "无变更", name: "无变更", note: "两版完全相同" },
+  { n: 5, short: "跨多版", name: "跨多版合并", note: "spans 有 4 项" },
+  { n: 6, short: "84 条", name: "变更很多", note: "84 条，分组折叠才看得动" },
+  { n: 7, short: "项目级", name: "项目级汇总", note: "多份稿的变更，按稿分节" },
+  { n: 8, short: "缺 impact", name: "某条缺 impact", note: "落盘前要补" }
+];
+
+class Component extends DCLogic {
+  state = { demo: 1, open: {}, copied: false };
+
+  componentDidMount() {
+    this.onKey = (e) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const t = e.target || {};
+      const tag = t.tagName || "";
+      if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA" || t.isContentEditable === true) return;
+      if (e.key.toLowerCase() === "c") { e.preventDefault(); this.copy(); }
+      if (e.key === "4") {
+        e.preventDefault();
+        this.setState((s) => {
+          const nx = Object.assign({}, s.open);
+          nx["_:L4"] = !this.isOpen(s, "_", "L4");
+          return { open: nx };
+        });
+      }
+    };
+    document.addEventListener("keydown", this.onKey);
+  }
+
+  componentWillUnmount() {
+    document.removeEventListener("keydown", this.onKey);
+    if (this.ct) clearTimeout(this.ct);
+  }
+
+  copy() {
+    this.setState({ copied: true });
+    this.ct = setTimeout(() => this.setState({ copied: false }), 1600);
+  }
+
+  isOpen(s, secKey, level) {
+    const k = secKey + ":" + level;
+    if (s.open[k] !== undefined) return s.open[k];
+    if (level === "L4") return this.props.collapseL4 === false;
+    return true;
+  }
+
+  data() {
+    const n = this.state.demo;
+    if (n === 2) return ALL.filter((c) => c.level === "L4");
+    if (n === 3) return ALL.filter((c) => c.level === "L1");
+    if (n === 4) return [];
+    if (n === 6) return many();
+    if (n === 8) {
+      return ALL.map((c) => (c.target === "hasFailed" ? Object.assign({}, c, { impact: null }) : c));
+    }
+    return ALL;
+  }
+
+  group(changes, secKey) {
+    const s = this.state;
+    return ["L1", "L2", "L3", "L4"].map((key) => {
+      const meta = LEVELS[key];
+      const items = changes.filter((c) => c.level === key);
+      if (!items.length) return null;
+      const open = this.isOpen(s, secKey, key);
+      return {
+        key: key,
+        name: meta.name,
+        action: key === "L4" ? "无需处理 —— 渲染等价的重排" : meta.action,
+        count: String(items.length),
+        fg: meta.fg,
+        edge: key === "L4" ? "var(--tool-border-strong)" : meta.fg,
+        headBg: key === "L1" ? "var(--tool-err-soft)" : "var(--tool-panel)",
+        open: open,
+        arrow: open ? "90deg" : "0deg",
+        collapsedNote: !open && key === "L4",
+        noteText: items.length + " 条渲染等价的重排，实现侧不用管。展开只是给你核对用。",
+        toggle: () => this.setState((st) => {
+          const nx = Object.assign({}, st.open);
+          nx[secKey + ":" + key] = !this.isOpen(st, secKey, key);
+          return { open: nx };
+        }),
+        changes: items.map((c) => {
+          const hasValues = c.from !== undefined && c.to !== undefined && c.level !== "L1";
+          const sw = SWATCH[c.from] && SWATCH[c.to];
+          return {
+            kind: c.kind,
+            target: c.target,
+            hasProp: !!c.prop,
+            prop: c.prop || "",
+            at: c.at || "—",
+            message: c.message,
+            hasValues: hasValues,
+            from: c.from === undefined ? "" : String(c.from),
+            to: c.to === undefined ? "" : String(c.to),
+            hasSwatch: !!sw,
+            fromSwatch: SWATCH[c.from] || "transparent",
+            toSwatch: SWATCH[c.to] || "transparent",
+            hasImpact: c.level === "L1" && !!c.impact,
+            noImpact: c.level === "L1" && !c.impact,
+            impact: c.impact || ""
+          };
+        })
+      };
+    }).filter(Boolean);
+  }
+
+  renderVals() {
+    const s = this.state;
+    const demo = DEMOS[s.demo - 1];
+    const projectLevel = s.demo === 7;
+    const changes = this.data();
+
+    const counts = { L1: 0, L2: 0, L3: 0, L4: 0 };
+    changes.forEach((c) => { counts[c.level]++; });
+
+    let sections;
+    if (projectLevel) {
+      const files = [
+        { title: "日志.dc.html", subtitle: "v216 → v217", take: ALL },
+        { title: "设置 · 账号与凭据.dc.html", subtitle: "v65 → v66", take: ALL.filter((c) => c.level === "L2" || c.level === "L3") },
+        { title: "PC 空态.dc.html", subtitle: "v22 → v23", take: ALL.filter((c) => c.level === "L1") },
+        { title: "会话 时间线 与 消息气泡.dc.html", subtitle: "v141 → v142", take: ALL.filter((c) => c.level === "L4") }
+      ];
+      files.forEach((f) => { f.take.forEach((c) => { counts[c.level]++; }); });
+      counts.L1 = 0; counts.L2 = 0; counts.L3 = 0; counts.L4 = 0;
+      files.forEach((f) => f.take.forEach((c) => { counts[c.level]++; }));
+      sections = files.map((f, i) => {
+        const c2 = { L1: 0, L2: 0, L3: 0, L4: 0 };
+        f.take.forEach((c) => { c2[c.level]++; });
+        return {
+          showHeader: true,
+          title: f.title,
+          subtitle: f.subtitle,
+          pills: ["L1", "L2", "L3", "L4"].filter((k) => c2[k]).map((k) => ({
+            text: k + " " + c2[k],
+            bg: LEVELS[k].bg,
+            fg: LEVELS[k].fg
+          })),
+          groups: this.group(f.take, "f" + i)
+        };
+      });
+    } else {
+      sections = [{ showHeader: false, title: "", subtitle: "", pills: [], groups: this.group(changes, "_") }];
+    }
+
+    const onlyL4 = counts.L4 > 0 && !counts.L1 && !counts.L2 && !counts.L3;
+    const onlyL1 = counts.L1 > 0 && !counts.L2 && !counts.L3 && !counts.L4;
+    const total = counts.L1 + counts.L2 + counts.L3 + counts.L4;
+    const spans = s.demo === 5 ? ["v218", "v219", "v220", "v221"] : ["v217"];
+
+    let verdict;
+    if (total === 0) verdict = "没有变更 —— 这一轮实现侧不用看。";
+    else if (onlyL4) verdict = "这一版实现侧不用动代码：" + counts.L4 + " 条全是渲染等价的重排。";
+    else if (onlyL1) verdict = "纯契约变更：" + counts.L1 + " 条都要改代码，没有可以照抄的取值。";
+    else if (counts.L1) verdict = counts.L1 + " 条契约变更必须改代码，" + (counts.L2 + counts.L3) + " 条照抄新值和字符串，" + counts.L4 + " 条不用管。";
+    else verdict = "没有契约变更 —— 照抄 " + counts.L2 + " 条取值和 " + counts.L3 + " 条文案就行。";
+
+    return {
+      theme: this.props.theme === "dark" ? "dark" : null,
+      scopeLabel: projectLevel ? "umbra · 4 份稿" : "日志.dc.html",
+      fromLabel: s.demo === 5 ? "v217" : projectLevel ? "各稿上一版" : "v216",
+      toLabel: s.demo === 5 ? "v221" : projectLevel ? "当前" : "v217",
+      multiSpan: spans.length > 1,
+      spanCount: String(spans.length),
+      spans: spans.map((v) => ({ label: v })),
+
+      onCopy: () => this.copy(),
+      copyLabel: s.copied ? "已复制纯文本" : "复制成纯文本",
+
+      summary: ["L1", "L2", "L3", "L4"].map((k) => ({
+        key: k,
+        name: LEVELS[k].name,
+        action: LEVELS[k].action,
+        count: String(counts[k]),
+        fg: LEVELS[k].fg,
+        bg: counts[k] ? LEVELS[k].bg : "var(--tool-panel)",
+        bd: counts[k] ? LEVELS[k].bd : "var(--tool-border)",
+        opacity: counts[k] ? "1" : "0.5"
+      })),
+      verdict: verdict,
+
+      noChange: total === 0,
+      hasChanges: total > 0,
+      noChangeBody: "v216 和 v217 的模板、逻辑、props 全等。工具仍然出这一屏，是为了让你确认「确实没改」，而不是让你怀疑清单没跑出来。",
+
+      sections: sections,
+
+      demoNote: demo.note,
+      demoStates: DEMOS.map((x) => ({
+        n: x.n, name: x.name, short: x.short, active: x.n === s.demo,
+        fw: x.n === s.demo ? "600" : "400",
+        bg: x.n === s.demo ? "var(--tool-accent)" : "var(--tool-panel)",
+        bd: x.n === s.demo ? "var(--tool-accent)" : "var(--tool-border-strong)",
+        fg: x.n === s.demo ? "var(--tool-on-accent)" : "var(--tool-text-2)",
+        pick: () => this.setState({ demo: x.n, open: {} })
+      }))
+    };
+  }
+}
+
+</script>
+</body>
+</html>
