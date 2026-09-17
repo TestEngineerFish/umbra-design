@@ -300,45 +300,69 @@ function normalizeUrl(url: string, p: Project): string {
  * 改法：挂 `data-*` 上，逻辑类里在 `componentDidMount` / `componentDidUpdate` 抄过去
  * （S5 的图标就是这么改的）。
  */
-/* ⚠️⚠️ 2026-09-18 收回了 SVG 那一半 —— 详见 doc/00 §24。
+/* ⚠️⚠️ 2026-09-18：**撤回的那半又收回来了。** 详见 doc/00 §二十七。
  *
- * 原来这条检查同时管两类：「会发请求」和「SVG 解析时校验」。
- * 后者**实测复现不了**：
- *   · 语料里 4 份真稿（PC 吐司 / 折叠栏 / 空态 / 图标选择器）带 `d="{{ icon }}"`，
- *     真渲染**零条** SVG 报警
- *   · 8 种合成形态（裸写 / sc-for / 大页面 / 带 hint / sc-if false / x-import…）
- *     也全不报
- * 只有 S5 那一次观察到过，触发条件没隔离出来。
+ * 经过：这条检查本来管两类 —— 「会发请求」和「SVG 解析时按类型校验」。
+ * 我用 render_check 反向验证后者，4 份真实语料 + 8 个合成形状全是零告警，
+ * 于是按 doc/04 §二「未复现的不能当必改项」把 SVG 那一半撤了（§二十四），
+ * 设计侧也照这条把 S5 改回了 `d="{{ i.d }}"`。
  *
- * 按 doc/04 §二 的纪律：**未复现的就标未复现，不能当成必改项。**
- * 拿一条复现不了的判据让设计侧改 150 多处，等于制造「一条永远好不了的黄」——
- * 那正是我自己写下的、不该做的事。
+ * 撤回是错的。`render.ts` 里有一行我自己写的
+ *     if (/attribute .*Expected/.test(text)) return;
+ * 把这一类控制台消息整段丢掉了 —— 反向验证用的就是这台被消音过的仪器，
+ * 量到的零是仪器的零。这条现在已经删掉（改成单独归类上报）。
  *
- * 留下的只有「会发请求」那一半 —— 它是实测过的（§19.6：src="{{ previewSrc }}"
- * 每次加载留一个 404，改成 about:blank 之后消失）。
+ * 重新实测，判据换成完全不过滤的 console 监听，15 个形状，**100% 复现**：
+ *   ✗ path d · polyline points · g transform · svg viewBox ·
+ *     circle cx · circle r · svg width · rect x/y/width/height · line x1
+ *   ✓ fill · stroke-width（涂装类宽容）· img width（HTML 宽容）·
+ *     style 里的洞（CSS 静默丢弃）· use href（URL 宽容）·
+ *     data-icon-d + 静态 d="M0 0"（推荐的修法本身，干净）
  *
- * ⚠️ 判据必须看**宿主元素**，不能只看属性名。两条实测出来的边界：
+ * 规律：**SVG 里按 length / number / transform / 路径数据这些类型解析的几何属性**，
+ * 在解析那一刻就校验，那时洞还没被替换，所以必报。涂装类和 HTML 属性不校验。
+ * 所以下面的 SVG 清单是**量出来的**，不是猜的 —— 不在清单里的属性一律不报。
+ *
+ * ⚠️ 判据必须看**宿主元素**，不能只看属性名。三条实测出来的边界：
  *
  *  1. `a[href]` 在解析时**不发请求**（只有 img / script / link / iframe / source /
  *     video / audio / embed / track / object 这些会）。报它是误报。
  *  2. `d` 只在 **SVG 元素**上被校验。抽图标组件之后写法是
- *     `<dc-import name="图标" d="{{ ic.d }}">` —— dc-import 是自定义元素，
+ *     `<dc-import name="IconGlyph" d="{{ ic.d }}">` —— dc-import 是自定义元素，
  *     浏览器不校验它的 d，**那正是推荐的修法**，报它就是误报正确修法。
- *
- * 这是同一类错误的第二次（第一次是 `data-icon-d` 被 `` 命中）——
- * 判据写松了就会拦住修法本身。
+ *  3. `data-icon-d` 不能被 `\b` 命中（`-` 是非单词字符）—— 同样是修法本身。
  */
 const FETCH_HOSTS: Record<string, string[]> = {
   img: ["src", "srcset"], script: ["src"], link: ["href"], iframe: ["src"],
   source: ["src", "srcset"], video: ["src", "poster"], audio: ["src"],
   embed: ["src"], track: ["src"], object: ["data"], input: ["src"],
 };
-const WATCH_ATTRS = ["src", "href", "srcset", "poster", "data"];
+/** 解析期按类型校验的 SVG 几何属性。清单是实测出来的（见上面的头注）。 */
+const SVG_TYPED: Record<string, string[]> = {
+  path: ["d"],
+  polyline: ["points"], polygon: ["points"],
+  g: ["transform"],
+  svg: ["viewBox", "width", "height"],
+  circle: ["cx", "cy", "r"],
+  ellipse: ["cx", "cy", "rx", "ry"],
+  rect: ["x", "y", "width", "height", "rx", "ry"],
+  line: ["x1", "y1", "x2", "y2"],
+};
+/** polygon / ellipse 没单独测，但它们和 polyline / circle 是同一套属性类型
+ *  （SVG 规范里同为 <points> 与 <length>），归在一起。拿不准的没往里加。 */
 
-/** 这个 (宿主, 属性) 组合，浏览器在解析时会不会真去发请求。
+const WATCH_ATTRS = ["src", "href", "srcset", "poster", "data",
+  "d", "points", "transform", "viewBox", "cx", "cy", "r", "rx", "ry",
+  "x", "y", "x1", "y1", "x2", "y2", "width", "height"];
+
+/** 这个 (宿主, 属性) 组合，浏览器在解析时会怎么出事。
  *  只认实测过的组合 —— 拿不准的一律不报（doc/04 §二：不报不能证明的错）。 */
-function parseTimeRisk(tag: string, attr: string): "fetch" | null {
-  return FETCH_HOSTS[tag.toLowerCase()]?.includes(attr.toLowerCase()) ? "fetch" : null;
+function parseTimeRisk(tag: string, attr: string): "fetch" | "svg" | null {
+  const t = tag.toLowerCase(), a = attr.toLowerCase();
+  if (FETCH_HOSTS[t]?.includes(a)) return "fetch";
+  // 属性名大小写：HTML 解析不分大小写，viewBox 在稿里也可能写成 viewbox
+  if (SVG_TYPED[t]?.some((x) => x.toLowerCase() === a)) return "svg";
+  return null;
 }
 
 function checkHoleInParsedAttr(d: Draft, f: string): Diagnostic[] {
@@ -357,12 +381,21 @@ function checkHoleInParsedAttr(d: Draft, f: string): Diagnostic[] {
       // 往前找到宿主开标签的标签名
       const lt = tpl.lastIndexOf("<", at);
       const tag = lt < 0 ? "" : (/^<\s*([a-zA-Z][\w-]*)/.exec(tpl.slice(lt, at)) ?? ["", ""])[1] as string;
-      if (!parseTimeRisk(tag, attr)) continue;
-      out.push(warn(W.HOLE_IN_PARSED_ATTR, f, { kind: "key", name: `${tag}[${attr}]` },
-        `<${tag}> 的 ${attr} 上写了洞 —— 浏览器在替换它之前就会去请求字面量，每次加载留一个 404`,
-        { ...d.at(abs),
-          fix: `静态值先写 about:blank（或占位路径），真地址在逻辑类的 componentDidMount / ` +
-               `componentDidUpdate 里设；或改挂 data-${attr.toLowerCase()} 再抄过去` }));
+      const risk = parseTimeRisk(tag, attr);
+      if (!risk) continue;
+      out.push(risk === "fetch"
+        ? warn(W.HOLE_IN_PARSED_ATTR, f, { kind: "key", name: `${tag}[${attr}]` },
+            `<${tag}> 的 ${attr} 上写了洞 —— 浏览器在替换它之前就会去请求字面量，每次加载留一个 404`,
+            { ...d.at(abs),
+              fix: `静态值先写 about:blank（或占位路径），真地址在逻辑类的 componentDidMount / ` +
+                   `componentDidUpdate 里设；或改挂 data-${attr.toLowerCase()} 再抄过去` })
+        : warn(W.HOLE_IN_PARSED_ATTR, f, { kind: "key", name: `${tag}[${attr}]` },
+            `<${tag}> 的 ${attr} 是解析期按类型校验的属性，上面写了洞 —— ` +
+            `浏览器在替换它之前就校验，控制台必留一条 "attribute ${attr}: Expected …"`,
+            { ...d.at(abs),
+              fix: `洞挂到 data-${attr.toLowerCase()} 上、静态值给一个合法占位（d 给 "M0 0"），` +
+                   `渲染后在 componentDidMount / componentDidUpdate 里抄进真属性；` +
+                   `或者直接用 ui/IconGlyph.dc.html 那个子组件（doc/06 §2.8）` }));
     }
   }
   return out;

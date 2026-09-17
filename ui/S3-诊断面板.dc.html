@@ -37,6 +37,14 @@
       <div style="display: flex; align-items: baseline; gap: 9px; min-width: 0; flex: 1 1 200px;">
         <span style="font-size: 15px; font-weight: 620; letter-spacing: -0.01em;">诊断</span>
         <span style="font-family: var(--tool-mono); font-size: 12px; color: var(--tool-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ fileLabel }}</span>
+        <!-- 版本位（设计侧 §五 第 9 项）：显示最新快照号；工作区和快照对不上时
+             后面挂一枚「工作区」徽标；从来没有快照就写「—」。
+             它回答的是「我现在看的是不是磁盘上那一版」—— 工具自己每次写都打快照，
+             所以对不上只有一个来源：这份稿在工具之外被改过。 -->
+        <span title="{{ verTitle }}" style="font-family: var(--tool-mono); font-size: 12px; color: {{ verFg }}; flex: none; white-space: nowrap;">{{ verLabel }}</span>
+        <sc-if value="{{ verDirty }}" hint-placeholder-val="{{ false }}">
+          <span title="这份稿在工具之外被改过：盘上的内容和最新快照不一样" style="flex: none; height: 18px; display: inline-flex; align-items: center; padding: 0 7px; border-radius: 999px; background: var(--tool-warn-soft); border: 1px solid var(--tool-warn-border); color: var(--tool-warn); font-size: 10.5px; white-space: nowrap;">工作区</span>
+        </sc-if>
       </div>
       <span style="display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: 999px; font-size: 12px; font-weight: 560; white-space: nowrap; border: 1px solid; flex: none; background: {{ okBg }}; border-color: {{ okBd }}; color: {{ okFg }};">
         <span style="width: 6px; height: 6px; border-radius: 999px; background: currentColor;"></span>{{ okLabel }}
@@ -228,6 +236,17 @@ const LIVE = (function () {
   catch (e) { return null; }
 })();
 
+/** 查不到就按前缀判级别、用 code 自己当标题。
+ *
+ *  ⚠️ 这个兜底必须**每一处都用**。原来只有 groups 那一处有，
+ *  errCount 和 order.sort 直接 `CODES[code].level` —— 于是带 ?file= 看任何
+ *  一份真稿都会崩（`Cannot read properties of undefined (reading 'level')`）：
+ *  真稿几乎都带 W_HINT_IGNORED，而它不在这 9 个演示码里。
+ *  是新加的 ui/ 渲染验证抓出来的（doc/00 §二十七）。 */
+function metaOf(code) {
+  return CODES[code] || { level: String(code).startsWith("E_") ? "error" : "warning", title: code };
+}
+
 const CODES = {
   E_HOLE_UNRESOLVED: { level: "error", title: "洞在 renderVals() 的顶层键里找不到" },
   E_HOLE_EXPR: { level: "error", title: "洞里写了表达式，不是点号路径" },
@@ -415,7 +434,7 @@ class Component extends DCLogic {
     const form = s.form || (this.props.form === "rail" ? "rail" : "page");
     const isRail = form === "rail";
     const items = this.list();
-    const errCount = items.filter((i) => CODES[i.code].level === "error").length;
+    const errCount = items.filter((i) => metaOf(i.code).level === "error").length;
     const warnCount = items.length - errCount;
     const L = s.live;
     const chk = LIVE && L ? L.check : null;
@@ -431,12 +450,10 @@ class Component extends DCLogic {
       if (!byCode[i.code]) { byCode[i.code] = []; order.push(i.code); }
       byCode[i.code].push(i);
     });
-    order.sort((a, b) => (CODES[a].level === "error" ? 0 : 1) - (CODES[b].level === "error" ? 0 : 1));
+    order.sort((a, b) => (metaOf(a).level === "error" ? 0 : 1) - (metaOf(b).level === "error" ? 0 : 1));
 
     const groups = order.map((code) => {
-      /* ⚠️ CODES 只列了 9 个演示码，真实码有二十多个（doc/00 §六）。
-         查不到就按前缀判级别、用 code 自己当标题 —— 不能因为没收录就崩。 */
-      const meta = CODES[code] || { level: code.startsWith("E_") ? "error" : "warning", title: code };
+      const meta = metaOf(code);
       const isErr = meta.level === "error";
       const open = s.open[code] === undefined ? s.allOpen : s.open[code];
       return {
@@ -563,7 +580,21 @@ class Component extends DCLogic {
       ],
 
       showDemoBar: !LIVE,
-      fileLabel: LIVE ? LIVE : "日志.dc.html · v217",
+      fileLabel: LIVE ? LIVE : "日志.dc.html",
+      /* 没快照给「—」，不给「v0」也不给空 —— 空会被当成「还没读到」。
+         读不到接口时也给「—」：那时候我们确实不知道是哪一版（§22.2 不猜）。 */
+      verLabel: LIVE
+        ? (!L ? "…" : (L.workspace && L.workspace.version) ? L.workspace.version : "—")
+        : "v217",
+      verFg: LIVE && L && L.workspace && L.workspace.dirty
+        ? "var(--tool-warn)" : "var(--tool-muted)",
+      verDirty: !!(LIVE && L && L.workspace && L.workspace.dirty),
+      verTitle: !LIVE ? "演示态"
+        : !L ? "正在读…"
+        : !L.workspace || !L.workspace.version ? "这份稿还没有快照 —— 写一次就有了"
+        : L.workspace.dirty
+          ? "盘上的内容和最新快照 " + L.workspace.version + " 有 " + L.workspace.changed + " 处不一样"
+          : "盘上的内容就是最新快照 " + L.workspace.version,
       demoNote: LIVE
         ? (s.apiErr ? "⚠️ 本地 API 读不到：" + s.apiErr
            : !L ? "正在读…"

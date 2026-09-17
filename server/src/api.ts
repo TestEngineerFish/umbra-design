@@ -27,13 +27,14 @@
  */
 import { randomBytes } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { listCssVars } from "./cssvars.js";
 import { locateNode } from "./locate.js";
 import { revertTo, setProp, type SlotKind } from "./edit.js";
 import { validateDraft } from "./validate.js";
 import { listComponents, listIcons, searchTokens } from "./assets.js";
 import { renderCheck } from "./render.js";
 import { get as getJob, start as startJob, view as jobView } from "./jobs.js";
-import { changesSince, listVersions, projectChangesSince, toMarkdown } from "./history.js";
+import { changesSince, listVersions, projectChangesSince, toMarkdown, workspaceState } from "./history.js";
 import { draftPath, listDrafts, type Project } from "./project.js";
 import { resolveDraft } from "./locate.js";
 import { readFile } from "node:fs/promises";
@@ -113,9 +114,11 @@ export async function handleApi(
       // 不给它就只能写死演示数字（doc/00 §21.3 的教训）
       const chk = await readCheck(p, rel);
       const stale = !!chk && chk.srcSha256 !== sha256(src);
+      // 顶栏的版本位要回答「我看的是不是盘上那一版」（设计侧 §五 第 9 项）
+      const ws = await workspaceState(p, rel, src);
       json(reply, 200, {
         ok: !v.diags.some((d) => d.level === "error"),
-        data: { file: rel, diags: v.diags, stats: v.stats, check: chk, checkStale: stale },
+        data: { file: rel, diags: v.diags, stats: v.stats, check: chk, checkStale: stale, workspace: ws },
       });
       return true;
     }
@@ -160,6 +163,18 @@ export async function handleApi(
           })),
         },
       });
+      return true;
+    }
+
+    /* 颜色控件的候选：这份稿自己声明的 CSS 变量（doc/00 §二十七）。
+       不是 token 路径 —— 那是另一套命名空间，按 token 拼 var(--…) 有一成多
+       会写出这份稿里没定义的变量，静默失效。判据见 cssvars.ts 的头注。 */
+    if (route === "cssvars" && req.method === "GET") {
+      const f = url.searchParams.get("file");
+      if (!f) { json(reply, 400, { ok: false, errors: [{ code: "E_API_BAD_INPUT", message: "缺 file" }] }); return true; }
+      json(reply, 200, { ok: true,
+        data: await listCssVars(p, f, url.searchParams.get("q") ?? undefined,
+          Number(url.searchParams.get("limit") ?? 40)) });
       return true;
     }
 

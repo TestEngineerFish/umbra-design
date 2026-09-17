@@ -15,7 +15,8 @@
     "dev": "tsc -p . --watch",
     "start": "node dist/index.js",
     "check": "tsc -p . --noEmit",
-    "selftest": "node dist/selftest.js"
+    "selftest": "node dist/selftest.js",
+    "incoming": "node dist/incoming.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",

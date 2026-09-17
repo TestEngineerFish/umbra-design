@@ -111,6 +111,27 @@ export async function changesSince(p: Project, relPath: string, since: string): 
   return mergeDiffs(diffs);
 }
 
+/** 工作区和最新快照对不对得上。
+ *
+ *  为什么要单开一个：`changesSince` 比的是**快照与快照**，看不见工作区。
+ *  而 S3 顶栏那个版本位要回答的恰恰是「我现在看的是不是磁盘上那一版」
+ *  （设计侧 §五 第 9 项）—— 工具自己写的每一次都会打快照，所以两者不一致
+ *  只有一个来源：这份稿在工具之外被改过。那正是最该说出来的一种。
+ *
+ *  dirty 给 null 表示**没法判断**（一版快照都没有），不猜成 false。
+ */
+export async function workspaceState(
+  p: Project, relPath: string, src: string
+): Promise<{ version: string | null; dirty: boolean | null; changed: number }> {
+  const vs = await listVersions(p, relPath);
+  const latest = vs.length ? (vs[vs.length - 1] as string) : null;
+  if (!latest) return { version: null, dirty: null, changed: 0 };
+  const a = await readSnapshot(p, relPath, latest);
+  const b = buildSnapshot(p, relPath, src, { version: "工作区" });
+  const d = diffSnapshots(a, b);
+  return { version: latest, dirty: d.changes.length > 0, changed: d.changes.length };
+}
+
 /** 整个项目的变更汇总：每份稿从 since 之后的净变更 */
 export async function projectChangesSince(p: Project, drafts: string[], since: string | null) {
   const rows: Array<{ path: string; diff: DiffResult | null; note?: string }> = [];

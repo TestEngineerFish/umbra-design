@@ -441,6 +441,10 @@ const SHELLS = [
   "S3-诊断面板.dc.html",
   "S4-变更清单.dc.html",
   "S5-设计系统浏览器.dc.html",
+  // 形制稿。不接数据，但要能在项目目录下打开 —— 它是属性面板的判据来源（doc/10 §五）。
+  "S7-属性面板.dc.html",
+  // S7 靠 dc-import 引它。不跟着落盘，S7 在项目目录下就解析不到（E_IMPORT_MISSING）。
+  "IconGlyph.dc.html",
 ];
 
 /** 这是工具自己的页面，不是设计稿 —— 索引与接口的稿件清单都要排掉它，

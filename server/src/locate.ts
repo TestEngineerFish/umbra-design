@@ -32,6 +32,9 @@ export interface Slot {
   holes: string[];
   editable: boolean;
   note: string;
+  /** 不可改项的类型标签，界面扫一眼就要看出「为什么不能改」（doc/10 §五 第 7 项）。
+   *  可改项是空串 —— 这一格不占位。 */
+  tag: string;
 }
 
 export interface LocateResult {
@@ -123,10 +126,21 @@ export async function locateNode(p: Project, fileOrName: string, nodeId: string)
     return o;
   };
 
+  /** 不可改的原因，压成一个词。多个洞来源不一致就取**最不可改**的那个 ——
+   *  界面只有一格，不能说半句话。 */
+  const tagOf = (os: HoleOrigin[], hs: string[]): string => {
+    if (os.some((o) => o.kind === "fn")) return "函数";
+    if (os.some((o) => o.kind === "unknown")) return "认不出";
+    if (hs.some((h) => d.lists.some((l) => l.as === rootOf(h)))) return "循环变量";
+    if (os.some((o) => o.kind === "props")) return "引用";
+    if (os.some((o) => o.kind === "computed")) return "计算";
+    return "洞";                                    // 全是字面量洞：改 renderVals 那个值
+  };
+
   const push = (kind: Slot["kind"], name: string, value: string) => {
     const hs = holesIn(value);
     if (!hs.length) {
-      slots.push({ kind, name, value, holes: [], editable: true, note: "字面量，可以直接改" });
+      slots.push({ kind, name, value, holes: [], editable: true, note: "字面量，可以直接改", tag: "" });
       return;
     }
     const os = hs.map(originOf);
@@ -134,6 +148,7 @@ export async function locateNode(p: Project, fileOrName: string, nodeId: string)
     slots.push({
       kind, name, value, holes: hs,
       editable: false,
+      tag: tagOf(os, hs),
       note: allEditable
         ? `值来自洞 {{ ${hs.join(" }} / {{ ")} }} —— 改 renderVals 里那个字面量：${os.map((o) => o.note).join("；")}`
         : os.map((o) => o.note).join("；"),

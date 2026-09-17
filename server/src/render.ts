@@ -176,9 +176,26 @@ export async function renderCheck(
       const t = m.type();
       if (t !== "error" && t !== "warning") return;
       const text = m.text();
-      // 浏览器解析原始模板时对 SVG 属性里的 {{ }} 报的噪声，不是渲染结果的问题
-      if (/attribute .*Expected/.test(text)) return;
-      consoleWarnings.push({ level: t, text: text.slice(0, 300) });
+      /* ⚠️ 这里原来有一行 `if (/attribute .*Expected/.test(text)) return;` ——
+       * 把这一类整段丢掉，注释写的是「解析原始模板的噪声，不是渲染结果的问题」。
+       *
+       * 那行是个严重错误，而且它自己害了自己：我后来用 render_check 去**反向验证**
+       * 「d 上写洞会不会报错」，4 份真实语料 + 8 个合成形状全是零 —— 于是把一条
+       * **真**规则当误报撤回了（doc/00 §二十四 → §二十七 的自我纠错）。
+       * 拿被自己消音过的仪器去量，量到的零是仪器的零。
+       *
+       * 现在改成**单独归类**：仍然不参与 alive 判定（渲染结果确实是对的），
+       * 但一定报出来，并且报成自己的一类，说清是解析期的、怎么改。
+       * 判据换成「凡是控制台真的说了的，工具都要说」—— 静音是不可以的。
+       */
+      /* ⚠️ 不能加 ^ 锚点：控制台原文是 `Error: <path> attribute d: Expected …`，
+         前面带一个 "Error: "。第一版锚了行首，于是这一类又一次掉回「普通控制台
+         error」那一档 —— 自己刚修的分类自己没命中，是渲染验证当场抓出来的。 */
+      const svgParse = /<(\w+)> attribute ([\w:-]+): Expected/.exec(text);
+      consoleWarnings.push({
+        level: svgParse ? "svg-parse" : t,
+        text: text.slice(0, 300),
+      });
     });
     page.on("pageerror", (e) => consoleWarnings.push({ level: "pageerror", text: String(e).slice(0, 300) }));
     page.on("requestfailed", (r) => {
@@ -309,8 +326,23 @@ export async function renderCheck(
           { fix: "交付要能在断网机器上打开。React 走同层本地副本（write_draft 自动注入映射），字体用系统栈" }));
       }
     }
-    // 已经归成「洞」的那几条不再重复报一遍
-    for (const c of consoleWarnings.filter((x) => !NEVER_RESOLVED.test(x.text)).slice(0, 6)) {
+    /* 解析期的 SVG 属性报错单独一类。实测（doc/00 §二十七，15 个形状）：
+       几何类属性 —— path d / polyline points / g transform / svg viewBox /
+       circle cx,r / svg width / rect x,y,width,height / line x1 —— 洞必报；
+       涂装类（fill、stroke-width）、HTML 属性（img width）、style 里的洞不报。
+       渲染结果是对的，所以只报 warning；但**必须报**，否则控制台永远脏着
+       而工具说它干净。 */
+    const svgNoise = consoleWarnings.filter((c) => c.level === "svg-parse");
+    for (const c of svgNoise.slice(0, 6)) {
+      const m = /<(\w+)> attribute ([\w:-]+):/.exec(c.text);
+      diags.push(warn(X.IO, relPath, { kind: "tag", name: m ? `${m[1]}[${m[2]}]` : "svg" },
+        `解析期报错：${c.text}`,
+        { fix: "SVG 几何属性在解析那一刻就按类型校验，那时洞还没被替换，必报。"
+             + "洞挂到 data-* 上、渲染后抄进真属性（ui/IconGlyph.dc.html 就是这么做的），"
+             + "或者直接用那个子组件（doc/06 §2.8）" }));
+    }
+    // 已经归成「洞」和「解析期」的那几条不再重复报一遍
+    for (const c of consoleWarnings.filter((x) => !NEVER_RESOLVED.test(x.text) && x.level !== "svg-parse").slice(0, 6)) {
       diags.push(warn(X.IO, relPath, { kind: "key", name: c.level },
         `控制台 ${c.level}：${c.text}`));
     }

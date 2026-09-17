@@ -3,9 +3,9 @@
  * 判据：**能渲染的稿一条 error 都不该报。** 报了就是误报，先修校验器。
  * 用法：node dist/selftest.js [项目名]
  */
-import { readFile } from "node:fs/promises";
-import { basename, relative, sep } from "node:path";
-import { listDrafts, loadProject, projectsRoot } from "./project.js";
+import { readFile, readdir } from "node:fs/promises";
+import { basename, join, relative, sep } from "node:path";
+import { listDrafts, loadProject, projectsRoot, TOOL_ROOT } from "./project.js";
 import { getIcon, getToken, listComponents, listIcons, searchTokens } from "./assets.js";
 import { validateDraft } from "./validate.js";
 
@@ -114,7 +114,28 @@ if (unknown.length) {
   bar("⚠️ 表外的 error —— 逐条核对是不是误报");
   for (const u of unknown) console.log(`  ${u.f}  ${u.code}  ${u.at}\n      ${u.msg}`);
 }
-console.log(unknown.length === 0
-  ? "✓ 零误报（表外 error 为 0）"
-  : `✗ 回归失败：有 ${unknown.length} 条不在已确认清单里的 error`);
-process.exitCode = unknown.length === 0 ? 0 : 1;
+/* 工具自己的界面稿。它们不在 projects/ 下，原来整块没被回归覆盖 ——
+   而这几份恰恰是改得最勤的（每个批次都动）。判据比存量稿更严：
+   **一条 error 都不许有**，因为这几份是我自己写的，没有「稿的历史问题」可推。
+   import 以 ui/ 为基准解析（S7 引 IconGlyph），所以这里换一个 dir。 */
+bar("工具界面稿 ui/");
+const uiDir = join(TOOL_ROOT, "ui");
+const uiP = { ...p, dir: uiDir };
+let uiErr = 0;
+for (const f of (await readdir(uiDir)).filter((x) => x.endsWith(".dc.html")).sort()) {
+  const v = validateDraft(uiP, f, await readFile(join(uiDir, f), "utf8"), f);
+  const e = v.diags.filter((d) => d.level === "error");
+  const w = v.diags.filter((d) => d.level === "warning");
+  uiErr += e.length;
+  console.log(`  ${f.slice(0, 29).padEnd(30)} ${String(e.length).padStart(3)} ${String(w.length).padStart(5)} ` +
+    `${String(v.stats.elements).padStart(6)}  ${v.stats.holeAuditSkipped ? "放弃" : "已做"}    ` +
+    `${[...new Set(e.map((d) => d.code))].join(" ")}`);
+  for (const d of e) console.log(`      ✗ ${d.code} ${d.locator?.name ?? ""} — ${d.message}`);
+  for (const d of w) console.log(`      · ${d.code} ${d.locator?.name ?? ""} — ${d.message}`);
+}
+
+const fail = unknown.length + uiErr;
+console.log(fail === 0
+  ? "✓ 零误报（表外 error 为 0）· 工具界面稿零 error"
+  : `✗ 回归失败：存量稿表外 error ${unknown.length} 条 · 工具界面稿 error ${uiErr} 条`);
+process.exitCode = fail === 0 ? 0 : 1;

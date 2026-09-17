@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="./_ds-tool/tokens.css">
+<style>
+  html, body { margin: 0; padding: 0; }
+  body { background: var(--tool-bg); }
+  * { box-sizing: border-box; }
+  a { color: var(--tool-accent); text-decoration: none; }
+  a:hover { color: var(--tool-accent-hover); text-decoration: underline; }
+  input, button, select { font: inherit; color: inherit; }
+</style>
+</helmet>
+
+<div style="min-height: 100vh; background: var(--tool-bg); color: var(--tool-text); font-family: var(--tool-sans); font-size: 13px; -webkit-font-smoothing: antialiased;" data-tool-theme="{{ theme }}">
+
+  <div style="position: sticky; top: 0; z-index: 6; background: var(--tool-panel); border-bottom: 1px solid var(--tool-border);">
+    <div style="display: flex; align-items: center; gap: 12px; padding: 11px 20px; flex-wrap: wrap;">
+      <a href="./S1-稿件索引.dc.html" style="display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px 0 8px; border-radius: var(--tool-radius); border: 1px solid var(--tool-border-strong); background: var(--tool-panel); color: var(--tool-text); font-size: 12px; flex: none; transition: background .13s ease;" style-hover="background: var(--tool-hover); text-decoration: none;" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">
+        <dc-import name="IconGlyph" d="M9.6 3.6L5.2 8l4.4 4.4" size="13" hint-size="13px,13px"></dc-import>
+        索引
+      </a>
+      <div style="display: flex; align-items: baseline; gap: 9px; min-width: 0; flex: 1 1 220px;">
+        <span style="font-size: 15px; font-weight: 620; letter-spacing: -0.01em; white-space: nowrap;">属性面板 · 形制</span>
+        <span style="font-family: var(--tool-mono); font-size: 12px; color: var(--tool-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">只做形制，不接数据</span>
+      </div>
+      <span style="display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: var(--tool-radius-sm); background: var(--tool-accent-soft); border: 1px solid var(--tool-accent-border); color: var(--tool-accent); font-family: var(--tool-mono); font-size: 11px; flex: none;">§五 第 1–8 项</span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 8px; padding: 0 20px 10px; flex-wrap: wrap; font-size: 12px;">
+      <span style="font-size: 11px; color: var(--tool-muted); flex: none;">演示态</span>
+      <sc-for list="{{ demoStates }}" as="st" hint-placeholder-count="9">
+        <button type="button" onClick="{{ st.pick }}" title="{{ st.name }}" aria-pressed="{{ st.active }}" style="display: inline-flex; align-items: center; gap: 5px; height: 23px; padding: 0 9px 0 6px; border-radius: var(--tool-radius-sm); border: 1px solid; cursor: pointer; font-size: 11px; white-space: nowrap; transition: background .13s ease, border-color .13s ease, color .13s ease; background: {{ st.bg }}; border-color: {{ st.bd }}; color: {{ st.fg }};" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">
+          <span style="font-family: var(--tool-mono); opacity: 0.6;">{{ st.n }}</span>
+          <span style="font-weight: {{ st.fw }};">{{ st.short }}</span>
+        </button>
+      </sc-for>
+      <span style="color: var(--tool-border-strong); flex: none;">·</span>
+      <span style="color: var(--tool-muted); min-width: 0;">{{ demoNote }}</span>
+    </div>
+  </div>
+
+  <div style="display: flex; align-items: flex-start; gap: 22px; flex-wrap: wrap; max-width: 1120px; margin: 0 auto; padding: 20px 20px 40px;">
+
+    <div style="flex: 0 0 308px; max-width: 100%; min-width: 288px; position: sticky; top: 98px;">
+      <div style="display: flex; flex-direction: column; background: var(--tool-panel); border: 1px solid var(--tool-border); border-radius: var(--tool-radius-lg); box-shadow: var(--tool-shadow-1); overflow: hidden;">
+
+        <div style="display: flex; align-items: center; gap: 8px; padding: 9px 11px; border-bottom: 1px solid var(--tool-border); background: var(--tool-panel-2);">
+          <span style="font-weight: 650; font-size: 12px; flex: none;">属性</span>
+          <span style="font-family: var(--tool-mono); font-size: 11px; color: var(--tool-muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ nodeLabel }}</span>
+          <span style="flex: 1;"></span>
+          <button type="button" onClick="{{ noop }}" title="取消选中" style="width: 22px; height: 22px; display: grid; place-items: center; border: 0; background: transparent; color: var(--tool-muted); border-radius: var(--tool-radius-sm); cursor: pointer; transition: background .13s ease, color .13s ease; flex: none;" style-hover="background: var(--tool-hover); color: var(--tool-text);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">
+            <dc-import name="IconGlyph" d="M4.4 4.4l7.2 7.2M11.6 4.4l-7.2 7.2" size="12" stroke="1.5" hint-size="12px,12px"></dc-import>
+          </button>
+        </div>
+
+        <sc-if value="{{ bannerShow }}" hint-placeholder-val="{{ false }}">
+          <div style="display: flex; align-items: center; gap: 8px; padding: 7px 11px; border-bottom: 1px solid {{ bannerBd }}; background: {{ bannerBg }}; color: {{ bannerFg }}; font-size: 11px; line-height: 1.4;">
+            <dc-import name="IconGlyph" d="{{ bannerIcon }}" size="13" hint-size="13px,13px"></dc-import>
+            <span style="min-width: 0; flex: 1;">{{ bannerText }}</span>
+            <sc-if value="{{ bannerUndo }}" hint-placeholder-val="{{ false }}">
+              <button type="button" onClick="{{ onUndo }}" style="height: 20px; padding: 0 8px; border-radius: var(--tool-radius-sm); border: 1px solid currentColor; background: transparent; color: inherit; font-size: 11px; cursor: pointer; flex: none;" style-hover="background: var(--tool-panel);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">撤销</button>
+            </sc-if>
+          </div>
+        </sc-if>
+
+        <div style="max-height: 460px; overflow: auto;">
+          <sc-for list="{{ groups }}" as="g" hint-placeholder-count="3">
+            <div style="border-bottom: 1px solid var(--tool-border);">
+              <button type="button" onClick="{{ g.toggle }}" aria-expanded="{{ g.open }}" style="width: 100%; display: flex; align-items: center; gap: 7px; height: 28px; padding: 0 11px; border: 0; background: transparent; cursor: pointer; text-align: left; transition: background .13s ease;" style-hover="background: var(--tool-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: -2px;">
+                <span style="display: grid; place-items: center; color: var(--tool-muted); transform: rotate({{ g.rot }}); transition: transform .14s ease;">
+                  <dc-import name="IconGlyph" d="M6 3.6L10.4 8 6 12.4" size="11" stroke="1.6" hint-size="11px,11px"></dc-import>
+                </span>
+                <span style="font-size: 11px; font-weight: 650; letter-spacing: 0.03em; color: var(--tool-text-2);">{{ g.label }}</span>
+                <span style="font-family: var(--tool-mono); font-size: 10px; color: var(--tool-muted);">{{ g.count }}</span>
+              </button>
+
+              <sc-if value="{{ g.open }}" hint-placeholder-val="{{ true }}">
+                <div style="padding: 2px 0 6px;">
+                  <sc-for list="{{ g.rows }}" as="r" hint-placeholder-count="4">
+                    <div style="padding: 0 11px; background: {{ r.rowBg }};">
+                      <div style="display: grid; grid-template-columns: 96px minmax(0, 1fr); align-items: center; gap: 8px; min-height: {{ rowH }};">
+
+                        <span onPointerDown="{{ r.scrub }}" title="{{ r.labelTitle }}" style="font-family: var(--tool-mono); font-size: 11px; color: {{ r.labelFg }}; cursor: {{ r.labelCursor }}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; user-select: none;">{{ r.label }}</span>
+
+                        <div style="display: flex; align-items: center; gap: 5px; min-width: 0;">
+
+                          <sc-if value="{{ r.isNum }}" hint-placeholder-val="{{ false }}">
+                            <div style="display: flex; align-items: center; min-width: 0; flex: 1; border: 1px solid {{ r.fieldBd }}; border-radius: var(--tool-radius-sm); background: var(--tool-panel); overflow: hidden;">
+                              <input type="text" value="{{ r.value }}" onChange="{{ r.onInput }}" aria-label="{{ r.label }}" style="flex: 1; min-width: 0; height: 24px; padding: 0 6px; border: 0; background: transparent; font-family: var(--tool-mono); font-size: 12px; outline: none;">
+                              <span style="font-family: var(--tool-mono); font-size: 10px; color: var(--tool-muted); padding-right: 5px; flex: none;">{{ r.unit }}</span>
+                              <button type="button" onClick="{{ r.dec }}" aria-label="减" style="width: 21px; height: 24px; display: grid; place-items: center; border: 0; border-left: 1px solid var(--tool-border); background: var(--tool-panel-2); color: var(--tool-text-2); cursor: pointer; flex: none;" style-hover="background: var(--tool-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: -2px;">
+                                <dc-import name="IconGlyph" d="M3.6 8h8.8" size="11" stroke="1.6" hint-size="11px,11px"></dc-import>
+                              </button>
+                              <button type="button" onClick="{{ r.inc }}" aria-label="加" style="width: 21px; height: 24px; display: grid; place-items: center; border: 0; border-left: 1px solid var(--tool-border); background: var(--tool-panel-2); color: var(--tool-text-2); cursor: pointer; flex: none;" style-hover="background: var(--tool-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: -2px;">
+                                <dc-import name="IconGlyph" d="M8 3.6v8.8M3.6 8h8.8" size="11" stroke="1.6" hint-size="11px,11px"></dc-import>
+                              </button>
+                            </div>
+                          </sc-if>
+
+                          <sc-if value="{{ r.isColor }}" hint-placeholder-val="{{ false }}">
+                            <div style="display: flex; align-items: center; gap: 5px; min-width: 0; flex: 1;">
+                              <button type="button" onClick="{{ r.toggleColor }}" aria-label="选 token" aria-expanded="{{ r.colorOpen }}" style="width: 18px; height: 18px; flex: none; border-radius: var(--tool-radius-sm); border: 1px solid var(--tool-border-strong); cursor: pointer; padding: 0; background: {{ r.swatch }};" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;"></button>
+                              <input type="text" value="{{ r.value }}" onChange="{{ r.onInput }}" aria-label="{{ r.label }}" style="flex: 1; min-width: 0; height: 24px; padding: 0 6px; border: 1px solid {{ r.fieldBd }}; border-radius: var(--tool-radius-sm); background: var(--tool-panel); font-family: var(--tool-mono); font-size: 11px; outline: none;" style-focus="border-color: var(--tool-ring);">
+                            </div>
+                          </sc-if>
+
+                          <sc-if value="{{ r.isText }}" hint-placeholder-val="{{ false }}">
+                            <input type="text" value="{{ r.value }}" onChange="{{ r.onInput }}" aria-label="{{ r.label }}" style="flex: 1; min-width: 0; height: 24px; padding: 0 6px; border: 1px solid {{ r.fieldBd }}; border-radius: var(--tool-radius-sm); background: var(--tool-panel); font-family: var(--tool-mono); font-size: 11px; outline: none;" style-focus="border-color: var(--tool-ring);">
+                          </sc-if>
+
+                          <sc-if value="{{ r.isLocked }}" hint-placeholder-val="{{ false }}">
+                            <div style="display: flex; align-items: center; gap: 6px; min-width: 0; flex: 1;">
+                              <span style="font-family: var(--tool-mono); font-size: 11px; color: var(--tool-muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ r.value }}</span>
+                              <span style="flex: none; height: 17px; display: inline-flex; align-items: center; padding: 0 6px; border-radius: 999px; border: 1px dashed var(--tool-border-strong); color: var(--tool-muted); font-size: 10px;">{{ r.tag }}</span>
+                            </div>
+                          </sc-if>
+
+                          <sc-if value="{{ r.pending }}" hint-placeholder-val="{{ false }}">
+                            <span style="flex: none; height: 17px; display: inline-flex; align-items: center; padding: 0 6px; border-radius: 999px; background: var(--tool-panel); border: 1px solid var(--tool-warn-border); color: var(--tool-warn); font-size: 10px; white-space: nowrap;">未落盘</span>
+                          </sc-if>
+
+                          <button type="button" onClick="{{ r.toggleHint }}" aria-label="改法说明" aria-expanded="{{ r.hintOpen }}" style="width: 18px; height: 18px; flex: none; display: grid; place-items: center; border: 0; border-radius: 999px; background: {{ r.qBg }}; color: {{ r.qFg }}; font-size: 10px; font-weight: 700; cursor: pointer; transition: background .13s ease, color .13s ease;" style-hover="background: var(--tool-panel-3); color: var(--tool-text);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">?</button>
+                        </div>
+                      </div>
+
+                      <sc-if value="{{ r.hintOpen }}" hint-placeholder-val="{{ false }}">
+                        <div style="padding: 0 0 7px; color: var(--tool-muted); font-size: 11px; line-height: 1.55;">{{ r.hint }}</div>
+                      </sc-if>
+
+                      <sc-if value="{{ r.errShow }}" hint-placeholder-val="{{ false }}">
+                        <div style="display: flex; align-items: flex-start; gap: 7px; margin: 0 0 7px; padding: 6px 8px; border-radius: var(--tool-radius-sm); background: var(--tool-err-soft); border: 1px solid var(--tool-err-border); color: var(--tool-err); font-size: 11px; line-height: 1.5;">
+                          <span style="min-width: 0; flex: 1;">{{ r.errText }}</span>
+                          <button type="button" onClick="{{ r.retry }}" style="flex: none; height: 19px; padding: 0 7px; border-radius: var(--tool-radius-sm); border: 1px solid currentColor; background: transparent; color: inherit; font-size: 11px; cursor: pointer;" style-hover="background: var(--tool-panel);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">重试</button>
+                        </div>
+                      </sc-if>
+
+                      <sc-if value="{{ r.colorOpen }}" hint-placeholder-val="{{ false }}">
+                        <div style="margin: 0 0 8px; padding: 8px; border: 1px solid var(--tool-border); border-radius: var(--tool-radius); background: var(--tool-panel-2); box-shadow: var(--tool-shadow-1);">
+                          <div style="font-size: 10px; color: var(--tool-muted); margin-bottom: 6px; letter-spacing: 0.03em;">设计系统里匹配的 token</div>
+                          <div style="display: grid; grid-template-columns: minmax(0, 1fr); gap: 3px;">
+                            <sc-for list="{{ tokenHits }}" as="tk" hint-placeholder-count="3">
+                              <button type="button" onClick="{{ tk.pick }}" style="display: flex; align-items: center; gap: 7px; width: 100%; min-width: 0; padding: 4px 5px; border: 0; border-radius: var(--tool-radius-sm); background: transparent; cursor: pointer; text-align: left; transition: background .13s ease;" style-hover="background: var(--tool-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: -2px;">
+                                <span style="width: 14px; height: 14px; flex: none; border-radius: 3px; border: 1px solid var(--tool-border-strong); background: {{ tk.swatch }};"></span>
+                                <span style="flex: 1 1 auto; font-family: var(--tool-mono); font-size: 11px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ tk.name }}</span>
+                                <span style="font-family: var(--tool-mono); font-size: 10px; color: var(--tool-muted); flex: none;">{{ tk.hex }}</span>
+                              </button>
+                            </sc-for>
+                          </div>
+                          <div style="margin-top: 7px; padding-top: 7px; border-top: 1px solid var(--tool-border); font-size: 11px; color: var(--tool-muted); line-height: 1.5;">要写字面量就直接在右边的框里改 —— 会被 token 检查记一条。</div>
+                        </div>
+                      </sc-if>
+                    </div>
+                  </sc-for>
+                </div>
+              </sc-if>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="flex: none; border-top: 1px solid var(--tool-border); background: var(--tool-panel-2);">
+          <sc-if value="{{ previewShow }}" hint-placeholder-val="{{ false }}">
+            <div style="display: flex; align-items: center; gap: 8px; padding: 6px 11px; border-bottom: 1px solid var(--tool-warn-border); background: var(--tool-warn-soft); font-size: 11px; color: var(--tool-warn);">
+              <span style="font-family: var(--tool-mono); font-size: 10px; flex: none; opacity: 0.9;">{{ previewKeys }}</span>
+              <span style="flex: 1;"></span>
+              <span style="min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: none;">{{ previewText }}</span>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ savedShow }}" hint-placeholder-val="{{ false }}">
+            <div style="display: flex; align-items: center; gap: 8px; padding: 6px 11px; border-bottom: 1px solid var(--tool-ok-border); background: var(--tool-ok-soft); font-size: 11px; color: var(--tool-ok);">
+              <dc-import name="IconGlyph" d="M3.6 8.4l3 3 5.8-6.4" size="12" stroke="1.7" hint-size="12px,12px"></dc-import>
+              <span style="font-family: var(--tool-mono); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ savedText }}</span>
+              <span style="flex: 1;"></span>
+              <button type="button" onClick="{{ onUndoSave }}" style="flex: none; height: 19px; padding: 0 7px; border-radius: var(--tool-radius-sm); border: 1px solid currentColor; background: transparent; color: inherit; font-size: 11px; cursor: pointer;" style-hover="background: var(--tool-panel);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">撤销</button>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ savingShow }}" hint-placeholder-val="{{ false }}">
+            <div>
+              <div style="height: 2px; background: var(--tool-panel-3);">
+                <div style="height: 2px; width: {{ savingPct }}; background: var(--tool-accent); transition: width .2s linear;"></div>
+              </div>
+              <div style="display: flex; align-items: center; gap: 7px; padding: 6px 11px; font-size: 11px; color: var(--tool-text-2);">
+                <span style="font-family: var(--tool-mono); color: var(--tool-accent);">{{ savingLabel }}</span>
+                <span style="min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ savingText }}</span>
+              </div>
+            </div>
+          </sc-if>
+
+          <div style="display: flex; align-items: center; gap: 6px; padding: 8px 11px; flex-wrap: wrap;">
+            <span style="font-size: 10px; color: var(--tool-muted); flex: none; letter-spacing: 0.03em;">回退到</span>
+            <sc-for list="{{ versions }}" as="v" hint-placeholder-count="3">
+              <button type="button" onClick="{{ v.pick }}" aria-pressed="{{ v.active }}" style="height: 21px; padding: 0 8px; border-radius: var(--tool-radius-sm); border: 1px solid {{ v.bd }}; background: {{ v.bg }}; color: {{ v.fg }}; font-family: var(--tool-mono); font-size: 11px; cursor: pointer; flex: none; transition: background .13s ease, border-color .13s ease;" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">{{ v.label }}</button>
+            </sc-for>
+            <button type="button" onClick="{{ noop }}" style="height: 21px; padding: 0 7px; border-radius: var(--tool-radius-sm); border: 1px dashed var(--tool-border-strong); background: transparent; color: var(--tool-muted); font-size: 11px; cursor: pointer; flex: none;" style-hover="color: var(--tool-text); border-color: var(--tool-text-2);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">{{ moreLabel }}</button>
+            <span style="flex: 1;"></span>
+            <button type="button" onClick="{{ onExec }}" style="height: 23px; padding: 0 10px; border-radius: var(--tool-radius-sm); border: 1px solid {{ execBd }}; background: {{ execBg }}; color: {{ execFg }}; font-size: 11px; font-weight: 600; cursor: pointer; flex: none; transition: background .13s ease, border-color .13s ease;" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">{{ execLabel }}</button>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top: 9px; padding: 0 2px; font-size: 11px; color: var(--tool-muted); line-height: 1.6;">面板是真的能点的：标签可以横向拖着调数字，`?` 展开改法说明，「执行」是两段式。</div>
+    </div>
+
+    <div style="flex: 1 1 380px; min-width: 300px; display: grid; gap: 10px;">
+
+      <div style="padding: 13px 15px; border: 1px solid var(--tool-border); border-radius: var(--tool-radius-lg); background: var(--tool-panel);">
+        <div style="font-size: 14px; font-weight: 650; margin-bottom: 5px;">十条形制，左边那块是它们长出来的样子</div>
+        <div style="color: var(--tool-text-2); line-height: 1.65;">第 9、10 项不在这份稿里（一个在 S3 顶栏，一个在 S5 的 token 详情），只写结论。第 4 项的通道你们已经建完了，这里只定那两件形态上的事。</div>
+      </div>
+
+      <div style="display: grid; gap: 1px; background: var(--tool-border); border: 1px solid var(--tool-border); border-radius: var(--tool-radius-lg); overflow: hidden;">
+
+        <div style="padding: 13px 15px; background: var(--tool-panel);">
+          <div style="display: flex; align-items: baseline; gap: 8px; margin-bottom: 7px;">
+            <span style="font-family: var(--tool-mono); font-size: 11px; color: var(--tool-accent); flex: none;">01</span>
+            <span style="font-weight: 650;">属性面板整体形制</span>
+          </div>
+          <div style="color: var(--tool-muted); line-height: 1.6; margin-bottom: 4px;"><span style="color: var(--tool-text-2);">现在：</span>一行一项，标签 104px + 控件 + 下面一行灰色改法说明。</div>
+          <div style="line-height: 1.65; margin-bottom: 5px;"><span style="color: var(--tool-text-2);">定成：</span>分三组（样式 / 属性 / 文案），组头可折叠并带条数；行高 30px、标签 96px；改法说明不常驻，行末一个 <span style="font-family: var(--tool-mono);">?</span> 点开就地展开。</div>
+          <div style="color: var(--tool-muted); line-height: 1.6;">每行都挂一行灰字，十项就是十行噪音。说明是查的时候要，不是看的时候要。</div>
+        </div>
+
+        <div style="padding: 13px 15px; background: var(--tool-panel);">
+          <div style="display: flex; align-items: baseline; gap: 8px; margin-bottom: 7px;">
+            <span style="font-family: var(--tool-mono); font-size: 11px; color: var(--tool-accent); flex: none;">02</span>
+            <span style="font-weight: 650;">数字控件</span>
+          </div>
+          <div style="color: var(--tool-muted); line-height: 1.6; margin-bottom: 4px;"><span style="color: var(--tool-text-2);">现在：</span>文本框 + <span style="font-family: var(--tool-mono);">−</span>/<span style="font-family: var(--tool-mono);">+</span>，步长固定 1。</div>
+          <div style="line-height: 1.65; margin-bottom: 5px;"><span style="color: var(--tool-text-2);">定成：</span>不加滑块。<span style="font-family: var(--tool-mono);">−</span>/<span style="font-family: var(--tool-mono);">+</span> 保留，连着拖的手感挂在标签上 —— 按住标签左右拖就是调值。步长按单位分：<span style="font-family: var(--tool-mono);">px</span> 走 1（按住 Shift 走 10）、<span style="font-family: var(--tool-mono);">%</span> 走 5、无单位的（<span style="font-family: var(--tool-mono);">line-height</span> 这类）走 0.1。</div>
+          <div style="color: var(--tool-muted); line-height: 1.6;">拖着调是数字控件的主要手感，但不值得再为它占一条滑块的宽度 —— 标签那 96px 本来就闲着。</div>
+        </div>
+
+        <div style="padding: 13px 15px; background: var(--tool-panel);">
+          <div style="display: flex; align-items: baseline; gap: 8px; margin-bottom: 7px;">
+            <span style="font-family: var(--tool-mono); font-size: 11px; color: var(--tool-accent); flex: none;">03</span>
+            <span style="font-weight: 650;">颜色控件</span>
+          </div>
+          <div style="color: var(--tool-muted); line-height: 1.6; margin-bottom: 4px;"><span style="color: var(--tool-text-2);">现在：</span>17px 色块 + 文本框。</div>
+          <div style="line-height: 1.65; margin-bottom: 5px;"><span style="color: var(--tool-text-2);">定成：</span>18px 色块 + 文本框；点色块展开一层，里面是 S5 的 token 检索结果，一行一个色板。不给自由取色器。</div>
+          <div style="color: var(--tool-muted); line-height: 1.6;">这是设计系统工具，颜色的正确答案基本都在 token 里。取色器会让人绕过 token，那正是要拦的那件事。</div>
+        </div>
+
+        <div style="padding: 13px 15px; background: var(--tool-accent-soft);">
+          <div style="display: flex; align-items: baseline; gap: 8px; margin-bottom: 7px; flex-wrap: wrap;">
+            <span style="font-family: var(--tool-mono); font-size: 11px; color: var(--tool-accent); flex: none;">04</span>
+            <span style="font-weight: 650;">样式字面量的实时预览</span>
+            <span style="flex: none; height: 18px; display: inline-flex; align-items: center; padding: 0 7px; border-radius: 999px; background: var(--tool-panel); border: 1px solid var(--tool-accent-border); color: var(--tool-accent); font-size: 10px;">通道已建完 · 只剩形态</span>
+          </div>
+          <div style="color: var(--tool-text-2); line-height: 1.6; margin-bottom: 4px;"><span style="font-weight: 600;">现在：</span>边敲边改 iframe、不落盘；<span style="font-family: var(--tool-mono);">Enter</span> / 失焦落盘；<span style="font-family: var(--tool-mono);">Escape</span> 取消。底栏一行橙字「预览中，未落盘：style.font-size → 64px」。</div>
+          <div style="line-height: 1.65; margin-bottom: 4px;"><span style="color: var(--tool-text-2); font-weight: 600;">定成 · 那条提示：</span>不放底栏。橙色挪到改动的那一行 —— 输入框边框转橙、行末一枚「未落盘」；底栏那条只留键位说明「<span style="font-family: var(--tool-mono);">Enter</span> 落盘 · <span style="font-family: var(--tool-mono);">Esc</span> 取消」。</div>
+          <div style="line-height: 1.65; margin-bottom: 5px;"><span style="color: var(--tool-text-2); font-weight: 600;">定成 · 失焦：</span>保留失焦落盘，不加「应用」钮。但落盘那一刻底栏换成绿字「已落盘 v7 → v8」，带一颗「撤销」停三秒。</div>
+          <div style="color: var(--tool-text-2); line-height: 1.6;">哪个值没落盘是行级信息，底栏离它太远 —— 和第 6 项同一条理。至于「应用」钮：它让每一次改都多一次点击，而误改已经被 <span style="font-family: var(--tool-mono);">Escape</span>、撤销、版本回退兜了三层。</div>
+        </div>
+
+        <div style="padding: 13px 15px; background: var(--tool-panel);">
+          <div style="display: flex; align-items: baseline; gap: 8px; margin-bottom: 7px;">
+            <span style="font-family: var(--tool-mono); font-size: 11px; color: var(--tool-accent); flex: none;">05</span>
+            <span style="font-weight: 650;"><span style="font-family: var(--tool-mono);">sc-for</span> 里的节点提示</span>
+          </div>
+          <div style="color: var(--tool-muted); line-height: 1.6; margin-bottom: 4px;"><span style="color: var(--tool-text-2);">现在：</span>顶上一条橙色胶囊「在 sc-for 里 · 影响每一行」。</div>
+          <div style="line-height: 1.65; margin-bottom: 5px;"><span style="color: var(--tool-text-2);">定成：</span>改前保留胶囊，不弹窗。改完之后胶囊换成「已改 · 影响 12 行」，长出一颗「撤销」。</div>
+          <div style="color: var(--tool-muted); line-height: 1.6;">事前确认每次都要点，事后撤销只在改错时点。一次误操作的代价小于一百次确认。</div>
+        </div>
+
+        <div style="padding: 13px 15px; background: var(--tool-panel);">
+          <div style="display: flex; align-items: baseline; gap: 8px; margin-bottom: 7px;">
+            <span style="font-family: var(--tool-mono); font-size: 11px; color: var(--tool-accent); flex: none;">06</span>
+            <span style="font-weight: 650;">落盘中的反馈</span>
+          </div>
+          <div style="color: var(--tool-muted); line-height: 1.6; margin-bottom: 4px;"><span style="color: var(--tool-text-2);">现在：</span>面板底下一行「正在落盘：…」。</div>
+          <div style="line-height: 1.65; margin-bottom: 5px;"><span style="color: var(--tool-text-2);">定成：</span>面板底沿一条 2px 进度条 + 一行文字。失败时那一行控件边框转红、行下面出现真实原因和一颗「重试」，值回滚到落盘前。</div>
+          <div style="color: var(--tool-muted); line-height: 1.6;">失败要回到出错的那一行去说。人得知道是哪个值没落下去，不是「有个值没落下去」。</div>
+        </div>
+
+        <div style="padding: 13px 15px; background: var(--tool-panel);">
+          <div style="display: flex; align-items: baseline; gap: 8px; margin-bottom: 7px;">
+            <span style="font-family: var(--tool-mono); font-size: 11px; color: var(--tool-accent); flex: none;">07</span>
+            <span style="font-weight: 650;">不可改项的呈现</span>
+          </div>
+          <div style="color: var(--tool-muted); line-height: 1.6; margin-bottom: 4px;"><span style="color: var(--tool-text-2);">现在：</span>只显示值 + 一行改法说明，没有控件。</div>
+          <div style="line-height: 1.65; margin-bottom: 5px;"><span style="color: var(--tool-text-2);">定成：</span>整行降到 muted，值用等宽字，行末一枚虚线标签说明它是什么（函数 / 引用 / 子组件）；说明仍收在 <span style="font-family: var(--tool-mono);">?</span> 里。</div>
+          <div style="color: var(--tool-muted); line-height: 1.6;">「不能改」要在扫一眼时就看出来。靠读那行说明太晚了。</div>
+        </div>
+
+        <div style="padding: 13px 15px; background: var(--tool-panel);">
+          <div style="display: flex; align-items: baseline; gap: 8px; margin-bottom: 7px;">
+            <span style="font-family: var(--tool-mono); font-size: 11px; color: var(--tool-accent); flex: none;">08</span>
+            <span style="font-weight: 650;">版本回退的形制</span>
+          </div>
+          <div style="color: var(--tool-muted); line-height: 1.6; margin-bottom: 4px;"><span style="color: var(--tool-text-2);">现在：</span>底栏 3 个版本胶囊 + 一颗「执行」。</div>
+          <div style="line-height: 1.65; margin-bottom: 5px;"><span style="color: var(--tool-text-2);">定成：</span>胶囊保留（最新三版），第四版起收进「更多」。不弹二次确认 —— 改成同一颗按钮的两段式：点一下变「确认回退到 v216」，再点才执行，点别处就撤销。不做时间轴。</div>
+          <div style="color: var(--tool-muted); line-height: 1.6;">回退是危险动作，但弹窗会被肌肉记忆点掉。让危险留在原地比另开一个窗更拦得住人。</div>
+        </div>
+
+        <div style="padding: 13px 15px; background: var(--tool-panel-2);">
+          <div style="display: flex; align-items: baseline; gap: 8px; margin-bottom: 7px;">
+            <span style="font-family: var(--tool-mono); font-size: 11px; color: var(--tool-muted); flex: none;">09</span>
+            <span style="font-weight: 650;">S3 顶栏的版本位</span>
+            <span style="flex: none; font-size: 10px; color: var(--tool-muted);">不在这份稿里</span>
+          </div>
+          <div style="line-height: 1.65; margin-bottom: 5px;"><span style="color: var(--tool-text-2);">定成：</span>显示最新快照的版本号；工作区与快照不一致时后面挂一枚「工作区」徽标；从来没有快照才写「—」。</div>
+          <div style="color: var(--tool-muted); line-height: 1.6;">版本位要回答的是「我现在看的是不是磁盘上那一版」。快照号加一枚不一致徽标就够了。</div>
+        </div>
+
+        <div style="padding: 13px 15px; background: var(--tool-panel-2);">
+          <div style="display: flex; align-items: baseline; gap: 8px; margin-bottom: 7px;">
+            <span style="font-family: var(--tool-mono); font-size: 11px; color: var(--tool-muted); flex: none;">10</span>
+            <span style="font-weight: 650;">S5 里 <span style="font-family: var(--tool-mono);">resolved</span> 为 null</span>
+            <span style="flex: none; font-size: 10px; color: var(--tool-muted);">不在这份稿里</span>
+          </div>
+          <div style="line-height: 1.65; margin-bottom: 5px;"><span style="color: var(--tool-text-2);">定成：</span>不跟链。保留「链没解开」，但把断在哪一跳写出来 —— 列出中间那个 token 名，做成可点的，人自己跳过去。</div>
+          <div style="color: var(--tool-muted); line-height: 1.6;">跟链是另一个功能。在不跟链的前提下，告诉人下一跳叫什么，他自己就能走完。</div>
+        </div>
+      </div>
+
+      <div style="padding: 13px 15px; border: 1px solid var(--tool-border); border-radius: var(--tool-radius-lg); background: var(--tool-panel);">
+        <div style="font-weight: 650; margin-bottom: 6px;">顺带交的两件</div>
+        <div style="display: grid; gap: 7px; color: var(--tool-text-2); line-height: 1.65;">
+          <div><span style="font-family: var(--tool-mono); color: var(--tool-text);">§2.3</span> 149 处作废之后，S5 的图标网格已经改回内联 <span style="font-family: var(--tool-mono);">&lt;svg&gt;</span> —— 那是一份带接线的稿，不该为一条撤回的判据留着改动。<span style="font-family: var(--tool-mono);">IconGlyph.dc.html</span> 留着，这份新稿的图标全走它（按你们「新稿建议抽」那条）。</div>
+          <div><span style="font-family: var(--tool-mono); color: var(--tool-text);">§3.1</span> 那张「决策失败 · 模型调用被拒绝」错误卡的内容：<span style="font-family: var(--tool-mono);">meta</span> 三行 —— 拒绝原因、调用时刻、重试次数；<span style="font-family: var(--tool-mono);">actions</span> 两颗 —— 「重试这一步」（primary）、「看原始响应」（ghost）。不放 danger 按钮，这张卡上没有不可逆的操作。</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;light&quot;,&quot;dark&quot;],&quot;default&quot;:&quot;light&quot;,&quot;tsType&quot;:&quot;'light' | 'dark'&quot;},&quot;density&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;常规&quot;,&quot;紧凑&quot;],&quot;default&quot;:&quot;常规&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
+const DEMOS = [
+  { n: 1, short: "常规", name: "常规 · 样式组展开", note: "改法说明收着，一行一项" },
+  { n: 2, short: "说明展开", name: "改法说明就地展开", note: "点行末的 ? ，不是常驻一行灰字" },
+  { n: 3, short: "在 sc-for 里", name: "选中的节点在 sc-for 里", note: "改前只提示，不弹窗" },
+  { n: 4, short: "已改待撤销", name: "改完了，可撤销", note: "确认放在事后比事前便宜" },
+  { n: 5, short: "不可改", name: "属性组 · 函数与引用", note: "整行降调，扫一眼就知道改不了" },
+  { n: 6, short: "颜色 token", name: "颜色控件展开 token 检索", note: "颜色的答案在 token 里，不给取色器" },
+  { n: 7, short: "落盘中", name: "正在落盘", note: "底沿 2px 进度，不挪动布局" },
+  { n: 8, short: "落盘失败", name: "落盘失败", note: "错误回到出错的那一行去说" },
+  { n: 9, short: "回退二段", name: "回退按钮第二段", note: "危险留在原地，不另开窗" },
+  { n: 10, short: "未落盘", name: "预览中 · 未落盘", note: "橙色在那一行，不在底栏" },
+  { n: 11, short: "已落盘", name: "落盘完成 · 三秒可撤销", note: "失焦照旧落盘，但给三秒退路" }
+];
+
+const TOKEN_HITS = [
+  { name: "color.semantic.text", hex: "#191c21" },
+  { name: "color.ink.900", hex: "#1b1f26" },
+  { name: "color.text.primary", hex: "#14181d" }
+];
+
+const STEP = { px: 1, "%": 5, "": 0.1 };
+
+const HINTS = {
+  num: "改的是 style 里的字面量，不是 token。松手才落盘，iframe 重载后才看得到。",
+  color: "值是 var(--tool-text)。换 token 从色块里挑；写字面量会被 token 检查记一条。",
+  text: "简写属性，工具整段替换，不拆成四个值分别改。",
+  locked: "这是函数（事件 / ref），不是可调的值。要改去逻辑类的 renderVals() 里。"
+};
+
+class Component extends DCLogic {
+  state = {
+    demo: 1,
+    vals: {},
+    open: {},
+    hint: {},
+    color: {},
+    version: null,
+    confirm: false,
+    undone: false
+  };
+
+  componentDidMount() {
+    this.onUp = () => { this.drag = null; };
+    this.onMove = (e) => {
+      if (!this.drag) return;
+      const d = this.drag;
+      const step = d.step * (e.shiftKey && d.unit === "px" ? 10 : 1);
+      const next = d.start + Math.round((e.clientX - d.x) / 3) * step;
+      this.setVal(d.key, d.unit === "" ? Math.max(0.1, Math.round(next * 10) / 10) : Math.max(0, Math.round(next)));
+    };
+    window.addEventListener("pointermove", this.onMove);
+    window.addEventListener("pointerup", this.onUp);
+    this.forceUpdate();
+  }
+
+  componentWillUnmount() {
+    window.removeEventListener("pointermove", this.onMove);
+    window.removeEventListener("pointerup", this.onUp);
+  }
+
+  setVal(key, v) {
+    this.setState((s) => {
+      const vals = Object.assign({}, s.vals);
+      vals[key] = v;
+      return { vals: vals };
+    });
+  }
+
+  flip(bag, key) {
+    this.setState((s) => {
+      const next = Object.assign({}, s[bag]);
+      next[key] = !this.isOn(bag, key);
+      const patch = {};
+      patch[bag] = next;
+      return patch;
+    });
+  }
+
+  isOn(bag, key) {
+    const s = this.state[bag];
+    if (Object.prototype.hasOwnProperty.call(s, key)) return !!s[key];
+    return this.defaultOn(bag, key);
+  }
+
+  defaultOn(bag, key) {
+    const d = this.state.demo;
+    if (bag === "open") {
+      if (key === "attr") return d === 5;
+      if (key === "copy") return false;
+      return d !== 5;
+    }
+    if (bag === "hint") return d === 2 && key === "font-size";
+    if (bag === "color") return d === 6 && key === "color";
+    return false;
+  }
+
+  rowVal(key, fallback) {
+    const v = this.state.vals[key];
+    return v === undefined ? fallback : v;
+  }
+
+  buildRow(def) {
+    const d = this.state.demo;
+    const failing = d === 8 && def.key === "font-size";
+    const pending = d === 10 && def.key === "font-size";
+    const value = this.rowVal(def.key, pending ? 64 : def.v);
+    const isNum = def.kind === "num";
+    const unit = def.unit === undefined ? "" : def.unit;
+    const step = STEP[unit] === undefined ? 1 : STEP[unit];
+    const bump = (mult) => () => {
+      const n = Number(this.rowVal(def.key, def.v)) + step * mult;
+      this.setVal(def.key, unit === "" ? Math.max(0.1, Math.round(n * 10) / 10) : Math.max(0, n));
+    };
+    const locked = def.kind === "locked";
+    const hintOpen = this.isOn("hint", def.key);
+    const colorOpen = def.kind === "color" && this.isOn("color", def.key);
+
+    return {
+      label: def.key,
+      labelTitle: isNum ? "按住左右拖，调 " + def.key : def.key,
+      labelFg: locked ? "var(--tool-muted)" : "var(--tool-text-2)",
+      labelCursor: isNum ? "ew-resize" : "default",
+      scrub: isNum ? (e) => {
+        this.drag = { key: def.key, start: Number(this.rowVal(def.key, def.v)), x: e.clientX, step: step, unit: unit };
+      } : null,
+      isNum: isNum,
+      isColor: def.kind === "color",
+      isText: def.kind === "text",
+      isLocked: locked,
+      value: String(value),
+      unit: unit,
+      tag: def.tag || "",
+      swatch: def.swatch || "var(--tool-text)",
+      onInput: (e) => this.setVal(def.key, e.target.value),
+      dec: bump(-1),
+      inc: bump(1),
+      fieldBd: failing ? "var(--tool-err)" : pending ? "var(--tool-warn)" : "var(--tool-border-strong)",
+      rowBg: failing ? "var(--tool-err-soft)" : pending ? "var(--tool-warn-soft)" : "transparent",
+      pending: pending,
+      hintOpen: hintOpen,
+      hint: HINTS[def.kind],
+      toggleHint: () => this.flip("hint", def.key),
+      qBg: hintOpen ? "var(--tool-panel-3)" : "var(--tool-panel-2)",
+      qFg: hintOpen ? "var(--tool-text)" : "var(--tool-muted)",
+      colorOpen: colorOpen,
+      toggleColor: () => this.flip("color", def.key),
+      errShow: failing,
+      errText: "写回文件被拒：这一行在 sc-for 的模板里，同一处被另一个进程占着。值已经回到 15px。",
+      retry: () => this.setState({ demo: 7 })
+    };
+  }
+
+  renderVals() {
+    const d = this.state.demo;
+    const dense = this.props.density === "紧凑";
+    const styleDefs = [
+      { key: "font-size", kind: "num", v: 15, unit: "px" },
+      { key: "color", kind: "color", v: "var(--tool-text)", swatch: "var(--tool-text)" },
+      { key: "padding", kind: "text", v: "12px 16px" },
+      { key: "margin", kind: "text", v: "0 0 8px" },
+      { key: "gap", kind: "num", v: 8, unit: "px" },
+      { key: "line-height", kind: "num", v: 1.6, unit: "" },
+      { key: "background", kind: "color", v: "var(--tool-panel)", swatch: "var(--tool-panel)" }
+    ];
+    const attrDefs = [
+      { key: "aria-label", kind: "text", v: "属性行" },
+      { key: "onClick", kind: "locked", v: "{{ onGo }}", tag: "函数" },
+      { key: "ref", kind: "locked", v: "{{ rowRef }}", tag: "引用" }
+    ];
+    const copyDefs = [
+      { key: "标签文字", kind: "text", v: "font-size" },
+      { key: "说明", kind: "text", v: "松手落盘" }
+    ];
+
+    const group = (id, label, defs) => ({
+      label: label,
+      count: defs.length,
+      open: this.isOn("open", id),
+      rot: this.isOn("open", id) ? "90deg" : "0deg",
+      toggle: () => this.flip("open", id),
+      rows: defs.map((x) => this.buildRow(x))
+    });
+
+    const inFor = d === 3 || d === 4;
+    const changed = d === 4 && !this.state.undone;
+    const vSel = this.state.version || "v216";
+    const versions = ["v218", "v217", "v216"].map((lbl) => {
+      const active = lbl === vSel;
+      return {
+        label: lbl === "v218" ? lbl + " · 最新" : lbl,
+        active: active,
+        bg: active ? "var(--tool-accent-soft)" : "var(--tool-panel)",
+        bd: active ? "var(--tool-accent-border)" : "var(--tool-border-strong)",
+        fg: active ? "var(--tool-accent)" : "var(--tool-text-2)",
+        pick: () => this.setState({ version: lbl, confirm: false })
+      };
+    });
+
+    const confirming = this.state.confirm || d === 9;
+
+    return {
+      theme: this.props.theme === "dark" ? "dark" : null,
+      noop: () => {},
+      nodeLabel: "div.属性行 · L214 · 在 sc-for 内",
+      rowH: dense ? "26px" : "30px",
+
+      demoStates: DEMOS.map((x) => ({
+        n: x.n,
+        short: x.short,
+        name: x.name,
+        active: x.n === d,
+        fw: x.n === d ? 650 : 450,
+        bg: x.n === d ? "var(--tool-accent-soft)" : "var(--tool-panel)",
+        bd: x.n === d ? "var(--tool-accent-border)" : "var(--tool-border)",
+        fg: x.n === d ? "var(--tool-accent)" : "var(--tool-muted)",
+        pick: () => this.setState({ demo: x.n, vals: {}, open: {}, hint: {}, color: {}, confirm: false, undone: false, version: null })
+      })),
+      demoNote: (DEMOS.find((x) => x.n === d) || DEMOS[0]).note,
+
+      groups: [group("style", "样式", styleDefs), group("attr", "属性", attrDefs), group("copy", "文案", copyDefs)],
+
+      bannerShow: inFor,
+      bannerText: changed ? "已改 · 影响 12 行" : "在 sc-for 里 · 改一处影响每一行",
+      bannerIcon: changed ? "M3.6 8.4l3 3 5.8-6.4" : "M8 5v4M8 11h.01M8 2.2l5.8 10.2H2.2z",
+      bannerBg: changed ? "var(--tool-ok-soft)" : "var(--tool-warn-soft)",
+      bannerBd: changed ? "var(--tool-ok-border)" : "var(--tool-warn-border)",
+      bannerFg: changed ? "var(--tool-ok)" : "var(--tool-warn)",
+      bannerUndo: changed,
+      onUndo: () => this.setState({ undone: true, vals: {} }),
+
+      tokenHits: TOKEN_HITS.map((t) => ({
+        name: t.name,
+        hex: t.hex,
+        swatch: t.hex,
+        pick: () => {
+          this.setVal("color", "var(--" + t.name.split(".").pop() + ")");
+          this.flip("color", "color");
+        }
+      })),
+
+      previewShow: d === 10,
+      previewKeys: "Enter 落盘 · Esc 取消",
+      previewText: "style.font-size → 64px",
+      savedShow: d === 11,
+      savedText: "已落盘 v7 → v8",
+      onUndoSave: () => this.setState({ demo: 1 }),
+
+      savingShow: d === 7,
+      savingLabel: "正在落盘",
+      savingPct: "62%",
+      savingText: "font-size: 15px → 17px · PC 端/Pages/任务.dc.html",
+
+      versions: versions,
+      moreLabel: "更多 12 版",
+      execLabel: confirming ? "确认回退到 " + vSel : "执行回退",
+      execBg: confirming ? "var(--tool-err)" : "var(--tool-panel)",
+      execBd: confirming ? "var(--tool-err)" : "var(--tool-border-strong)",
+      execFg: confirming ? "#ffffff" : "var(--tool-text)",
+      onExec: () => this.setState({ confirm: !confirming, demo: confirming ? 1 : d })
+    };
+  }
+}
+
+</script>
+</body>
+</html>

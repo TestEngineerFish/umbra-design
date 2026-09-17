@@ -123,8 +123,18 @@
               <sc-if value="{{ t.hasResolved }}" hint-placeholder-val="{{ true }}">
                 <span style="font-family: var(--tool-mono); font-size: 12px; color: var(--tool-text-2); white-space: nowrap;">{{ t.resolvedLabel }}</span>
               </sc-if>
+              <!-- 别名链不跟（跟链是另一个功能），但把**断在哪一跳**写出来，
+                   下一跳做成可点的：点一下就把它填进检索框，人自己走完
+                   （设计侧 §五 第 10 项）。 -->
               <sc-if value="{{ t.noResolved }}" hint-placeholder-val="{{ false }}">
-                <span title="别名链没解开，工具不猜最终值" style="font-family: var(--tool-mono); font-size: 11px; color: var(--tool-warn); background: var(--tool-warn-soft); border: 1px dashed var(--tool-warn-border); border-radius: var(--tool-radius-sm); padding: 1px 6px; white-space: nowrap;">别名未解开</span>
+                <span title="别名链没解开，工具不猜最终值" style="font-family: var(--tool-mono); font-size: 11px; color: var(--tool-warn); background: var(--tool-warn-soft); border: 1px dashed var(--tool-warn-border); border-radius: var(--tool-radius-sm); padding: 1px 6px; white-space: nowrap;">链没解开</span>
+                <sc-if value="{{ t.hasHop }}" hint-placeholder-val="{{ false }}">
+                  <span style="font-size: 11px; color: var(--tool-muted); flex: none;">断在</span>
+                  <button type="button" onClick="{{ t.jumpHop }}" title="{{ t.hopTitle }}" style="font-family: var(--tool-mono); font-size: 11px; height: 19px; padding: 0 7px; border-radius: var(--tool-radius-sm); border: 1px solid var(--tool-border-strong); background: var(--tool-panel); color: var(--tool-accent); cursor: pointer; white-space: nowrap; flex: none;" style-hover="background: var(--tool-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">{{ t.hop }}</button>
+                </sc-if>
+                <sc-if value="{{ t.hasFallback }}" hint-placeholder-val="{{ false }}">
+                  <span title="var() 里写了兜底值 —— 链断了的时候浏览器用的是它" style="font-family: var(--tool-mono); font-size: 11px; color: var(--tool-text-2); flex: none; white-space: nowrap;">兜底 {{ t.fallback }}</span>
+                </sc-if>
               </sc-if>
             </div>
           </div>
@@ -138,7 +148,10 @@
         <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px;">
           <sc-for list="{{ icons }}" as="i" hint-placeholder-count="12">
             <div title="{{ i.title }}" style="display: grid; place-items: center; gap: 7px; padding: 12px 6px; border: 1px solid var(--tool-border); border-radius: var(--tool-radius); background: var(--tool-panel-2); transition: border-color .13s ease, background .13s ease;" style-hover="background: var(--tool-panel); border-color: var(--tool-border-strong);">
-              <svg width="20" height="20" viewBox="0 0 16 16" fill="none" style="color: var(--tool-text);" aria-hidden="true"><path data-icon-d="{{ i.d }}" d="M0 0" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+              <!-- 图标走 IconGlyph 子组件。dc-import 是自定义元素，浏览器不校验它的 d，
+                   洞在组件内部挂到 data-icon-d 上、渲染后抄进真属性 ——
+                   §2.8 那条判据已实测确认（15 个形状 100% 复现，doc/00 §二十七）。 -->
+              <dc-import name="IconGlyph" d="{{ i.d }}" size="20" stroke="1.4" hint-size="20px,20px"></dc-import>
               <span style="font-family: var(--tool-mono); font-size: 10px; color: var(--tool-muted); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ i.name }}</span>
             </div>
           </sc-for>
@@ -344,7 +357,6 @@ class Component extends DCLogic {
     };
     document.addEventListener("keydown", this.onKey);
     if (hasApi()) this.pull("");
-    setTimeout(() => this.syncIcons(), 0);
     this.forceUpdate();
   }
 
@@ -353,25 +365,13 @@ class Component extends DCLogic {
     if (this.t) clearTimeout(this.t);
   }
 
-  /** 把 data-icon-d 抄到 d 上。
-   *
-   *  ⚠️ 不能直接写 d="{{ i.d }}"：浏览器**在运行时替换洞之前**就校验 SVG 的 d，
-   *  控制台会留一条
-   *  `<path> attribute d: Expected moveto path command ('M' or 'm'), "{{ i.d }}"`。
-   *  和 §19.6 的 src 是同一类问题 —— 凡是解析时就被动作/校验的属性都不能写洞
-   *  （doc/06 §2.8、新增校验项 W_HOLE_IN_PARSED_ATTR）。
-   *  静态值给 "M0 0"：合法的 moveto，画不出东西，控制台干净。
-   */
-  syncIcons() {
-    const list = document.querySelectorAll("path[data-icon-d]");
-    for (let i = 0; i < list.length; i++) {
-      const el = list[i];
-      const want = el.getAttribute("data-icon-d") || "M0 0";
-      if (el.getAttribute("d") !== want) el.setAttribute("d", want);
-    }
-  }
-
-  componentDidUpdate() { this.syncIcons(); }
+  /* 图标不再在这份稿里自己画，改引 IconGlyph.dc.html。
+     经过：§2.8 那条「d 上写洞会报 Expected moveto」我一度当成未复现撤回了
+     （doc/00 §二十四），设计侧也照那条把这里改回了裸写 d。
+     后来查明反向验证用的 render_check 把这一类控制台消息静音了 ——
+     量到的零是仪器的零。去掉静音重测，15 个形状 100% 复现（§二十七）。
+     所以撤回作废，而修法取设计侧自己建的那个子组件：
+     一份稿里遵守一次规则，比 110 处各自兜底可靠。 */
 
   api(route, params) {
     const A = window.__UD_API;
@@ -495,6 +495,9 @@ class Component extends DCLogic {
       showTokens: tab === "tokens" && !noResult,
       tokens: tokenHits.slice(0, 40).map((t) => {
         const px = parseInt(t.value, 10);
+        /* 断点：`var(--x)` / `var(--x, 兜底)` 里的 x 与兜底值 */
+        const hopM = /^var\(\s*--([\w-]+)\s*(?:,\s*([^)]*))?\)\s*$/.exec(String(t.value || ""));
+        const hop = { name: hopM ? hopM[1] : null, fallback: hopM && hopM[2] ? hopM[2].trim() : null };
         return {
           path: t.path,
           note: t.note || "",
@@ -509,7 +512,22 @@ class Component extends DCLogic {
           shadow: t.kind === "elevation" ? t.resolved : "none",
           hasResolved: !!t.resolved,
           noResolved: !t.resolved,
-          resolvedLabel: t.kind === "color" ? t.resolved : t.value
+          resolvedLabel: t.kind === "color" ? t.resolved : t.value,
+          /* 下一跳从值里原样取，不加工：`var(--viewer-bg, #0B0A09)` 的下一跳是
+             `--viewer-bg`，兜底是 `#0B0A09`。取不出来（值不是 var(…) 形状）
+             就不显示这一栏 —— 不编一个跳。 */
+          hasHop: !!hop.name,
+          hop: hop.name ? "--" + hop.name : "",
+          hopTitle: hop.name
+            ? "点一下把「" + hop.name + "」填进检索框。检索按路径和值找 —— 找不到就说明这一跳不在设计系统里"
+            : "",
+          jumpHop: () => {
+            if (!hop.name) return;
+            this.setState({ query: hop.name, tab: "tokens" });
+            if (hasApi()) this.debouncedPull(hop.name);
+          },
+          hasFallback: !!hop.fallback,
+          fallback: hop.fallback || ""
         };
       }),
       tokenFootnote: tokenHits.length > 40
