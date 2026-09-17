@@ -528,3 +528,78 @@ MCP 握手实测通过（stdio，protocolVersion 2024-11-05）。
 
 下一批：`render_check`（Playwright）→ `diff_drafts` / `get_changes_since` + changelog →
 `build_index` + 静态服务。
+
+---
+
+## 十二、第三批实现记录（render_check）
+
+日期：2026-09-17　新增 `render_check` / `check_browser`，共 15 个工具。
+
+### 12.1 依赖 `playwright-core`，**不自动下载浏览器**
+
+用 `playwright-core`（+13 MB，不带浏览器），可执行文件按这个顺序找：
+环境变量 `UMBRADESIGN_CHROMIUM` → 常见安装路径（macOS 的 Chrome / Chromium / Edge / Brave、
+Linux 的几个、Windows 的两个）。
+
+找不到就返回结构化诊断，说清怎么配 —— **不猜、不下载**。
+`check_browser` 是专门用来报告这件事的工具。
+
+> Playwright 的浏览器 CDN 在受限网络下取不到，所以"自动装浏览器"这条路不能作为前提。
+> 真机（macOS）上 Chrome 基本都在，`findBrowser()` 直接命中。
+
+### 12.2 默认断网跑 —— 常态检查，不是可选项
+
+`allowNetwork` 默认 `false`：任何非本地请求都被拦下并回报为 warning。
+理由是 `08` C1：交付要能在内网机器上打开。**把它做成每次体检都查，比事后补测可靠。**
+
+实测：引一个 Google Fonts 的 `<link>` → `externalRequests: 1`、被拦、回报
+「有外部请求 …（已拦下）」，并且样式表那一栏显示 `css2?family=Inter: 跨源读不到`。
+
+浏览器自身的后台联网（遥测 / 组件更新 / 反钓鱼）`page.route` 拦不住，
+所以 launch 时用一串 `--disable-*` 关掉 —— 不关的话每次体检都在等这些请求超时。
+
+### 12.3 ⚠️ 实测抓到的两个自身缺陷（已修）
+
+**① 检测卡死的工具，自己在卡死面前死锁了。**
+轮询节点数用的 `page.evaluate`，在页面主线程真卡死时**永远不返回** ——
+一份死循环稿把整个 `render_check` 挂住直到外层超时。
+
+修法：加 `race(promise, ms, fallback)`，**凡是跨进程等页面的调用一律加超时**：
+轮询、facts 求值、截图，以及 `browser.close()`（卡死的渲染进程会让 close 也挂住，
+超时就 SIGKILL 硬杀）。
+
+修完实测：死循环稿 **7,978 ms** 判出 `alive: false` 并干净返回。
+
+**② `findBrowser()` 只判 `existsSync`。**
+`/opt/pw-browsers/chromium` 是个**目录**，`existsSync` 也过，launch 时才炸。
+改成要求「是文件 且 可执行」。
+
+### 12.4 判活只认 `1+1`
+
+`page.waitForFunction("1+1===2", { timeout: 4000 })`。截图不作判活依据 ——
+一张不对的截图和一个坏掉的页面在屏上长得一样（`04` §2.1）。
+
+`alive: false` 时回一条 **error** 级诊断，`fix` 直接指向 `04` §2.2 的二分法。
+
+### 12.5 回报里最值钱的一栏：`styleSheets`
+
+照 `04` §2.4 的教训 —— 判断相对引用到不到位，看 `document.styleSheets` 里
+**真实解析出的 href 与它的 `cssRules` 条数**，不看任何宿主注入的路径警告。
+
+实测输出：`(inline):11  (inline):1  (inline):2  colors.css:1  (inline):1` ——
+`colors.css:1` 说明 `@ds` 展开后的相对路径真的解析到了，且规则数对。
+
+### 12.6 未解析的洞有两个来源
+
+- **DOM 残迹**：渲染后还留着 `{{ ... }}` 字面量 → `unresolvedHoles`
+- **运行时告警**：`support.js` 自己会打
+  `[dc-runtime] hole: {{ missingKey }} never resolved — rendered as empty`
+  → 被 `consoleWarnings` 捕获
+
+实测确认后者是主渠道（运行时把取不到的洞渲染成空，DOM 里不留残迹）。
+两条都收，所以洞漏不掉。
+
+### 12.7 下一批
+
+`diff_drafts` / `get_changes_since` + `CHANGELOG-设计侧.md`（`07`）→
+`build_index` + 静态服务（形态 A）。

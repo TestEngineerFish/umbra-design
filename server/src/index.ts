@@ -18,6 +18,7 @@ import { getComponent, getIcon, getToken, listComponents, listIcons, searchToken
 import { validateDraft } from "./validate.js";
 import { patchDraft, writeDraft } from "./write.js";
 import { missingRuntime } from "./normalize.js";
+import { findBrowser, renderCheck } from "./render.js";
 
 const VERSION = "0.1.0";
 
@@ -279,6 +280,52 @@ server.registerTool("check_runtime", {
   }
   return envelope({ missing: [...byDir.entries()].map(([dir, files]) => ({ dir, files })) },
     [], { dirsMissing: byDir.size, draftsScanned: drafts.length });
+}));
+
+// ───────────────────────── 渲染体检 ─────────────────────────
+
+server.registerTool("render_check", {
+  title: "真实渲染体检一份稿",
+  description: [
+    "起一个本地静态服务 + headless Chromium，真的把稿打开一次。",
+    "**这是唯一的验收证据** —— validate_draft 全绿不等于能渲染（doc/04 §2.2）。",
+    "判活只认 1+1：截图会骗人，一张不对的截图和坏掉的页面在屏上长得一样。",
+    "",
+    "默认【断网】跑（allowNetwork=false）：任何外部请求都会被拦下并回报 ——",
+    "交付要能在内网机器上打开，所以这是常态检查，不是可选项。",
+    "",
+    "回报：alive / 节点数 / 渲染耗时 / 渲染后还留着的洞 / 控制台告警 /",
+    "取不到的资源 / 外部请求 / 真实解析出的样式表与它的 cssRules 条数 / 截图路径。",
+  ].join("\n"),
+  inputSchema: {
+    project: z.string(),
+    path: z.string(),
+    width: z.number().int().min(320).max(3840).optional(),
+    height: z.number().int().min(320).max(2400).optional(),
+    allowNetwork: z.boolean().optional().describe("默认 false。置 true 才允许外部请求"),
+    timeoutMs: z.number().int().min(3000).max(120000).optional(),
+    screenshot: z.boolean().optional(),
+  },
+}, async ({ project, path, width, height, allowNetwork, timeoutMs, screenshot }) => run(async () => {
+  const p = await loadProject(project);
+  const r = await renderCheck(p, path, { width, height, allowNetwork, timeoutMs, screenshot });
+  return envelope(r.result, r.diags, {
+    alive: r.result.alive, nodeCount: r.result.nodeCount, renderMs: r.result.renderMs,
+    unresolvedHoles: r.result.unresolvedHoles.length,
+    externalRequests: r.result.externalRequests.length,
+  });
+}));
+
+server.registerTool("check_browser", {
+  title: "查渲染体检用的浏览器",
+  description: "报告 render_check 会用哪个浏览器可执行文件。找不到时说清怎么配（不会自动下载浏览器）。",
+  inputSchema: {},
+}, async () => run(async () => {
+  const f = findBrowser();
+  const diags = f ? [] : [err(X.IO, "(server)", { kind: "file", name: "chromium" },
+    "找不到可用的 Chromium / Chrome",
+    { fix: "装一个 Chrome，或把可执行文件路径写进环境变量 UMBRADESIGN_CHROMIUM" })];
+  return envelope({ browser: f, autoDownload: false }, diags);
 }));
 
 // ──────────────────────────── 启动 ────────────────────────────

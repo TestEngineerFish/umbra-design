@@ -4,8 +4,12 @@
   "private": true,
   "type": "module",
   "description": "UmbraDesign MCP server —— 本地设计稿工具，见 ../doc/00-MCP 工具契约.md",
-  "engines": { "node": ">=20" },
-  "bin": { "umbradesign": "./dist/index.js" },
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "umbradesign": "./dist/index.js"
+  },
   "scripts": {
     "build": "tsc -p .",
     "dev": "tsc -p . --watch",
@@ -15,7 +19,8 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",
-    "zod": "^3.25.0"
+    "zod": "^3.25.0",
+    "playwright-core": "^1.63.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
