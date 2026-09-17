@@ -455,9 +455,7 @@ class Component extends DCLogic {
   }
 
   go(r) {
-    // S2 还没接真实数据，所以接真实数据时先直接开那份稿本身（走静态服务）。
-    // S2 接上之后把这一支改回 S2 就行。
-    if (LIVE) { window.location.href = "./" + encodeURI(r.file); return; }
+    // S2 已经接上真实数据（doc/00 §二十一），两条路统一走它
     window.location.href = "./S2-单稿预览壳.dc.html?file=" + encodeURIComponent(r.file);
   }
 

@@ -124,7 +124,10 @@ async function iconFile(p: Project) {
   };
 }
 
-export async function listIcons(p: Project, query?: string, limit = 60) {
+/** withPath：把 path 一起给出来。
+ *  默认**不给** —— `list_icons` 是给模型的，几十条 path 白占上下文。
+ *  本地 API 给界面用时才要（界面得真把图标画出来，doc/00 §22.3）。 */
+export async function listIcons(p: Project, query?: string, limit = 60, withPath = false) {
   const f = await iconFile(p);
   if (!f?.icons) return { viewBox: null, icons: [], total: 0, truncated: false };
   const q = (query ?? "").trim().toLowerCase();
@@ -133,10 +136,14 @@ export async function listIcons(p: Project, query?: string, limit = 60) {
     (i.group ?? "").toLowerCase().includes(q) || (i.note ?? "").includes(q));
   return {
     viewBox: f.viewBox ?? null,
-    icons: all.slice(0, limit).map((i) => ({
-      name: i.name, cn: i.cn ?? null, group: i.group ?? null,
-      strokeWidth: i.strokeWidth ?? null, note: i.note ?? null,
-    })),
+    icons: all.slice(0, limit).map((i) => {
+      const row: Record<string, unknown> = {
+        name: i.name, cn: i.cn ?? null, group: i.group ?? null,
+        strokeWidth: i.strokeWidth ?? null, note: i.note ?? null,
+      };
+      if (withPath) row.path = (i as { path?: string }).path ?? null;
+      return row;
+    }),
     total: all.length,
     truncated: all.length > limit,
   };

@@ -172,6 +172,7 @@ export function validateDraft(p: Project, relPath: string, src: string, fileLabe
   // 于是 support.js 拿到的 innerHTML 里控制流已经不在表里了 —— 行不渲染、不报错。
   // 实测踩到：build_index 生成的入口页用了真 <table> + sc-for，表头出来了、行全空。
   diags.push(...checkControlInTable(d, f));
+  diags.push(...checkHoleInParsedAttr(d, f));
 
   // ── E_DS_PATH：展开后的 ds 引用要能落到真实文件 ──
   if (p.dsDir) {
@@ -282,6 +283,52 @@ function normalizeUrl(url: string, p: Project): string {
 }
 
 /** 控制流标签不许落在 table / select 的区间里（静默失效，见调用处的注释）。 */
+/** 洞不能写在浏览器**解析 HTML 时就会动作或校验**的属性上。
+ *
+ * 两类，实测都踩过：
+ *  - 会发请求：`src` / `href` / `srcset` / `poster` —— 浏览器在洞被替换前就去取
+ *    字面量 `{{ x }}`，留一个 404（doc/00 §19.6）
+ *  - 解析时校验：SVG 的 `d` / `points` / `viewBox` / `transform` / `cx`… ——
+ *    浏览器立刻校验，控制台报
+ *    `<path> attribute d: Expected moveto path command ('M' or 'm'), "{{ i.d }}"`
+ *    （doc/00 §22.5）
+ *
+ * 两者都只污染控制台、不影响最终渲染，所以是 warning 不是 error。
+ * 但 `render_check` 会把它算进控制台告警，按健康判据（§十五）这份稿就一直是黄的 ——
+ * **一条永远好不了的黄，比没有这条检查更糟**，所以必须报出来并给改法。
+ *
+ * 改法：挂 `data-*` 上，逻辑类里在 `componentDidMount` / `componentDidUpdate` 抄过去
+ * （S5 的图标就是这么改的）。
+ */
+const FETCH_ATTRS = ["src", "href", "srcset", "poster"];
+const SVG_ATTRS = ["d", "points", "viewBox", "transform", "cx", "cy", "r", "x1", "y1", "x2", "y2"];
+
+function checkHoleInParsedAttr(d: Draft, f: string): Diagnostic[] {
+  if (!d.template) return [];
+  const out: Diagnostic[] = [];
+  const tplStart = d.template.start;
+  const tpl = d.src.slice(tplStart, d.template.end);
+  for (const attr of [...FETCH_ATTRS, ...SVG_ATTRS]) {
+    // ⚠️ 不能用 \b 开头：`-` 是非单词字符，于是 `data-icon-d="{{ x }}"` 也会命中 ——
+    // 而那正是我们推荐的改法，报它就是误报（实测自己踩了）。用负向后查排掉。
+    const re = new RegExp(`(?<![-\\w])${attr}\\s*=\\s*"([^"]*\\{\\{[^"]*)"`, "gi");
+    for (const m of tpl.matchAll(re)) {
+      const abs = tplStart + (m.index as number);
+      if (d.comments.some((c) => abs >= c.start && abs < c.end)) continue;
+      const fetchy = FETCH_ATTRS.includes(attr.toLowerCase());
+      out.push(warn(W.HOLE_IN_PARSED_ATTR, f, { kind: "key", name: attr },
+        fetchy
+          ? `${attr} 上写了洞 —— 浏览器在替换它之前就会去请求字面量，每次加载留一个 404`
+          : `${attr} 上写了洞 —— 浏览器在解析时就校验这个属性，控制台会报一条 error`,
+        { ...d.at(abs),
+          fix: `改挂 data-${attr.toLowerCase()}="${(m[1] ?? "").trim()}"，` +
+               `在逻辑类的 componentDidMount / componentDidUpdate 里抄到 ${attr} 上` +
+               (fetchy ? `；或者静态值先写 about:blank 再由逻辑类设` : "") }));
+    }
+  }
+  return out;
+}
+
 function checkControlInTable(d: Draft, f: string): Diagnostic[] {
   if (!d.template) return [];
   const out: Diagnostic[] = [];
@@ -292,6 +339,12 @@ function checkControlInTable(d: Draft, f: string): Diagnostic[] {
     const open = new RegExp(`<${host}\\b`, "gi");
     let m: RegExpExecArray | null;
     while ((m = open.exec(tpl))) {
+      // ⚠️ 宿主开标签本身也可能在注释里。实测踩到：注释里写了「不能用 <select> + sc-for」，
+      // 这个 <select> 被当成未闭合的开标签，一路吞到文件末尾，把后面所有 sc-for 全报一遍
+      // —— 一条**误报**，而且是在一份合法稿上（doc/00 §22.4）。
+      // 下面 CONTROL 那一层本来就跳注释了，这一层漏了。
+      const hostAbs = d.template.start + m.index;
+      if (d.comments.some((x) => hostAbs >= x.start && hostAbs < x.end)) continue;
       const close = tpl.toLowerCase().indexOf(`</${host}>`, m.index);
       const end = close < 0 ? tpl.length : close;
       const inner = tpl.slice(m.index, end);

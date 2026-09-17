@@ -36,7 +36,7 @@
       </a>
       <div style="display: flex; align-items: baseline; gap: 9px; min-width: 0; flex: 1 1 200px;">
         <span style="font-size: 15px; font-weight: 620; letter-spacing: -0.01em;">诊断</span>
-        <span style="font-family: var(--tool-mono); font-size: 12px; color: var(--tool-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">日志.dc.html · v217</span>
+        <span style="font-family: var(--tool-mono); font-size: 12px; color: var(--tool-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ fileLabel }}</span>
       </div>
       <span style="display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: 999px; font-size: 12px; font-weight: 560; white-space: nowrap; border: 1px solid; flex: none; background: {{ okBg }}; border-color: {{ okBd }}; color: {{ okFg }};">
         <span style="width: 6px; height: 6px; border-radius: 999px; background: currentColor;"></span>{{ okLabel }}
@@ -51,7 +51,9 @@
       </div>
     </div>
     <div style="display: flex; align-items: center; gap: 8px; padding: 0 20px 10px; flex-wrap: wrap; font-size: 12px;">
-      <span style="font-size: 11px; color: var(--tool-muted); flex: none;">演示态</span>
+      <sc-if value="{{ showDemoBar }}" hint-placeholder-val="{{ true }}">
+        <span style="font-size: 11px; color: var(--tool-muted); flex: none;">演示态</span>
+      </sc-if>
       <sc-for list="{{ demoStates }}" as="st" hint-placeholder-count="9">
         <button type="button" onClick="{{ st.pick }}" title="{{ st.name }}" aria-pressed="{{ st.active }}" style="display: inline-flex; align-items: center; gap: 5px; height: 23px; padding: 0 9px 0 6px; border-radius: var(--tool-radius-sm); border: 1px solid; cursor: pointer; font-size: 11px; white-space: nowrap; transition: background .13s ease, border-color .13s ease, color .13s ease; background: {{ st.bg }}; border-color: {{ st.bd }}; color: {{ st.fg }};" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">
           <span style="font-family: var(--tool-mono); opacity: 0.6;">{{ st.n }}</span>
@@ -219,6 +221,13 @@
   &quot;railWidth&quot;: { &quot;editor&quot;: &quot;int&quot;, &quot;default&quot;: 340, &quot;min&quot;: 280, &quot;max&quot;: 480, &quot;step&quot;: 20, &quot;unit&quot;: &quot;px&quot;, &quot;tsType&quot;: &quot;number&quot;, &quot;section&quot;: &quot;诊断面板&quot; },
   &quot;theme&quot;: { &quot;editor&quot;: &quot;enum&quot;, &quot;options&quot;: [&quot;跟随外层&quot;, &quot;dark&quot;], &quot;default&quot;: &quot;跟随外层&quot;, &quot;tsType&quot;: &quot;'dark'|null&quot;, &quot;section&quot;: &quot;工具皮肤&quot; }
 }">
+/* 地址栏带 ?file= 就是在看真稿的诊断，数据来自本地 API（doc/00 §二十）。
+   不带就还是演示态 —— 和 S1/S2/S4 同一套办法。 */
+const LIVE = (function () {
+  try { const q = new URLSearchParams(location.search).get("file"); return q ? decodeURIComponent(q) : null; }
+  catch (e) { return null; }
+})();
+
 const CODES = {
   E_HOLE_UNRESOLVED: { level: "error", title: "洞在 renderVals() 的顶层键里找不到" },
   E_HOLE_EXPR: { level: "error", title: "洞里写了表达式，不是点号路径" },
@@ -324,7 +333,8 @@ const DEMOS = [
 ];
 
 class Component extends DCLogic {
-  state = { demo: 3, form: null, open: {}, allOpen: true, copied: false, running: false };
+  state = { demo: 3, form: null, open: {}, allOpen: true, copied: false, running: false,
+            live: null, apiErr: null };
 
   componentDidMount() {
     this.onKey = (e) => {
@@ -337,6 +347,7 @@ class Component extends DCLogic {
       if (k === "c") { e.preventDefault(); this.copy(); }
     };
     document.addEventListener("keydown", this.onKey);
+    this.pull();
   }
 
   componentWillUnmount() {
@@ -358,7 +369,33 @@ class Component extends DCLogic {
     this.rt = setTimeout(() => this.setState({ running: false, demo: 2 }), 1800);
   }
 
+  api(route, params) {
+    const A = window.__UD_API;
+    if (!A) return Promise.reject(new Error("本地 API 没起来（先 serve_start 再 build_index）"));
+    const u = new URL(A.base + route, location.href);
+    for (const k of Object.keys(params || {})) u.searchParams.set(k, params[k]);
+    return fetch(u.toString(), { headers: { "x-ud-token": A.token } })
+      .then((r) => r.json())
+      .then((j) => { if (j.errors && j.errors.length) throw new Error(j.errors[0].message); return j.data; });
+  }
+
+  pull() {
+    if (!LIVE) return;
+    this.api("validate", { file: LIVE })
+      .then((d) => this.setState({ live: d, apiErr: null }))
+      .catch((e) => this.setState({ apiErr: e.message }));
+  }
+
   list() {
+    // LIVE 时只认接口给的。locator 可能缺，补一个空壳，免得 groups 里取 .kind 崩
+    if (LIVE) {
+      const L = this.state.live;
+      return L ? L.diags.map((d) => ({
+        code: d.code, line: d.line === undefined ? null : d.line, col: d.col === undefined ? null : d.col,
+        message: d.message, fix: d.fix || "", file: d.file,
+        locator: d.locator || { kind: "?", name: "?" }
+      })) : [];
+    }
     const n = this.state.demo;
     if (n === 1) return [];
     if (n === 2) return [D_ELEM, D_CONSOLE, D_HINT];
@@ -380,10 +417,13 @@ class Component extends DCLogic {
     const items = this.list();
     const errCount = items.filter((i) => CODES[i.code].level === "error").length;
     const warnCount = items.length - errCount;
-    const dead = s.demo === 7;
-    const notRun = s.demo === 9;
-    const missing404 = s.demo === 8 || s.demo === 4;
-    const consoleWarn = s.demo === 2 || s.demo === 4 || s.demo === 8;
+    const L = s.live;
+    const chk = LIVE && L ? L.check : null;
+    const fresh = !!chk && !L.checkStale;
+    const dead = LIVE ? (fresh && !chk.alive) : s.demo === 7;
+    const notRun = LIVE ? !fresh : s.demo === 9;
+    const missing404 = LIVE ? (fresh && chk.counts.missingResources > 0) : (s.demo === 8 || s.demo === 4);
+    const consoleWarn = LIVE ? (fresh && chk.counts.consoleWarnings > 0) : (s.demo === 2 || s.demo === 4 || s.demo === 8);
 
     const byCode = {};
     const order = [];
@@ -394,7 +434,9 @@ class Component extends DCLogic {
     order.sort((a, b) => (CODES[a].level === "error" ? 0 : 1) - (CODES[b].level === "error" ? 0 : 1));
 
     const groups = order.map((code) => {
-      const meta = CODES[code];
+      /* ⚠️ CODES 只列了 9 个演示码，真实码有二十多个（doc/00 §六）。
+         查不到就按前缀判级别、用 code 自己当标题 —— 不能因为没收录就崩。 */
+      const meta = CODES[code] || { level: code.startsWith("E_") ? "error" : "warning", title: code };
       const isErr = meta.level === "error";
       const open = s.open[code] === undefined ? s.allOpen : s.open[code];
       return {
@@ -431,6 +473,15 @@ class Component extends DCLogic {
       { k: "nodeCount", v: "拿不到", muted: true },
       { k: "renderMs", v: "拿不到", muted: true },
       { k: "缩略图", v: "未生成", muted: true }
+    ] : LIVE ? [
+      { k: "alive", v: chk ? String(chk.alive) : "—", ok: !!chk && chk.alive },
+      { k: "nodeCount", v: chk ? String(chk.nodeCount) : "—" },
+      { k: "renderMs", v: chk ? chk.renderMs + "ms" : "—" },
+      { k: "未解析的洞", v: chk ? (chk.counts.unresolvedHoles || "无") : "—", bad: !!chk && chk.counts.unresolvedHoles > 0 },
+      { k: "控制台告警", v: chk ? (chk.counts.consoleWarnings ? chk.counts.consoleWarnings + " 条" : "无") : "—", warn: consoleWarn },
+      { k: "资源 404", v: chk ? (chk.counts.missingResources ? chk.counts.missingResources + " 个" : "无") : "—", warn: missing404 },
+      { k: "断网外部请求", v: chk ? (chk.counts.externalRequests ? chk.counts.externalRequests + " 个被拦" : "无") : "—", warn: !!chk && chk.counts.externalRequests > 0 },
+      { k: "体检时间", v: chk ? chk.checkedAt.replace("T", " ").slice(0, 16) : "—", muted: true }
     ] : [
       { k: "alive", v: "true", ok: true },
       { k: "nodeCount", v: "2,307" },
@@ -472,11 +523,17 @@ class Component extends DCLogic {
       factsEdge: isRail ? "0" : "1px solid var(--tool-border)",
       factsBottom: isRail ? "1px solid var(--tool-border)" : "0",
 
-      statCells: [
-        { k: "元素", v: "812" },
-        { k: "洞", v: "143" },
-        { k: "import", v: "4" }
-      ],
+      statCells: LIVE
+        ? [
+            { k: "元素", v: L ? String(L.stats.elements) : "…" },
+            { k: "洞", v: L ? String(L.stats.holes) : "…" },
+            { k: "import", v: L ? String(L.stats.imports) : "…" }
+          ]
+        : [
+            { k: "元素", v: "812" },
+            { k: "洞", v: "143" },
+            { k: "import", v: "4" }
+          ],
 
       isDead: dead,
       renderNotRun: notRun,
@@ -505,8 +562,15 @@ class Component extends DCLogic {
         { t: "812 个元素，距 1,200 上限还有 388" }
       ],
 
-      demoNote: demo.note,
-      demoStates: DEMOS.map((x) => ({
+      showDemoBar: !LIVE,
+      fileLabel: LIVE ? LIVE : "日志.dc.html · v217",
+      demoNote: LIVE
+        ? (s.apiErr ? "⚠️ 本地 API 读不到：" + s.apiErr
+           : !L ? "正在读…"
+           : L.checkStale ? LIVE + " · 体检读数已过期，改稿后要重跑 render_check"
+           : LIVE)
+        : demo.note,
+      demoStates: LIVE ? [] : DEMOS.map((x) => ({
         n: x.n, name: x.name, short: x.short, active: x.n === s.demo,
         fw: x.n === s.demo ? "600" : "400",
         bg: x.n === s.demo ? "var(--tool-accent)" : "var(--tool-panel)",

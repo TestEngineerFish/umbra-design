@@ -47,7 +47,9 @@
       </div>
     </div>
     <div style="display: flex; align-items: center; gap: 8px; padding: 0 20px 10px; flex-wrap: wrap; font-size: 12px;">
-      <span style="font-size: 11px; color: var(--tool-muted); flex: none;">演示态</span>
+      <sc-if value="{{ showDemoBar }}" hint-placeholder-val="{{ true }}">
+        <span style="font-size: 11px; color: var(--tool-muted); flex: none;">演示态</span>
+      </sc-if>
       <sc-for list="{{ demoStates }}" as="st" hint-placeholder-count="7">
         <button type="button" onClick="{{ st.pick }}" title="{{ st.name }}" aria-pressed="{{ st.active }}" style="display: inline-flex; align-items: center; gap: 5px; height: 23px; padding: 0 9px 0 6px; border-radius: var(--tool-radius-sm); border: 1px solid; cursor: pointer; font-size: 11px; white-space: nowrap; transition: background .13s ease, border-color .13s ease, color .13s ease; background: {{ st.bg }}; border-color: {{ st.bd }}; color: {{ st.fg }};" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">
           <span style="font-family: var(--tool-mono); opacity: 0.6;">{{ st.n }}</span>
@@ -136,7 +138,7 @@
         <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px;">
           <sc-for list="{{ icons }}" as="i" hint-placeholder-count="12">
             <div title="{{ i.title }}" style="display: grid; place-items: center; gap: 7px; padding: 12px 6px; border: 1px solid var(--tool-border); border-radius: var(--tool-radius); background: var(--tool-panel-2); transition: border-color .13s ease, background .13s ease;" style-hover="background: var(--tool-panel); border-color: var(--tool-border-strong);">
-              <svg width="20" height="20" viewBox="0 0 16 16" fill="none" style="color: var(--tool-text);" aria-hidden="true"><path d="{{ i.d }}" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+              <svg width="20" height="20" viewBox="0 0 16 16" fill="none" style="color: var(--tool-text);" aria-hidden="true"><path data-icon-d="{{ i.d }}" d="M0 0" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
               <span style="font-family: var(--tool-mono); font-size: 10px; color: var(--tool-muted); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ i.name }}</span>
             </div>
           </sc-for>
@@ -213,6 +215,11 @@
 <script type="text/x-dc" data-dc-script data-props="{
   &quot;theme&quot;: { &quot;editor&quot;: &quot;enum&quot;, &quot;options&quot;: [&quot;跟随外层&quot;, &quot;dark&quot;], &quot;default&quot;: &quot;跟随外层&quot;, &quot;tsType&quot;: &quot;'dark'|null&quot;, &quot;section&quot;: &quot;工具皮肤&quot; }
 }">
+/* S5 是项目级的，不需要知道「哪一份稿」，所以它的 LIVE 判据和 S1/S2/S4 不同：
+   **只要 window.__UD_API 在就是真数据**（doc/00 §22.1）。
+   S2/S4 要 ?file= 是因为它们必须知道看的是哪一份。 */
+const hasApi = () => !!(typeof window !== "undefined" && window.__UD_API);
+
 const TOKENS = [
   { path: "color.semantic.danger.soft", value: "var(--danger-soft)", resolved: "#FBE9E7", kind: "color", note: "平底上的失败态底色" },
   { path: "color.semantic.danger.base", value: "var(--danger)", resolved: "#C0392B", kind: "color", note: "失败态的文字与描边" },
@@ -317,7 +324,7 @@ const DEMOS = [
 ];
 
 class Component extends DCLogic {
-  state = { demo: 1, tab: null, query: null };
+  state = { demo: 1, tab: null, query: null, live: null, apiErr: null, pending: false };
 
   componentDidMount() {
     this.searchRef = React.createRef();
@@ -336,10 +343,65 @@ class Component extends DCLogic {
       }
     };
     document.addEventListener("keydown", this.onKey);
+    if (hasApi()) this.pull("");
+    setTimeout(() => this.syncIcons(), 0);
     this.forceUpdate();
   }
 
-  componentWillUnmount() { document.removeEventListener("keydown", this.onKey); }
+  componentWillUnmount() {
+    document.removeEventListener("keydown", this.onKey);
+    if (this.t) clearTimeout(this.t);
+  }
+
+  /** 把 data-icon-d 抄到 d 上。
+   *
+   *  ⚠️ 不能直接写 d="{{ i.d }}"：浏览器**在运行时替换洞之前**就校验 SVG 的 d，
+   *  控制台会留一条
+   *  `<path> attribute d: Expected moveto path command ('M' or 'm'), "{{ i.d }}"`。
+   *  和 §19.6 的 src 是同一类问题 —— 凡是解析时就被动作/校验的属性都不能写洞
+   *  （doc/06 §2.8、新增校验项 W_HOLE_IN_PARSED_ATTR）。
+   *  静态值给 "M0 0"：合法的 moveto，画不出东西，控制台干净。
+   */
+  syncIcons() {
+    const list = document.querySelectorAll("path[data-icon-d]");
+    for (let i = 0; i < list.length; i++) {
+      const el = list[i];
+      const want = el.getAttribute("data-icon-d") || "M0 0";
+      if (el.getAttribute("d") !== want) el.setAttribute("d", want);
+    }
+  }
+
+  componentDidUpdate() { this.syncIcons(); }
+
+  api(route, params) {
+    const A = window.__UD_API;
+    const u = new URL(A.base + route, location.href);
+    for (const k of Object.keys(params || {})) u.searchParams.set(k, params[k]);
+    return fetch(u.toString(), { headers: { "x-ud-token": A.token } })
+      .then((r) => r.json())
+      .then((j) => { if (j.errors && j.errors.length) throw new Error(j.errors[0].message); return j.data; });
+  }
+
+  /** token 检索交给服务端做 —— 1,447 个叶子不往浏览器里搬（doc/00 §五的口径） */
+  pull(q) {
+    if (!hasApi()) return;
+    this.setState({ pending: true });
+    Promise.all([
+      this.api("tokens", { q: q || "", limit: 60 }),
+      this.api("icons", { q: q || "", limit: 120 }),
+      this.api("components", {})
+    ])
+      .then(([tk, ic, cp]) => this.setState({
+        live: { tokens: tk, icons: ic, components: cp }, apiErr: null, pending: false
+      }))
+      .catch((e) => this.setState({ apiErr: e.message, pending: false }));
+  }
+
+  /** 输入防抖 —— 每敲一个字符打一次接口没必要 */
+  debouncedPull(q) {
+    if (this.t) clearTimeout(this.t);
+    this.t = setTimeout(() => this.pull(q), 220);
+  }
 
   tab() {
     if (this.state.tab) return this.state.tab;
@@ -351,6 +413,7 @@ class Component extends DCLogic {
 
   query() {
     if (this.state.query !== null) return this.state.query;
+    if (hasApi()) return "";            // 真数据时默认不预填检索词
     const d = this.state.demo;
     if (d === 2) return "color.semantic.hover";
     if (d === 4) return "danger";
@@ -364,22 +427,37 @@ class Component extends DCLogic {
     const q = this.query().trim().toLowerCase();
     const iconCount = s.demo === 7 ? null : s.demo === 6 ? 142 : 24;
 
-    const tokenHits = q ? TOKENS.filter((t) => (t.path + " " + (t.note || "")).toLowerCase().indexOf(q) >= 0) : TOKENS;
-    const iconList = iconCount === null ? [] : icons(Math.min(iconCount, s.demo === 6 ? 142 : 24));
-    const iconHits = q ? iconList.filter((i) => i.name.toLowerCase().indexOf(q) >= 0) : iconList;
-    const compHits = q ? COMPONENTS.filter((c) => (c.name + " " + c.summary + " " + c.props.map((p) => p.name).join(" ")).toLowerCase().indexOf(q) >= 0) : COMPONENTS;
+    /* LIVE 时检索在服务端做（见 pull），这里直接用回来的结果；
+       演示态仍在本地过滤。两条路不混。 */
+    const LV = s.live;
+    const live = hasApi();
+    const tokenHits = live
+      ? (LV ? LV.tokens.hits : [])
+      : (q ? TOKENS.filter((t) => (t.path + " " + (t.note || "")).toLowerCase().indexOf(q) >= 0) : TOKENS);
+    const iconList = live
+      ? (LV ? LV.icons.icons : [])
+      : (iconCount === null ? [] : icons(Math.min(iconCount, s.demo === 6 ? 142 : 24)));
+    const iconHits = live ? iconList : (q ? iconList.filter((i) => i.name.toLowerCase().indexOf(q) >= 0) : iconList);
+    const compAll = live ? (LV ? LV.components.components : []) : COMPONENTS;
+    const compHits = live
+      ? compAll
+      : (q ? COMPONENTS.filter((c) => (c.name + " " + c.summary + " " + c.props.map((p) => p.name).join(" ")).toLowerCase().indexOf(q) >= 0) : COMPONENTS);
 
     const shownIcons = tab === "icons" && q && iconHits.length === 0 ? iconList : iconHits;
     const noResult = tab === "tokens" ? tokenHits.length === 0 : tab === "components" ? compHits.length === 0 : false;
 
     return {
       theme: this.props.theme === "dark" ? "dark" : null,
-      sourceLabel: "umbra-tokens.json · 1,447 个叶子 · 810 KB",
+      sourceLabel: live
+        ? (s.apiErr ? "⚠️ 本地 API 读不到：" + s.apiErr
+           : LV ? "token " + LV.tokens.total + " 个叶子 · 图标 " + LV.icons.total + " 枚 · 组件 " + LV.components.total + " 份 · 检索在服务端做"
+           : "正在读…")
+        : "umbra-tokens.json · 1,447 个叶子 · 810 KB",
 
       tabs: [
-        { key: "tokens", label: "token", count: "1,447" },
-        { key: "icons", label: "图标", count: iconCount === null ? "—" : String(iconCount) },
-        { key: "components", label: "组件契约", count: String(COMPONENTS.length) }
+        { key: "tokens", label: "token", count: live ? (LV ? String(LV.tokens.total) : "…") : "1,447" },
+        { key: "icons", label: "图标", count: live ? (LV ? String(LV.icons.total) : "…") : (iconCount === null ? "—" : String(iconCount)) },
+        { key: "components", label: "组件契约", count: live ? (LV ? String(LV.components.total) : "…") : String(COMPONENTS.length) }
       ].map((t) => ({
         label: t.label, count: t.count, active: t.key === tab,
         bg: t.key === tab ? "var(--tool-panel)" : "transparent",
@@ -391,10 +469,16 @@ class Component extends DCLogic {
 
       searchRef: this.searchRef,
       query: this.query(),
-      onQuery: (e) => this.setState({ query: e.target.value }),
-      onClear: () => this.setState({ query: "" }),
+      onQuery: (e) => { const v = e.target.value; this.setState({ query: v }); if (live) this.debouncedPull(v); },
+      onClear: () => { this.setState({ query: "" }); if (live) this.debouncedPull(""); },
       placeholder: tab === "tokens" ? "按路径检索，如 color.semantic.danger" : tab === "icons" ? "按图标名检索，如 log.retry" : "按组件名或 props 检索",
-      resultLabel: tab === "tokens" ? tokenHits.length + " / 1,447 命中" : tab === "icons" ? (iconCount === null ? "没有图标源" : shownIcons.length + " / " + iconCount + " 命中") : compHits.length + " / " + COMPONENTS.length + " 个组件",
+      resultLabel: live
+        ? (s.pending ? "检索中…"
+           : !LV ? "…"
+           : tab === "tokens" ? tokenHits.length + " / " + LV.tokens.total + " 命中" + (LV.tokens.truncated ? "（已截断）" : "")
+           : tab === "icons" ? (LV.icons.total === 0 ? "没有图标源" : iconHits.length + " / " + LV.icons.total + " 命中")
+           : compHits.length + " / " + LV.components.total + " 个组件")
+        : (tab === "tokens" ? tokenHits.length + " / 1,447 命中" : tab === "icons" ? (iconCount === null ? "没有图标源" : shownIcons.length + " / " + iconCount + " 命中") : compHits.length + " / " + COMPONENTS.length + " 个组件"),
 
       suggestions: (tab === "tokens"
         ? ["danger", "space.gap", "type.size", "elevation", "color.surface"]
@@ -434,12 +518,22 @@ class Component extends DCLogic {
 
       showIcons: tab === "icons" && iconCount !== null,
       showNoIcons: tab === "icons" && iconCount === null,
+      /* 真实图标的 path 由接口给（带 withPath）。取不到就给 "M0 0" ——
+         一个合法但画不出东西的 moveto。
+         ⚠️ 不能给 undefined，**也不能给空串**：两者 Chrome 都报
+         `<path> attribute d: Expected moveto path command` 一条控制台 error。
+         实测这条 error 出现在**数据到达之前的那一帧**（那时 d 是空串），
+         很容易漏掉 —— 而控制台必须干净（doc/00 §22.3）。 */
       icons: shownIcons.map((i) => ({
         name: i.name,
-        d: i.d,
-        title: i.name + " · " + i.size + "px · viewBox " + i.viewBox
+        d: (live ? (i.path || "") : i.d) || "M0 0",
+        title: live
+          ? i.name + (i.cn ? " · " + i.cn : "") + (LV && LV.icons.viewBox ? " · viewBox " + LV.icons.viewBox : "")
+          : i.name + " · " + i.size + "px · viewBox " + i.viewBox
       })),
-      iconFootnote: "全部 16px viewBox，inline SVG，不用图标字体 · 这些是形状占位，真实图标从项目的 icons 目录读",
+      iconFootnote: live
+        ? (LV && LV.icons.viewBox ? "viewBox " + LV.icons.viewBox + " · inline SVG，不用图标字体 · 来自项目的 icons 源" : "来自项目的 icons 源")
+        : "全部 16px viewBox，inline SVG，不用图标字体 · 这些是形状占位，真实图标从项目的 icons 目录读",
 
       showComponents: tab === "components" && !noResult,
       components: compHits.map((c) => ({
@@ -458,8 +552,11 @@ class Component extends DCLogic {
         states: c.states.map((x) => ({ name: x }))
       })),
 
-      demoNote: demo.note,
-      demoStates: DEMOS.map((x) => ({
+      showDemoBar: !live,
+      demoNote: live
+        ? (s.apiErr ? "⚠️ 本地 API 读不到：" + s.apiErr : "数据来自本地 API · 检索在服务端做")
+        : demo.note,
+      demoStates: live ? [] : DEMOS.map((x) => ({
         n: x.n, name: x.name, short: x.short, active: x.n === s.demo,
         fw: x.n === s.demo ? "600" : "400",
         bg: x.n === s.demo ? "var(--tool-accent)" : "var(--tool-panel)",

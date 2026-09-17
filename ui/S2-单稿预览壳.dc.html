@@ -396,6 +396,18 @@
       <button type="button" onClick="{{ onToggleSelect }}" title="开着的时候点稿里的元素是「选中」，关掉才能真的用这个界面（S 键切换）" style="height: 21px; padding: 0 8px; border-radius: var(--tool-radius-sm); border: 1px solid; cursor: pointer; font-size: 11px; background: {{ selBg }}; border-color: {{ selBd }}; color: {{ selFg }};" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">{{ selLabel }}</button>
       <span style="font-family: var(--tool-mono); color: var(--tool-muted);">{{ selNote }}</span>
     </sc-if>
+    <sc-if value="{{ canRevert }}" hint-placeholder-val="{{ false }}">
+      <span style="color: var(--tool-border-strong);">·</span>
+      <!-- 回退。⚠️ 形制待设计侧（doc/00 §21.4 第 8 项）：版本胶囊 + 一颗钮是我先定的。
+           ⚠️ **不能用 select + sc-for** —— foster-parenting 会把 sc-for 搬出去，
+           选项一个都渲染不出来（doc/00 §14.4、doc/06 §2.7）。这条规则我自己写的，
+           然后自己踩了一次，是校验器抓出来的。 -->
+      <span style="color: var(--tool-muted); font-size: 11px; flex: none;">退回</span>
+      <sc-for list="{{ versionOpts }}" as="v" hint-placeholder-count="3">
+        <button type="button" onClick="{{ v.pick }}" title="{{ v.title }}" aria-pressed="{{ v.active }}" style="height: 21px; padding: 0 8px; border-radius: var(--tool-radius-sm); border: 1px solid; cursor: pointer; font-family: var(--tool-mono); font-size: 11px; background: {{ v.bg }}; border-color: {{ v.bd }}; color: {{ v.fg }};" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">{{ v.label }}</button>
+      </sc-for>
+      <button type="button" onClick="{{ onRevert }}" title="把选中那一版的内容落成新的一版 —— 历史只增不改（doc/00 §18.3）" style="height: 21px; padding: 0 9px; border-radius: var(--tool-radius-sm); border: 1px solid var(--tool-accent); background: var(--tool-panel); color: var(--tool-accent); cursor: pointer; font-size: 11px;" style-hover="background: var(--tool-accent-soft);">{{ revertLabel }}</button>
+    </sc-if>
     <span style="flex: 1;"></span>
     <span style="display: flex; align-items: center; gap: 5px;"><kbd style="font-family: var(--tool-mono); background: var(--tool-panel-2); border: 1px solid var(--tool-border); border-radius: var(--tool-radius-sm); padding: 1px 5px;">R</kbd> 重跑体检</span>
     <span style="display: flex; align-items: center; gap: 5px;"><kbd style="font-family: var(--tool-mono); background: var(--tool-panel-2); border: 1px solid var(--tool-border); border-radius: var(--tool-radius-sm); padding: 1px 5px;">D</kbd> 诊断栏</span>
@@ -485,7 +497,8 @@ class Component extends DCLogic {
      sel* 是点选状态；点选桥不进稿，由这个壳在 iframe 载入之后注入（§十九）。 */
   state = { demo: 1, preset: 0, zoom: 1, tab: "diag", rail: true, spin: false, sheet: true,
             selectOn: false, picked: null, bridgeReady: false,
-            live: null, chg: null, slots: null, apiErr: null, drafts: {}, busy: null };
+            live: null, chg: null, slots: null, apiErr: null, drafts: {}, busy: null,
+            revertPick: "" };
 
   componentDidMount() {
     this.onKey = (e) => {
@@ -577,6 +590,31 @@ class Component extends DCLogic {
    *  2) iframe 要重载才看得到新样子（服务端 no-store，重载就是新的）
    *  3) 重载之后重新拿 slots，并让 iframe 高亮回新地址
    */
+  /** 回退是**向前**的操作：把那一版落成新的一版，历史只增不改（doc/00 §18.3）。
+   *  收尾和 applyProp 一样 —— 重载 iframe、重拉数据、清掉选中（地址全变了）。 */
+  doRevert() {
+    const A = window.__UD_API;
+    const vs = (this.state.chg && this.state.chg.versions) || [];
+    const v = this.state.revertPick || vs.slice(0, -1).reverse()[0];
+    if (!A || !LIVE || !v) return;
+    this.setState({ busy: "回退到 " + v });
+    fetch(new URL(A.base + "revert", location.href).toString(), {
+      method: "POST",
+      headers: { "x-ud-token": A.token, "content-type": "application/json" },
+      body: JSON.stringify({ file: LIVE, version: v })
+    })
+      .then((r) => r.json())
+      .then((j) => {
+        if (j.errors && j.errors.length) throw new Error(j.errors[0].fix || j.errors[0].message);
+        // 回退之后整份稿都可能变，所有地址作废 —— 清掉选中，不要留一个失效地址
+        this.setState({ busy: null, picked: null, slots: null, drafts: {}, apiErr: null });
+        const f = this.frameRef && this.frameRef.current;
+        if (f && f.contentWindow) f.contentWindow.location.reload();
+        setTimeout(() => this.pullDraft(), 500);
+      })
+      .catch((e) => this.setState({ busy: null, apiErr: e.message }));
+  }
+
   applyProp(slot, value) {
     const A = window.__UD_API, pick = this.state.picked;
     if (!A || !pick) return;
@@ -884,6 +922,23 @@ class Component extends DCLogic {
       slotInListLabel: "在 sc-for 里 · 影响每一行",
       slotBusy: !!s.busy || !!s.apiErr,
       slotBusyNote: s.apiErr ? "✗ " + s.apiErr : "正在落盘：" + s.busy,
+      canRevert: !!(LIVE && s.chg && s.chg.versions && s.chg.versions.length > 1),
+      // ⚠️ 这里必须是箭头 IIFE。写成 function(){} 的话里面的 this 不是组件，
+      // pick 回调里的 this.setState 就是 undefined —— 胶囊点不动，而且不报错。
+      versionOpts: ((vs, picked) => {
+        // 当前版本不能"退回"到自己，所以去掉最后一个；最近的 3 版够用，更早的走 MCP
+        const list = vs.slice(0, -1).reverse().slice(0, 3);
+        const cur = picked || (list[0] || "");
+        return list.map((v) => ({
+          label: v, title: "退回到 " + v, active: v === cur,
+          bg: v === cur ? "var(--tool-accent)" : "var(--tool-panel)",
+          bd: v === cur ? "var(--tool-accent)" : "var(--tool-border-strong)",
+          fg: v === cur ? "var(--tool-on-accent)" : "var(--tool-text-2)",
+          pick: () => this.setState({ revertPick: v })
+        }));
+      })(((s.chg && s.chg.versions) || []), s.revertPick),
+      onRevert: () => this.doRevert(),
+      revertLabel: "执行",
       slotHead: s.slots ? s.slots.file + " L" + s.slots.at.line + " <" + s.slots.tag + ">" : "",
       selNote: !s.bridgeReady ? "桥还没就位"
         : s.picked

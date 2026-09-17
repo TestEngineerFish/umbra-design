@@ -26,6 +26,8 @@ export const W = {
   FIXED_BLUR: "W_FIXED_BLUR",
   HINT_IGNORED: "W_HINT_IGNORED",
   COMMENT_TAG: "W_COMMENT_TAG",
+  /** 洞写在浏览器「解析时就会动作/校验」的属性上（src/href/SVG d 等）—— doc/00 §22.5 */
+  HOLE_IN_PARSED_ATTR: "W_HOLE_IN_PARSED_ATTR",
 } as const;
 
 /** 非校验类（00 §6.4） */
