@@ -63,6 +63,63 @@
     };
   }
 
+  /* ── 样式覆盖通道（doc/00 §二十五）──
+   *
+   * 拖滑块的中间态不落盘：往稿里注一张 <style>，按节点地址写
+   * `[data-ud-node="…"] { prop: value !important }`，松手才真写文件。
+   *
+   * ⚠️ 只做 **style**，不做属性和文本。原因是所有权：
+   * 样式表是 React 不管的东西，写进去不会被下一次渲染冲掉；
+   * 而属性与文本由 React 托管，直接改会在重渲染时被还原 —— 那种"预览"会闪回，
+   * 比没有预览更糟。
+   *
+   * ⚠️ 用 !important：稿里的值是写在 style 属性上的（doc/06 §2.1），
+   * 内联样式优先级更高，不加 !important 盖不住。
+   *
+   * sc-for 里一个地址对应多个 DOM 节点，选择器天然全命中 ——
+   * 这与"改一处影响每一行"的落盘语义一致，不用特殊处理。
+   */
+  var SHEET_ID = "ud-preview-override";
+  var overrides = {};        // "nodeId" -> { prop: value }
+
+  function sheet() {
+    var el = document.getElementById(SHEET_ID);
+    if (el) return el;
+    el = document.createElement("style");
+    el.id = SHEET_ID;
+    (document.head || document.documentElement).appendChild(el);
+    return el;
+  }
+
+  function cssEscape(v) { return String(v).replace(/["\\]/g, "\\$&"); }
+
+  function flush() {
+    var out = [], ids = Object.keys(overrides);
+    for (var i = 0; i < ids.length; i++) {
+      var props = overrides[ids[i]], keys = Object.keys(props), decls = [];
+      for (var j = 0; j < keys.length; j++) {
+        if (props[keys[j]] === "") continue;
+        decls.push(keys[j] + ":" + props[keys[j]] + " !important");
+      }
+      if (decls.length) out.push('[data-ud-node="' + cssEscape(ids[i]) + '"]{' + decls.join(";") + "}");
+    }
+    sheet().textContent = out.join("\n");
+    return out.length;
+  }
+
+  function previewStyle(nodeId, prop, value) {
+    if (!nodeId || !prop) return;
+    if (!overrides[nodeId]) overrides[nodeId] = {};
+    overrides[nodeId][prop] = value == null ? "" : String(value);
+    var n = flush();
+    send("preview", { node: nodeId, prop: prop, value: value, rules: n });
+  }
+
+  function clearPreview(nodeId) {
+    if (nodeId) delete overrides[nodeId]; else overrides = {};
+    send("preview", { node: nodeId || null, cleared: true, rules: flush() });
+  }
+
   function send(type, payload) {
     try { window.parent.postMessage({ source: "umbradesign", type: type, payload: payload }, "*"); }
     catch (e) { /* 没有父窗口就当没这回事 */ }
@@ -109,7 +166,17 @@
       if (el) { show(el); el.scrollIntoView({ block: "center", behavior: "smooth" }); } else hide();
       return;
     }
-    if (m.type === "ping") send("ready", { nodes: document.querySelectorAll("[data-ud-node]").length, mode: on() });
+    if (m.type === "preview-style") {
+      var q = m.payload || {};
+      previewStyle(q.node, q.prop, q.value);
+      return;
+    }
+    if (m.type === "clear-style") { clearPreview((m.payload || {}).node); return; }
+    if (m.type === "ping") send("ready", {
+      nodes: document.querySelectorAll("[data-ud-node]").length,
+      mode: on(),
+      previewRules: Object.keys(overrides).length
+    });
   });
 
   send("ready", { nodes: document.querySelectorAll("[data-ud-node]").length, mode: on() });

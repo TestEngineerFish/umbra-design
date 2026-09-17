@@ -502,7 +502,7 @@ class Component extends DCLogic {
   state = { demo: 1, preset: 0, zoom: 1, tab: "diag", rail: true, spin: false, sheet: true,
             selectOn: false, picked: null, bridgeReady: false,
             live: null, chg: null, slots: null, apiErr: null, drafts: {}, busy: null,
-            revertPick: "", checkNote: null };
+            revertPick: "", checkNote: null, previewing: null };
 
   componentDidMount() {
     this.onKey = (e) => {
@@ -542,8 +542,13 @@ class Component extends DCLogic {
         const m = e.data;
         if (!m || m.source !== "umbradesign") return;
         if (m.type === "ready") { this.setState({ bridgeReady: true }); this.pushMode(); return; }
-        if (m.type === "select") { this.setState({ picked: m.payload }); this.pullSlots(m.payload); return; }
-        if (m.type === "clear") { this.setState({ picked: null, slots: null }); return; }
+        if (m.type === "select") {
+          this.clearPreview();          // 换了节点，上一个节点的覆盖层不该留着
+          this.setState({ picked: m.payload, previewing: null });
+          this.pullSlots(m.payload);
+          return;
+        }
+        if (m.type === "clear") { this.clearPreview(); this.setState({ picked: null, slots: null, previewing: null }); return; }
       };
       window.addEventListener("message", this.onMsg);
       const f = this.frameRef;
@@ -619,6 +624,28 @@ class Component extends DCLogic {
       .catch((e) => this.setState({ busy: null, apiErr: e.message }));
   }
 
+  /* 样式覆盖通道（doc/00 §二十五）：拖动/输入的中间态只改 iframe 里的一张
+     <style>，**不落盘**。松手（change / Enter / 步进）才走 applyProp。
+     只对 style 有效 —— 属性与文本由 React 托管，直接改会被重渲染还原。 */
+  previewStyle(slot, value) {
+    const pick = this.state.picked;
+    const f = this.frameRef && this.frameRef.current;
+    if (!pick || !f || !f.contentWindow || slot.kind !== "style") return;
+    f.contentWindow.postMessage({ source: "umbradesign-shell", type: "preview-style",
+      payload: { node: pick.node, prop: slot.name, value: value } }, "*");
+    this.setState({ previewing: slot.kind + "." + slot.name + " → " + value });
+  }
+
+  clearPreview() {
+    const f = this.frameRef && this.frameRef.current;
+    const pick = this.state.picked;
+    if (f && f.contentWindow) {
+      f.contentWindow.postMessage({ source: "umbradesign-shell", type: "clear-style",
+        payload: { node: pick ? pick.node : null } }, "*");
+    }
+    if (this.state.previewing) this.setState({ previewing: null });
+  }
+
   applyProp(slot, value) {
     const A = window.__UD_API, pick = this.state.picked;
     if (!A || !pick) return;
@@ -633,7 +660,10 @@ class Component extends DCLogic {
         if (j.errors && j.errors.length) throw new Error(j.errors[0].fix || j.errors[0].message);
         const d = j.data;
         const next = Object.assign({}, pick, { node: d.newNode || pick.node });
-        this.setState({ picked: next, busy: null, drafts: {}, apiErr: null });
+        // 真值已经落盘、iframe 马上重载 —— 覆盖层必须撤掉，否则它会一直盖着
+        // 新值，人看到的还是覆盖层那个数（而且地址已经变了，选择器也对不上了）
+        this.clearPreview();
+        this.setState({ picked: next, busy: null, drafts: {}, previewing: null, apiErr: null });
         const f = this.frameRef && this.frameRef.current;
         if (f && f.contentWindow) f.contentWindow.location.reload();
         this.pullDraft();
@@ -952,17 +982,35 @@ class Component extends DCLogic {
         const key = x.kind + "." + x.name;
         const draft = key in s.drafts ? s.drafts[key] : String(x.value);
         const shape = x.editable ? this.shapeOf(x.value) : "locked";
-        const set = (v) => this.setState((st) => {
-          const d = Object.assign({}, st.drafts); d[key] = v; return { drafts: d };
-        });
+        const set = (v) => {
+          this.setState((st) => {
+            const d = Object.assign({}, st.drafts); d[key] = v; return { drafts: d };
+          });
+          // 边敲边预览，不落盘
+          if (x.editable && x.kind === "style") this.previewStyle(x, v);
+        };
         const commit = () => {
           if (draft === String(x.value)) return;     // 没变就不落盘，免得白攒一个版本
           this.applyProp(x, draft);
         };
+        /* 取消：把草稿值退回真值 + 撤掉覆盖层。
+           ⚠️ 这一条是实测补的。原来只有「提交」没有「取消」：
+           blur 会落盘（这是有意的，"松手就落盘"），于是敲了个值改主意也没法反悔，
+           每一次试探都会留下一个版本。现在 Escape 就是反悔。
+           不需要额外的标志位 —— 草稿退回真值之后，紧随其后的 blur 走
+           `draft === String(x.value)` 那条早返回，自然不落盘。 */
+        const cancel = () => {
+          this.setState((st) => {
+            const d = Object.assign({}, st.drafts); delete d[key]; return { drafts: d };
+          });
+          this.clearPreview();
+        };
         const bump = (step) => {
           const m = /^(-?\d+(?:\.\d+)?)(.*)$/.exec(String(draft).trim());
           if (!m) return;
-          this.applyProp(x, String(Math.round((parseFloat(m[1]) + step) * 100) / 100) + m[2]);
+          const v = String(Math.round((parseFloat(m[1]) + step) * 100) / 100) + m[2];
+          this.previewStyle(x, v);        // 先让人看见
+          this.applyProp(x, v);           // 再落盘
         };
         return {
           label: key, value: String(x.value), draft: draft, note: x.note,
@@ -971,17 +1019,24 @@ class Component extends DCLogic {
           isPlain: shape === "plain", locked: shape === "locked",
           swatch: shape === "color" ? String(x.value) : "transparent",
           onInput: (e) => set(e.target.value),
-          onKey: (e) => { if (e.key === "Enter") { e.preventDefault(); commit(); } },
+          onKey: (e) => {
+            if (e.key === "Enter") { e.preventDefault(); commit(); return; }
+            if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); cancel(); }
+          },
           commit: commit, inc: () => bump(1), dec: () => bump(-1)
         };
       }),
       hasSlots: !!(s.slots && s.slots.slots.length),
       slotInList: !!(s.slots && s.slots.inList),
       slotInListLabel: "在 sc-for 里 · 影响每一行",
-      slotBusy: !!s.busy || !!s.apiErr || !!s.checkNote,
-      busyFg: s.apiErr ? "var(--tool-err)" : "var(--tool-text-2)",
+      slotBusy: !!s.busy || !!s.apiErr || !!s.checkNote || !!s.previewing,
+      busyFg: s.apiErr ? "var(--tool-err)" : s.previewing ? "var(--tool-warn)" : "var(--tool-text-2)",
+      /* ⚠️ 「预览中，未落盘」这个措辞和呈现待设计侧定（doc/10 §五 第 4 项）。
+         但**这条状态本身不能省** —— 人看到的样子和盘上的内容不一致时，
+         必须有东西说出来，否则他会以为已经改好了。 */
       slotBusyNote: s.apiErr ? "✗ " + s.apiErr
         : s.busy ? "正在落盘：" + s.busy
+        : s.previewing ? "预览中，未落盘：" + s.previewing
         : s.checkNote || "",
       canRevert: !!(LIVE && s.chg && s.chg.versions && s.chg.versions.length > 1),
       // ⚠️ 这里必须是箭头 IIFE。写成 function(){} 的话里面的 this 不是组件，
