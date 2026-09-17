@@ -108,6 +108,7 @@
 
     </div>
 
+    <sc-if value="{{ showDemoBar }}" hint-placeholder-val="{{ true }}">
     <div style="padding: 0 16px 9px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px;">
       <span style="font-size: 11px; color: var(--tool-muted); flex: none;">演示态</span>
       <sc-for list="{{ demoStates }}" as="st" hint-placeholder-count="9">
@@ -119,6 +120,7 @@
       <span style="color: var(--tool-border-strong); flex: none;">·</span>
       <span style="color: var(--tool-muted); min-width: 0;">{{ demoNote }}</span>
     </div>
+    </sc-if>
   </div>
 
   <div style="flex: 1; min-height: 0; display: grid; grid-template-columns: {{ gridCols }};">
@@ -128,7 +130,10 @@
       <sc-if value="{{ showFrame }}" hint-placeholder-val="{{ true }}">
         <div style="width: {{ sizerW }}; height: {{ sizerH }}; flex: none; position: relative;">
         <div style="width: {{ frameW }}; height: {{ frameH }}; background: var(--tool-panel); border: 1px solid var(--tool-border-strong); border-radius: var(--tool-radius); box-shadow: var(--tool-shadow-2); overflow: hidden; position: relative; transform: scale({{ zoom }}); transform-origin: top left;">
-          <iframe src="./_demo/稿件预览示例.html" title="稿件预览" style="width: 100%; height: 100%; border: 0; display: block; background: #fff;"></iframe>
+          <!-- src 不能写洞：浏览器在运行时替换它之前就会去请求字面量 "{{ previewSrc }}"，
+               每次加载留一个 404。按 judgeHealth 的判据（doc/00 §十五）这会让这份稿
+               永远是黄的。所以先挂 about:blank，真地址由逻辑类设（§19.6）。 -->
+          <iframe ref="{{ frameRef }}" src="about:blank" title="稿件预览" style="width: 100%; height: 100%; border: 0; display: block; background: #fff;"></iframe>
           <sc-if value="{{ checking }}" hint-placeholder-val="{{ false }}">
             <div style="position: absolute; inset: 0; background: rgba(246, 247, 249, 0.72); display: grid; place-items: center;">
               <div style="display: flex; align-items: center; gap: 9px; padding: 9px 15px; background: var(--tool-panel); border: 1px solid var(--tool-border); border-radius: 999px; box-shadow: var(--tool-shadow-2); font-size: 12px; color: var(--tool-text-2);">
@@ -338,6 +343,11 @@
     <span style="font-family: var(--tool-mono);">{{ file }}</span>
     <span style="color: var(--tool-border-strong);">·</span>
     <span>{{ iframeNote }}</span>
+    <sc-if value="{{ live }}" hint-placeholder-val="{{ false }}">
+      <span style="color: var(--tool-border-strong);">·</span>
+      <button type="button" onClick="{{ onToggleSelect }}" title="开着的时候点稿里的元素是「选中」，关掉才能真的用这个界面（S 键切换）" style="height: 21px; padding: 0 8px; border-radius: var(--tool-radius-sm); border: 1px solid; cursor: pointer; font-size: 11px; background: {{ selBg }}; border-color: {{ selBd }}; color: {{ selFg }};" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">{{ selLabel }}</button>
+      <span style="font-family: var(--tool-mono); color: var(--tool-muted);">{{ selNote }}</span>
+    </sc-if>
     <span style="flex: 1;"></span>
     <span style="display: flex; align-items: center; gap: 5px;"><kbd style="font-family: var(--tool-mono); background: var(--tool-panel-2); border: 1px solid var(--tool-border); border-radius: var(--tool-radius-sm); padding: 1px 5px;">R</kbd> 重跑体检</span>
     <span style="display: flex; align-items: center; gap: 5px;"><kbd style="font-family: var(--tool-mono); background: var(--tool-panel-2); border: 1px solid var(--tool-border); border-radius: var(--tool-radius-sm); padding: 1px 5px;">D</kbd> 诊断栏</span>
@@ -350,6 +360,16 @@
   &quot;railWidth&quot;: { &quot;editor&quot;: &quot;int&quot;, &quot;default&quot;: 340, &quot;min&quot;: 280, &quot;max&quot;: 480, &quot;step&quot;: 20, &quot;unit&quot;: &quot;px&quot;, &quot;tsType&quot;: &quot;number&quot;, &quot;section&quot;: &quot;预览壳&quot; },
   &quot;theme&quot;: { &quot;editor&quot;: &quot;enum&quot;, &quot;options&quot;: [&quot;跟随外层&quot;, &quot;dark&quot;], &quot;default&quot;: &quot;跟随外层&quot;, &quot;tsType&quot;: &quot;'dark'|null&quot;, &quot;section&quot;: &quot;工具皮肤&quot; }
 }">
+/* 地址栏带 ?file= 就是在看真稿（预览壳由本地静态服务发出，和稿同源）。
+   不带就还是下面那批演示数据 —— 一份文件两种用法，和 S1 同一套办法（doc/00 §14.7）。 */
+const LIVE = (function () {
+  try {
+    const q = new URLSearchParams(location.search).get("file");
+    return q ? decodeURIComponent(q) : null;
+  } catch (e) { return null; }
+})();
+const BRIDGE = "./.umbradesign/select-bridge.js";
+
 const PRESETS = [
   { name: "PC", w: 1440, h: 900 },
   { name: "笔记本", w: 1280, h: 800 },
@@ -412,7 +432,11 @@ const WARN_DIAGS = [
 ];
 
 class Component extends DCLogic {
-  state = { demo: 1, preset: 0, zoom: 1, tab: "diag", rail: true, spin: false, sheet: true };
+  /* LIVE 与 S1 同一套办法（doc/00 §14.7）：地址栏带 ?file= 就是在看真稿，
+     不带就还是设计评审的 9 个演示态，一份文件两种用法，不分叉。
+     sel* 是点选状态；点选桥不进稿，由这个壳在 iframe 载入之后注入（§十九）。 */
+  state = { demo: 1, preset: 0, zoom: 1, tab: "diag", rail: true, spin: false, sheet: true,
+            selectOn: false, picked: null, bridgeReady: false };
 
   componentDidMount() {
     this.onKey = (e) => {
@@ -423,12 +447,68 @@ class Component extends DCLogic {
       const k = e.key.toLowerCase();
       if (k === "r") { e.preventDefault(); this.recheck(); }
       if (k === "d") { e.preventDefault(); this.setState((s) => ({ rail: !s.rail, sheet: !s.sheet, tab: "diag" })); }
+      if (k === "s" && LIVE) { e.preventDefault(); this.setState((s) => ({ selectOn: !s.selectOn, picked: null }), () => this.pushMode()); }
       if (e.key === "Escape") this.setState({ rail: false, sheet: false });
     };
     document.addEventListener("keydown", this.onKey);
+
+    this.frameRef = React.createRef();
+    this.forceUpdate();                       // ref 要下一次渲染才有
+    setTimeout(() => this.syncFrame(), 0);
+    if (LIVE) {
+      // 桥跑在被预览的稿里，由壳注入 —— 稿是设计事实，点选是工具行为，不混在一个文件里。
+      // 壳和稿同源（同一个本地静态服务），所以塞得进去。
+      this.injectBridge = () => {
+        const f = this.frameRef && this.frameRef.current;
+        if (!f) return;
+        try {
+          const d = f.contentDocument;
+          if (!d || d.getElementById("ud-select-bridge")) return;
+          const sc = d.createElement("script");
+          sc.id = "ud-select-bridge";
+          sc.src = BRIDGE;
+          d.head.appendChild(sc);
+        } catch (e) { /* 跨源就算了，同源才有点选 */ }
+      };
+      this.onFrameLoad = () => this.injectBridge();
+      this.onMsg = (e) => {
+        const m = e.data;
+        if (!m || m.source !== "umbradesign") return;
+        if (m.type === "ready") { this.setState({ bridgeReady: true }); this.pushMode(); return; }
+        if (m.type === "select") { this.setState({ picked: m.payload }); return; }
+        if (m.type === "clear") { this.setState({ picked: null }); return; }
+      };
+      window.addEventListener("message", this.onMsg);
+      const f = this.frameRef;
+      setTimeout(() => {
+        const el = f && f.current;
+        if (el) { el.addEventListener("load", this.onFrameLoad); this.injectBridge(); }
+      }, 0);
+    }
+  }
+
+  componentDidUpdate() { this.syncFrame(); }
+
+  /** iframe 的真地址在这里设 —— 模板里写洞会先 404 一次（§19.6）。
+   *  先比当前 src 再赋值，避免每次渲染都重载 iframe。 */
+  syncFrame() {
+    const el = this.frameRef && this.frameRef.current;
+    if (!el) return;
+    const want = LIVE ? "./" + encodeURI(LIVE) : "./_demo/稿件预览示例.html";
+    if ((el.getAttribute("src") || "") !== want) el.setAttribute("src", want);
+  }
+
+  pushMode() {
+    const f = this.frameRef && this.frameRef.current;
+    if (!f || !f.contentWindow) return;
+    f.contentWindow.postMessage(
+      { source: "umbradesign-shell", type: "set-mode", payload: this.state.selectOn }, "*");
   }
 
   componentWillUnmount() {
+    if (this.onMsg) window.removeEventListener("message", this.onMsg);
+    const f = this.frameRef && this.frameRef.current;
+    if (f && this.onFrameLoad) f.removeEventListener("load", this.onFrameLoad);
     document.removeEventListener("keydown", this.onKey);
     if (this.t) clearTimeout(this.t);
   }
@@ -474,11 +554,15 @@ class Component extends DCLogic {
 
     return {
       theme: this.props.theme === "dark" ? "dark" : null,
-      title: "日志",
-      file: missing ? "日志.dc.html（缺失）" : "日志.dc.html",
-      kindLabel: "页稿",
-      version: "v217",
-      elementsLabel: unchecked ? "元素数未知" : "812 元素",
+      /* LIVE 时顶栏必须说真话。只接了 previewSrc 却让顶栏继续显示演示数字，
+         等于「壳说在看 A、iframe 里是 B」—— 那比明显的假数据更糟，它看起来像真的。
+         诊断 / 变更两栏还没接真数据，所以 LIVE 时明说「未接」，不拿演示数字充数。 */
+      showDemoBar: !LIVE,
+      title: LIVE ? LIVE.replace(/^.*\//, "").replace(/\.dc\.html$/, "") : "日志",
+      file: LIVE ? LIVE : (missing ? "日志.dc.html（缺失）" : "日志.dc.html"),
+      kindLabel: LIVE ? "稿" : "页稿",
+      version: LIVE ? "—" : "v217",
+      elementsLabel: LIVE ? "读数未接" : (unchecked ? "元素数未知" : "812 元素"),
 
       healthLabel: h.label,
       hBg: h.bg, hBd: h.bd, hFg: h.fg,
@@ -557,7 +641,6 @@ class Component extends DCLogic {
       deadCause: "renderVals() 里有同步死循环，或者逻辑类在 componentDidMount 里无条件 setState。先把 v216 打开对一下 —— 上一版是能渲染的。",
 
       lastCheckLabel: checking ? "正在体检…" : unchecked ? "从未体检" : missing ? "—" : dead ? "08:41 体检失败" : "08:41 体检 · 1,840ms · 2,307 节点",
-      demoLabel: demo.name,
       demoNote: demo.note,
       demoStates: DEMOS.map((d) => ({
         n: d.n, name: d.name, short: d.short, active: d.n === s.demo,
@@ -600,7 +683,23 @@ class Component extends DCLogic {
         { key: "L4", name: "等价", action: "无需处理", count: "2", bg: "var(--tool-panel-2)", bd: "var(--tool-border)", fg: "var(--tool-muted)" }
       ],
 
-      iframeNote: "预览跑在独立 iframe 里 · 稿子的 :root 变量与 body 重置不会漏进壳"
+      iframeNote: LIVE
+        ? "预览跑在独立 iframe 里 · 点选桥由壳注入，不进稿 · ⚠️ 诊断与变更两栏还是演示数据，未接"
+        : "预览跑在独立 iframe 里 · 稿子的 :root 变量与 body 重置不会漏进壳",
+      live: !!LIVE,
+      frameRef: this.frameRef,
+      onToggleSelect: () => this.setState(
+        (st) => ({ selectOn: !st.selectOn, picked: null }),
+        () => this.pushMode()),
+      selLabel: s.selectOn ? "点选：开" : "点选：关",
+      selBg: s.selectOn ? "var(--tool-accent)" : "var(--tool-panel)",
+      selBd: s.selectOn ? "var(--tool-accent)" : "var(--tool-border-strong)",
+      selFg: s.selectOn ? "var(--tool-on-accent)" : "var(--tool-text-2)",
+      selNote: !s.bridgeReady ? "桥还没就位"
+        : s.picked
+          ? s.picked.file + "#" + s.picked.node + " <" + s.picked.tag + ">"
+            + (s.picked.instances > 1 ? " ×" + s.picked.instances + "（改一处影响这么多）" : "")
+          : s.selectOn ? "点稿里的元素试试" : "开了才能点选；关着可以直接用这个界面"
     };
   }
 }

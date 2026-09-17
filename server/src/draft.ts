@@ -324,12 +324,12 @@ export function classifyOrigin(expr: string): HoleOrigin {
 export function auditRenderVals(d: Draft): ValsAudit {
   const out: ValsAudit = { paths: [], union: [], opaque: false, opaqueWhy: [], origins: {}, missing: false };
   const bail = (r: string) => { out.opaque = true; if (!out.opaqueWhy.includes(r)) out.opaqueWhy.push(r); };
-  if (!d.logic) { out.missing = true; return out; }
+  if (!d.logic) { out.missing = true; out.opaqueWhy.push("这份稿没有逻辑类（纯静态稿，没有洞要审）"); return out; }
   const js = d.src.slice(d.logic.start, d.logic.end);
   const base = d.logic.start;
 
   const bodyOpen = methodBodyBrace(js, "renderVals");
-  if (bodyOpen < 0) { out.missing = true; return out; }
+  if (bodyOpen < 0) { out.missing = true; out.opaqueWhy.push("逻辑类里找不到 renderVals() 的方法体"); return out; }
   const bodyClose = matchBrace(js, bodyOpen);
   if (bodyClose < 0) { bail("renderVals 方法体括号不配平"); return out; }
 

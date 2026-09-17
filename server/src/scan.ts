@@ -39,6 +39,7 @@ export function matchBrace(src: string, open: number): number {
     const c = src[i] as string;
     if (c === "/" && src[i + 1] === "/") { const n = src.indexOf("\n", i); if (n < 0) return -1; i = n; continue; }
     if (c === "/" && src[i + 1] === "*") { const n = src.indexOf("*/", i + 2); if (n < 0) return -1; i = n + 1; continue; }
+    if (c === "/" && regexCanStart(src, i)) { const n = skipRegex(src, i); if (n > 0) { i = n; continue; } }
     if (c === '"' || c === "'") { const n = skipQuoted(src, i, c); if (n < 0) return -1; i = n; continue; }
     if (c === "`") { const n = skipTemplate(src, i); if (n < 0) return -1; i = n; continue; }
     if (c === "{") depth++;
@@ -119,6 +120,7 @@ export function objectTopLevel(src: string, open: number): ObjectShape {
     const c = src[i] as string;
     if (c === "/" && src[i + 1] === "/") { const n = src.indexOf("\n", i); i = n < 0 ? close : n; continue; }
     if (c === "/" && src[i + 1] === "*") { const n = src.indexOf("*/", i + 2); i = n < 0 ? close : n + 1; continue; }
+    if (c === "/" && regexCanStart(src, i)) { const n = skipRegex(src, i); if (n > 0) { i = n; continue; } }
     if (c === '"' || c === "'") { const n = skipQuoted(src, i, c); if (n < 0) { bail("字符串没闭合"); return out; } i = n; continue; }
     if (c === "`") { const n = skipTemplate(src, i); if (n < 0) { bail("模板字符串没闭合"); return out; } i = n; continue; }
     if (c === "{" || c === "(" || c === "[") {
@@ -157,20 +159,85 @@ export function objectTopLevel(src: string, open: number): ObjectShape {
 }
 
 /** 找一个方法体的 '{' 下标：name 后面第一个 '(' 配平完之后的 '{' */
+/** 标出哪些下标是**真代码**（不在字符串 / 模板串 / 注释里）。
+ *
+ * ⚠️ 为什么需要这个：`methodBodyBrace` 原来拿正则找第一个 `name(` 就定了，
+ * 而实测这一下踩得很惨 —— S2 的第一个 `renderVals(` 出现在**字符串**里
+ * （演示用的诊断文案「…在 renderVals() 的顶层键里找不到」），
+ * 《Umbra PC 端》的第一个出现在**块注释**里。两份稿因此被判「没有 renderVals()」，
+ * 整份稿的洞审计直接放弃（doc/00 §19.4）。
+ */
+/** `/` 在这个位置是不是正则字面量的开头。
+ *
+ * JS 词法上 `/` 既是除号也是正则开头，只能看前一个有意义的字符来分。
+ * 通行的启发式：前面是运算符 / 分隔符 / 关键字结尾 -> 正则；是值 -> 除号。
+ *
+ * 为什么非要处理它 —— 四个扫描器原来都对正则字面量视而不见，后果实测两条：
+ *  1) `.replace(/^.*\//, "")` 的正则以反斜杠加两个斜杠收尾，扫描器把后一个斜杠
+ *     看成行注释的开头，吞掉整行。S2 的 renderVals 键表因此从 86 个
+ *     **悄悄截断到 3 个，而 opaque 仍是 false** —— 静默给错答案，比拒答坏得多
+ *  2) `matchBrace` 遇到 `/\d{2}/` 这种正则会把里面的花括号算进深度，配平直接错
+ * 两条都属于「不报错但算错」，按 doc/04 §二的判据必须堵掉。
+ */
+function regexCanStart(src: string, at: number): boolean {
+  let i = at - 1;
+  while (i >= 0 && /\s/.test(src[i] as string)) i--;
+  if (i < 0) return true;
+  const c = src[i] as string;
+  if ("([{,;:=!&|?+-*%~^<>".includes(c)) return true;
+  const word = /[\w$]+$/.exec(src.slice(Math.max(0, i - 11), i + 1));
+  const KW = ["return", "typeof", "case", "in", "of", "new", "delete", "void", "do", "else", "yield", "await"];
+  return !!word && KW.includes(word[0]);
+}
+
+/** 跳过一个正则字面量，返回收尾斜杠的下标；认不出返回 -1（正则不跨行，不硬猜） */
+function skipRegex(src: string, at: number): number {
+  let i = at + 1, inClass = false;
+  for (; i < src.length; i++) {
+    const c = src[i] as string;
+    if (c === "\\") { i++; continue; }
+    if (c === "\n") return -1;
+    if (inClass) { if (c === "]") inClass = false; continue; }
+    if (c === "[") { inClass = true; continue; }
+    if (c === "/") return i;
+  }
+  return -1;
+}
+
+export function codeMask(src: string): Uint8Array {
+  const m = new Uint8Array(src.length);   // 1 = 真代码
+  let i = 0;
+  while (i < src.length) {
+    const c = src[i] as string;
+    if (c === "/" && src[i + 1] === "/") { const n = src.indexOf("\n", i); i = n < 0 ? src.length : n; continue; }
+    if (c === "/" && src[i + 1] === "*") { const n = src.indexOf("*/", i + 2); i = n < 0 ? src.length : n + 2; continue; }
+    if (c === "/" && regexCanStart(src, i)) { const n = skipRegex(src, i); if (n > 0) { i = n + 1; continue; } }
+    if (c === '"' || c === "'") { const n = skipQuoted(src, i, c); i = n < 0 ? src.length : n + 1; continue; }
+    if (c === "`") { const n = skipTemplate(src, i); i = n < 0 ? src.length : n + 1; continue; }
+    m[i] = 1; i++;
+  }
+  return m;
+}
+
 export function methodBodyBrace(src: string, name: string, from = 0): number {
   const re = new RegExp(`(?:^|[^\\w$.])${name}\\s*\\(`, "g");
   re.lastIndex = from;
-  const m = re.exec(src);
-  if (!m) return -1;
-  let i = src.indexOf("(", m.index);
-  let depth = 0;
-  for (; i < src.length; i++) {
-    const c = src[i];
-    if (c === "(") depth++;
-    else if (c === ")") { depth--; if (depth === 0) { i++; break; } }
+  const mask = codeMask(src);
+  for (let m = re.exec(src); m; m = re.exec(src)) {
+    // 匹配落在字符串 / 注释里就跳过，接着找下一个
+    const nameAt = src.indexOf(name, m.index);
+    if (!mask[nameAt]) continue;
+    let i = src.indexOf("(", m.index);
+    let depth = 0;
+    for (; i < src.length; i++) {
+      const c = src[i];
+      if (c === "(") depth++;
+      else if (c === ")") { depth--; if (depth === 0) { i++; break; } }
+    }
+    while (i < src.length && /\s/.test(src[i] as string)) i++;
+    if (src[i] === "{") return i;
   }
-  while (i < src.length && /\s/.test(src[i] as string)) i++;
-  return src[i] === "{" ? i : -1;
+  return -1;
 }
 
 /** 找出【属于这个方法本身】的 return 语句下标。
@@ -213,6 +280,7 @@ export function ownReturns(src: string, open: number, close: number): number[] {
     const c = src[i] as string;
     if (c === "/" && src[i + 1] === "/") { const n = src.indexOf("\n", i); i = n < 0 ? close : n; continue; }
     if (c === "/" && src[i + 1] === "*") { const n = src.indexOf("*/", i + 2); i = n < 0 ? close : n + 1; continue; }
+    if (c === "/" && regexCanStart(src, i)) { const n = skipRegex(src, i); if (n > 0) { i = n; continue; } }
     if (c === '"' || c === "'") {
       let j = i + 1;
       for (; j < close; j++) { if (src[j] === "\\") { j++; continue; } if (src[j] === c || src[j] === "\n") break; }

@@ -375,6 +375,8 @@ export interface BuildIndexResult {
   url: string | null;
   /** 入口页用的是设计稿还是内置过渡页 */
   indexSource: string;
+  /** 点选桥落在哪 —— 预览壳要注入它 */
+  bridgeFile: string | null;
   /** 落盘前做了哪几步确定性改写（与 write_draft 同一条路） */
   steps: string[];
 }
@@ -414,6 +416,16 @@ export async function buildIndex(p: Project, serveUrl: string | null): Promise<B
 
   const jsFile = join(p.dir, "index-data.js");
   await writeAtomic(jsFile, `/* 由 build_index 生成，勿手改 */\nwindow.__UD_INDEX = ${JSON.stringify(data)};\n`);
+
+  // 预览点选桥：壳在 iframe 载入后注入它（doc/00 §十九）。放 .umbradesign/ 下 ——
+  // 它是工具行为，不是设计事实，不进稿也不进设计系统目录。
+  const srcBridge = join(TOOL_ROOT, "runtime", "select-bridge.js");
+  let bridgeFile: string | null = null;
+  if (existsSync(srcBridge)) {
+    const dst = join(udDir, "select-bridge.js");
+    await copyFile(srcBridge, dst);
+    bridgeFile = rel(p, dst);
+  }
 
   // 工具皮肤 token：拷到**与设计稿里 href 相同的相对路径**（./_ds-tool/tokens.css）。
   // 这样 ui/ 下直接打开和当入口页用是同一个 href —— 不改写路径，也不留 404。
@@ -456,6 +468,7 @@ export async function buildIndex(p: Project, serveUrl: string | null): Promise<B
     runtimeCopied,
     url: serveUrl,
     indexSource: source,
+    bridgeFile,
     steps: prep.steps,
   };
 }
