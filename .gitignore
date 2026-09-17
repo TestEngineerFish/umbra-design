@@ -1,0 +1,46 @@
+# ── UmbraDesign 工具自身的仓库 ────────────────────────────────
+# 这个仓库只追踪「工具」：doc/ + server/ + runtime/。
+# 用户的设计项目不在这里追踪 —— 见下面 projects/。
+
+# 用户的设计项目：各自是独立 git 仓库，位置由用户配置（默认 ./projects）。
+# 工具不追踪用户的项目，打包分发后这个目录甚至不在安装目录里。
+projects/
+
+# 运行时的第三方副本：由安装脚本取，不进仓库
+runtime/react.production.min.js
+runtime/react-dom.production.min.js
+
+# Node
+node_modules/
+*.tsbuildinfo
+dist/
+build/
+.npm/
+npm-debug.log*
+pnpm-debug.log*
+
+# Playwright
+/test-results/
+/playwright-report/
+/.playwright/
+
+# 工具运行产物
+.umbradesign/
+*.log
+
+# 环境与密钥
+.env
+.env.*
+!.env.example
+
+# 编辑器与系统
+.DS_Store
+.AppleDouble
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/settings.json.example
+*.swp
+*.bak
+*.bak[0-9]
+*.orig

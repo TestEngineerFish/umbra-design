@@ -1,0 +1,23 @@
+# ── 设计项目（租户）的仓库 ────────────────────────────────────
+# 每个设计项目各自一个 git 仓库。git 在 UmbraDesign 里是【兜底手段】：
+# 主路径是 .umbradesign/snapshots/ 的语义快照 + CHANGELOG-设计侧.md，
+# 只有要按任意 git ref 取历史版本时才用到 git（见 doc/07 §七）。
+
+# 工具产物：快照、缩略图、索引缓存。可由稿件重算，不必进仓库。
+# ⚠️ 若希望语义 diff 的历史随仓库一起走，把下面这行注释掉，
+#    改为只忽略 shots/ 与 cache/ —— 见 doc/07 §七的两种取法。
+.umbradesign/
+
+# 旧宿主（Claude Design）留下的产物，不是设计事实的出处
+.image-slots.state.json
+.thumbnail
+uploads/
+screenshots/
+
+# 运行时副本：由 MCP 从工具的 runtime/ 拷进来并保持更新，不必进仓库
+_runtime/
+
+# 编辑器与系统
+.DS_Store
+Thumbs.db
+*.swp
