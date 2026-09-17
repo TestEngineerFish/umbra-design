@@ -10,8 +10,9 @@
  */
 import { createServer, type Server } from "node:http";
 import { accessSync, constants, createReadStream, existsSync, statSync } from "node:fs";
-import { mkdir } from "node:fs/promises";
-import { extname, join, normalize, resolve, sep } from "node:path";
+import { mkdir, readFile } from "node:fs/promises";
+import { saveCheck, sha256, type CheckRecord } from "./check.js";
+import { extname, join, normalize, relative, resolve, sep } from "node:path";
 import { X } from "./codes.js";
 import { err, ToolError, warn, type Diagnostic } from "./envelope.js";
 import { draftPath, type Project } from "./project.js";
@@ -116,6 +117,8 @@ export interface RenderResult {
   browser: { path: string; from: string };
   viewport: { width: number; height: number };
   offline: boolean;
+  /** 这次读数存到哪了 —— 索引页与后续 build_index 会读它（doc/00 §十五） */
+  record: string;
 }
 
 export async function renderCheck(
@@ -287,6 +290,23 @@ export async function renderCheck(
         `控制台 ${c.level}：${c.text}`));
     }
 
+    // 读数落盘：索引页的「节点 / 耗时」列和健康判定都读它。
+    // srcSha256 用体检时那一版源码算 —— 稿再改，索引就知道这份读数过期了。
+    const rec: CheckRecord = {
+      file: relPath,
+      checkedAt: new Date().toISOString(),
+      srcSha256: sha256(await readFile(abs, "utf8")),
+      alive, nodeCount: facts.nodeCount, renderMs,
+      viewport: { width, height }, offline, screenshot: shot,
+      counts: {
+        unresolvedHoles: facts.unresolvedHoles.length,
+        missingResources: [...new Set(missing)].length,
+        externalRequests: [...new Set(external)].length,
+        consoleWarnings: consoleWarnings.length,
+      },
+    };
+    const recPath = await saveCheck(p, rec);
+
     return {
       result: {
         alive, nodeCount: facts.nodeCount, renderMs,
@@ -295,6 +315,7 @@ export async function renderCheck(
         missingResources: [...new Set(missing)],
         externalRequests: [...new Set(external)],
         screenshot: shot, browser: found, viewport: { width, height }, offline,
+        record: relative(p.dir, recPath).split(sep).join("/"),
       },
       diags,
     };

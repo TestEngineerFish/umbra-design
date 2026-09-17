@@ -20,6 +20,7 @@ import { parseDraft } from "./draft.js";
 import { validateDraft } from "./validate.js";
 import { ensureRuntimeBeside, prepareForDisk, writeAtomic } from "./normalize.js";
 import { listVersions } from "./history.js";
+import { readCheck, sha256, type CheckRecord } from "./check.js";
 
 export type Health = "ok" | "warn" | "error" | "unchecked";
 
@@ -35,6 +36,12 @@ export interface IndexDraft {
   diagnostics: { errors: number; warnings: number };
   renderMs: number | null;
   nodeCount: number | null;
+  /** 上次体检时间；null = 没体检过 */
+  checkedAt: string | null;
+  /** 体检读数是否已过期（体检之后稿又改过） */
+  stale: boolean;
+  /** health 是怎么来的，一句话 —— 页面拿它当 tooltip，人不用猜 */
+  healthWhy: string;
   states: string[];
   imports: string[];
   importedBy: string[];
@@ -50,6 +57,34 @@ export interface IndexData {
 }
 
 const rel = (p: Project, abs: string) => relative(p.dir, abs).split(sep).join("/");
+
+/** 健康怎么判。
+ *
+ * 原来是「有 error → 红；没截图 → 未体检；有 warning → 黄；否则绿」。
+ * 那个判据有个静默失败：**截图不随稿改动失效**，改完稿不重新体检，索引上仍然
+ * 显示「通过」。现在读 `.umbradesign/checks/` 里的体检记录，并用 srcSha256
+ * 比对源码 —— 对不上就是过期，等同于没体检。宁可说不知道，不可以说通过。
+ *
+ * 另外两条也是这次才对上的：
+ *  - 体检没画出来（alive=false）→ 红，不管静态校验多干净。渲染是唯一验收证据（04 §二）
+ *  - 断网时有被拦的外部请求、或渲染后还留着洞 → 黄，静态校验看不到这些
+ */
+function judgeHealth(
+  errors: number, warnings: number, chk: CheckRecord | null, stale: boolean
+): { health: Health; why: string } {
+  if (errors) return { health: "error", why: `${errors} 条 error 级诊断，落盘会被拒` };
+  if (chk && !chk.alive) return { health: "error", why: "体检时页面没画出来（1+1 都算不出）" };
+  if (!chk) return { health: "unchecked", why: "还没跑过 render_check" };
+  if (stale) return { health: "unchecked", why: "体检之后稿又改过，这份读数已过期" };
+
+  const c = chk.counts;
+  if (c.unresolvedHoles) return { health: "warn", why: `渲染后还留着 ${c.unresolvedHoles} 个未解析的洞` };
+  if (chk.offline && c.externalRequests) return { health: "warn", why: `断网体检时有 ${c.externalRequests} 个外部请求被拦下` };
+  if (c.missingResources) return { health: "warn", why: `${c.missingResources} 个资源取不到` };
+  if (warnings) return { health: "warn", why: `${warnings} 条 warning 级诊断` };
+  if (c.consoleWarnings) return { health: "warn", why: `控制台有 ${c.consoleWarnings} 条告警` };
+  return { health: "ok", why: "静态校验干净，体检画得出来，断网无外部请求" };
+}
 
 /** 页稿还是组件稿。
  *
@@ -86,9 +121,12 @@ export async function collectIndex(p: Project): Promise<IndexData> {
     const warnings = v.diags.filter((x) => x.level === "warning").length;
     const versions = await listVersions(p, r);
 
-    // 缩略图：render_check 存的那个命名
-    const shot = `.umbradesign/shots/${r.replace(/[\\/]/g, "__").replace(/\.dc\.html$/, "")}@1440x900.png`;
-    const hasShot = existsSync(join(p.dir, shot));
+    // 体检记录：读数与健康判定都来自它（doc/00 §十五）
+    const chk = await readCheck(p, r);
+    const stale = !!chk && chk.srcSha256 !== sha256(src);
+    const shot = chk?.screenshot ?? null;
+    const hasShot = !!shot && existsSync(join(p.dir, shot));
+    const { health, why } = judgeHealth(errors, warnings, chk, stale);
 
     // 演示态：props 里 kind 的 options，或 sc-if 的条件名
     const states: string[] = [];
@@ -112,10 +150,14 @@ export async function collectIndex(p: Project): Promise<IndexData> {
       version: versions.length ? (versions[versions.length - 1] as string) : null,
       updatedAt: (await stat(abs)).mtime.toISOString(),
       thumb: hasShot ? shot : null,
-      health: errors ? "error" : !hasShot ? "unchecked" : warnings ? "warn" : "ok",
+      health,
+      healthWhy: why,
       diagnostics: { errors, warnings },
-      renderMs: null,
-      nodeCount: null,
+      // 过期的读数不往外给 —— 给了就等于拿旧数字描述新文件
+      renderMs: chk && !stale ? chk.renderMs : null,
+      nodeCount: chk && !stale ? chk.nodeCount : null,
+      checkedAt: chk?.checkedAt ?? null,
+      stale,
       states: [...new Set(states)].slice(0, 12),
       imports,
       importedBy: [],

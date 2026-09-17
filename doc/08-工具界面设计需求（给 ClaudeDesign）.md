@@ -130,6 +130,9 @@ UmbraDesign 是一个**本地 MCP server**，功能与 Claude Design 基本重�
       "diagnostics": { "errors": 0, "warnings": 2 },
       "renderMs": 1840,
       "nodeCount": 2307,
+      "checkedAt": "2026-09-17T08:44:02+08:00",
+      "stale": false,
+      "healthWhy": "静态校验干净，体检画得出来，断网无外部请求",
       "states": ["默认", "空日志", "加载中", "失败", "权限不足"],
       "importedBy": ["Umbra PC 端.dc.html"],
       "imports": ["../Components/窗口骨架", "PC 空态"]
@@ -143,7 +146,13 @@ UmbraDesign 是一个**本地 MCP server**，功能与 Claude Design 基本重�
 - `health`：`ok` | `warn` | `error` | `unchecked`（还没跑过渲染体检）
 - `states`：这份稿里可切换的演示态清单，从模板里抽出来的
 - `limits`：租户配的元素数阈值。**页面上的「接近上限 / 已超限」文案要读这两个数，不要写死 1,200**
-- `version` / `renderMs` / `nodeCount` 可能是 `null`（没落过盘 / 没跑过体检），页面要有占位形态
+- `version` / `renderMs` / `nodeCount` / `checkedAt` 可能是 `null`（没落过盘 / 没跑过体检 /
+  体检读数已过期），页面要有占位形态。`nodeCount: 0` 是**有效读数**（页面什么都没画出来），
+  和 `null` 不是一回事，别用真假值判
+- `stale`：体检之后稿又改过。这种情况 `health` 就是 `unchecked`，读数一律不给 —— 不拿旧数字描述新文件
+- `healthWhy`：`health` 是怎么来的，一句中文。挂在健康徽章的 `title` 上，人不用猜。
+  注意 `health` 可以是 `error` 而静态诊断为 0（体检时页面没画出来），这时诊断列要写
+  「体检未通过」而不是「干净」
 
 **要有的东西**：缩略图墙 + 列表两种视图（工具场景下列表更常用，别只给墙）；
 搜索；按 `kind` / `health` 筛；按更新时间 / 元素数排序；
