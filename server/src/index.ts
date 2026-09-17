@@ -23,6 +23,8 @@ import {
   changesSince, diffDrafts, listVersions, projectChangesSince, readSnapshot,
   resolveSnapshot, toMarkdown,
 } from "./history.js";
+import { serveStart, serveStatus, serveStop } from "./serve.js";
+import { buildIndex, collectIndex } from "./indexpage.js";
 
 const VERSION = "0.1.0";
 
@@ -53,10 +55,14 @@ const server = new McpServer(
       "3. search_tokens      按需取取值 —— 不要试图取全量，tokens 有 1,200+ 个叶子",
       "4. list_components    看有什么能复用；要复用就 get_component(mode:'contract')",
       "5. validate_draft     静态校验，诊断带 code / 行号 / 洞名 / 改法建议",
+      "6. write_draft        唯一写入口（归一化 / @ds 展开 / __resources 注入都在这里）",
+      "7. render_check       真浏览器渲染体检 —— 唯一的验收证据",
+      "8. build_index + serve_start   生成入口页并起本地 http，人要看稿走这条",
       "",
       "所有工具返回同一个信封：{ok, data, errors, warnings, stats}。",
       "errors 非空表示这份稿不该落盘。每条诊断都有 code、定位和 fix。",
-      "⚠️ ok:true 不等于稿是对的 —— 静态校验过不了渲染那一关（render_check 后续批次提供）。",
+      "⚠️ ok:true 只说明静态校验过了，不等于稿能渲染出来 —— 验收必须看 render_check。",
+      "⚠️ 带 dc-import 的稿双击打不开（Chrome 不允许对 file:// 发 fetch），必须走 serve_start。",
     ].join("\n"),
   }
 );
@@ -423,6 +429,74 @@ server.registerTool("get_changes_since", {
     markdown: markdown ? withChange.map((r) => toMarkdown(r.diff!)).join("\n\n———\n\n") : undefined,
   };
   return envelope(data, [], { draftsScanned: rows.length, draftsChanged: withChange.length });
+}));
+
+// ───────────────────── 形态 A：入口页与静态服务（doc/01 §4.2）─────────────────────
+
+server.registerTool("serve_start", {
+  title: "起本地静态服务",
+  description: [
+    "把项目目录起成本地静态服务，浏览器里打开就能看。",
+    "**带 dc-import 的稿只能这样看** —— Chrome 不允许对 file:// 发 fetch，双击打不开（doc/05 §4.2）。",
+    "服务活在 MCP server 进程里，起一次就一直开着；不传 port 让系统分配。",
+  ].join("\n"),
+  inputSchema: { project: z.string(), port: z.number().int().min(1024).max(65535).optional() },
+}, async ({ project, port }) => run(async () => {
+  const p = await loadProject(project);
+  const s = await serveStart(p, port);
+  const diags = s.indexExists ? [] : [err(X.IO, p.rel, { kind: "file", name: "index.dc.html" },
+    "项目根还没有 index.dc.html，打开根路径会 404",
+    { fix: "先调 build_index 生成入口页" })];
+  return envelope(s, diags);
+}));
+
+server.registerTool("serve_stop", {
+  title: "停掉本地静态服务",
+  description: "停掉某个项目的静态服务。",
+  inputSchema: { project: z.string() },
+}, async ({ project }) => run(async () => {
+  const p = await loadProject(project);
+  return envelope({ project: p.name, ...serveStop(p.name) });
+}));
+
+server.registerTool("serve_status", {
+  title: "看正在跑的静态服务",
+  description: "列出当前进程里正在跑的静态服务：地址、端口、起来多久、被请求过几次。",
+  inputSchema: {},
+}, async () => run(async () => {
+  const list = serveStatus();
+  return envelope({ servers: list }, [], { count: list.length });
+}));
+
+server.registerTool("build_index", {
+  title: "生成项目入口页",
+  description: [
+    "扫项目目录，产出三样：",
+    "  .umbradesign/index-data.json  —— 数据（doc/08 S1 的形状）",
+    "  index-data.js                 —— 同一份数据挂成 window.__UD_INDEX",
+    "  index.dc.html                 —— 入口页，用 .dc.html 写（自举）",
+    "",
+    "每份稿带上：类型、元素数、最新版本、更新时间、缩略图（有的话）、",
+    "健康状态与诊断条数、演示态清单、引用与被引用关系。",
+    "⚠️ 生成的这个入口页是过渡形态。设计侧 ui/S1-稿件索引.dc.html 是正式形态，",
+    "等它读 window.__UD_INDEX 就换过去 —— 数据契约已经一致。",
+  ].join("\n"),
+  inputSchema: { project: z.string(), serve: z.boolean().optional().describe("true 时顺手起静态服务并回地址") },
+}, async ({ project, serve }) => run(async () => {
+  const p = await loadProject(project);
+  const url = serve ? (await serveStart(p)).url : null;
+  const r = await buildIndex(p, url);
+  return envelope(r, [], { drafts: r.drafts, ...r.byHealth });
+}));
+
+server.registerTool("get_index_data", {
+  title: "只取索引数据，不落盘",
+  description: "按 doc/08 S1 的数据契约返回项目的稿件清单，不写任何文件。给要自己渲染索引的调用方用。",
+  inputSchema: { project: z.string() },
+}, async ({ project }) => run(async () => {
+  const p = await loadProject(project);
+  const d = await collectIndex(p);
+  return envelope(d, [], { drafts: d.drafts.length });
 }));
 
 // ──────────────────────────── 启动 ────────────────────────────

@@ -163,6 +163,15 @@ export function validateDraft(p: Project, relPath: string, src: string, fileLabe
     }
   }
 
+  // ── E_CONTROL_IN_TABLE：控制流标签落在 table / select 里 ──
+  //
+  // ⚠️ 这是 .dc.html 的一条格式硬约束，而且是**静默失效**：
+  // HTML 的 foster-parenting 规定 <table>/<tbody>/<tr>/<select> 里只允许特定子元素，
+  // 未知元素（sc-if / sc-for / dc-import）在解析时会被**搬到表外**。
+  // 于是 support.js 拿到的 innerHTML 里控制流已经不在表里了 —— 行不渲染、不报错。
+  // 实测踩到：build_index 生成的入口页用了真 <table> + sc-for，表头出来了、行全空。
+  diags.push(...checkControlInTable(d, f));
+
   // ── E_DS_PATH：展开后的 ds 引用要能落到真实文件 ──
   if (p.dsDir) {
     for (const l of d.helmetLinks) {
@@ -268,6 +277,38 @@ function normalizeUrl(url: string, p: Project): string {
     parts.push(seg);
   }
   return parts.join("/");
+}
+
+/** 控制流标签不许落在 table / select 的区间里（静默失效，见调用处的注释）。 */
+function checkControlInTable(d: Draft, f: string): Diagnostic[] {
+  if (!d.template) return [];
+  const out: Diagnostic[] = [];
+  const tpl = d.src.slice(d.template.start, d.template.end);
+  const HOSTS = ["table", "select", "optgroup"];
+  const CONTROL = /<(sc-if|sc-for|dc-import|x-import)\b/gi;
+  for (const host of HOSTS) {
+    const open = new RegExp(`<${host}\\b`, "gi");
+    let m: RegExpExecArray | null;
+    while ((m = open.exec(tpl))) {
+      const close = tpl.toLowerCase().indexOf(`</${host}>`, m.index);
+      const end = close < 0 ? tpl.length : close;
+      const inner = tpl.slice(m.index, end);
+      CONTROL.lastIndex = 0;
+      let c: RegExpExecArray | null;
+      while ((c = CONTROL.exec(inner))) {
+        const abs = d.template.start + m.index + c.index;
+        if (d.comments.some((x) => abs >= x.start && abs < x.end)) continue;
+        out.push(err(E.CONTROL_IN_TABLE, f, { kind: "tag", name: c[1] as string },
+          `<${c[1]}> 落在 <${host}> 里面 —— HTML 解析会把它搬到 <${host}> 外面，于是这一段静默不渲染`,
+          { ...d.at(abs),
+            fix: `改用 div + CSS grid 排版（ui/S1-稿件索引.dc.html 就是这么做的，全稿零 <table>）；` +
+                 `确实要 table 就把 <${c[1]}> 提到 <${host}> 外面，在 renderVals() 里把行拼好` }));
+      }
+      if (close < 0) break;
+      open.lastIndex = close;
+    }
+  }
+  return out;
 }
 
 /** 按栈逐标签配平（doc/06 自检 4）。只看模板区间。 */

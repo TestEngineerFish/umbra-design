@@ -11,6 +11,7 @@ export const E = {
   IMPORT_SELF_CLOSING: "E_IMPORT_SELF_CLOSING",
   COMMENT_TAG: "E_COMMENT_TAG",
   DS_PATH: "E_DS_PATH",
+  CONTROL_IN_TABLE: "E_CONTROL_IN_TABLE",
 } as const;
 
 /** warning：放行但必须回报（00 §6.2） */

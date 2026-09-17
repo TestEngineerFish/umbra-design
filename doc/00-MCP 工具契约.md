@@ -297,13 +297,15 @@ UmbraDesign/                    ← 工具本身。这是一个 git 仓库，只
 | `E_RETURN_PATH_GAP` | 某条 `return` 路径（含早返回）缺模板用到的键 | `06` §3.2 |
 | `E_IMPORT_MISSING` | `dc-import` 的目标文件按引用方目录解析不到 | `04` §1.4 |
 | `E_IMPORT_SELF_CLOSING` | `dc-import` 写成自闭合 | `03` §3.1 |
-| `E_COMMENT_TAG` | 注释里出现标签字面量（开标签也算） | `06` §2.5 |
+| `E_COMMENT_TAG` | 有 `<!--` 没有对应的 `-->`（后面整段被吞） | `06` §2.5 |
+| `E_CONTROL_IN_TABLE` | `sc-if` / `sc-for` / `dc-import` / `x-import` 落在 `table` / `select` / `optgroup` 里 | §14.4 |
 | `E_DS_PATH` | 展开后的 ds 引用解析不到真实文件 | §3.2 |
 
 ### 6.2 warning（放行但回报）
 
 | code | 检查 | 出处 |
 | --- | --- | --- |
+| `W_COMMENT_TAG` | 注释里出现标签字面量（一次性渲染无害，流式打开后才是隐患） | `06` §2.5 |
 | `W_DEAD_KEY` | `renderVals()` 的顶层键在模板里零命中 | `06` §3.2 |
 | `W_ELEMENTS_WARN` | 静态元素标签数 > `limits.elementsWarn` | §6.3 |
 | `W_ELEMENTS_HARD` | 超 `limits.elementsHard`，附建议拆分点 | §6.3 |
@@ -678,3 +680,102 @@ Linux 的几个、Windows 的两个）。
 ### 13.7 下一批
 
 只剩形态 A：`build_index` 生成入口页 + 静态服务。做完第一批的边界（`00` §九）就齐了。
+
+---
+
+## 十四、第五批实现记录（形态 A：入口页 + 静态服务）
+
+日期：2026-09-17　新增 `build_index` / `get_index_data` / `serve_start` /
+`serve_stop` / `serve_status`，共 **24 个工具**。`00` §九 列的第一批边界到此全部做完。
+
+### 14.1 为什么形态 A 是必需的，不是方便
+
+带 `dc-import` 的稿**双击打不开**：`dc-import` 用 `fetch` 取兄弟稿，Chrome 不允许
+对 `file://` 发 fetch（`05` §4.2，`04` 缺陷 #7）。所以形态 A 的本地 http 是多文件稿
+唯一能看的路。
+
+`serve.ts` 的服务活在 MCP server 进程里，跨工具调用保持运行 —— 起一次，浏览器里一直
+能开。三点实现选择：
+
+- 进程级注册表（项目名 → 服务），重复 `serve_start` 返回已有的那个，不起第二个
+- 响应头一律 `cache-control: no-store, must-revalidate` —— 设计稿改一下就要能刷出来
+- `server.unref()` —— 不因为它挡住 MCP server 进程退出
+
+### 14.2 `build_index` 产四样东西
+
+| 产物 | 用途 |
+| --- | --- |
+| `.umbradesign/index-data.json` | `08` S1 的数据契约，原样；给设计侧那份页面读 |
+| `index-data.js` | 同一份数据挂成 `window.__UD_INDEX` |
+| `index.dc.html` | 入口页本身，用 `.dc.html` 写（自举：工具产的页要能过自己的校验） |
+| `.umbradesign/tool-tokens.css` | 从 `ui/_ds-tool/tokens.css` 拷来的工具皮肤 |
+
+数据里带一张 import 图，所以 `importedBy` 是算出来的，不是猜的。
+
+> ⚠️ 这一版 `index.dc.html` 是**工具生成的过渡页**。设计侧的
+> `ui/S1-稿件索引.dc.html` 数据契约已经一致，让它改读 `window.__UD_INDEX`
+> 就能顶掉过渡页 —— 这件事还没做，记在这里。
+
+### 14.3 验收时踩到自己四个坑
+
+**坑一：模板引用了不存在的 token。** 我写了 `--tool-ok-text` / `-warn-text` /
+`-err-text`，而 `tokens.css` 只有 `ok` / `ok-soft` / `ok-border` 三档。
+不是加 token，而是先算清楚三档够不够 —— 把每种组合的对比度都算了一遍：
+
+| 组合 | 亮色 | 暗色 |
+| --- | --- | --- |
+| base 字 on soft 底 | 4.67 ~ 6.92 | 6.14 ~ 7.71 |
+| 白字 / 深墨字 on 实色底 | 5.36 ~ 10.05 | 5.36 ~ 10.05 |
+
+全部 ≥ 4.5（WCAG AA 正文线），所以四档收成三档是成立的，改的是我的模板不是 token 表。
+最紧的一格是**亮色 `ok` 字 on `ok-soft` 底 = 4.67**，代码里留了注释：不要再调浅。
+
+**坑二：我自己的校验器抓到了我自己生成的页。** `renderVals()` 返回了一个 `noop`
+键，模板里零命中 → `W_DEAD_KEY`。删掉。自举是有用的。
+
+**坑三（这条最该记）：`build_index` 绕过了 `prepareForDisk`。** 我直接调了
+`writeAtomic`，于是生成的入口页没有 `__resources` 注入 —— 断网实测直接白屏，
+去 unpkg 取 React 被拦，控制台 `[dc] failed to load React or boot`。
+
+「唯一写入口」这条规矩（`00` §十一）管的就是这个，**工具自己产的文件也不例外**，
+而我在自己的新代码里第一时间就破了它。已改成走 `prepareForDisk`，代码里留了注释记着。
+
+**坑四：见 §14.4。**
+
+### 14.4 `E_CONTROL_IN_TABLE`：HTML foster-parenting
+
+入口页渲出来，**表头在、行是空的**。原因不在 `sc-for` 也不在数据：
+
+`<table>` / `<tbody>` / `<tr>` / `<select>` / `<optgroup>` 只允许特定子元素。
+HTML 解析器遇到**未知元素**（`sc-for` / `sc-if` / `dc-import` / `x-import`）会把它
+**搬到表格外面去**（foster parenting）。搬走之后运行时在表里找不到它，于是
+**一声不响地不渲染** —— 没有报错，没有控制台输出。
+
+按 `04` 的判据，静默失败是最坏的一类，所以这条定为 **error 级**，
+新增 `E_CONTROL_IN_TABLE`，`write_draft` 直接拒绝落盘。
+
+写稿侧的规则同步写进了 `06` §2.7：**用 div + CSS grid，不要用 `<table>`**。
+ClaudeDesign 的 `ui/S1-稿件索引.dc.html` 全篇**零个 `<table>`**（全是 div + grid），
+所以它从来没撞上这个 —— 我的过渡页模板已照它改。
+
+### 14.5 验收实测
+
+| 项 | 结果 |
+| --- | --- |
+| 反例：`sc-for` 在 `<table>` 里 + `sc-if` 在 `<select>` 里 | 2 条 `E_CONTROL_IN_TABLE`，`written=false`「有 2 条 error 级诊断，按契约拒绝落盘」✓ |
+| 误报：存量 57 份稿 | 合计 **error 0**，警告分布一字不变 ✓ |
+| 生成页自校验 | error 0 · warning 0 · 元素 43 · `table` 标签数 **0** ✓ |
+| 生成页落盘路径 | `steps: 归一化 · 注入 __resources 离线映射` ✓ |
+| **断网真渲染** | `alive=ALIVE` · `nodes=118` · 被拦的外部请求**无** · 控制台 error **无** ✓ |
+
+首屏文字：`UmbraDesign | 入口页验证 | · 3 份稿 | 索引生成于 3 分钟前 | 全部 | 页稿 |
+组件稿 | 有错误 | 有提醒 | 未体检 | 稿件`。
+
+### 14.6 第一批到此为止
+
+`00` §九 的「做」那一列全部落地，24 个工具。第一批之后的口子按顺序是：
+
+1. 让 `ui/S1-稿件索引.dc.html` 读 `window.__UD_INDEX`，顶掉过渡入口页（数据契约已一致）
+2. 洞审计的覆盖率：57 份稿里有 25 份因为 `renderVals` 里有解不开的展开/计算键而跳过审计
+   （`stats.holeAuditSkipped`）。**放弃优于误报**是当时的选择，但覆盖率可以往上推
+3. `bundle_draft`（形态 B）—— 两点未验证，仍**不承诺**（§九）
