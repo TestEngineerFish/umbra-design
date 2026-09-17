@@ -252,9 +252,6 @@
                 </div>
               </sc-for>
 
-              <sc-if value="{{ slotBusy }}" hint-placeholder-val="{{ false }}">
-                <div style="padding: 5px 12px 7px; border-top: 1px solid var(--tool-border); font-size: 11px; color: var(--tool-text-2);">{{ slotBusyNote }}</div>
-              </sc-if>
               <div style="height: 6px;"></div>
             </div>
           </sc-if>
@@ -396,6 +393,13 @@
       <button type="button" onClick="{{ onToggleSelect }}" title="开着的时候点稿里的元素是「选中」，关掉才能真的用这个界面（S 键切换）" style="height: 21px; padding: 0 8px; border-radius: var(--tool-radius-sm); border: 1px solid; cursor: pointer; font-size: 11px; background: {{ selBg }}; border-color: {{ selBd }}; color: {{ selFg }};" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">{{ selLabel }}</button>
       <span style="font-family: var(--tool-mono); color: var(--tool-muted);">{{ selNote }}</span>
     </sc-if>
+    <!-- ⚠️ 这条状态必须在底栏，不能塞进属性面板里。
+         实测踩到：第一版放在 `sc-if hasSlots` 之内，于是没选中节点时
+         「正在落盘 / 体检完成」一个字都不显示 —— 反馈被选中状态绑住了（doc/00 §23.3）。 -->
+    <sc-if value="{{ slotBusy }}" hint-placeholder-val="{{ false }}">
+      <span style="color: var(--tool-border-strong);">·</span>
+      <span style="color: {{ busyFg }};">{{ slotBusyNote }}</span>
+    </sc-if>
     <sc-if value="{{ canRevert }}" hint-placeholder-val="{{ false }}">
       <span style="color: var(--tool-border-strong);">·</span>
       <!-- 回退。⚠️ 形制待设计侧（doc/00 §21.4 第 8 项）：版本胶囊 + 一颗钮是我先定的。
@@ -498,7 +502,7 @@ class Component extends DCLogic {
   state = { demo: 1, preset: 0, zoom: 1, tab: "diag", rail: true, spin: false, sheet: true,
             selectOn: false, picked: null, bridgeReady: false,
             live: null, chg: null, slots: null, apiErr: null, drafts: {}, busy: null,
-            revertPick: "" };
+            revertPick: "", checkNote: null };
 
   componentDidMount() {
     this.onKey = (e) => {
@@ -675,8 +679,62 @@ class Component extends DCLogic {
 
   recheck() {
     if (this.state.spin) return;
-    this.setState({ spin: true });
-    this.t = setTimeout(() => this.setState({ spin: false }), 2200);
+    if (!LIVE || !window.__UD_API) {
+      // 演示态：转两秒装个样子
+      this.setState({ spin: true });
+      this.t = setTimeout(() => this.setState({ spin: false }), 2200);
+      return;
+    }
+    /* 真体检要开一次 Chromium（实测 1.4~12s），所以是「起作业 + 轮询」，
+       不是一个挂十几秒的请求（doc/00 §二十三）。
+       连点两下也只会有一个作业 —— 服务端按 file 上了锁，第二次返回同一个 jobId。 */
+    const A = window.__UD_API;
+    this.setState({ spin: true, checkNote: "正在起浏览器…", apiErr: null });
+    fetch(new URL(A.base + "check", location.href).toString(), {
+      method: "POST",
+      headers: { "x-ud-token": A.token, "content-type": "application/json" },
+      body: JSON.stringify({ file: LIVE })
+    })
+      .then((r) => r.json())
+      .then((j) => {
+        if (j.errors && j.errors.length) throw new Error(j.errors[0].fix || j.errors[0].message);
+        this.poll(j.data.jobId, 0);
+      })
+      .catch((e) => this.setState({ spin: false, checkNote: null, apiErr: e.message }));
+  }
+
+  /** 轮询作业。上限 40 次 × 600ms = 24 秒 —— 比 render_check 自己的超时还宽一点。 */
+  poll(jobId, n) {
+    if (n > 40) { this.setState({ spin: false, checkNote: null, apiErr: "体检超时，没等到结果" }); return; }
+    const A = window.__UD_API;
+    this.t = setTimeout(() => {
+      fetch(new URL(A.base + "check_status?job=" + encodeURIComponent(jobId), location.href).toString(),
+        { headers: { "x-ud-token": A.token } })
+        .then((r) => r.json())
+        .then((j) => {
+          const d = j.data;
+          if (!d) throw new Error((j.errors && j.errors[0] && j.errors[0].message) || "作业查不到");
+          if (d.running) {
+            this.setState({ checkNote: "体检中… " + Math.round(d.elapsedMs / 100) / 10 + "s" });
+            this.poll(jobId, n + 1);
+            return;
+          }
+          if (d.ok === false) {
+            this.setState({ spin: false, checkNote: null,
+              apiErr: (d.error && (d.error.fix || d.error.message)) || "体检失败" });
+            return;
+          }
+          const r = d.result && d.result.result;
+          this.setState({ spin: false, apiErr: null,
+            checkNote: r ? (r.alive ? "体检完成 · " + r.nodeCount + " 节点 · " + r.renderMs + "ms"
+                                    : "⚠️ 体检没画出来") : null });
+          // 读数变了，顶栏 / 诊断 / 健康全要重取
+          this.pullDraft();
+          const f = this.frameRef && this.frameRef.current;
+          if (f && f.contentWindow) f.contentWindow.location.reload();
+        })
+        .catch((e) => this.setState({ spin: false, checkNote: null, apiErr: e.message }));
+    }, 600);
   }
 
   mode() {
@@ -742,7 +800,7 @@ class Component extends DCLogic {
       checking: checking,
       notChecking: !checking,
       onRecheck: () => this.recheck(),
-      recheckLabel: checking ? "体检中" : "重跑体检",
+      recheckLabel: checking ? (s.checkNote || "体检中") : "重跑体检",
       recheckOpacity: checking ? "0.55" : "1",
       onRescan: () => this.setState({ demo: 1 }),
 
@@ -920,8 +978,11 @@ class Component extends DCLogic {
       hasSlots: !!(s.slots && s.slots.slots.length),
       slotInList: !!(s.slots && s.slots.inList),
       slotInListLabel: "在 sc-for 里 · 影响每一行",
-      slotBusy: !!s.busy || !!s.apiErr,
-      slotBusyNote: s.apiErr ? "✗ " + s.apiErr : "正在落盘：" + s.busy,
+      slotBusy: !!s.busy || !!s.apiErr || !!s.checkNote,
+      busyFg: s.apiErr ? "var(--tool-err)" : "var(--tool-text-2)",
+      slotBusyNote: s.apiErr ? "✗ " + s.apiErr
+        : s.busy ? "正在落盘：" + s.busy
+        : s.checkNote || "",
       canRevert: !!(LIVE && s.chg && s.chg.versions && s.chg.versions.length > 1),
       // ⚠️ 这里必须是箭头 IIFE。写成 function(){} 的话里面的 this 不是组件，
       // pick 回调里的 this.setState 就是 undefined —— 胶囊点不动，而且不报错。

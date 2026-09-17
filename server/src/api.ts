@@ -31,6 +31,8 @@ import { locateNode } from "./locate.js";
 import { revertTo, setProp, type SlotKind } from "./edit.js";
 import { validateDraft } from "./validate.js";
 import { listComponents, listIcons, searchTokens } from "./assets.js";
+import { renderCheck } from "./render.js";
+import { get as getJob, start as startJob, view as jobView } from "./jobs.js";
 import { changesSince, listVersions, toMarkdown } from "./history.js";
 import { draftPath, listDrafts, type Project } from "./project.js";
 import { resolveDraft } from "./locate.js";
@@ -186,6 +188,42 @@ export async function handleApi(
         str(b.kind, "kind") as SlotKind, str(b.name, "name"),
         typeof b.value === "string" ? b.value : "");
       json(reply, 200, { ok: true, data: r });
+      return true;
+    }
+
+    // ── 长活儿：render_check 要开 Chromium（1.4~12s），做成作业 + 轮询 ──
+    if (route === "check" && req.method === "POST") {
+      if (!originOk(req, ctx.port)) {
+        json(reply, 403, { ok: false, errors: [{ code: "E_API_ORIGIN", message: "Origin 不是本服务" }] });
+        return true;
+      }
+      const b = await readBody(req);
+      const rel = await resolveDraft(p, str(b.file, "file"));
+      const j = startJob("render_check", `${p.name}::${rel}`,
+        async () => {
+          const { result, diags } = await renderCheck(p, rel, {
+            width: typeof b.width === "number" ? b.width : undefined,
+            height: typeof b.height === "number" ? b.height : undefined,
+            allowNetwork: b.allowNetwork === true,
+          });
+          return { file: rel, result, diags };
+        },
+        (e) => e instanceof ToolError
+          ? { code: e.diagnostic.code, message: e.diagnostic.message, fix: e.diagnostic.fix }
+          : { code: "E_JOB", message: (e as Error)?.message ?? String(e) });
+      json(reply, 200, { ok: true, data: jobView(j) });
+      return true;
+    }
+
+    if (route === "check_status" && req.method === "GET") {
+      const id = str(url.searchParams.get("job"), "job");
+      const j = getJob(id);
+      if (!j) {
+        json(reply, 404, { ok: false, errors: [{ code: "E_JOB_UNKNOWN", message: `没有这个作业：${id}`,
+          fix: "作业记录活在 MCP server 进程里，重启就没了。读数本身在 .umbradesign/checks/，可以直接 GET validate" }] });
+        return true;
+      }
+      json(reply, 200, { ok: j.ok !== false, data: jobView(j) });
       return true;
     }
 
