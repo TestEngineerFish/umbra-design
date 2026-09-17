@@ -37,6 +37,7 @@ import { readFile } from "node:fs/promises";
 import { relative, sep } from "node:path";
 import { ToolError } from "./envelope.js";
 import { isToolPage } from "./indexpage.js";
+import { readCheck, sha256 } from "./check.js";
 
 export const API_PREFIX = "/__ud/";
 export const newToken = () => randomBytes(16).toString("hex");
@@ -105,9 +106,13 @@ export async function handleApi(
       const rel = await resolveDraft(p, str(url.searchParams.get("file"), "file"));
       const src = await readFile(draftPath(p, rel), "utf8");
       const v = validateDraft(p, rel, src, rel);
+      // 体检读数一起给 —— 壳的顶栏要显示「上次体检 · 耗时 · 节点数」，
+      // 不给它就只能写死演示数字（doc/00 §21.3 的教训）
+      const chk = await readCheck(p, rel);
+      const stale = !!chk && chk.srcSha256 !== sha256(src);
       json(reply, 200, {
         ok: !v.diags.some((d) => d.level === "error"),
-        data: { file: rel, diags: v.diags, stats: v.stats },
+        data: { file: rel, diags: v.diags, stats: v.stats, check: chk, checkStale: stale },
       });
       return true;
     }

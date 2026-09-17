@@ -56,14 +56,18 @@
       </button>
     </div>
     <div style="display: flex; align-items: center; gap: 8px; padding: 0 20px 10px; flex-wrap: wrap; font-size: 12px;">
+      <sc-if value="{{ showDemoBar }}" hint-placeholder-val="{{ true }}">
       <span style="font-size: 11px; color: var(--tool-muted); flex: none;">演示态</span>
+      </sc-if>
       <sc-for list="{{ demoStates }}" as="st" hint-placeholder-count="8">
         <button type="button" onClick="{{ st.pick }}" title="{{ st.name }}" aria-pressed="{{ st.active }}" style="display: inline-flex; align-items: center; gap: 5px; height: 23px; padding: 0 9px 0 6px; border-radius: var(--tool-radius-sm); border: 1px solid; cursor: pointer; font-size: 11px; white-space: nowrap; transition: background .13s ease, border-color .13s ease, color .13s ease; background: {{ st.bg }}; border-color: {{ st.bd }}; color: {{ st.fg }};" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">
           <span style="font-family: var(--tool-mono); opacity: 0.6;">{{ st.n }}</span>
           <span style="font-weight: {{ st.fw }};">{{ st.short }}</span>
         </button>
       </sc-for>
-      <span style="color: var(--tool-border-strong); flex: none;">·</span>
+      <sc-if value="{{ showDemoBar }}" hint-placeholder-val="{{ true }}">
+        <span style="color: var(--tool-border-strong); flex: none;">·</span>
+      </sc-if>
       <span style="color: var(--tool-muted); min-width: 0;">{{ demoNote }}</span>
     </div>
   </div>
@@ -218,6 +222,13 @@ const SWATCH = {
   "#E8590C": "#e8590c"
 };
 
+/* 地址栏带 ?file= 就是在看真稿的变更，数据来自本地 API /__ud/changes；
+   不带就还是下面这批演示数据 —— 和 S1/S2 同一套办法（doc/00 §14.7、§二十）。 */
+const LIVE = (function () {
+  try { const q = new URLSearchParams(location.search).get("file"); return q ? decodeURIComponent(q) : null; }
+  catch (e) { return null; }
+})();
+
 const BASE = [
   { level: "L1", kind: "prop_added", target: "onRetry", to: "() => void", at: "L45",
     message: "新增 props onRetry: () => void", impact: "实现侧需要接这个回调" },
@@ -278,7 +289,7 @@ const DEMOS = [
 ];
 
 class Component extends DCLogic {
-  state = { demo: 1, open: {}, copied: false };
+  state = { demo: 1, open: {}, copied: false, live: null, apiErr: null };
 
   componentDidMount() {
     this.onKey = (e) => {
@@ -297,6 +308,7 @@ class Component extends DCLogic {
       }
     };
     document.addEventListener("keydown", this.onKey);
+    this.pull();
   }
 
   componentWillUnmount() {
@@ -316,7 +328,26 @@ class Component extends DCLogic {
     return true;
   }
 
+  componentDidUpdate() { /* 占位：数据只在挂载时拉一次，改稿后刷新页面 */ }
+
+  pull() {
+    const A = window.__UD_API;
+    if (!LIVE) return;
+    if (!A) { this.setState({ apiErr: "本地 API 没起来（先 serve_start 再 build_index）" }); return; }
+    const u = new URL(A.base + "changes", location.href);
+    u.searchParams.set("file", LIVE);
+    fetch(u.toString(), { headers: { "x-ud-token": A.token } })
+      .then((r) => r.json())
+      .then((j) => {
+        if (j.errors && j.errors.length) throw new Error(j.errors[0].message);
+        this.setState({ live: j.data, apiErr: null });
+      })
+      .catch((e) => this.setState({ apiErr: e.message }));
+  }
+
   data() {
+    // LIVE 时只认接口给的；还没拉到就是空 —— 宁可空着，不拿演示数据冒充（§19.3）
+    if (LIVE) return this.state.live && this.state.live.diff ? this.state.live.diff.changes : [];
     const n = this.state.demo;
     if (n === 2) return ALL.filter((c) => c.level === "L4");
     if (n === 3) return ALL.filter((c) => c.level === "L1");
@@ -380,6 +411,7 @@ class Component extends DCLogic {
   renderVals() {
     const s = this.state;
     const demo = DEMOS[s.demo - 1];
+    const L = s.live;
     const projectLevel = s.demo === 7;
     const changes = this.data();
 
@@ -430,9 +462,9 @@ class Component extends DCLogic {
 
     return {
       theme: this.props.theme === "dark" ? "dark" : null,
-      scopeLabel: projectLevel ? "umbra · 4 份稿" : "日志.dc.html",
-      fromLabel: s.demo === 5 ? "v217" : projectLevel ? "各稿上一版" : "v216",
-      toLabel: s.demo === 5 ? "v221" : projectLevel ? "当前" : "v217",
+      scopeLabel: LIVE ? LIVE : (projectLevel ? "umbra · 4 份稿" : "日志.dc.html"),
+      fromLabel: LIVE ? (L ? L.diff ? L.diff.from : "—" : "…") : (s.demo === 5 ? "v217" : projectLevel ? "各稿上一版" : "v216"),
+      toLabel: LIVE ? (L ? L.diff ? L.diff.to : "—" : "…") : (s.demo === 5 ? "v221" : projectLevel ? "当前" : "v217"),
       multiSpan: spans.length > 1,
       spanCount: String(spans.length),
       spans: spans.map((v) => ({ label: v })),
@@ -458,8 +490,12 @@ class Component extends DCLogic {
 
       sections: sections,
 
-      demoNote: demo.note,
-      demoStates: DEMOS.map((x) => ({
+      showDemoBar: !LIVE,
+      demoNote: LIVE
+        ? (s.apiErr ? "⚠️ 本地 API 读不到：" + s.apiErr
+           : L ? (L.note || ("版本序列 " + L.versions.join(" → "))) : "正在读…")
+        : demo.note,
+      demoStates: LIVE ? [] : DEMOS.map((x) => ({
         n: x.n, name: x.name, short: x.short, active: x.n === s.demo,
         fw: x.n === s.demo ? "600" : "400",
         bg: x.n === s.demo ? "var(--tool-accent)" : "var(--tool-panel)",
