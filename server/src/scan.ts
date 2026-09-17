@@ -80,6 +80,8 @@ export interface ObjectShape {
   opaque: boolean;
   /** opaque 是怎么来的 —— 分类用，也让诊断能说清楚 */
   why: string[];
+  /** 键 → 值表达式原文。L1 要靠它判「这个值人能不能直接改」（doc/09 §3.1） */
+  values: Record<string, string>;
 }
 
 /** 取对象字面量的顶层键。open 必须指向 '{'。 */
@@ -104,7 +106,7 @@ function stripLeadingComments(seg: string): string {
 
 export function objectTopLevel(src: string, open: number): ObjectShape {
   const close = matchBrace(src, open);
-  const out: ObjectShape = { keys: [], spreads: [], opaque: false, why: [] };
+  const out: ObjectShape = { keys: [], spreads: [], opaque: false, why: [], values: {} };
   const bail = (r: string) => { out.opaque = true; if (!out.why.includes(r)) out.why.push(r); };
   if (close < 0) { bail("对象括号不配平"); return out; }
 
@@ -139,7 +141,15 @@ export function objectTopLevel(src: string, open: number): ObjectShape {
     if (seg.startsWith("...")) { out.spreads.push(seg.slice(3).trim()); continue; }
     // key: value / 'key': value / "key": value / key（简写）/ key(){}（方法简写）
     const m = seg.match(/^(?:(['"])([^'"]+)\1|([A-Za-z_$][\w$]*))\s*(?::|\(|$)/);
-    if (m) { out.keys.push((m[2] ?? m[3]) as string); continue; }
+    if (m) {
+      const key = (m[2] ?? m[3]) as string;
+      out.keys.push(key);
+      // 值原文：冒号之后到段末。简写（`key,`）与方法简写（`key(){}`）没有冒号，
+      // 前者等于同名变量，后者是函数 —— 两种都不是人能直接改的字面量
+      const colon = seg.indexOf(":", m[0].length - 1);
+      out.values[key] = colon >= 0 ? seg.slice(colon + 1).trim() : seg.trim();
+      continue;
+    }
     if (/^\[/.test(seg)) { bail("计算键 [expr]"); continue; }
     bail("认不出的键形态：" + seg.slice(0, 40).replace(/\s+/g, " "));
   }

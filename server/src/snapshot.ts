@@ -78,7 +78,10 @@ export function normalizeText(t: string): string {
   return t.replace(/\s+/g, " ").trim();
 }
 
-const SKIP_ATTRS = new Set(["style"]);
+// style 单独归一化；节点地址是落盘注入的产物，不是设计事实 —— 进了 attrs
+// 就会让语义 diff 把「改了一处 padding」报成「顺带改了 N 个属性」。
+// data-dc-tpl 是运行时自己打的序号，同理排掉（万一有人存了渲染后的页面）。
+const SKIP_ATTRS = new Set(["style", "data-ud-node", "data-dc-tpl"]);
 
 export interface SnapshotOptions { version: string; gitCommit?: string | null }
 

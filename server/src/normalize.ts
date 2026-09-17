@@ -10,6 +10,7 @@ import { copyFile, mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { RUNTIME_DIR, expandDsAlias, type Project } from "./project.js";
+import { NODE_ATTR, stampNodes } from "./nodeid.js";
 
 export const MARK_OPEN = "<!-- umbradesign:resources -->";
 export const MARK_CLOSE = "<!-- /umbradesign:resources -->";
@@ -53,6 +54,15 @@ export function injectResources(src: string): InjectResult {
 }
 
 /** ①②③ 一起做。返回改写后的内容与做了什么。 */
+/** 模板区 `<x-dc>…</x-dc>` 的范围。打地址只走这里 —— head 里的 script/link 不是设计节点。 */
+function templateRange(src: string): [number, number] {
+  const open = /<x-dc(?:\s(?:"[^"]*"|'[^']*'|[^>"'])*)?>/i.exec(src);
+  if (!open) return [0, 0];
+  const start = open.index + open[0].length;
+  const close = src.toLowerCase().indexOf("</x-dc>", start);
+  return [start, close < 0 ? src.length : close];
+}
+
 export function prepareForDisk(p: Project, content: string) {
   const steps: string[] = [];
   let out = normalizeSource(content);
@@ -65,7 +75,14 @@ export function prepareForDisk(p: Project, content: string) {
   out = r.out;
   steps.push(r.injected ? "注入 __resources 离线映射" : `未注入 __resources（${r.reason}）`);
 
-  return { content: out, steps, injected: r.injected };
+  // ⚠️ 节点地址必须是**最后一步**。
+  // 地址是「规范化后的开标签」的哈希，而 @ds 展开会改 helmet link 的 href ——
+  // 也就是改开标签。放在展开之后打，盘上那份重新算一遍才能得到同一个 id
+  // （幂等的前提）。这里只有一份文件：落盘副本就是后面 locate_node 要读的那份。
+  const st = stampNodes(out, ...templateRange(out));
+  if (st.count) { out = st.out; steps.push(`打节点地址 ${st.count} 处（${NODE_ATTR}）`); }
+
+  return { content: out, steps, injected: r.injected, nodes: st.count };
 }
 
 /** ④ 保证稿所在目录有运行时副本；版本不一致（大小不同）就刷新。 */

@@ -186,7 +186,10 @@ export function parseDraft(src: string, path: string): Draft {
     const propKeys: string[] = [];
     for (const am of attrs.matchAll(/([A-Za-z_][-\w]*)\s*=\s*["']/g)) {
       const k = am[1] as string;
-      if (k === "name" || k === "style" || k.startsWith("hint-")) continue;
+      // data-ud-node 是落盘注入的节点地址，不是传给子组件的 prop。
+      // 运行时对自己那套序号也是这么处理的（support.js 里 sc-name / data-dc-tpl
+      // 在属性拷贝时被跳过）—— 同一个道理，工具的簿记属性不能变成 prop。
+      if (k === "name" || k === "style" || k === "data-ud-node" || k.startsWith("hint-")) continue;
       propKeys.push(kebabToCamel(k));
     }
     imports.push({
@@ -262,13 +265,64 @@ export interface ValsAudit {
   opaque: boolean;
   /** 放弃的具体原因，可能多条。分类与改进都靠它 —— 没有它只能猜 */
   opaqueWhy: string[];
+  /** 每个顶层键的来源分类 —— L1 的可编辑性地图（doc/09 §3.1） */
+  origins: Record<string, HoleOrigin>;
   /** renderVals 根本找不到 */
   missing: boolean;
 }
 
 /** 收集 renderVals()（含它展开的 this.xxxVals()）在各条 return 路径上的顶层键 */
+export interface HoleOrigin {
+  /** literal=字面量，人可以直接改 · props=调用方传入 · computed=算出来的 · fn=函数 · unknown=认不出 */
+  kind: "literal" | "props" | "computed" | "fn" | "unknown";
+  /** 值表达式原文（截断） */
+  expr: string;
+  /** 人能不能直接改这个值 */
+  editable: boolean;
+  /** 一句话说明，界面直接显示 */
+  note: string;
+}
+
+/** 值表达式 → 来源分类。
+ *
+ * 判据只看形态，认不出就说认不出 —— **不猜**。L1 的界面拿它决定给什么控件，
+ * 给了一个改不动的滑块比不给更糟（doc/09 §3.1）。
+ */
+export function classifyOrigin(expr: string): HoleOrigin {
+  const e = expr.trim();
+  const mk = (kind: HoleOrigin["kind"], editable: boolean, note: string): HoleOrigin =>
+    ({ kind, expr: e.slice(0, 80), editable, note });
+
+  if (!e) return mk("unknown", false, "取不到值表达式");
+  // 函数：事件回调与 ref
+  if (/^(\(|function\b|async\b)/.test(e) || /=>/.test(e)) return mk("fn", false, "这是函数（事件 / ref），不是可调的值");
+  // 纯字面量
+  if (/^(['"`]).*\1$/s.test(e)) return mk("literal", true, "字符串字面量，可以直接改");
+  if (/^-?\d+(\.\d+)?$/.test(e)) return mk("literal", true, "数字字面量，可以直接改");
+  if (/^(true|false|null)$/.test(e)) return mk("literal", true, "布尔 / null 字面量，可以直接改");
+  if (/^[[{]/.test(e)) return mk("literal", true, "对象 / 数组字面量，可以改，但结构要自己保证");
+  // 来自调用方
+  if (/\b(this\.props|P)\s*[.[]/.test(e)) {
+    return /\?\?|\|\|/.test(e)
+      ? mk("props", false, "调用方传入，带兜底值 —— 改兜底值要动逻辑类")
+      : mk("props", false, "调用方传入，这份稿里改不了");
+  }
+  // state
+  if (/\bthis\.state\b|\bs\s*\./.test(e)) return mk("computed", false, "跟着 state 走，改它要改交互逻辑");
+  // 单个标识符：等于同名局部变量
+  if (/^[A-Za-z_$][\w$]*$/.test(e)) return mk("computed", false, "等于同名变量，要看它怎么算出来的");
+  // 其余一律是算式。
+  // ⚠️ 兜底从 unknown 改成 computed：实测 110 个 unknown 全是明显的算式
+  //    —— !!tone / !dark / files[i] / round(atStart) / p.note || ''
+  //    判据漏了取反、下标、带参调用、逻辑运算符。而且逻辑上，
+  //    **不是字面量、不是函数、不是 props 的表达式，定义上就是算出来的**。
+  //    两者 editable 都是 false，但说「算出来的」比说「认不出」准确。
+  //    unknown 只留给真的取不到值表达式的情况（上面第一行）。
+  return mk("computed", false, "算出来的值，改不动 —— 要改就让模型改逻辑类");
+}
+
 export function auditRenderVals(d: Draft): ValsAudit {
-  const out: ValsAudit = { paths: [], union: [], opaque: false, opaqueWhy: [], missing: false };
+  const out: ValsAudit = { paths: [], union: [], opaque: false, opaqueWhy: [], origins: {}, missing: false };
   const bail = (r: string) => { out.opaque = true; if (!out.opaqueWhy.includes(r)) out.opaqueWhy.push(r); };
   if (!d.logic) { out.missing = true; return out; }
   const js = d.src.slice(d.logic.start, d.logic.end);
@@ -295,6 +349,12 @@ export function auditRenderVals(d: Draft): ValsAudit {
       }
       const shape = objectTopLevel(js, i);
       if (shape.opaque) for (const r of shape.why) bail(r);
+      // 多条 return 路径给同一个键不同来源时，保守取「更不可改」的那个
+      for (const [k, v] of Object.entries(shape.values)) {
+        const o = classifyOrigin(v);
+        const prev = out.origins[k];
+        if (!prev || (prev.editable && !o.editable)) out.origins[k] = o;
+      }
       const keys = [...shape.keys];
       for (const sp of shape.spreads) {
         const mm = /^this\.([A-Za-z_$][\w$]*)\s*\(/.exec(sp);

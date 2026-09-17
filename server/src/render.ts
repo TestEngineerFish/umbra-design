@@ -108,7 +108,7 @@ export interface RenderResult {
   alive: boolean;
   nodeCount: number;
   renderMs: number;
-  unresolvedHoles: Array<{ raw: string; where: string }>;
+  unresolvedHoles: Array<{ raw: string; where: string; from: "控制台" | "DOM" }>;
   consoleWarnings: Array<{ level: string; text: string }>;
   styleSheets: Array<{ href: string; rules: number | "跨源读不到" }>;
   missingResources: string[];
@@ -235,14 +235,14 @@ export async function renderCheck(
         for (let n = walker.nextNode(); n && holes.length < 40; n = walker.nextNode()) {
           for (const m of (n.nodeValue || '').matchAll(/\\{\\{([^}]*)\\}\\}/g)) {
             const el = n.parentElement;
-            holes.push({ raw: (m[1] || '').trim(), where: '文本 · <' + (el ? el.tagName.toLowerCase() : '?') + '>' });
+            holes.push({ raw: (m[1] || '').trim(), where: '文本 · <' + (el ? el.tagName.toLowerCase() : '?') + '>', from: 'DOM' });
           }
         }
         for (const el of document.querySelectorAll('*')) {
           if (holes.length >= 40) break;
           for (const a of el.attributes) {
             const m = /\\{\\{([^}]*)\\}\\}/.exec(a.value);
-            if (m) holes.push({ raw: (m[1] || '').trim(), where: '属性 ' + a.name + ' · <' + el.tagName.toLowerCase() + '>' });
+            if (m) holes.push({ raw: (m[1] || '').trim(), where: '属性 ' + a.name + ' · <' + el.tagName.toLowerCase() + '>', from: 'DOM' });
           }
         }
         const sheets = [...document.styleSheets].map((s) => {
@@ -252,6 +252,28 @@ export async function renderCheck(
         });
         return { unresolvedHoles: holes, styleSheets: sheets, nodeCount: document.querySelectorAll('*').length };
       })()`) as Promise<typeof facts>, 6000, facts);
+    }
+
+    /* ⚠️ 解析不出的洞，运行时到底留下什么 —— 实测（doc/00 §17.1）：
+     *
+     *   文本洞 {{ x }}   → 渲染成空，DOM 里一个 {{ }} 都不剩，
+     *                      只在控制台 warn 一句 "[dc-runtime] <稿名>: {{ x }} never resolved"
+     *   属性洞 a="{{ x }}" → 整个属性被丢掉，**控制台一句都没有**
+     *
+     * 所以上面那段扫 DOM 文本的代码，在运行时正常工作时**永远扫不到东西** ——
+     * 这个检测项一直是瞎的。它只在「运行时根本没 boot」时有用（那时模板没编译，
+     * {{ }} 还是字面量），所以留着当第二道网。
+     * 文本洞的真信号在控制台，这里捞出来。
+     * 属性洞没有任何运行时信号 —— 静态校验（E_HOLE_UNRESOLVED）是唯一的网，
+     * 所以 validate_draft 不是可选项。
+     */
+    const NEVER_RESOLVED = /^\[dc-runtime\]\s*(.*?):\s*\{\{([^}]*)\}\}\s*never resolved/;
+    for (const c of consoleWarnings) {
+      const m = NEVER_RESOLVED.exec(c.text);
+      if (!m) continue;
+      const raw = (m[2] ?? "").trim();
+      if (facts.unresolvedHoles.some((h) => h.raw === raw)) continue;
+      facts.unresolvedHoles.push({ raw, where: `文本 · 组件 ${m[1] || "?"}`, from: "控制台" });
     }
 
     let shot: string | null = null;
@@ -271,7 +293,9 @@ export async function renderCheck(
     }
     for (const h of facts.unresolvedHoles.slice(0, 8)) {
       diags.push(warn(X.IO, relPath, { kind: "hole", name: h.raw },
-        `渲染后还留着未解析的洞 "{{ ${h.raw} }}"（${h.where}）`,
+        h.from === "控制台"
+          ? `洞 "{{ ${h.raw} }}" 渲染时解析不出，那一处渲染成了空（${h.where}）`
+          : `渲染后还留着未解析的洞 "{{ ${h.raw} }}"（${h.where}）—— 运行时很可能根本没 boot`,
         { fix: "这个洞在 renderVals() 里没给值，或者根名拼错了" }));
     }
     for (const u of [...new Set(missing)].slice(0, 8)) {
@@ -285,7 +309,8 @@ export async function renderCheck(
           { fix: "交付要能在断网机器上打开。React 走同层本地副本（write_draft 自动注入映射），字体用系统栈" }));
       }
     }
-    for (const c of consoleWarnings.slice(0, 6)) {
+    // 已经归成「洞」的那几条不再重复报一遍
+    for (const c of consoleWarnings.filter((x) => !NEVER_RESOLVED.test(x.text)).slice(0, 6)) {
       diags.push(warn(X.IO, relPath, { kind: "key", name: c.level },
         `控制台 ${c.level}：${c.text}`));
     }

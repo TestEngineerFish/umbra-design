@@ -25,6 +25,7 @@ import {
 } from "./history.js";
 import { serveStart, serveStatus, serveStop } from "./serve.js";
 import { buildIndex, collectIndex } from "./indexpage.js";
+import { locateNode } from "./locate.js";
 
 const VERSION = "0.1.0";
 
@@ -466,6 +467,40 @@ server.registerTool("serve_status", {
 }, async () => run(async () => {
   const list = serveStatus();
   return envelope({ servers: list }, [], { count: list.length });
+}));
+
+// ───────────────────── 节点定位（三层修改的地基） ─────────────────────
+
+server.registerTool("locate_node", {
+  title: "把预览里点中的节点对回源码",
+  description: [
+    "给一个节点地址，回报它在源码哪一行、开标签是什么、每一项能不能直接改。",
+    "",
+    "地址从预览的 DOM 里取（两个属性都已经在那儿，不用问服务端）：",
+    "  const host = el.closest('[data-sc-name]');      // file：哪份稿",
+    "  const id   = el.getAttribute('data-ud-node');   // node：稿里哪个节点",
+    "",
+    "回报里的 slots 是这个节点上每一项可改的东西（样式声明 / 属性 / 文本），",
+    "editable=true 才是人能直接拖的；false 的话 note 里写了改法（改 renderVals 里哪个键，",
+    "还是这个值由调用方传入、或者干脆是算出来的只能改逻辑类）。",
+    "",
+    "⚠️ 地址是内容哈希：节点**自己**被改过之后地址会变，重新取一次。别处怎么改都不影响。",
+    "⚠️ inList=true 表示它在 sc-for 里 —— 改这一处会影响渲染出的每一行。",
+  ].join("\n"),
+  inputSchema: {
+    project: z.string(),
+    file: z.string().describe("稿的相对路径，或预览里 data-sc-name 给的组件名"),
+    node: z.string().describe("data-ud-node 的值"),
+  },
+}, async ({ project, file, node }) => run(async () => {
+  const p = await loadProject(project);
+  const r = await locateNode(p, file, node);
+  return envelope(r, [], {
+    slots: r.slots.length,
+    editableSlots: r.slots.filter((s) => s.editable).length,
+    inList: r.inList,
+    holeAuditSkipped: r.auditSkipped,
+  });
 }));
 
 server.registerTool("build_index", {
