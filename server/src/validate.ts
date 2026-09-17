@@ -48,7 +48,8 @@ export function validateDraft(p: Project, relPath: string, src: string, fileLabe
     diags.push(err(E.TAG_UNBALANCED, f, { kind: "tag", name: "x-dc" },
       "找不到 <x-dc>…</x-dc> 模板区间",
       { fix: "骨架见 doc/02 §一：<x-dc> 装模板，<script data-dc-script> 装逻辑类" }));
-    return { diags, stats: { elements: 0 } };
+    // 字段给全 —— 调用方（本地 API / 壳页面）拿到 undefined 会显示成 "undefined"
+    return { diags, stats: { elements: 0, holes: 0, imports: 0, branches: 0, lists: 0, valKeys: 0, returnPaths: 0, holeAuditSkipped: true, holeAuditSkippedWhy: "没有 <x-dc> 模板区" } };
   }
 
   // ── E_TAG_UNBALANCED：按栈逐标签配平 ──

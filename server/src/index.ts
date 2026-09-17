@@ -441,6 +441,12 @@ server.registerTool("serve_start", {
     "把项目目录起成本地静态服务，浏览器里打开就能看。",
     "**带 dc-import 的稿只能这样看** —— Chrome 不允许对 file:// 发 fetch，双击打不开（doc/05 §4.2）。",
     "服务活在 MCP server 进程里，起一次就一直开着；不传 port 让系统分配。",
+    "",
+    "它还挂着一个本地 JSON API（/__ud/*），给工具界面用：",
+    "  GET  locate / validate / changes / drafts",
+    "  POST set_prop / revert",
+    "**顺序要紧：先 serve_start 再 build_index** —— 令牌在 build_index 时注入壳页面，",
+    "反了的话壳拿不到令牌，诊断与点选面板就是空的（doc/00 §二十）。",
   ].join("\n"),
   inputSchema: { project: z.string(), port: z.number().int().min(1024).max(65535).optional() },
 }, async ({ project, port }) => run(async () => {
@@ -448,7 +454,7 @@ server.registerTool("serve_start", {
   const s = await serveStart(p, port);
   const diags = s.indexExists ? [] : [err(X.IO, p.rel, { kind: "file", name: "index.dc.html" },
     "项目根还没有 index.dc.html，打开根路径会 404",
-    { fix: "先调 build_index 生成入口页" })];
+    { fix: "先调 build_index 生成入口页（它同时会把本地 API 的令牌注进壳页面）" })];
   return envelope(s, diags);
 }));
 
@@ -563,15 +569,20 @@ server.registerTool("revert_to", {
 server.registerTool("build_index", {
   title: "生成项目入口页",
   description: [
-    "扫项目目录，产出三样：",
+    "扫项目目录，把工具界面部署进项目并注入数据：",
+    "  index.dc.html                 —— 入口页（设计侧 ui/S1 那份）",
+    "  S2…S5-*.dc.html               —— 其余壳页面，必须与稿同源才能点选/调 API",
     "  .umbradesign/index-data.json  —— 数据（doc/08 S1 的形状）",
-    "  index-data.js                 —— 同一份数据挂成 window.__UD_INDEX",
-    "  index.dc.html                 —— 入口页，用 .dc.html 写（自举）",
+    "  .umbradesign/select-bridge.js —— 预览点选桥，由壳注入 iframe",
+    "  _ds-tool/tokens.css           —— 工具皮肤",
+    "",
+    "⚠️ **先 serve_start 再 build_index**：本地 API 的令牌在这一步注入壳页面。",
+    "反了的话壳拿不到令牌，诊断与点选面板是空的（返回里 api:false 就是这个情况）。",
     "",
     "每份稿带上：类型、元素数、最新版本、更新时间、缩略图（有的话）、",
     "健康状态与诊断条数、演示态清单、引用与被引用关系。",
-    "⚠️ 生成的这个入口页是过渡形态。设计侧 ui/S1-稿件索引.dc.html 是正式形态，",
-    "等它读 window.__UD_INDEX 就换过去 —— 数据契约已经一致。",
+    "入口页优先用设计侧那份 ui/S1-稿件索引.dc.html；它缺失时才用内置过渡页兜底",
+    "（返回里的 indexSource 写明用了哪个）。",
   ].join("\n"),
   inputSchema: { project: z.string(), serve: z.boolean().optional().describe("true 时顺手起静态服务并回地址") },
 }, async ({ project, serve }) => run(async () => {

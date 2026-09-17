@@ -1,0 +1,171 @@
+/** 本地 JSON API。doc/09 §五、doc/00 §二十
+ *
+ * ── 为什么需要它 ──
+ *
+ * 入口页的数据是落盘时注入的（`00` §14.7），对索引够用。但预览壳要的东西不一样：
+ * 诊断与变更每改一次稿就变，`slots`（某个节点上每一项能不能改）更是**点到才知道**，
+ * 注入解决不了。
+ *
+ * ClaudeDesign 的宿主是个应用，有自己的预览通道。我们没有那个，
+ * 但我们有它没有的：**静态服务就跑在 MCP 进程里**（`serve.ts`）。
+ * 所以在它上面挂一个 JSON API，和 MCP 工具走**同一条代码路径** ——
+ * 校验 / 归一化 / 快照 / changelog 一样不少，没有任何旁路。
+ *
+ * ── 为什么要令牌 ──
+ *
+ * L1 是「人直接拖滑块改稿」，所以这个 API **必须能写**。而 127.0.0.1 上的端口，
+ * 浏览器里任何一个页面都能 fetch —— 只读还好，可写就是「任何网页都能改你的设计稿」。
+ * 所以：
+ *
+ *  1. 只绑 127.0.0.1（`serve.ts` 本来如此）
+ *  2. 每次 `serve_start` 生成一个随机令牌，`/__ud/*` 一律校验
+ *  3. 令牌在落盘时注入壳页面（和 `__resources` 同一套），别的页面拿不到
+ *  4. 写类请求额外校验 `Origin` —— 必须是本服务自己的源，或者没有 Origin（同源 fetch）
+ *
+ * 这不是「安全无虞」，是「本地工具该有的门」。判断而非定论：真要严，
+ * 得走 Unix socket 或者只让 MCP 侧写。等有人提出更强的要求再收紧。
+ */
+import { randomBytes } from "node:crypto";
+import type { IncomingMessage, ServerResponse } from "node:http";
+import { locateNode } from "./locate.js";
+import { revertTo, setProp, type SlotKind } from "./edit.js";
+import { validateDraft } from "./validate.js";
+import { changesSince, listVersions, toMarkdown } from "./history.js";
+import { draftPath, listDrafts, type Project } from "./project.js";
+import { resolveDraft } from "./locate.js";
+import { readFile } from "node:fs/promises";
+import { relative, sep } from "node:path";
+import { ToolError } from "./envelope.js";
+import { isToolPage } from "./indexpage.js";
+
+export const API_PREFIX = "/__ud/";
+export const newToken = () => randomBytes(16).toString("hex");
+
+function json(reply: ServerResponse, code: number, body: unknown): void {
+  const s = JSON.stringify(body);
+  reply.writeHead(code, {
+    "content-type": "application/json; charset=utf-8",
+    "cache-control": "no-store",
+  });
+  reply.end(s);
+}
+
+async function readBody(req: IncomingMessage): Promise<Record<string, unknown>> {
+  const chunks: Buffer[] = [];
+  let size = 0;
+  for await (const c of req) {
+    size += (c as Buffer).length;
+    if (size > 2 * 1024 * 1024) throw new Error("请求体太大");
+    chunks.push(c as Buffer);
+  }
+  if (!chunks.length) return {};
+  return JSON.parse(Buffer.concat(chunks).toString("utf8")) as Record<string, unknown>;
+}
+
+const str = (v: unknown, name: string): string => {
+  if (typeof v !== "string" || !v) throw new Error(`缺参数 ${name}`);
+  return v;
+};
+
+/** 写类操作要额外看 Origin —— 只认本服务自己的源，或者没有 Origin（同源 fetch） */
+function originOk(req: IncomingMessage, port: number): boolean {
+  const o = req.headers.origin;
+  if (!o) return true;
+  return o === `http://127.0.0.1:${port}` || o === `http://localhost:${port}`;
+}
+
+export interface ApiCtx { project: Project; token: string; port: number }
+
+/** 返回 true = 这个请求已经被 API 接手了 */
+export async function handleApi(
+  req: IncomingMessage, reply: ServerResponse, ctx: ApiCtx
+): Promise<boolean> {
+  const url = new URL(req.url ?? "/", `http://127.0.0.1:${ctx.port}`);
+  if (!url.pathname.startsWith(API_PREFIX)) return false;
+
+  const route = url.pathname.slice(API_PREFIX.length);
+  const given = req.headers["x-ud-token"] ?? url.searchParams.get("token") ?? "";
+  if (given !== ctx.token) {
+    json(reply, 403, { ok: false, errors: [{ code: "E_API_TOKEN", message: "令牌不对或没带" }] });
+    return true;
+  }
+
+  const p = ctx.project;
+  try {
+    // ── 只读 ──
+    if (route === "drafts" && req.method === "GET") {
+      const files = (await listDrafts(p))
+        .map((a) => relative(p.dir, a).split(sep).join("/"))
+        .filter((r) => !isToolPage(r));
+      json(reply, 200, { ok: true, data: { project: p.name, title: p.title, files } });
+      return true;
+    }
+
+    if (route === "validate" && req.method === "GET") {
+      const rel = await resolveDraft(p, str(url.searchParams.get("file"), "file"));
+      const src = await readFile(draftPath(p, rel), "utf8");
+      const v = validateDraft(p, rel, src, rel);
+      json(reply, 200, {
+        ok: !v.diags.some((d) => d.level === "error"),
+        data: { file: rel, diags: v.diags, stats: v.stats },
+      });
+      return true;
+    }
+
+    if (route === "locate" && req.method === "GET") {
+      const file = str(url.searchParams.get("file"), "file");
+      const node = str(url.searchParams.get("node"), "node");
+      json(reply, 200, { ok: true, data: await locateNode(p, file, node) });
+      return true;
+    }
+
+    if (route === "changes" && req.method === "GET") {
+      const rel = await resolveDraft(p, str(url.searchParams.get("file"), "file"));
+      const vs = await listVersions(p, rel);
+      if (vs.length < 2) {
+        json(reply, 200, { ok: true, data: { file: rel, versions: vs, diff: null, markdown: null,
+          note: vs.length ? "只有一版，没有可比的" : "还没有快照" } });
+        return true;
+      }
+      const since = url.searchParams.get("since") || (vs[0] as string);
+      const d = await changesSince(p, rel, since);
+      json(reply, 200, { ok: true, data: { file: rel, versions: vs, diff: d, markdown: toMarkdown(d) } });
+      return true;
+    }
+
+    // ── 可写 ──
+    if (route === "set_prop" && req.method === "POST") {
+      if (!originOk(req, ctx.port)) {
+        json(reply, 403, { ok: false, errors: [{ code: "E_API_ORIGIN", message: "Origin 不是本服务" }] });
+        return true;
+      }
+      const b = await readBody(req);
+      const r = await setProp(p,
+        str(b.file, "file"), str(b.node, "node"),
+        str(b.kind, "kind") as SlotKind, str(b.name, "name"),
+        typeof b.value === "string" ? b.value : "");
+      json(reply, 200, { ok: true, data: r });
+      return true;
+    }
+
+    if (route === "revert" && req.method === "POST") {
+      if (!originOk(req, ctx.port)) {
+        json(reply, 403, { ok: false, errors: [{ code: "E_API_ORIGIN", message: "Origin 不是本服务" }] });
+        return true;
+      }
+      const b = await readBody(req);
+      json(reply, 200, { ok: true, data: await revertTo(p, str(b.file, "file"), str(b.version, "version")) });
+      return true;
+    }
+
+    json(reply, 404, { ok: false, errors: [{ code: "E_API_ROUTE", message: `没有这个接口：${route}` }] });
+    return true;
+  } catch (e) {
+    if (e instanceof ToolError) {
+      json(reply, 400, { ok: false, errors: [e.diagnostic], data: e.data ?? null });
+      return true;
+    }
+    json(reply, 400, { ok: false, errors: [{ code: "E_API", message: (e as Error).message }] });
+    return true;
+  }
+}

@@ -211,6 +211,28 @@
         </div>
 
         <div style="flex: 1; min-height: 0; overflow: auto;">
+          <sc-if value="{{ hasSlots }}" hint-placeholder-val="{{ false }}">
+            <div style="border-bottom: 1px solid var(--tool-border); background: var(--tool-panel-2);">
+              <div style="padding: 9px 12px 6px; display: flex; align-items: baseline; gap: 8px;">
+                <span style="font-size: 11px; font-weight: 600; color: var(--tool-text-2);">选中的节点</span>
+                <span style="font-family: var(--tool-mono); font-size: 11px; color: var(--tool-muted); min-width: 0; overflow: hidden; text-overflow: ellipsis;">{{ slotHead }}</span>
+              </div>
+              <sc-for list="{{ slotRows }}" as="x" hint-placeholder-count="4">
+                <div style="padding: 5px 12px; display: grid; grid-template-columns: 14px 1fr; gap: 7px; align-items: baseline; font-size: 11.5px;">
+                  <span style="color: var(--tool-muted);">{{ x.mark }}</span>
+                  <div style="min-width: 0;">
+                    <div style="display: flex; gap: 7px; align-items: baseline;">
+                      <span style="font-family: var(--tool-mono); color: {{ x.fg }};">{{ x.label }}</span>
+                      <span style="font-family: var(--tool-mono); color: var(--tool-muted); min-width: 0; overflow: hidden; text-overflow: ellipsis;">{{ x.value }}</span>
+                    </div>
+                    <div style="color: var(--tool-muted); line-height: 1.5; margin-top: 1px;">{{ x.note }}</div>
+                  </div>
+                </div>
+              </sc-for>
+              <div style="height: 6px;"></div>
+            </div>
+          </sc-if>
+
           <sc-if value="{{ isDiag }}" hint-placeholder-val="{{ true }}">
             <div>
               <div style="display: grid; grid-template-columns: repeat(3, 1fr); border-bottom: 1px solid var(--tool-border);">
@@ -228,7 +250,7 @@
                     <svg width="20" height="20" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.6 8.4l3 3 5.8-6.4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
                   </div>
                   <div style="font-size: 15px; font-weight: 600; margin-bottom: 6px;">这份稿是干净的</div>
-                  <div style="color: var(--tool-text-2); line-height: 1.6; font-size: 12px;">143 个洞全部解析到了，4 个 dc-import 都拿到了组件，没有资源 404，控制台没有告警。可以落盘。</div>
+                  <div style="color: var(--tool-text-2); line-height: 1.6; font-size: 12px;">{{ greenBody }}</div>
                 </div>
               </sc-if>
 
@@ -436,7 +458,8 @@ class Component extends DCLogic {
      不带就还是设计评审的 9 个演示态，一份文件两种用法，不分叉。
      sel* 是点选状态；点选桥不进稿，由这个壳在 iframe 载入之后注入（§十九）。 */
   state = { demo: 1, preset: 0, zoom: 1, tab: "diag", rail: true, spin: false, sheet: true,
-            selectOn: false, picked: null, bridgeReady: false };
+            selectOn: false, picked: null, bridgeReady: false,
+            live: null, slots: null, apiErr: null };
 
   componentDidMount() {
     this.onKey = (e) => {
@@ -456,6 +479,7 @@ class Component extends DCLogic {
     this.forceUpdate();                       // ref 要下一次渲染才有
     setTimeout(() => this.syncFrame(), 0);
     if (LIVE) {
+      this.pullDraft();
       // 桥跑在被预览的稿里，由壳注入 —— 稿是设计事实，点选是工具行为，不混在一个文件里。
       // 壳和稿同源（同一个本地静态服务），所以塞得进去。
       this.injectBridge = () => {
@@ -475,8 +499,8 @@ class Component extends DCLogic {
         const m = e.data;
         if (!m || m.source !== "umbradesign") return;
         if (m.type === "ready") { this.setState({ bridgeReady: true }); this.pushMode(); return; }
-        if (m.type === "select") { this.setState({ picked: m.payload }); return; }
-        if (m.type === "clear") { this.setState({ picked: null }); return; }
+        if (m.type === "select") { this.setState({ picked: m.payload }); this.pullSlots(m.payload); return; }
+        if (m.type === "clear") { this.setState({ picked: null, slots: null }); return; }
       };
       window.addEventListener("message", this.onMsg);
       const f = this.frameRef;
@@ -488,6 +512,32 @@ class Component extends DCLogic {
   }
 
   componentDidUpdate() { this.syncFrame(); }
+
+  /* 本地 JSON API（doc/00 §二十）。令牌由 build_index 注进这一页 ——
+     诊断 / 变更 / slots 每改一次稿就变，注入解决不了，所以走接口。 */
+  api(route, params) {
+    const A = window.__UD_API;
+    if (!A) return Promise.reject(new Error("本地 API 没起来（先 serve_start 再 build_index）"));
+    const u = new URL(A.base + route, location.href);
+    for (const k of Object.keys(params || {})) u.searchParams.set(k, params[k]);
+    return fetch(u.toString(), { headers: { "x-ud-token": A.token } })
+      .then((r) => r.json())
+      .then((j) => { if (j.errors && j.errors.length) throw new Error(j.errors[0].message); return j.data; });
+  }
+
+  pullDraft() {
+    if (!LIVE) return;
+    this.api("validate", { file: LIVE })
+      .then((d) => this.setState({ live: d, apiErr: null }))
+      .catch((e) => this.setState({ apiErr: e.message }));
+  }
+
+  pullSlots(pick) {
+    if (!pick) { this.setState({ slots: null }); return; }
+    this.api("locate", { file: pick.file, node: pick.node })
+      .then((d) => this.setState({ slots: d }))
+      .catch((e) => this.setState({ slots: null, apiErr: e.message }));
+  }
 
   /** iframe 的真地址在这里设 —— 模板里写洞会先 404 一次（§19.6）。
    *  先比当前 src 再赋值，避免每次渲染都重载 iframe。 */
@@ -546,7 +596,12 @@ class Component extends DCLogic {
     const unchecked = mode === "unchecked";
     const railOpen = s.rail && !narrow;
 
-    const diags = mode === "error" ? ERR_DIAGS : mode === "warn" ? WARN_DIAGS : [];
+    /* LIVE 时诊断来自接口，不再用演示数据。拉到之前 live 是 null —— 那时显示
+       「正在读」而不是演示条目，宁可空着也不拿假数据冒充（§19.3 的教训）。 */
+    const L = s.live;
+    const diags = LIVE
+      ? (L ? L.diags : [])
+      : (mode === "error" ? ERR_DIAGS : mode === "warn" ? WARN_DIAGS : []);
     const errCount = diags.filter((d) => d.level === "error").length;
     const warnCount = diags.filter((d) => d.level === "warning").length;
 
@@ -562,7 +617,9 @@ class Component extends DCLogic {
       file: LIVE ? LIVE : (missing ? "日志.dc.html（缺失）" : "日志.dc.html"),
       kindLabel: LIVE ? "稿" : "页稿",
       version: LIVE ? "—" : "v217",
-      elementsLabel: LIVE ? "读数未接" : (unchecked ? "元素数未知" : "812 元素"),
+      elementsLabel: LIVE
+        ? (s.apiErr ? "接口读不到" : L ? L.stats.elements + " 元素" : "正在读…")
+        : (unchecked ? "元素数未知" : "812 元素"),
 
       healthLabel: h.label,
       hBg: h.bg, hBd: h.bd, hFg: h.fg,
@@ -651,12 +708,23 @@ class Component extends DCLogic {
         pick: () => this.setState({ demo: d.n, spin: false, zoom: 1, preset: d.n === 9 ? 3 : 0, rail: d.n !== 8, sheet: true })
       })),
 
-      statCells: [
-        { k: "元素", v: unchecked ? "—" : "812", fg: "var(--tool-text)" },
-        { k: "洞", v: unchecked ? "—" : "143", fg: "var(--tool-text)" },
-        { k: "import", v: unchecked ? "—" : "4", fg: "var(--tool-text)" }
-      ],
-      allGreen: mode === "ok",
+      statCells: LIVE
+        ? [
+            { k: "元素", v: L ? String(L.stats.elements) : "…", fg: "var(--tool-text)" },
+            { k: "洞", v: L ? String(L.stats.holes) : "…", fg: "var(--tool-text)" },
+            { k: "import", v: L ? String(L.stats.imports) : "…", fg: "var(--tool-text)" }
+          ]
+        : [
+            { k: "元素", v: unchecked ? "—" : "812", fg: "var(--tool-text)" },
+            { k: "洞", v: unchecked ? "—" : "143", fg: "var(--tool-text)" },
+            { k: "import", v: unchecked ? "—" : "4", fg: "var(--tool-text)" }
+          ],
+      allGreen: LIVE ? !!L && diags.length === 0 : mode === "ok",
+      /* 散文里写死数字是 §19.3 那个坑的另一种形态：上面三格是真的、
+         下面这句还写着「143 个洞、4 个 dc-import」，两者对不上。所以这句也接真数。 */
+      greenBody: LIVE
+        ? (L ? L.stats.holes + " 个洞全部解析到了，" + L.stats.imports + " 个 dc-import 全都拿到了组件，静态校验没有报错也没有提醒。" : "正在读…")
+        : "143 个洞全部解析到了，4 个 dc-import 都拿到了组件，没有资源 404，控制台没有告警。可以落盘。",
       neverChecked: unchecked,
       hasDiags: diags.length > 0,
       diags: diags.map((d) => ({
@@ -684,7 +752,9 @@ class Component extends DCLogic {
       ],
 
       iframeNote: LIVE
-        ? "预览跑在独立 iframe 里 · 点选桥由壳注入，不进稿 · ⚠️ 诊断与变更两栏还是演示数据，未接"
+        ? (s.apiErr
+            ? "预览跑在独立 iframe 里 · ⚠️ 本地 API 读不到：" + s.apiErr
+            : "预览跑在独立 iframe 里 · 点选桥由壳注入，不进稿 · 诊断来自本地 API")
         : "预览跑在独立 iframe 里 · 稿子的 :root 变量与 body 重置不会漏进壳",
       live: !!LIVE,
       frameRef: this.frameRef,
@@ -695,6 +765,15 @@ class Component extends DCLogic {
       selBg: s.selectOn ? "var(--tool-accent)" : "var(--tool-panel)",
       selBd: s.selectOn ? "var(--tool-accent)" : "var(--tool-border-strong)",
       selFg: s.selectOn ? "var(--tool-on-accent)" : "var(--tool-text-2)",
+      slotRows: (s.slots ? s.slots.slots : []).map((x) => ({
+        mark: x.editable ? "✎" : "—",
+        label: x.kind + "." + x.name,
+        value: String(x.value).slice(0, 40),
+        note: x.note,
+        fg: x.editable ? "var(--tool-text)" : "var(--tool-muted)"
+      })),
+      hasSlots: !!(s.slots && s.slots.slots.length),
+      slotHead: s.slots ? s.slots.file + " L" + s.slots.at.line + " <" + s.slots.tag + ">" : "",
       selNote: !s.bridgeReady ? "桥还没就位"
         : s.picked
           ? s.picked.file + "#" + s.picked.node + " <" + s.picked.tag + ">"

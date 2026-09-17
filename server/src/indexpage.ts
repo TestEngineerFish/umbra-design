@@ -20,6 +20,7 @@ import { parseDraft } from "./draft.js";
 import { validateDraft } from "./validate.js";
 import { ensureRuntimeBeside, prepareForDisk, writeAtomic } from "./normalize.js";
 import { listVersions } from "./history.js";
+import { serveOf } from "./serve.js";
 import { readCheck, sha256, type CheckRecord } from "./check.js";
 
 export type Health = "ok" | "warn" | "error" | "unchecked";
@@ -113,7 +114,7 @@ export async function collectIndex(p: Project): Promise<IndexData> {
 
   for (const abs of files) {
     const r = rel(p, abs);
-    if (r === "index.dc.html") continue;             // 入口页自己不进清单
+    if (isToolPage(r)) continue;                     // 工具自己的页面不进清单
     const src = await readFile(abs, "utf8");
     const d = parseDraft(src, r);
     const v = await validateDraft(p, r, src, r);
@@ -377,8 +378,28 @@ export interface BuildIndexResult {
   indexSource: string;
   /** 点选桥落在哪 —— 预览壳要注入它 */
   bridgeFile: string | null;
+  /** 部署进项目的其余壳页面 */
+  shells: string[];
+  /** 本地 API 有没有起来（没起 serve 就没有） */
+  api: boolean;
   /** 落盘前做了哪几步确定性改写（与 write_draft 同一条路） */
   steps: string[];
+}
+
+/** 工具界面：入口页之外的壳。放项目根 —— 必须和稿同源，
+ *  否则壳既注入不了点选桥、也调不了本地 API（都是同源前提）。
+ *  它们是生成物，租户 .gitignore 模板里已排除。 */
+const SHELLS = [
+  "S2-单稿预览壳.dc.html",
+  "S3-诊断面板.dc.html",
+  "S4-变更清单.dc.html",
+  "S5-设计系统浏览器.dc.html",
+];
+
+/** 这是工具自己的页面，不是设计稿 —— 索引与接口的稿件清单都要排掉它，
+ *  否则工具界面会出现在自己的稿件列表里。 */
+export function isToolPage(rel: string): boolean {
+  return rel === "index.dc.html" || SHELLS.includes(rel);
 }
 
 const DATA_OPEN = "<!-- umbradesign:index-data -->";
@@ -392,8 +413,13 @@ const DATA_CLOSE = "<!-- /umbradesign:index-data -->";
  *
  * 幂等：标记之间的内容整段替换，重复 build_index 不会越堆越长。
  */
-export function injectIndexData(src: string, data: IndexData): string {
-  const block = `${DATA_OPEN}\n<script>window.__UD_INDEX = ${JSON.stringify(data)};</script>\n${DATA_CLOSE}`;
+export function injectIndexData(src: string, data: IndexData, api?: { base: string; token: string } | null): string {
+  // API 信息和索引数据一起注入。令牌只出现在壳页面里 —— 别的页面拿不到，
+  // 这是 /__ud/* 那道门的前提（doc/00 §20.2）。
+  const apiLine = api
+    ? `window.__UD_API = ${JSON.stringify(api)};`
+    : `window.__UD_API = null;`;
+  const block = `${DATA_OPEN}\n<script>window.__UD_INDEX = ${JSON.stringify(data)};${apiLine}</script>\n${DATA_CLOSE}`;
   const i = src.indexOf(DATA_OPEN);
   if (i >= 0) {
     const j = src.indexOf(DATA_CLOSE, i);
@@ -443,7 +469,9 @@ export async function buildIndex(p: Project, serveUrl: string | null): Promise<B
   const designed = join(TOOL_ROOT, "ui", "S1-稿件索引.dc.html");
   const useDesigned = existsSync(designed);
   const source = useDesigned ? "设计侧 ui/S1-稿件索引.dc.html" : "工具内置过渡页";
-  const raw = injectIndexData(useDesigned ? await readFile(designed, "utf8") : page(data), data);
+  const serve = serveOf(p.name);
+  const api = serve ? { base: serve.url.replace(/\/$/, "") + "/__ud/", token: serve.token } : null;
+  const raw = injectIndexData(useDesigned ? await readFile(designed, "utf8") : page(data), data, api);
 
   // ⚠️ 必须走 prepareForDisk，和 write_draft 同一条路 —— 否则入口页没有
   // __resources 注入，断网直接白屏。验证时实测踩到了：直接 writeAtomic 写出来的页
@@ -454,6 +482,17 @@ export async function buildIndex(p: Project, serveUrl: string | null): Promise<B
   await writeAtomic(indexFile, prep.content);
   prep.steps.push("注入 window.__UD_INDEX 索引数据");
   const runtimeCopied = await ensureRuntimeBeside(indexFile);
+
+  // 其余壳页面：同一条落盘路，同样注入
+  const shells: string[] = [];
+  for (const name of SHELLS) {
+    const from = join(TOOL_ROOT, "ui", name);
+    if (!existsSync(from)) continue;
+    const prepS = prepareForDisk(p, injectIndexData(await readFile(from, "utf8"), data, api));
+    const to = join(p.dir, name);
+    await writeAtomic(to, prepS.content);
+    shells.push(rel(p, to));
+  }
 
   const byHealth: Record<Health, number> = { ok: 0, warn: 0, error: 0, unchecked: 0 };
   for (const d of data.drafts) byHealth[d.health]++;
@@ -469,6 +508,8 @@ export async function buildIndex(p: Project, serveUrl: string | null): Promise<B
     url: serveUrl,
     indexSource: source,
     bridgeFile,
+    shells,
+    api: !!api,
     steps: prep.steps,
   };
 }

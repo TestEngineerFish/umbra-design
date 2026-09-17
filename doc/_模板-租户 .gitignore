@@ -9,6 +9,15 @@
 #    改为只忽略 shots/ 与 cache/ —— 见 doc/07 §七的两种取法。
 .umbradesign/
 
+# 工具界面与入口页：由 build_index 生成/部署，可重算，不必进仓库
+index.dc.html
+index-data.js
+_ds-tool/
+S2-单稿预览壳.dc.html
+S3-诊断面板.dc.html
+S4-变更清单.dc.html
+S5-设计系统浏览器.dc.html
+
 # 旧宿主（Claude Design）留下的产物，不是设计事实的出处
 .image-slots.state.json
 .thumbnail

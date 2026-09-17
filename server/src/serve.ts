@@ -11,6 +11,7 @@ import { extname, normalize, resolve } from "node:path";
 import { X } from "./codes.js";
 import { err, ToolError } from "./envelope.js";
 import type { Project } from "./project.js";
+import { API_PREFIX, handleApi, newToken, type ApiCtx } from "./api.js";
 
 const MIME: Record<string, string> = {
   ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8",
@@ -21,14 +22,24 @@ const MIME: Record<string, string> = {
   ".md": "text/markdown; charset=utf-8",
 };
 
-interface Running { server: Server; port: number; dir: string; startedAt: string; hits: number }
+interface Running { server: Server; port: number; dir: string; startedAt: string; hits: number; token: string; project: Project }
 
 /** 进程级注册表：项目名 → 正在跑的服务 */
 const running = new Map<string, Running>();
 
-function makeServer(dir: string, onHit: () => void): Server {
+function makeServer(dir: string, onHit: () => void, api: () => ApiCtx | null): Server {
   return createServer((req, reply) => {
     onHit();
+    // /__ud/* 交给本地 JSON API（doc/00 §二十）。壳要的诊断 / 变更 / slots
+    // 每改一次稿就变，注入解决不了，所以走接口。
+    const ctx = api();
+    if (ctx && (req.url ?? "").startsWith(API_PREFIX)) {
+      void handleApi(req, reply, ctx).catch(() => {
+        reply.writeHead(500, { "content-type": "application/json; charset=utf-8" });
+        reply.end(JSON.stringify({ ok: false, errors: [{ code: "E_API", message: "接口内部出错" }] }));
+      });
+      return;
+    }
     let raw: string;
     try { raw = decodeURIComponent((req.url ?? "/").split("?")[0] as string); }
     catch { raw = "/"; }
@@ -56,6 +67,8 @@ export interface ServeInfo {
   startedAt: string;
   hits: number;
   indexExists: boolean;
+  /** 本地 API 的令牌 —— 壳页面靠它调 /__ud/*（doc/00 §二十） */
+  token: string;
 }
 
 function info(name: string, r: Running): ServeInfo {
@@ -67,6 +80,7 @@ function info(name: string, r: Running): ServeInfo {
     startedAt: r.startedAt,
     hits: r.hits,
     indexExists: existsSync(resolve(r.dir, "index.dc.html")),
+    token: r.token,
   };
 }
 
@@ -74,8 +88,10 @@ export async function serveStart(p: Project, wantPort?: number): Promise<ServeIn
   const cur = running.get(p.name);
   if (cur) return info(p.name, cur);
 
-  const rec: Running = { server: null as unknown as Server, port: 0, dir: p.dir, startedAt: new Date().toISOString(), hits: 0 };
-  rec.server = makeServer(p.dir, () => { rec.hits++; });
+  const rec: Running = { server: null as unknown as Server, port: 0, dir: p.dir,
+    startedAt: new Date().toISOString(), hits: 0, token: newToken(), project: p };
+  rec.server = makeServer(p.dir, () => { rec.hits++; },
+    () => (rec.port ? { project: rec.project, token: rec.token, port: rec.port } : null));
 
   await new Promise<void>((res, rej) => {
     rec.server.on("error", (e: NodeJS.ErrnoException) => {
@@ -101,6 +117,12 @@ export function serveStop(name: string): { stopped: boolean } {
   r.server.close();
   running.delete(name);
   return { stopped: true };
+}
+
+/** 这个项目当前的服务信息（没起就是 null）—— build_index 要拿令牌注入壳页面 */
+export function serveOf(name: string): ServeInfo | null {
+  const r = running.get(name);
+  return r ? info(name, r) : null;
 }
 
 export function serveStatus(): ServeInfo[] {
