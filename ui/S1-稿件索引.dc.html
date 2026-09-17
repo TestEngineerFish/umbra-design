@@ -14,6 +14,8 @@
 <body>
 <x-dc>
 <helmet>
+<!-- 工具皮肤。build_index 会把它拷成项目目录下的同一个相对路径，
+     所以 ui/ 下直接打开和当入口页用是同一个 href，不需要改写、也不会 404。 -->
 <link rel="stylesheet" href="./_ds-tool/tokens.css">
 <style>
   html, body { margin: 0; padding: 0; }
@@ -28,7 +30,7 @@
 
 <div style="min-height: 100vh; background: var(--tool-bg); color: var(--tool-text); font-family: var(--tool-sans); font-size: 13px; -webkit-font-smoothing: antialiased;" data-tool-theme="{{ theme }}">
 
-  <div style="position: sticky; top: 0; z-index: 6; background: var(--tool-panel); border-bottom: 1px solid var(--tool-border);">
+  <div ref="{{ barRef }}" style="position: sticky; top: 0; z-index: 6; background: var(--tool-panel); border-bottom: 1px solid var(--tool-border);">
     <div style="display: flex; align-items: center; gap: 14px; padding: 12px 20px;">
       <div style="display: flex; align-items: center; gap: 9px; min-width: 0;">
         <svg width="17" height="17" viewBox="0 0 16 16" fill="none" style="flex: none; color: var(--tool-accent);" aria-hidden="true">
@@ -44,6 +46,7 @@
       </div>
       <span style="flex: 1;"></span>
     </div>
+    <sc-if value="{{ showDemoBar }}" hint-placeholder-val="{{ true }}">
     <div style="display: flex; align-items: center; gap: 8px; padding: 0 20px 10px; flex-wrap: wrap; font-size: 12px;">
       <span style="font-size: 11px; color: var(--tool-muted); flex: none;">演示态</span>
       <sc-for list="{{ demoStates }}" as="st" hint-placeholder-count="9">
@@ -55,6 +58,7 @@
       <span style="color: var(--tool-border-strong); flex: none;">·</span>
       <span style="color: var(--tool-muted); min-width: 0;">{{ demoNote }}</span>
     </div>
+    </sc-if>
   </div>
 
   <sc-if value="{{ configBroken }}" hint-placeholder-val="{{ false }}">
@@ -91,7 +95,7 @@
 
   <sc-if value="{{ showBody }}" hint-placeholder-val="{{ true }}">
     <div>
-      <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 12px 20px; background: var(--tool-panel); border-bottom: 1px solid var(--tool-border); position: sticky; top: 76px; z-index: 5;">
+      <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 12px 20px; background: var(--tool-panel); border-bottom: 1px solid var(--tool-border); position: sticky; top: {{ filterTop }}; z-index: 5;">
 
         <div style="position: relative; flex: 1 1 260px; min-width: 200px; max-width: 380px;">
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style="position: absolute; left: 9px; top: 50%; transform: translateY(-50%); color: var(--tool-muted); pointer-events: none;" aria-hidden="true">
@@ -309,8 +313,19 @@
   &quot;showLimitBadge&quot;: { &quot;editor&quot;: &quot;boolean&quot;, &quot;default&quot;: true, &quot;tsType&quot;: &quot;boolean&quot;, &quot;section&quot;: &quot;索引&quot; },
   &quot;theme&quot;: { &quot;editor&quot;: &quot;enum&quot;, &quot;options&quot;: [&quot;跟随外层&quot;, &quot;dark&quot;], &quot;default&quot;: &quot;跟随外层&quot;, &quot;tsType&quot;: &quot;'dark'|null&quot;, &quot;section&quot;: &quot;工具皮肤&quot; }
 }">
-const LIMIT = 1200;
-const WARN_AT = 1020;
+/* build_index 落盘时会把真实索引数据作为一段内联脚本注入到 <head>
+   （和 __resources 同一套注入机制，见 indexpage.ts injectIndexData），
+   挂成 window.__UD_INDEX。
+   有它就是真实项目数据，没有就是下面那批演示数据 —— 同一份文件两种用法：
+   在 ui/ 下直接打开做设计评审（9 个演示态），拷进项目目录当入口页（真实数据）。
+   ⚠️ 用注入而不是 <script src>，是为了不在 ui/ 下打开时留一个 404 —— 控制台
+   必须是干净的，否则 render_check 每次都带噪声（doc/04 §二）。 */
+const LIVE = (typeof window !== "undefined" && window.__UD_INDEX) ? window.__UD_INDEX : null;
+const LIMITS = (LIVE && LIVE.project && LIVE.project.limits) ? LIVE.project.limits : null;
+
+const LIMIT = LIMITS ? LIMITS.elementsHard : 1200;      // 超这个数落盘被拒
+const WARN_AT = LIMITS ? LIMITS.elementsWarn : 1020;    // 超这个数是拆稿信号
+const NUM = (n) => String(n).replace(/\B(?=(\d{3})+$)/g, ",");
 
 const NAMES = [
   ["日志", "page", 812, "v217", "ok", 0, 2, ["默认", "空日志", "加载中", "失败", "权限不足"]],
@@ -379,13 +394,32 @@ const HEALTH = {
   unchecked: { label: "未体检", bg: "var(--tool-unchecked-soft)", bd: "var(--tool-unchecked-border)", fg: "var(--tool-unchecked)" }
 };
 
-const NOW = new Date("2026-09-17T08:52:00+08:00").getTime();
+/* 演示数据的时间戳是围着这一刻造的，所以演示态仍按它算「几分钟前」；
+   接真实数据时用当下时间。 */
+const DEMO_NOW = new Date("2026-09-17T08:52:00+08:00").getTime();
+const NOW_OF = () => (LIVE ? Date.now() : DEMO_NOW);
 
 class Component extends DCLogic {
-  state = { demo: 1, view: null, query: "", kind: "all", health: "all", sort: "updated", cursor: 0 };
+  /* barH：顶栏实测高度，给筛选条的吸顶偏移用。
+     原来写死 top: 76px —— 那是「标题行 + 演示态行」的高度。接真实数据后演示态
+     那行不出现（43px），窄窗里顶栏还会折行，写死的 76px 两种情况都会把下面的
+     卡片头盖掉。所以量出来用。 */
+  state = { demo: 1, view: null, query: "", kind: "all", health: "all", sort: "updated", cursor: 0, barH: 76 };
+
+  measure() {
+    const el = this.barRef && this.barRef.current;
+    if (!el) return;
+    const h = Math.round(el.getBoundingClientRect().height);
+    if (h && h !== this.state.barH) this.setState({ barH: h });   // 不等才 setState，不会自激
+  }
+
+  componentDidUpdate() { this.measure(); }
 
   componentDidMount() {
     this.searchRef = React.createRef();
+    this.barRef = React.createRef();
+    this.onResize = () => this.measure();
+    window.addEventListener("resize", this.onResize);
     this.onKey = (e) => {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       const t = e.target || {};
@@ -411,15 +445,24 @@ class Component extends DCLogic {
     this.forceUpdate();
   }
 
-  componentWillUnmount() { document.removeEventListener("keydown", this.onKey); }
+  componentWillUnmount() {
+    document.removeEventListener("keydown", this.onKey);
+    window.removeEventListener("resize", this.onResize);
+  }
 
-  go(r) { window.location.href = "./S2-单稿预览壳.dc.html?file=" + encodeURIComponent(r.file); }
+  go(r) {
+    // S2 还没接真实数据，所以接真实数据时先直接开那份稿本身（走静态服务）。
+    // S2 接上之后把这一支改回 S2 就行。
+    if (LIVE) { window.location.href = "./" + encodeURI(r.file); return; }
+    window.location.href = "./S2-单稿预览壳.dc.html?file=" + encodeURIComponent(r.file);
+  }
 
   clean(list) {
     return list.map((r) => r.health === "unchecked" ? r : Object.assign({}, r, { health: "ok", diagnostics: { errors: 0, warnings: 0 } }));
   }
 
   pool() {
+    if (LIVE) return (LIVE.drafts || []).slice();   // 真实数据，演示态一律不参与
     const d = this.state.demo;
     if (d === 3) return [];
     if (d === 5) return BASE.map((r) => Object.assign({}, r, { health: "unchecked", thumb: null, diagnostics: { errors: 0, warnings: 0 } }));
@@ -437,7 +480,7 @@ class Component extends DCLogic {
         out.push(Object.assign({}, b, {
           title: i < BASE.length ? b.title : b.title + " · 变体 " + Math.floor(i / BASE.length),
           file: (i < BASE.length ? b.title : b.title + " · 变体 " + Math.floor(i / BASE.length)) + ".dc.html",
-          updatedAt: new Date(NOW - i * 3.1e6).toISOString()
+          updatedAt: new Date(DEMO_NOW - i * 3.1e6).toISOString()
         }));
       }
       return out;
@@ -455,10 +498,14 @@ class Component extends DCLogic {
     if (s.sort === "elements") out.sort((a, b) => b.elements - a.elements);
     else if (s.sort === "name") out.sort((a, b) => a.title.localeCompare(b.title, "zh"));
     else out.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
-    if (s.demo === 6 || s.demo === 7) {
+    // 演示态 6/7 的意图是「有问题的排最上面」。真实数据里一旦出现 error/warn
+    // 或超限稿，同一条规则照用 —— 这不是新行为，是把演示态 6 的意图接上真数据。
+    const liveTrouble = !!LIVE && out.some((r) => r.health === "error" || r.health === "warn" || r.elements >= WARN_AT);
+    if (s.demo === 6 || s.demo === 7 || liveTrouble) {
       const rank = { error: 0, warn: 1, unchecked: 2, ok: 3 };
       const over = (r) => (r.elements >= WARN_AT ? 0 : 1);
-      out.sort((a, b) => (s.demo === 7 ? over(a) - over(b) : 0) || rank[a.health] - rank[b.health]);
+      const byOver = s.demo === 7 || liveTrouble;
+      out.sort((a, b) => (byOver ? over(a) - over(b) : 0) || rank[a.health] - rank[b.health]);
     }
     return out;
   }
@@ -471,7 +518,8 @@ class Component extends DCLogic {
   }
 
   ago(iso) {
-    const diff = NOW - new Date(iso).getTime();
+    if (!iso) return "—";
+    const diff = NOW_OF() - new Date(iso).getTime();
     const m = Math.round(diff / 6e4);
     if (m < 1) return "刚刚";
     if (m < 60) return m + " 分钟前";
@@ -515,14 +563,14 @@ class Component extends DCLogic {
         iconBg: r.kind === "component" ? "var(--tool-accent-soft)" : "var(--tool-panel-2)",
         iconFg: r.kind === "component" ? "var(--tool-accent)" : "var(--tool-muted)",
         elements: String(r.elements),
-        nodeLabel: r.health === "unchecked" ? "— 节点" : r.nodeCount + " 节点",
+        nodeLabel: r.nodeCount ? r.nodeCount + " 节点" : "— 节点",
         elemFg: hard ? "var(--tool-err)" : near ? "var(--tool-warn)" : "var(--tool-text)",
         elemFw: near ? "600" : "400",
         nearLimit: near,
         limitBg: hard ? "var(--tool-err-soft)" : "var(--tool-warn-soft)",
         limitFg: hard ? "var(--tool-err)" : "var(--tool-warn)",
-        limitTitle: hard ? r.elements + " 个元素，已超过 1,200 的上限，必须拆稿" : r.elements + " 个元素，接近 1,200 的建议上限",
-        version: r.version,
+        limitTitle: hard ? r.elements + " 个元素，已超过 " + NUM(LIMIT) + " 的上限，必须拆稿" : r.elements + " 个元素，接近 " + NUM(WARN_AT) + " 的建议上限",
+        version: r.version || "—",
         updatedLabel: this.ago(r.updatedAt),
         updatedFull: r.updatedAt,
         statesLabel: r.states.length + " 态",
@@ -542,11 +590,13 @@ class Component extends DCLogic {
 
     return {
       theme: this.props.theme === "dark" ? "dark" : null,
-      projectTitle: configBroken ? "项目未识别" : "Umbra 私人 AI 助手",
-      projectName: configBroken ? "?" : "umbra · " + pool.length + " 份稿",
-      demoLabel: demo.name,
+      projectTitle: configBroken ? "项目未识别" : (LIVE ? LIVE.project.title : "Umbra 私人 AI 助手"),
+      projectName: configBroken ? "?" : ((LIVE ? LIVE.project.name : "umbra") + " · " + pool.length + " 份稿"),
+      showDemoBar: !LIVE,
+      barRef: this.barRef,
+      filterTop: this.state.barH + "px",
       demoNote: demo.note,
-      demoStates: DEMOS.map((d) => ({
+      demoStates: LIVE ? [] : DEMOS.map((d) => ({
         n: d.n, name: d.name, short: d.short, active: d.n === s.demo,
         fw: d.n === s.demo ? "600" : "400",
         bg: d.n === s.demo ? "var(--tool-accent)" : "var(--tool-panel)",
@@ -599,7 +649,7 @@ class Component extends DCLogic {
       wallBtnFg: view === "wall" ? "var(--tool-text)" : "var(--tool-muted)",
       wallBtnSh: view === "wall" ? "var(--tool-shadow-1)" : "none",
       hasOverLimit: showLimit && over.length > 0,
-      overLimitHeadline: hardOver.length ? hardOver.length + " 份稿已超过 1,200 个元素的上限" : over.length + " 份稿接近 1,200 个元素的上限",
+      overLimitHeadline: hardOver.length ? hardOver.length + " 份稿已超过 " + NUM(LIMIT) + " 个元素的上限" : over.length + " 份稿接近 " + NUM(WARN_AT) + " 个元素的建议上限",
       overLimitDetail: hardOver.length ? "超限的稿落盘会被拒。按顶层 section 或 dc-import 边界拆开。" : "还能落盘，但已经是拆稿的信号了。",
       isEmptyProject: isEmptyProject,
       isNoResult: isNoResult,
@@ -612,7 +662,9 @@ class Component extends DCLogic {
         { n: "3", title: "配上设计系统", body: "在 project.json 里指向 tokens 与图标目录，S5 的检索就能用了。" }
       ],
       footerCount: isEmptyProject ? "0 份稿" : rows.length === pool.length ? pool.length + " 份稿" : "筛出 " + rows.length + " / " + pool.length + " 份稿",
-      footerScan: dense ? "紧凑密度 · 上次扫目录 08:52" : "上次扫目录 08:52 · 自动监听文件变更"
+      footerScan: LIVE
+        ? (dense ? "紧凑密度 · 索引生成于 " + this.ago(LIVE.project.generatedAt) : "索引生成于 " + this.ago(LIVE.project.generatedAt) + " · 改稿后重跑 build_index")
+        : (dense ? "紧凑密度 · 上次扫目录 08:52" : "上次扫目录 08:52 · 自动监听文件变更")
     };
   }
 }

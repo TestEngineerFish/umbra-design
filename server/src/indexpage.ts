@@ -2,12 +2,15 @@
  *
  * 产出三样：
  *   .umbradesign/index-data.json   数据（08 S1 的形状，原样）
- *   index-data.js                  同一份数据挂成 window.__UD_INDEX
+ *   index-data.js                  同一份数据挂成 window.__UD_INDEX，给别的页/脚本用
+ *                                  （入口页本身不读它，数据是内联注进去的，见 injectIndexData）
+ *   _ds-tool/tokens.css            工具皮肤，拷成与设计稿里 href 相同的相对路径
  *   index.dc.html                  入口页本身，用 .dc.html 写（自举）
  *
- * ⚠️ 这一版的 index.dc.html 是**工具生成的过渡页**。设计侧那份
- * `ui/S1-稿件索引.dc.html` 是正式形态，等它读 `window.__UD_INDEX` 之后
- * 就用它替掉这里生成的页 —— 数据契约已经一致，换的只是外观。
+ * index.dc.html 优先用设计侧那份 `ui/S1-稿件索引.dc.html`（它读
+ * `window.__UD_INDEX`：有真实数据就显示真实数据，没有就退回自带的 9 个演示态，
+ * 所以设计评审和线上入口是同一份文件，不会分叉）。
+ * 下面 page() 生成的过渡页只在设计稿缺失时兜底 —— 打包缺文件也还有个能用的入口。
  */
 import { copyFile, mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
@@ -38,16 +41,40 @@ export interface IndexDraft {
 }
 
 export interface IndexData {
-  project: { name: string; title: string; draftCount: number; generatedAt: string };
+  project: {
+    name: string; title: string; draftCount: number; generatedAt: string;
+    /** 阈值给页面用：S1 的「接近上限 / 已超限」文案跟着租户配置走，不写死 */
+    limits: { elementsWarn: number; elementsHard: number };
+  };
   drafts: IndexDraft[];
 }
 
 const rel = (p: Project, abs: string) => relative(p.dir, abs).split(sep).join("/");
 
+/** 页稿还是组件稿。
+ *
+ * 原来按「有没有 props」判 —— 实测在真项目上错得很明显：《Umbra PC 端》引了
+ * 115 个子组件、6,323 个元素，只因为带 props 就被标成「组件稿」。props 上挂的
+ * 其实是演示态（`kind` 枚举），跟是不是组件无关。helmet 也不行：57 份稿全都有。
+ *
+ * 改成按 import 图判，三条规则，没有魔法阈值：
+ *   1. 被别的稿引用  → 组件稿（这是结构事实，最硬）
+ *   2. 引用了别的稿  → 页稿（它是一棵组合树的顶）
+ *   3. 都没有（孤立）→ 退回看 props
+ *
+ * 已知边界：还没被任何稿引用的新组件会先显示成页稿，等它被引用就自己纠正。
+ */
+function classifyKind(row: IndexDraft, hasProps: boolean): "page" | "component" {
+  if (row.importedBy.length) return "component";
+  if (row.imports.length) return "page";
+  return hasProps ? "component" : "page";
+}
+
 export async function collectIndex(p: Project): Promise<IndexData> {
   const files = await listDrafts(p);
   const rows: IndexDraft[] = [];
   const importMap = new Map<string, string[]>();     // 被引者 → 引用它的稿
+  const hasProps = new Map<string, boolean>();       // 稿 → 有没有非 $ 前缀的 props
 
   for (const abs of files) {
     const r = rel(p, abs);
@@ -69,6 +96,8 @@ export async function collectIndex(p: Project): Promise<IndexData> {
     if (Array.isArray(kindProp?.options)) states.push(...(kindProp.options as unknown[]).map(String));
     else for (const b of d.branches) if (b.cond) states.push(b.cond);
 
+    hasProps.set(r, Object.keys(d.props ?? {}).some((k) => !k.startsWith("$")));
+
     const imports = d.imports.map((im) => im.name).filter(Boolean);
     for (const im of imports) {
       const key = basename(im);
@@ -78,7 +107,7 @@ export async function collectIndex(p: Project): Promise<IndexData> {
     rows.push({
       file: r,
       title: basename(r).replace(/\.dc\.html$/, ""),
-      kind: Object.keys(d.props ?? {}).some((k) => !k.startsWith("$")) ? "component" : "page",
+      kind: "page",                                  // 先占位，下面按 import 图定（见 classifyKind）
       elements: d.elements,
       version: versions.length ? (versions[versions.length - 1] as string) : null,
       updatedAt: (await stat(abs)).mtime.toISOString(),
@@ -95,11 +124,15 @@ export async function collectIndex(p: Project): Promise<IndexData> {
 
   for (const row of rows) {
     row.importedBy = [...new Set(importMap.get(row.title) ?? [])].filter((f) => f !== row.file);
+    row.kind = classifyKind(row, hasProps.get(row.file) === true);
   }
   rows.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 
   return {
-    project: { name: p.name, title: p.title, draftCount: rows.length, generatedAt: new Date().toISOString() },
+    project: {
+      name: p.name, title: p.title, draftCount: rows.length,
+      generatedAt: new Date().toISOString(), limits: p.limits,
+    },
     drafts: rows,
   };
 }
@@ -125,8 +158,7 @@ function page(data: IndexData): string {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="stylesheet" href="./.umbradesign/tool-tokens.css">
-<script src="./index-data.js"></script>
+<link rel="stylesheet" href="./_ds-tool/tokens.css">
 <script src="./support.js"></script>
 </head>
 <body>
@@ -192,7 +224,7 @@ function page(data: IndexData): string {
       </sc-for>
     </div>
     <div style="margin-top:10px;font-size:11px;color:${t("muted")}">
-      这一页由 build_index 生成。设计侧的正式形态是 ui/S1-稿件索引.dc.html —— 等它读 window.__UD_INDEX 就换过去。
+      这是 build_index 的兜底入口页。正常情况下用的是设计侧 ui/S1-稿件索引.dc.html —— 会走到这里说明那份稿找不到。
     </div>
   </div>
   </sc-if>
@@ -299,8 +331,35 @@ export interface BuildIndexResult {
   byHealth: Record<Health, number>;
   runtimeCopied: string[];
   url: string | null;
+  /** 入口页用的是设计稿还是内置过渡页 */
+  indexSource: string;
   /** 落盘前做了哪几步确定性改写（与 write_draft 同一条路） */
   steps: string[];
+}
+
+const DATA_OPEN = "<!-- umbradesign:index-data -->";
+const DATA_CLOSE = "<!-- /umbradesign:index-data -->";
+
+/** 把索引数据作为内联脚本注入 <head>，挂成 window.__UD_INDEX。
+ *
+ * 为什么不用 `<script src="./index-data.js">`：设计稿在 ui/ 下直接打开时那个文件
+ * 不存在，会留一个 404 和一条控制台 error。控制台必须干净，否则 render_check
+ * 每次都带噪声（doc/04 §二）。注入零额外请求，两种用法都干净。
+ *
+ * 幂等：标记之间的内容整段替换，重复 build_index 不会越堆越长。
+ */
+export function injectIndexData(src: string, data: IndexData): string {
+  const block = `${DATA_OPEN}\n<script>window.__UD_INDEX = ${JSON.stringify(data)};</script>\n${DATA_CLOSE}`;
+  const i = src.indexOf(DATA_OPEN);
+  if (i >= 0) {
+    const j = src.indexOf(DATA_CLOSE, i);
+    if (j < 0) throw new Error("index-data 注入标记只有开头没有结尾，文件被手改过");
+    return src.slice(0, i) + block + src.slice(j + DATA_CLOSE.length);
+  }
+  const head = /<head[^>]*>/i.exec(src);
+  if (!head) throw new Error("入口页没有 <head>，注入不了索引数据");
+  const at = head.index + head[0].length;
+  return src.slice(0, at) + "\n" + block + src.slice(at);
 }
 
 export async function buildIndex(p: Project, serveUrl: string | null): Promise<BuildIndexResult> {
@@ -314,22 +373,32 @@ export async function buildIndex(p: Project, serveUrl: string | null): Promise<B
   const jsFile = join(p.dir, "index-data.js");
   await writeAtomic(jsFile, `/* 由 build_index 生成，勿手改 */\nwindow.__UD_INDEX = ${JSON.stringify(data)};\n`);
 
-  // 工具皮肤 token：从 ui/_ds-tool/ 拷一份进来
+  // 工具皮肤 token：拷到**与设计稿里 href 相同的相对路径**（./_ds-tool/tokens.css）。
+  // 这样 ui/ 下直接打开和当入口页用是同一个 href —— 不改写路径，也不留 404。
   let tokensFile: string | null = null;
   const srcTokens = join(TOOL_ROOT, "ui", "_ds-tool", "tokens.css");
   if (existsSync(srcTokens)) {
-    const dst = join(udDir, "tool-tokens.css");
+    const dstDir = join(p.dir, "_ds-tool");
+    await mkdir(dstDir, { recursive: true });
+    const dst = join(dstDir, "tokens.css");
     await copyFile(srcTokens, dst);
     tokensFile = rel(p, dst);
   }
 
-  // ⚠️ 必须走 prepareForDisk，和 write_draft 同一条路 —— 否则生成的入口页没有
+  // 入口页：设计侧那份优先，缺了才用 page() 兜底
+  const designed = join(TOOL_ROOT, "ui", "S1-稿件索引.dc.html");
+  const useDesigned = existsSync(designed);
+  const source = useDesigned ? "设计侧 ui/S1-稿件索引.dc.html" : "工具内置过渡页";
+  const raw = injectIndexData(useDesigned ? await readFile(designed, "utf8") : page(data), data);
+
+  // ⚠️ 必须走 prepareForDisk，和 write_draft 同一条路 —— 否则入口页没有
   // __resources 注入，断网直接白屏。验证时实测踩到了：直接 writeAtomic 写出来的页
   // 去 unpkg 取 React，被拦之后 `[dc] failed to load React or boot`。
   // 「唯一写入口」这条规矩管的就是这个，工具自己产的文件也不例外。
   const indexFile = join(p.dir, "index.dc.html");
-  const prep = prepareForDisk(p, page(data));
+  const prep = prepareForDisk(p, raw);
   await writeAtomic(indexFile, prep.content);
+  prep.steps.push("注入 window.__UD_INDEX 索引数据");
   const runtimeCopied = await ensureRuntimeBeside(indexFile);
 
   const byHealth: Record<Health, number> = { ok: 0, warn: 0, error: 0, unchecked: 0 };
@@ -344,6 +413,7 @@ export async function buildIndex(p: Project, serveUrl: string | null): Promise<B
     byHealth,
     runtimeCopied,
     url: serveUrl,
+    indexSource: source,
     steps: prep.steps,
   };
 }

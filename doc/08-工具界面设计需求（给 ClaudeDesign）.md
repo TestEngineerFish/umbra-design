@@ -114,7 +114,9 @@ UmbraDesign 是一个**本地 MCP server**，功能与 Claude Design 基本重�
 
 ```json
 {
-  "project": { "name": "umbra", "title": "Umbra 私人 AI 助手", "draftCount": 27 },
+  "project": { "name": "umbra", "title": "Umbra 私人 AI 助手", "draftCount": 27,
+               "generatedAt": "2026-09-17T08:52:00+08:00",
+               "limits": { "elementsWarn": 1200, "elementsHard": 1500 } },
   "drafts": [
     {
       "file": "日志.dc.html",
@@ -136,9 +138,12 @@ UmbraDesign 是一个**本地 MCP server**，功能与 Claude Design 基本重�
 }
 ```
 
-- `kind`：`page`（页稿）| `component`（组件稿）—— 两者要能区分，组件稿通常是被复用的
+- `kind`：`page`（页稿）| `component`（组件稿）—— 两者要能区分，组件稿通常是被复用的。
+  判据按 import 图定：被别的稿引用 → 组件稿；引用了别的稿 → 页稿；孤立稿看有没有 props（`00` §14.7）
 - `health`：`ok` | `warn` | `error` | `unchecked`（还没跑过渲染体检）
 - `states`：这份稿里可切换的演示态清单，从模板里抽出来的
+- `limits`：租户配的元素数阈值。**页面上的「接近上限 / 已超限」文案要读这两个数，不要写死 1,200**
+- `version` / `renderMs` / `nodeCount` 可能是 `null`（没落过盘 / 没跑过体检），页面要有占位形态
 
 **要有的东西**：缩略图墙 + 列表两种视图（工具场景下列表更常用，别只给墙）；
 搜索；按 `kind` / `health` 筛；按更新时间 / 元素数排序；
