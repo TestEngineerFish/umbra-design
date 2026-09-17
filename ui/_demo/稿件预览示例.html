@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="umbra-light">
+<head>
+<meta charset="utf-8">
+<title>日志 · 稿件预览示例</title>
+<style>
+  /* 故意使用与工具壳同名风格的变量，注在 :root 上 —— 用来验证 iframe 隔离。 */
+  :root{
+    --bg:#dedbd5; --card:#f3f1ed; --text:#241f1a; --muted:#6f675e;
+    --border:#c9c4bb; --accent:#e8590c; --danger-soft:#fbe9e7;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--bg); color:var(--text);
+    font:14px/1.5 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+    padding:28px;
+  }
+</style>
+</head>
+<body>
+  <div style="max-width:880px;margin:0 auto">
+    <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:18px">
+      <h1 style="margin:0;font-size:26px;font-weight:650;letter-spacing:-.01em">日志</h1>
+      <span style="font-size:12px;color:var(--muted)">今天 · 14 条</span>
+      <span style="flex:1"></span>
+      <span style="font-size:12px;color:var(--accent);font-weight:600">全部标记已读</span>
+    </div>
+
+    <div style="display:grid;gap:8px">
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px 14px;display:grid;grid-template-columns:64px minmax(0,1fr) auto;gap:14px;align-items:center">
+        <span style="font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums">08:40</span>
+        <span>同步了 12 条日历事件</span>
+        <span style="font-size:11px;padding:2px 8px;border-radius:999px;background:#e2efe6;color:#2c6b40">成功</span>
+      </div>
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px 14px;display:grid;grid-template-columns:64px minmax(0,1fr) auto;gap:14px;align-items:center">
+        <span style="font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums">08:12</span>
+        <span>起草了一封回信草稿</span>
+        <span style="font-size:11px;padding:2px 8px;border-radius:999px;background:#e2efe6;color:#2c6b40">成功</span>
+      </div>
+      <div style="background:var(--danger-soft);border:1px solid #edc9c2;border-radius:10px;padding:12px 14px;display:grid;grid-template-columns:64px minmax(0,1fr) auto;gap:14px;align-items:center">
+        <span style="font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums">07:55</span>
+        <span>读取邮箱失败：凭据已过期</span>
+        <span style="font-size:11px;padding:2px 8px;border-radius:999px;background:#f6d9d4;color:#9c2b1e">失败</span>
+      </div>
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px 14px;display:grid;grid-template-columns:64px minmax(0,1fr) auto;gap:14px;align-items:center">
+        <span style="font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums">07:30</span>
+        <span>整理了 3 个待办</span>
+        <span style="font-size:11px;padding:2px 8px;border-radius:999px;background:#e2efe6;color:#2c6b40">成功</span>
+      </div>
+    </div>
+
+    <p style="margin:22px 0 0;font-size:12px;color:var(--muted)">
+      这是预览区里的<strong style="color:var(--text)">稿子</strong>，用的是租户（Umbra）自己的暖灰 + 橙色板与
+      <code style="font-family:ui-monospace,Menlo,monospace">:root</code> 变量。
+      它跑在独立的 iframe 里，壳的 <code style="font-family:ui-monospace,Menlo,monospace">--tool-*</code> 皮肤与它互不影响。
+    </p>
+  </div>
+</body>
+</html>

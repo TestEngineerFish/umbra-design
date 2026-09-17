@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- umbradesign:resources -->
+<script>window.__resources = {
+    "https://unpkg.com/react@18.3.1/umd/react.production.min.js": "./react.production.min.js",
+    "https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js": "./react-dom.production.min.js"
+  };</script>
+<!-- /umbradesign:resources -->
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="./_ds-tool/tokens.css">
+<style>
+  html, body { margin: 0; padding: 0; }
+  body { background: var(--tool-bg); }
+  * { box-sizing: border-box; }
+  a { color: var(--tool-accent); text-decoration: none; }
+  a:hover { color: var(--tool-accent-hover); text-decoration: underline; }
+  input, button, select { font: inherit; color: inherit; }
+  @keyframes tool-spin { to { transform: rotate(360deg); } }
+</style>
+</helmet>
+
+<div style="min-height: 100vh; background: var(--tool-bg); color: var(--tool-text); font-family: var(--tool-sans); font-size: 13px; -webkit-font-smoothing: antialiased;" data-tool-theme="{{ theme }}">
+
+  <div style="position: sticky; top: 0; z-index: 6; background: var(--tool-panel); border-bottom: 1px solid var(--tool-border);">
+    <div style="display: flex; align-items: center; gap: 14px; padding: 12px 20px;">
+      <div style="display: flex; align-items: center; gap: 9px; min-width: 0;">
+        <svg width="17" height="17" viewBox="0 0 16 16" fill="none" style="flex: none; color: var(--tool-accent);" aria-hidden="true">
+          <rect x="1.5" y="1.5" width="13" height="13" rx="3.2" stroke="currentColor" stroke-width="1.4"></rect>
+          <path d="M5 8.2h6M5 5.4h6M5 11h3.2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"></path>
+        </svg>
+        <span style="font-weight: 620; letter-spacing: -0.01em;">UmbraDesign</span>
+      </div>
+      <div style="width: 1px; height: 18px; background: var(--tool-border); flex: none;"></div>
+      <div style="display: flex; align-items: baseline; gap: 8px; min-width: 0; overflow: hidden;">
+        <span style="font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ projectTitle }}</span>
+        <span style="font-family: var(--tool-mono); font-size: 11px; color: var(--tool-muted); white-space: nowrap;">{{ projectName }}</span>
+      </div>
+      <span style="flex: 1;"></span>
+      <div style="display: flex; align-items: center; gap: 6px; flex: none;">
+        <span style="font-size: 11px; color: var(--tool-muted); margin-right: 2px;">演示态</span>
+        <sc-for list="{{ demoStates }}" as="st" hint-placeholder-count="9">
+          <button type="button" onClick="{{ st.pick }}" title="{{ st.name }}" aria-pressed="{{ st.active }}" style="width: 22px; height: 22px; display: grid; place-items: center; border-radius: var(--tool-radius-sm); border: 1px solid; cursor: pointer; font-family: var(--tool-mono); font-size: 11px; transition: background .13s ease, border-color .13s ease, color .13s ease; background: {{ st.bg }}; border-color: {{ st.bd }}; color: {{ st.fg }};" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">{{ st.n }}</button>
+        </sc-for>
+      </div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 8px; padding: 0 20px 10px; font-size: 12px; color: var(--tool-text-2);">
+      <span style="color: var(--tool-muted);">当前演示态</span>
+      <span style="font-weight: 600; color: var(--tool-text);">{{ demoLabel }}</span>
+      <span style="color: var(--tool-border-strong);">·</span>
+      <span style="color: var(--tool-muted);">{{ demoNote }}</span>
+    </div>
+  </div>
+
+  <sc-if value="{{ configBroken }}" hint-placeholder-val="{{ false }}">
+    <div style="padding: 20px;">
+      <div style="max-width: 720px; background: var(--tool-panel); border: 1px solid var(--tool-err-border); border-radius: var(--tool-radius-lg); box-shadow: var(--tool-shadow-1); overflow: hidden;">
+        <div style="display: flex; gap: 12px; padding: 18px 20px; background: var(--tool-err-soft); border-bottom: 1px solid var(--tool-err-border);">
+          <svg width="18" height="18" viewBox="0 0 16 16" fill="none" style="flex: none; margin-top: 1px; color: var(--tool-err);" aria-hidden="true">
+            <circle cx="8" cy="8" r="6.6" stroke="currentColor" stroke-width="1.4"></circle>
+            <path d="M8 4.6v4.1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path>
+            <circle cx="8" cy="11.2" r="0.85" fill="currentColor"></circle>
+          </svg>
+          <div style="min-width: 0;">
+            <div style="font-size: 15px; font-weight: 620; color: var(--tool-err); margin-bottom: 4px;">读不到项目配置，索引没法建</div>
+            <div style="color: var(--tool-text-2); line-height: 1.55;">{{ configMessage }}</div>
+          </div>
+        </div>
+        <div style="padding: 16px 20px; display: grid; gap: 12px;">
+          <div>
+            <div style="font-size: 11px; font-weight: 600; letter-spacing: 0.04em; color: var(--tool-muted); margin-bottom: 6px;">位置</div>
+            <div style="font-family: var(--tool-mono); font-size: 12px; background: var(--tool-panel-2); border: 1px solid var(--tool-border); border-radius: var(--tool-radius); padding: 8px 10px; word-break: break-all;">{{ configPath }}</div>
+          </div>
+          <div>
+            <div style="font-size: 11px; font-weight: 600; letter-spacing: 0.04em; color: var(--tool-muted); margin-bottom: 6px;">改法</div>
+            <div style="color: var(--tool-text-2); line-height: 1.6;">{{ configFix }}</div>
+          </div>
+          <div style="display: flex; gap: 8px; padding-top: 2px;">
+            <button type="button" onClick="{{ onRetry }}" style="padding: 7px 13px; border-radius: var(--tool-radius); border: 1px solid var(--tool-accent); background: var(--tool-accent); color: var(--tool-on-accent); font-weight: 560; cursor: pointer; transition: background .13s ease;" style-hover="background: var(--tool-accent-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">重新读取</button>
+            <button type="button" style="padding: 7px 13px; border-radius: var(--tool-radius); border: 1px solid var(--tool-border-strong); background: var(--tool-panel); color: var(--tool-text); cursor: pointer; transition: background .13s ease, border-color .13s ease;" style-hover="background: var(--tool-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">生成一份默认配置</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ showBody }}" hint-placeholder-val="{{ true }}">
+    <div>
+      <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 12px 20px; background: var(--tool-panel); border-bottom: 1px solid var(--tool-border); position: sticky; top: 76px; z-index: 5;">
+
+        <div style="position: relative; flex: 1 1 260px; min-width: 200px; max-width: 380px;">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style="position: absolute; left: 9px; top: 50%; transform: translateY(-50%); color: var(--tool-muted); pointer-events: none;" aria-hidden="true">
+            <circle cx="7" cy="7" r="4.6" stroke="currentColor" stroke-width="1.4"></circle>
+            <path d="M10.6 10.6L14 14" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"></path>
+          </svg>
+          <input type="text" ref="{{ searchRef }}" value="{{ query }}" onChange="{{ onQuery }}" placeholder="搜稿名、文件名、演示态…" aria-label="搜索稿件" style="width: 100%; height: 32px; padding: 0 44px 0 29px; border-radius: var(--tool-radius); border: 1px solid var(--tool-border-strong); background: var(--tool-panel); color: var(--tool-text); outline: none; transition: border-color .13s ease, box-shadow .13s ease;" style-focus="border-color: var(--tool-accent); box-shadow: 0 0 0 3px var(--tool-accent-soft);">
+          <kbd style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); font-family: var(--tool-mono); font-size: 11px; color: var(--tool-muted); background: var(--tool-panel-2); border: 1px solid var(--tool-border); border-radius: var(--tool-radius-sm); padding: 1px 5px; pointer-events: none;">/</kbd>
+        </div>
+
+        <div style="display: flex; padding: 2px; gap: 2px; background: var(--tool-panel-2); border: 1px solid var(--tool-border); border-radius: var(--tool-radius); flex: none;">
+          <sc-for list="{{ kindTabs }}" as="k" hint-placeholder-count="3">
+            <button type="button" onClick="{{ k.pick }}" aria-pressed="{{ k.active }}" style="padding: 4px 11px; border: 0; border-radius: var(--tool-radius-sm); cursor: pointer; font-size: 12px; transition: background .13s ease, color .13s ease; background: {{ k.bg }}; color: {{ k.fg }}; font-weight: {{ k.fw }}; box-shadow: {{ k.sh }};" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">{{ k.label }}</button>
+          </sc-for>
+        </div>
+
+        <div style="display: flex; gap: 6px; flex: none; flex-wrap: wrap;">
+          <sc-for list="{{ healthChips }}" as="h" hint-placeholder-count="4">
+            <button type="button" onClick="{{ h.pick }}" aria-pressed="{{ h.active }}" style="display: flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: 999px; cursor: pointer; font-size: 12px; border: 1px solid; transition: background .13s ease, border-color .13s ease, color .13s ease; background: {{ h.bg }}; border-color: {{ h.bd }}; color: {{ h.fg }};" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">
+              <span style="width: 6px; height: 6px; border-radius: 999px; flex: none; background: {{ h.dot }};"></span>
+              <span>{{ h.label }}</span>
+              <span style="font-family: var(--tool-mono); font-size: 11px; opacity: 0.65;">{{ h.count }}</span>
+            </button>
+          </sc-for>
+        </div>
+
+        <span style="flex: 1;"></span>
+
+        <select value="{{ sort }}" onChange="{{ onSort }}" aria-label="排序" style="height: 30px; padding: 0 8px; border-radius: var(--tool-radius); border: 1px solid var(--tool-border-strong); background: var(--tool-panel); cursor: pointer; font-size: 12px; outline: none; transition: border-color .13s ease;" style-focus="border-color: var(--tool-accent); box-shadow: 0 0 0 3px var(--tool-accent-soft);">
+          <option value="updated">按更新时间</option>
+          <option value="elements">按元素数</option>
+          <option value="name">按稿名</option>
+        </select>
+
+        <div style="display: flex; padding: 2px; gap: 2px; background: var(--tool-panel-2); border: 1px solid var(--tool-border); border-radius: var(--tool-radius); flex: none;">
+          <button type="button" onClick="{{ setList }}" aria-pressed="{{ isList }}" title="列表视图" style="width: 30px; height: 24px; display: grid; place-items: center; border: 0; border-radius: var(--tool-radius-sm); cursor: pointer; transition: background .13s ease, color .13s ease; background: {{ listBtnBg }}; color: {{ listBtnFg }}; box-shadow: {{ listBtnSh }};" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2.5 4h11M2.5 8h11M2.5 12h11" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"></path></svg>
+          </button>
+          <button type="button" onClick="{{ setWall }}" aria-pressed="{{ isWall }}" title="缩略图墙" style="width: 30px; height: 24px; display: grid; place-items: center; border: 0; border-radius: var(--tool-radius-sm); cursor: pointer; transition: background .13s ease, color .13s ease; background: {{ wallBtnBg }}; color: {{ wallBtnFg }}; box-shadow: {{ wallBtnSh }};" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="2" y="2" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.3"></rect><rect x="9" y="2" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.3"></rect><rect x="2" y="9" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.3"></rect><rect x="9" y="9" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.3"></rect></svg>
+          </button>
+        </div>
+      </div>
+
+      <sc-if value="{{ hasOverLimit }}" hint-placeholder-val="{{ false }}">
+        <div style="display: flex; align-items: center; gap: 10px; margin: 14px 20px 0; padding: 10px 14px; background: var(--tool-warn-soft); border: 1px solid var(--tool-warn-border); border-radius: var(--tool-radius); color: var(--tool-warn);">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="flex: none;" aria-hidden="true">
+            <path d="M8 2.2l6 11.2H2z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"></path>
+            <path d="M8 6.4v3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"></path>
+            <circle cx="8" cy="11.4" r="0.8" fill="currentColor"></circle>
+          </svg>
+          <span style="font-weight: 560;">{{ overLimitHeadline }}</span>
+          <span style="color: var(--tool-text-2);">{{ overLimitDetail }}</span>
+          <span style="flex: 1;"></span>
+          <a href="#" style="font-size: 12px; font-weight: 560;">看拆分建议</a>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isEmptyProject }}" hint-placeholder-val="{{ false }}">
+        <div style="padding: 64px 20px; display: grid; place-items: center;">
+          <div style="max-width: 560px; text-align: center;">
+            <svg width="52" height="52" viewBox="0 0 48 48" fill="none" style="color: var(--tool-border-strong); margin-bottom: 18px;" aria-hidden="true">
+              <rect x="6.5" y="9.5" width="35" height="29" rx="4" stroke="currentColor" stroke-width="1.6" stroke-dasharray="4 3"></rect>
+              <path d="M17 24h14M24 17v14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path>
+            </svg>
+            <div style="font-size: 22px; font-weight: 620; letter-spacing: -0.01em; margin-bottom: 8px;">这个项目还没有稿</div>
+            <div style="color: var(--tool-text-2); line-height: 1.65; margin-bottom: 22px;">索引是扫目录扫出来的。往项目里放第一份 <span style="font-family: var(--tool-mono); font-size: 12px;">.dc.html</span>，或者让模型写一份，这一屏就会自己长出来。</div>
+            <div style="display: grid; gap: 8px; text-align: left; background: var(--tool-panel); border: 1px solid var(--tool-border); border-radius: var(--tool-radius-lg); padding: 16px 18px; box-shadow: var(--tool-shadow-1);">
+              <sc-for list="{{ emptySteps }}" as="s" hint-placeholder-count="3">
+                <div style="display: flex; gap: 11px; align-items: flex-start; padding: 7px 0;">
+                  <span style="width: 20px; height: 20px; flex: none; display: grid; place-items: center; border-radius: 999px; background: var(--tool-accent-soft); border: 1px solid var(--tool-accent-border); color: var(--tool-accent); font-family: var(--tool-mono); font-size: 11px; font-weight: 600;">{{ s.n }}</span>
+                  <div style="min-width: 0;">
+                    <div style="font-weight: 560; margin-bottom: 2px;">{{ s.title }}</div>
+                    <div style="color: var(--tool-muted); line-height: 1.55;">{{ s.body }}</div>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isNoResult }}" hint-placeholder-val="{{ false }}">
+        <div style="padding: 72px 20px; display: grid; place-items: center;">
+          <div style="max-width: 460px; text-align: center;">
+            <div style="font-size: 17px; font-weight: 600; margin-bottom: 7px;">没有稿匹配 “{{ query }}”</div>
+            <div style="color: var(--tool-text-2); line-height: 1.6; margin-bottom: 18px;">搜索会同时看稿名、文件名和演示态名。也可能是筛选条件太紧了。</div>
+            <div style="display: flex; gap: 8px; justify-content: center;">
+              <button type="button" onClick="{{ onClear }}" style="padding: 7px 13px; border-radius: var(--tool-radius); border: 1px solid var(--tool-border-strong); background: var(--tool-panel); cursor: pointer; transition: background .13s ease;" style-hover="background: var(--tool-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">清空搜索</button>
+              <button type="button" onClick="{{ onResetFilters }}" style="padding: 7px 13px; border-radius: var(--tool-radius); border: 1px solid var(--tool-border-strong); background: var(--tool-panel); cursor: pointer; transition: background .13s ease;" style-hover="background: var(--tool-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">重置筛选</button>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ showList }}" hint-placeholder-val="{{ true }}">
+        <div style="padding: 14px 20px 0;">
+          <div style="background: var(--tool-panel); border: 1px solid var(--tool-border); border-radius: var(--tool-radius-lg); overflow: hidden; box-shadow: var(--tool-shadow-1);">
+            <div style="display: grid; grid-template-columns: minmax(0, 1fr) 76px 108px 62px 104px 134px; gap: 12px; align-items: center; padding: 8px 14px; background: var(--tool-panel-2); border-bottom: 1px solid var(--tool-border); font-size: 11px; font-weight: 600; letter-spacing: 0.03em; color: var(--tool-muted);">
+              <span>稿件</span>
+              <span>类型</span>
+              <span style="text-align: right;">元素 / 节点</span>
+              <span>版本</span>
+              <span>更新</span>
+              <span>健康</span>
+            </div>
+            <sc-for list="{{ rows }}" as="r" hint-placeholder-count="8">
+              <div onClick="{{ r.open }}" onMouseEnter="{{ r.hover }}" role="button" tabindex="0" aria-label="{{ r.aria }}" style="display: grid; grid-template-columns: minmax(0, 1fr) 76px 108px 62px 104px 134px; gap: 12px; align-items: center; padding: 9px 14px; border-bottom: 1px solid var(--tool-border); cursor: pointer; transition: background .13s ease; background: {{ r.bg }}; box-shadow: {{ r.sel }};" style-hover="background: var(--tool-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: -2px;">
+                <div style="min-width: 0; display: flex; align-items: center; gap: 9px;">
+                  <span style="width: 22px; height: 22px; flex: none; display: grid; place-items: center; border-radius: var(--tool-radius-sm); background: {{ r.iconBg }}; color: {{ r.iconFg }};">
+                    <sc-if value="{{ r.isComponent }}" hint-placeholder-val="{{ false }}">
+                      <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 1.8l5.2 3v6.4L8 14.2 2.8 11.2V4.8z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"></path></svg>
+                    </sc-if>
+                    <sc-if value="{{ r.isPage }}" hint-placeholder-val="{{ true }}">
+                      <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="2.6" y="2" width="10.8" height="12" rx="1.6" stroke="currentColor" stroke-width="1.3"></rect><path d="M5 5.6h6M5 8.2h6M5 10.8h3.4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"></path></svg>
+                    </sc-if>
+                  </span>
+                  <div style="min-width: 0;">
+                    <div style="display: flex; align-items: baseline; gap: 7px; min-width: 0;">
+                      <span style="font-weight: 560; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="{{ r.title }}">{{ r.title }}</span>
+                      <span style="flex: none; font-size: 11px; color: var(--tool-muted); font-family: var(--tool-mono);">{{ r.statesLabel }}</span>
+                    </div>
+                    <div style="font-family: var(--tool-mono); font-size: 11px; color: var(--tool-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="{{ r.file }}">{{ r.file }}</div>
+                  </div>
+                </div>
+                <div>
+                  <span style="display: inline-block; padding: 1px 7px; border-radius: var(--tool-radius-sm); font-size: 11px; border: 1px solid var(--tool-border); background: var(--tool-panel-2); color: var(--tool-text-2);">{{ r.kindLabel }}</span>
+                </div>
+                <div style="text-align: right; font-family: var(--tool-mono); font-size: 12px; font-variant-numeric: tabular-nums;">
+                  <div style="display: flex; align-items: center; justify-content: flex-end; gap: 5px;">
+                    <sc-if value="{{ r.nearLimit }}" hint-placeholder-val="{{ false }}">
+                      <span title="{{ r.limitTitle }}" style="display: inline-grid; place-items: center; width: 15px; height: 15px; border-radius: 999px; background: {{ r.limitBg }}; color: {{ r.limitFg }}; font-size: 10px; font-weight: 700;">!</span>
+                    </sc-if>
+                    <span style="color: {{ r.elemFg }}; font-weight: {{ r.elemFw }};">{{ r.elements }}</span>
+                  </div>
+                  <div style="color: var(--tool-muted); font-size: 11px;">{{ r.nodeLabel }}</div>
+                </div>
+                <div style="font-family: var(--tool-mono); font-size: 12px; color: var(--tool-text-2);">{{ r.version }}</div>
+                <div style="font-size: 12px; color: var(--tool-text-2); white-space: nowrap;" title="{{ r.updatedFull }}">{{ r.updatedLabel }}</div>
+                <div style="display: flex; align-items: center; gap: 6px; min-width: 0;">
+                  <span style="display: inline-flex; align-items: center; gap: 5px; height: 21px; padding: 0 8px; border-radius: 999px; font-size: 11px; font-weight: 560; white-space: nowrap; border: 1px solid; background: {{ r.hBg }}; border-color: {{ r.hBd }}; color: {{ r.hFg }};">
+                    <span style="width: 5px; height: 5px; border-radius: 999px; background: currentColor; flex: none;"></span>
+                    {{ r.healthLabel }}
+                  </span>
+                  <span style="font-family: var(--tool-mono); font-size: 11px; color: var(--tool-muted); white-space: nowrap;">{{ r.diagLabel }}</span>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ showWall }}" hint-placeholder-val="{{ false }}">
+        <div style="padding: 14px 20px 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(232px, 1fr)); gap: 14px;">
+          <sc-for list="{{ rows }}" as="r" hint-placeholder-count="6">
+            <div onClick="{{ r.open }}" role="button" tabindex="0" aria-label="{{ r.aria }}" style="background: var(--tool-panel); border: 1px solid var(--tool-border); border-radius: var(--tool-radius-lg); overflow: hidden; cursor: pointer; box-shadow: var(--tool-shadow-1); transition: border-color .13s ease, box-shadow .13s ease; border-color: {{ r.cardBd }};" style-hover="border-color: var(--tool-border-strong); box-shadow: var(--tool-shadow-2);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">
+              <div style="aspect-ratio: 16 / 10; background: var(--tool-panel-2); border-bottom: 1px solid var(--tool-border); display: grid; place-items: center; position: relative; overflow: hidden;">
+                <sc-if value="{{ r.hasThumb }}" hint-placeholder-val="{{ true }}">
+                  <div style="position: absolute; inset: 0; display: grid; place-items: center; gap: 6px; background: repeating-linear-gradient(135deg, var(--tool-panel-2) 0 9px, var(--tool-panel-3) 9px 18px);">
+                    <div style="text-align: center; padding: 10px;">
+                      <div style="font-family: var(--tool-mono); font-size: 10px; color: var(--tool-muted); background: var(--tool-panel); border: 1px solid var(--tool-border); border-radius: var(--tool-radius-sm); padding: 3px 7px; display: inline-block; max-width: 190px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ r.thumbLabel }}</div>
+                    </div>
+                  </div>
+                </sc-if>
+                <sc-if value="{{ r.noThumb }}" hint-placeholder-val="{{ false }}">
+                  <div style="position: absolute; inset: 8px; border: 1px dashed var(--tool-border-strong); border-radius: var(--tool-radius); display: grid; place-items: center; text-align: center; padding: 10px;">
+                    <div>
+                      <svg width="20" height="20" viewBox="0 0 16 16" fill="none" style="color: var(--tool-muted); margin-bottom: 6px;" aria-hidden="true">
+                        <circle cx="8" cy="8" r="6.4" stroke="currentColor" stroke-width="1.3" stroke-dasharray="3 2.6"></circle>
+                      </svg>
+                      <div style="font-size: 11px; color: var(--tool-muted); line-height: 1.5;">缩略图还没生成<br>跑一次渲染体检就有了</div>
+                    </div>
+                  </div>
+                </sc-if>
+                <span style="position: absolute; top: 8px; right: 8px; display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 7px; border-radius: 999px; font-size: 11px; font-weight: 560; border: 1px solid; background: {{ r.hBg }}; border-color: {{ r.hBd }}; color: {{ r.hFg }};">
+                  <span style="width: 5px; height: 5px; border-radius: 999px; background: currentColor;"></span>{{ r.healthLabel }}
+                </span>
+              </div>
+              <div style="padding: 10px 12px;">
+                <div style="display: flex; align-items: baseline; gap: 7px; min-width: 0; margin-bottom: 3px;">
+                  <span style="font-weight: 560; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="{{ r.title }}">{{ r.title }}</span>
+                  <span style="flex: none; font-size: 11px; color: var(--tool-muted); padding: 0 6px; border-radius: var(--tool-radius-sm); background: var(--tool-panel-2); border: 1px solid var(--tool-border);">{{ r.kindLabel }}</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px; font-family: var(--tool-mono); font-size: 11px; color: var(--tool-muted); min-width: 0;">
+                  <span>{{ r.version }}</span>
+                  <span style="color: var(--tool-border-strong);">·</span>
+                  <span style="color: {{ r.elemFg }};">{{ r.elements }} 元素</span>
+                  <span style="flex: 1;"></span>
+                  <span>{{ r.updatedLabel }}</span>
+                </div>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </sc-if>
+
+      <div style="display: flex; align-items: center; gap: 12px; padding: 14px 20px 24px; font-size: 12px; color: var(--tool-muted); flex-wrap: wrap;">
+        <span>{{ footerCount }}</span>
+        <span style="color: var(--tool-border-strong);">·</span>
+        <span>{{ footerScan }}</span>
+        <span style="flex: 1;"></span>
+        <span style="display: flex; align-items: center; gap: 5px;"><kbd style="font-family: var(--tool-mono); background: var(--tool-panel-2); border: 1px solid var(--tool-border); border-radius: var(--tool-radius-sm); padding: 1px 5px;">↑↓</kbd> 移动</span>
+        <span style="display: flex; align-items: center; gap: 5px;"><kbd style="font-family: var(--tool-mono); background: var(--tool-panel-2); border: 1px solid var(--tool-border); border-radius: var(--tool-radius-sm); padding: 1px 5px;">Enter</kbd> 打开</span>
+        <span style="display: flex; align-items: center; gap: 5px;"><kbd style="font-family: var(--tool-mono); background: var(--tool-panel-2); border: 1px solid var(--tool-border); border-radius: var(--tool-radius-sm); padding: 1px 5px;">/</kbd> 搜索</span>
+        <span style="display: flex; align-items: center; gap: 5px;"><kbd style="font-family: var(--tool-mono); background: var(--tool-panel-2); border: 1px solid var(--tool-border); border-radius: var(--tool-radius-sm); padding: 1px 5px;">Esc</kbd> 清空</span>
+      </div>
+    </div>
+  </sc-if>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{
+  &quot;defaultView&quot;: { &quot;editor&quot;: &quot;enum&quot;, &quot;options&quot;: [&quot;list&quot;, &quot;wall&quot;], &quot;default&quot;: &quot;list&quot;, &quot;tsType&quot;: &quot;'list'|'wall'&quot;, &quot;section&quot;: &quot;索引&quot; },
+  &quot;density&quot;: { &quot;editor&quot;: &quot;enum&quot;, &quot;options&quot;: [&quot;comfortable&quot;, &quot;compact&quot;], &quot;default&quot;: &quot;comfortable&quot;, &quot;tsType&quot;: &quot;'comfortable'|'compact'&quot;, &quot;section&quot;: &quot;索引&quot; },
+  &quot;showLimitBadge&quot;: { &quot;editor&quot;: &quot;boolean&quot;, &quot;default&quot;: true, &quot;tsType&quot;: &quot;boolean&quot;, &quot;section&quot;: &quot;索引&quot; },
+  &quot;theme&quot;: { &quot;editor&quot;: &quot;enum&quot;, &quot;options&quot;: [&quot;light&quot;, &quot;dark&quot;], &quot;default&quot;: &quot;light&quot;, &quot;tsType&quot;: &quot;'light'|'dark'&quot;, &quot;section&quot;: &quot;工具皮肤&quot; }
+}">
+const LIMIT = 1200;
+const WARN_AT = 1020;
+
+const NAMES = [
+  ["日志", "page", 812, "v217", "ok", 0, 2, ["默认", "空日志", "加载中", "失败", "权限不足"]],
+  ["Umbra PC 端 · 主窗口 与 侧边导航", "page", 936, "v88", "warn", 0, 3, ["默认", "折叠侧栏", "离线"]],
+  ["会话 时间线 与 消息气泡", "page", 964, "v142", "ok", 0, 0, ["默认", "长文", "引用", "流式生成中"]],
+  ["窗口骨架", "component", 186, "v41", "ok", 0, 0, ["PC", "笔记本", "窄窗"]],
+  ["PC 空态", "component", 94, "v23", "ok", 0, 1, ["empty", "error", "offline"]],
+  ["设置 · 账号与凭据", "page", 731, "v66", "error", 2, 4, ["默认", "凭据过期", "未登录"]],
+  ["待办 列表 与 快速新建", "page", 688, "v101", "ok", 0, 0, ["默认", "空", "筛选中"]],
+  ["日历 周视图", "page", 974, "v57", "warn", 0, 6, ["默认", "跨天事件", "无事件"]],
+  ["行内二次确认条", "component", 62, "v12", "ok", 0, 0, ["待确认", "确认中"]],
+  ["邮件 收件箱", "page", 903, "v74", "unchecked", 0, 0, ["默认", "空", "加载中"]],
+  ["邮件 阅读 与 回信草稿", "page", 856, "v71", "ok", 0, 1, ["默认", "草稿中", "发送失败"]],
+  ["通知中心 抽屉", "page", 412, "v35", "ok", 0, 0, ["默认", "空", "全部已读"]],
+  ["健康徽章", "component", 38, "v9", "ok", 0, 0, ["ok", "warn", "error", "unchecked"]],
+  ["搜索 全局跳转面板", "page", 344, "v28", "unchecked", 0, 0, ["默认", "无结果", "最近"]],
+  ["文件 拖放上传区", "component", 128, "v19", "warn", 0, 2, ["空闲", "拖入中", "上传中", "失败"]],
+  ["移动端 · 会话列表", "page", 597, "v53", "ok", 0, 0, ["默认", "空", "未读"]],
+  ["移动端 · 单条会话", "page", 642, "v49", "error", 1, 1, ["默认", "键盘展开", "断网"]],
+  ["引导 首次启动 三步", "page", 486, "v31", "ok", 0, 0, ["第一步", "第二步", "第三步", "完成"]],
+  ["表单控件 全家桶", "component", 274, "v22", "ok", 0, 1, ["默认", "禁用", "报错"]],
+  ["数据卡片 与 迷你图", "component", 211, "v17", "ok", 0, 0, ["默认", "无数据", "加载中"]],
+  ["权限 申请 与 拒绝态", "page", 398, "v26", "ok", 0, 0, ["申请中", "已授权", "被拒绝"]],
+  ["快捷键 速查表", "page", 512, "v14", "unchecked", 0, 0, ["默认"]]
+];
+
+function mk(row, i) {
+  const [title, kind, elements, version, health, errors, warnings, states] = row;
+  const t = new Date(Date.UTC(2026, 8, 17, 0, 40, 12) - i * 5.4e6);
+  return {
+    file: title + ".dc.html",
+    title: title,
+    kind: kind,
+    elements: elements,
+    version: version,
+    updatedAt: t.toISOString(),
+    thumb: ".umbradesign/shots/" + title + "@1440x900.png",
+    health: health,
+    diagnostics: { errors: errors, warnings: warnings },
+    renderMs: 620 + ((i * 317) % 2400),
+    nodeCount: Math.round(elements * (2.4 + ((i % 7) * 0.12))),
+    states: states,
+    importedBy: kind === "component" ? ["Umbra PC 端 · 主窗口 与 侧边导航.dc.html"] : [],
+    imports: kind === "page" ? ["../Components/窗口骨架", "PC 空态"] : []
+  };
+}
+
+const BASE = NAMES.map(mk);
+
+const DEMOS = [
+  { n: 1, name: "正常 · 列表", note: "22 份稿全部通过体检，按更新时间排" },
+  { n: 2, name: "正常 · 缩略图墙", note: "同一批稿的墙视图" },
+  { n: 3, name: "空项目", note: "一份稿都没有，给引导" },
+  { n: 4, name: "搜索无结果", note: "查询串命中零条" },
+  { n: 5, name: "缩略图未生成", note: "全部 unchecked，占位" },
+  { n: 6, name: "有 error / warning", note: "2 份报错 3 份有提醒，排到最上面" },
+  { n: 7, name: "元素数超限", note: "1 份已超 1,200，1 份逼近，排到最上面" },
+  { n: 8, name: "项目配置读不到", note: "project.json 缺失或不合法" },
+  { n: 9, name: "稿很多（112 份）", note: "高密度下的可读性" }
+];
+
+const HEALTH = {
+  ok: { label: "通过", bg: "var(--tool-ok-soft)", bd: "var(--tool-ok-border)", fg: "var(--tool-ok)" },
+  warn: { label: "有提醒", bg: "var(--tool-warn-soft)", bd: "var(--tool-warn-border)", fg: "var(--tool-warn)" },
+  error: { label: "有错误", bg: "var(--tool-err-soft)", bd: "var(--tool-err-border)", fg: "var(--tool-err)" },
+  unchecked: { label: "未体检", bg: "var(--tool-unchecked-soft)", bd: "var(--tool-unchecked-border)", fg: "var(--tool-unchecked)" }
+};
+
+const NOW = new Date("2026-09-17T08:52:00+08:00").getTime();
+
+class Component extends DCLogic {
+  state = { demo: 1, view: null, query: "", kind: "all", health: "all", sort: "updated", cursor: 0 };
+
+  componentDidMount() {
+    this.searchRef = React.createRef();
+    this.onKey = (e) => {
+      const tag = (e.target && e.target.tagName) || "";
+      const typing = tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA";
+      if (e.key === "/" && !typing) {
+        e.preventDefault();
+        if (this.searchRef.current) this.searchRef.current.focus();
+        return;
+      }
+      if (e.key === "Escape") {
+        this.setState({ query: "" });
+        if (this.searchRef.current) this.searchRef.current.blur();
+        return;
+      }
+      if (typing) return;
+      const n = this.visible().length;
+      if (e.key === "ArrowDown") { e.preventDefault(); this.setState((s) => ({ cursor: Math.min(n - 1, s.cursor + 1) })); }
+      if (e.key === "ArrowUp") { e.preventDefault(); this.setState((s) => ({ cursor: Math.max(0, s.cursor - 1) })); }
+      if (e.key === "Enter") { const r = this.visible()[this.state.cursor]; if (r) this.go(r); }
+    };
+    document.addEventListener("keydown", this.onKey);
+    this.forceUpdate();
+  }
+
+  componentWillUnmount() { document.removeEventListener("keydown", this.onKey); }
+
+  go(r) { window.location.href = "./S2-单稿预览壳.dc.html?file=" + encodeURIComponent(r.file); }
+
+  clean(list) {
+    return list.map((r) => r.health === "unchecked" ? r : Object.assign({}, r, { health: "ok", diagnostics: { errors: 0, warnings: 0 } }));
+  }
+
+  pool() {
+    const d = this.state.demo;
+    if (d === 3) return [];
+    if (d === 5) return BASE.map((r) => Object.assign({}, r, { health: "unchecked", thumb: null, diagnostics: { errors: 0, warnings: 0 } }));
+    if (d === 6) return BASE.slice();
+    if (d === 7) {
+      const out = this.clean(BASE);
+      out[7] = Object.assign({}, out[7], { elements: 1246, health: "warn", diagnostics: { errors: 0, warnings: 7 } });
+      out[1] = Object.assign({}, out[1], { elements: 1104, health: "warn", diagnostics: { errors: 0, warnings: 3 } });
+      return out;
+    }
+    if (d === 9) {
+      const out = [];
+      for (let i = 0; i < 112; i++) {
+        const b = BASE[i % BASE.length];
+        out.push(Object.assign({}, b, {
+          title: i < BASE.length ? b.title : b.title + " · 变体 " + Math.floor(i / BASE.length),
+          file: (i < BASE.length ? b.title : b.title + " · 变体 " + Math.floor(i / BASE.length)) + ".dc.html",
+          updatedAt: new Date(NOW - i * 3.1e6).toISOString()
+        }));
+      }
+      return out;
+    }
+    return this.clean(BASE);
+  }
+
+  visible() {
+    const s = this.state;
+    const q = (s.demo === 4 ? "抽屉式命令面板" : s.query).trim().toLowerCase();
+    let out = this.pool();
+    if (s.kind !== "all") out = out.filter((r) => r.kind === s.kind);
+    if (s.health !== "all") out = out.filter((r) => r.health === s.health);
+    if (q) out = out.filter((r) => (r.title + " " + r.file + " " + r.states.join(" ")).toLowerCase().indexOf(q) >= 0);
+    if (s.sort === "elements") out.sort((a, b) => b.elements - a.elements);
+    else if (s.sort === "name") out.sort((a, b) => a.title.localeCompare(b.title, "zh"));
+    else out.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+    if (s.demo === 6 || s.demo === 7) {
+      const rank = { error: 0, warn: 1, unchecked: 2, ok: 3 };
+      const over = (r) => (r.elements >= WARN_AT ? 0 : 1);
+      out.sort((a, b) => (s.demo === 7 ? over(a) - over(b) : 0) || rank[a.health] - rank[b.health]);
+    }
+    return out;
+  }
+
+  view() {
+    if (this.state.view) return this.state.view;
+    if (this.state.demo === 2) return "wall";
+    if (this.state.demo === 5) return "wall";
+    return this.props.defaultView === "wall" ? "wall" : "list";
+  }
+
+  ago(iso) {
+    const diff = NOW - new Date(iso).getTime();
+    const m = Math.round(diff / 6e4);
+    if (m < 1) return "刚刚";
+    if (m < 60) return m + " 分钟前";
+    const h = Math.round(m / 60);
+    if (h < 24) return h + " 小时前";
+    const d = Math.round(h / 24);
+    if (d < 30) return d + " 天前";
+    return new Date(iso).toLocaleDateString("zh-CN");
+  }
+
+  renderVals() {
+    const s = this.state;
+    const dense = this.props.density === "compact";
+    const rowsData = this.visible();
+    const pool = this.pool();
+    const view = this.view();
+    const demo = DEMOS[s.demo - 1];
+    const showLimit = this.props.showLimitBadge !== false;
+    const configBroken = s.demo === 8;
+    const isEmptyProject = s.demo === 3;
+    const isNoResult = !isEmptyProject && !configBroken && rowsData.length === 0;
+
+    const counts = { ok: 0, warn: 0, error: 0, unchecked: 0 };
+    pool.forEach((r) => { counts[r.health] = (counts[r.health] || 0) + 1; });
+
+    const over = pool.filter((r) => r.elements >= WARN_AT);
+    const hardOver = pool.filter((r) => r.elements >= LIMIT);
+
+    const rows = rowsData.map((r, i) => {
+      const h = HEALTH[r.health];
+      const near = showLimit && r.elements >= WARN_AT;
+      const hard = r.elements >= LIMIT;
+      const sel = i === s.cursor;
+      return {
+        file: r.file,
+        title: r.title,
+        aria: r.title + "，" + (r.kind === "page" ? "页稿" : "组件稿") + "，" + r.elements + " 个元素，" + h.label,
+        kindLabel: r.kind === "page" ? "页稿" : "组件稿",
+        isPage: r.kind === "page",
+        isComponent: r.kind === "component",
+        iconBg: r.kind === "component" ? "var(--tool-accent-soft)" : "var(--tool-panel-2)",
+        iconFg: r.kind === "component" ? "var(--tool-accent)" : "var(--tool-muted)",
+        elements: String(r.elements),
+        nodeLabel: r.health === "unchecked" ? "— 节点" : r.nodeCount + " 节点",
+        elemFg: hard ? "var(--tool-err)" : near ? "var(--tool-warn)" : "var(--tool-text)",
+        elemFw: near ? "600" : "400",
+        nearLimit: near,
+        limitBg: hard ? "var(--tool-err-soft)" : "var(--tool-warn-soft)",
+        limitFg: hard ? "var(--tool-err)" : "var(--tool-warn)",
+        limitTitle: hard ? r.elements + " 个元素，已超过 1,200 的上限，必须拆稿" : r.elements + " 个元素，接近 1,200 的建议上限",
+        version: r.version,
+        updatedLabel: this.ago(r.updatedAt),
+        updatedFull: r.updatedAt,
+        statesLabel: r.states.length + " 态",
+        healthLabel: h.label,
+        hBg: h.bg, hBd: h.bd, hFg: h.fg,
+        cardBd: r.health === "error" ? "var(--tool-err-border)" : "var(--tool-border)",
+        diagLabel: r.health === "unchecked" ? "" : (r.diagnostics.errors ? r.diagnostics.errors + "E " : "") + (r.diagnostics.warnings ? r.diagnostics.warnings + "W" : (r.diagnostics.errors ? "" : "干净")),
+        hasThumb: !!r.thumb,
+        noThumb: !r.thumb,
+        thumbLabel: r.title + " @1440×900",
+        bg: sel ? "var(--tool-accent-soft)" : "var(--tool-panel)",
+        sel: sel ? "inset 2px 0 0 var(--tool-accent)" : "none",
+        open: () => this.go(r),
+        hover: () => this.setState({ cursor: i })
+      };
+    });
+
+    return {
+      theme: this.props.theme === "dark" ? "dark" : "light",
+      projectTitle: configBroken ? "项目未识别" : "Umbra 私人 AI 助手",
+      projectName: configBroken ? "?" : "umbra · " + pool.length + " 份稿",
+      demoLabel: demo.name,
+      demoNote: demo.note,
+      demoStates: DEMOS.map((d) => ({
+        n: d.n, name: d.name, active: d.n === s.demo,
+        bg: d.n === s.demo ? "var(--tool-accent)" : "var(--tool-panel)",
+        bd: d.n === s.demo ? "var(--tool-accent)" : "var(--tool-border-strong)",
+        fg: d.n === s.demo ? "var(--tool-on-accent)" : "var(--tool-muted)",
+        pick: () => this.setState({ demo: d.n, view: null, query: "", kind: "all", health: "all", cursor: 0 })
+      })),
+      configBroken: configBroken,
+      showBody: !configBroken,
+      configMessage: "项目根目录下没有找到 project.json，或者它不是合法 JSON。没有它，工具不知道设计系统在哪、稿子该扫哪个目录。",
+      configPath: "~/work/umbra/.umbradesign/project.json",
+      configFix: "确认文件存在且能被 JSON.parse；必填字段是 name、title、root、designSystem。改完点「重新读取」，不用重启 server。",
+      onRetry: () => this.setState({ demo: 1 }),
+      query: s.demo === 4 ? "抽屉式命令面板" : s.query,
+      onQuery: (e) => this.setState({ query: e.target.value, demo: s.demo === 4 ? 1 : s.demo, cursor: 0 }),
+      searchRef: this.searchRef,
+      onClear: () => this.setState({ query: "", demo: s.demo === 4 ? 1 : s.demo, cursor: 0 }),
+      onResetFilters: () => this.setState({ kind: "all", health: "all", query: "", demo: s.demo === 4 ? 1 : s.demo, cursor: 0 }),
+      kindTabs: [
+        { key: "all", label: "全部" }, { key: "page", label: "页稿" }, { key: "component", label: "组件稿" }
+      ].map((k) => ({
+        label: k.label, active: k.key === s.kind,
+        bg: k.key === s.kind ? "var(--tool-panel)" : "transparent",
+        fg: k.key === s.kind ? "var(--tool-text)" : "var(--tool-muted)",
+        fw: k.key === s.kind ? "560" : "400",
+        sh: k.key === s.kind ? "var(--tool-shadow-1)" : "none",
+        pick: () => this.setState({ kind: k.key, cursor: 0 })
+      })),
+      healthChips: ["ok", "warn", "error", "unchecked"].map((k) => {
+        const h = HEALTH[k];
+        const on = s.health === k;
+        return {
+          label: h.label, count: String(counts[k] || 0), active: on,
+          bg: on ? h.bg : "var(--tool-panel)",
+          bd: on ? h.bd : "var(--tool-border)",
+          fg: on ? h.fg : "var(--tool-text-2)",
+          dot: h.fg,
+          pick: () => this.setState({ health: on ? "all" : k, cursor: 0 })
+        };
+      }),
+      sort: s.sort,
+      onSort: (e) => this.setState({ sort: e.target.value, cursor: 0 }),
+      isList: view === "list", isWall: view === "wall",
+      setList: () => this.setState({ view: "list" }),
+      setWall: () => this.setState({ view: "wall" }),
+      listBtnBg: view === "list" ? "var(--tool-panel)" : "transparent",
+      listBtnFg: view === "list" ? "var(--tool-text)" : "var(--tool-muted)",
+      listBtnSh: view === "list" ? "var(--tool-shadow-1)" : "none",
+      wallBtnBg: view === "wall" ? "var(--tool-panel)" : "transparent",
+      wallBtnFg: view === "wall" ? "var(--tool-text)" : "var(--tool-muted)",
+      wallBtnSh: view === "wall" ? "var(--tool-shadow-1)" : "none",
+      hasOverLimit: showLimit && over.length > 0,
+      overLimitHeadline: hardOver.length ? hardOver.length + " 份稿已超过 1,200 个元素的上限" : over.length + " 份稿接近 1,200 个元素的上限",
+      overLimitDetail: hardOver.length ? "超限的稿落盘会被拒。按顶层 section 或 dc-import 边界拆开。" : "还能落盘，但已经是拆稿的信号了。",
+      isEmptyProject: isEmptyProject,
+      isNoResult: isNoResult,
+      showList: !isEmptyProject && !isNoResult && view === "list",
+      showWall: !isEmptyProject && !isNoResult && view === "wall",
+      rows: rows,
+      emptySteps: [
+        { n: "1", title: "放一份 .dc.html 进项目目录", body: "文件名就是稿名，中文和空格都行。工具扫目录，不需要注册。" },
+        { n: "2", title: "跑一次渲染体检", body: "拿到元素数、节点数、渲染耗时和缩略图 —— 这一屏的每一列都来自它。" },
+        { n: "3", title: "配上设计系统", body: "在 project.json 里指向 tokens 与图标目录，S5 的检索就能用了。" }
+      ],
+      footerCount: isEmptyProject ? "0 份稿" : rows.length === pool.length ? pool.length + " 份稿" : "筛出 " + rows.length + " / " + pool.length + " 份稿",
+      footerScan: dense ? "紧凑密度 · 上次扫目录 08:52" : "上次扫目录 08:52 · 自动监听文件变更"
+    };
+  }
+}
+
+</script>
+</body>
+</html>

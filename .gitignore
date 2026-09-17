@@ -6,9 +6,14 @@
 # 工具不追踪用户的项目，打包分发后这个目录甚至不在安装目录里。
 projects/
 
-# 运行时的第三方副本：由安装脚本取，不进仓库
-runtime/react.production.min.js
-runtime/react-dom.production.min.js
+# 运行时的权威副本【进仓库】：support.js + 两个 React UMD，共 211 KB。
+# 刻意 vendor —— 整个项目的前提是断网可用，让安装依赖 npm 可达就本末倒置了。
+# runtime/ 下的文件不要加进忽略。
+
+# 分发到各放稿目录的拷贝：由 runtime/ 派生，不进仓库
+ui/support.js
+ui/react.production.min.js
+ui/react-dom.production.min.js
 
 # Node
 node_modules/

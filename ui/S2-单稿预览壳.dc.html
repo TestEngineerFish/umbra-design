@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- umbradesign:resources -->
+<script>window.__resources = {
+    "https://unpkg.com/react@18.3.1/umd/react.production.min.js": "./react.production.min.js",
+    "https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js": "./react-dom.production.min.js"
+  };</script>
+<!-- /umbradesign:resources -->
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="./_ds-tool/tokens.css">
+<style>
+  html, body { margin: 0; padding: 0; }
+  body { background: var(--tool-bg); }
+  * { box-sizing: border-box; }
+  a { color: var(--tool-accent); text-decoration: none; }
+  a:hover { color: var(--tool-accent-hover); text-decoration: underline; }
+  input, button, select { font: inherit; color: inherit; }
+  @keyframes tool-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+</style>
+</helmet>
+
+<div style="height: 100vh; display: flex; flex-direction: column; background: var(--tool-bg); color: var(--tool-text); font-family: var(--tool-sans); font-size: 13px; -webkit-font-smoothing: antialiased; overflow: hidden; max-width: {{ shellMax }}; margin: 0 auto; border-left: {{ shellEdge }}; border-right: {{ shellEdge }};" data-tool-theme="{{ theme }}">
+
+  <div style="flex: none; background: var(--tool-panel); border-bottom: 1px solid var(--tool-border);">
+    <div style="display: flex; align-items: center; gap: 12px; padding: 10px 16px; flex-wrap: wrap;">
+      <a href="./S1-稿件索引.dc.html" style="display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px 0 8px; border-radius: var(--tool-radius); border: 1px solid var(--tool-border-strong); background: var(--tool-panel); color: var(--tool-text); font-size: 12px; text-decoration: none; flex: none; transition: background .13s ease, border-color .13s ease;" style-hover="background: var(--tool-hover); text-decoration: none;" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M9.6 3.6L5.2 8l4.4 4.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+        索引
+      </a>
+
+      <div style="display: flex; align-items: baseline; gap: 9px; min-width: 0; flex: 1 1 220px;">
+        <span style="font-size: 15px; font-weight: 620; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="{{ title }}">{{ title }}</span>
+        <span style="flex: none; font-size: 11px; padding: 1px 7px; border-radius: var(--tool-radius-sm); border: 1px solid var(--tool-border); background: var(--tool-panel-2); color: var(--tool-text-2);">{{ kindLabel }}</span>
+        <span style="flex: none; font-family: var(--tool-mono); font-size: 11px; color: var(--tool-muted); white-space: nowrap;">{{ version }} · {{ elementsLabel }}</span>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 8px; flex: none;">
+        <span style="display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: 999px; font-size: 12px; font-weight: 560; white-space: nowrap; border: 1px solid; background: {{ hBg }}; border-color: {{ hBd }}; color: {{ hFg }};">
+          <sc-if value="{{ checking }}" hint-placeholder-val="{{ false }}">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" style="animation: tool-spin 900ms linear infinite; flex: none;" aria-hidden="true">
+              <circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.8" stroke-opacity="0.28"></circle>
+              <path d="M8 2a6 6 0 016 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
+            </svg>
+          </sc-if>
+          <sc-if value="{{ notChecking }}" hint-placeholder-val="{{ true }}">
+            <span style="width: 6px; height: 6px; border-radius: 999px; background: currentColor; flex: none;"></span>
+          </sc-if>
+          {{ healthLabel }}
+        </span>
+
+        <button type="button" onClick="{{ onRecheck }}" disabled="{{ checking }}" style="display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 11px; border-radius: var(--tool-radius); border: 1px solid var(--tool-border-strong); background: var(--tool-panel); cursor: pointer; font-size: 12px; transition: background .13s ease, border-color .13s ease; opacity: {{ recheckOpacity }};" style-hover="background: var(--tool-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M13.2 8a5.2 5.2 0 11-1.9-4.02" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path><path d="M13.4 2.4v2.9h-2.9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+          {{ recheckLabel }}
+        </button>
+
+        <a href="./_demo/稿件预览示例.html" target="_blank" rel="noopener" title="在新窗口打开原稿" style="display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: var(--tool-radius); border: 1px solid var(--tool-border-strong); background: var(--tool-panel); color: var(--tool-text); transition: background .13s ease;" style-hover="background: var(--tool-hover); text-decoration: none;" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6.6 3.2H3.4v9.4h9.4V9.4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path><path d="M9.6 2.8h3.6v3.6M13.2 2.8L8 8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+        </a>
+
+        <div style="width: 1px; height: 20px; background: var(--tool-border);"></div>
+
+        <div style="display: flex; padding: 2px; gap: 2px; background: var(--tool-panel-2); border: 1px solid var(--tool-border); border-radius: var(--tool-radius);">
+          <button type="button" onClick="{{ tabDiag }}" aria-pressed="{{ isDiag }}" style="display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border: 0; border-radius: var(--tool-radius-sm); cursor: pointer; font-size: 12px; transition: background .13s ease, color .13s ease; background: {{ diagBtnBg }}; color: {{ diagBtnFg }}; font-weight: {{ diagBtnFw }}; box-shadow: {{ diagBtnSh }};" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">
+            诊断
+            <span style="font-family: var(--tool-mono); font-size: 10px; padding: 0 5px; border-radius: 999px; background: {{ diagPillBg }}; color: {{ diagPillFg }};">{{ diagPill }}</span>
+          </button>
+          <button type="button" onClick="{{ tabChange }}" aria-pressed="{{ isChange }}" style="display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border: 0; border-radius: var(--tool-radius-sm); cursor: pointer; font-size: 12px; transition: background .13s ease, color .13s ease; background: {{ chgBtnBg }}; color: {{ chgBtnFg }}; font-weight: {{ chgBtnFw }}; box-shadow: {{ chgBtnSh }};" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">
+            变更
+            <span style="font-family: var(--tool-mono); font-size: 10px; padding: 0 5px; border-radius: 999px; background: var(--tool-panel-3); color: var(--tool-text-2);">{{ chgPill }}</span>
+          </button>
+        </div>
+
+        <button type="button" onClick="{{ toggleRail }}" title="{{ railToggleTitle }}" style="display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: var(--tool-radius); border: 1px solid var(--tool-border-strong); background: {{ railBtnBg }}; color: {{ railBtnFg }}; cursor: pointer; transition: background .13s ease, color .13s ease;" style-hover="background: var(--tool-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="1.8" y="2.4" width="12.4" height="11.2" rx="2" stroke="currentColor" stroke-width="1.3"></rect><path d="M10.2 2.4v11.2" stroke="currentColor" stroke-width="1.3"></path></svg>
+        </button>
+      </div>
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 10px; padding: 0 16px 10px; flex-wrap: wrap; font-size: 12px;">
+      <div style="display: flex; padding: 2px; gap: 2px; background: var(--tool-panel-2); border: 1px solid var(--tool-border); border-radius: var(--tool-radius); flex: none;">
+        <sc-for list="{{ presets }}" as="p" hint-placeholder-count="4">
+          <button type="button" onClick="{{ p.pick }}" aria-pressed="{{ p.active }}" title="{{ p.title }}" style="display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border: 0; border-radius: var(--tool-radius-sm); cursor: pointer; font-size: 12px; transition: background .13s ease, color .13s ease; background: {{ p.bg }}; color: {{ p.fg }}; font-weight: {{ p.fw }}; box-shadow: {{ p.sh }};" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">{{ p.name }}</button>
+        </sc-for>
+      </div>
+
+      <span style="font-family: var(--tool-mono); color: var(--tool-text-2); white-space: nowrap;">{{ sizeLabel }}</span>
+
+      <div style="display: flex; align-items: center; gap: 2px; padding: 2px; background: var(--tool-panel-2); border: 1px solid var(--tool-border); border-radius: var(--tool-radius); flex: none;">
+        <button type="button" onClick="{{ zoomOut }}" title="缩小" style="width: 24px; height: 24px; display: grid; place-items: center; border: 0; background: transparent; color: var(--tool-text-2); border-radius: var(--tool-radius-sm); cursor: pointer; transition: background .13s ease;" style-hover="background: var(--tool-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.4 8h9.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path></svg>
+        </button>
+        <span style="min-width: 42px; text-align: center; font-family: var(--tool-mono); font-size: 11px; color: var(--tool-text-2);">{{ zoomLabel }}</span>
+        <button type="button" onClick="{{ zoomIn }}" title="放大" style="width: 24px; height: 24px; display: grid; place-items: center; border: 0; background: transparent; color: var(--tool-text-2); border-radius: var(--tool-radius-sm); cursor: pointer; transition: background .13s ease;" style-hover="background: var(--tool-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 3.4v9.2M3.4 8h9.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path></svg>
+        </button>
+      </div>
+
+      <span style="flex: 1;"></span>
+
+      <span style="color: var(--tool-muted); white-space: nowrap;">{{ lastCheckLabel }}</span>
+
+      <div style="display: flex; align-items: center; gap: 6px; flex: none;">
+        <span style="font-size: 11px; color: var(--tool-muted);">演示态</span>
+        <sc-for list="{{ demoStates }}" as="st" hint-placeholder-count="9">
+          <button type="button" onClick="{{ st.pick }}" title="{{ st.name }}" aria-pressed="{{ st.active }}" style="width: 22px; height: 22px; display: grid; place-items: center; border-radius: var(--tool-radius-sm); border: 1px solid; cursor: pointer; font-family: var(--tool-mono); font-size: 11px; transition: background .13s ease, border-color .13s ease, color .13s ease; background: {{ st.bg }}; border-color: {{ st.bd }}; color: {{ st.fg }};" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">{{ st.n }}</button>
+        </sc-for>
+      </div>
+    </div>
+
+    <div style="padding: 0 16px 9px; display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--tool-muted);">
+      <span>当前演示态</span>
+      <span style="font-weight: 600; color: var(--tool-text);">{{ demoLabel }}</span>
+      <span style="color: var(--tool-border-strong);">·</span>
+      <span>{{ demoNote }}</span>
+    </div>
+  </div>
+
+  <div style="flex: 1; min-height: 0; display: grid; grid-template-columns: {{ gridCols }};">
+
+    <div style="min-width: 0; min-height: 0; position: relative; background: var(--tool-canvas); overflow: auto; display: grid; place-items: {{ canvasAlign }}; padding: 20px;">
+
+      <sc-if value="{{ showFrame }}" hint-placeholder-val="{{ true }}">
+        <div style="width: {{ sizerW }}; height: {{ sizerH }}; flex: none; position: relative;">
+        <div style="width: {{ frameW }}; height: {{ frameH }}; background: var(--tool-panel); border: 1px solid var(--tool-border-strong); border-radius: var(--tool-radius); box-shadow: var(--tool-shadow-2); overflow: hidden; position: relative; transform: scale({{ zoom }}); transform-origin: top left;">
+          <iframe src="./_demo/稿件预览示例.html" title="稿件预览" style="width: 100%; height: 100%; border: 0; display: block; background: #fff;"></iframe>
+          <sc-if value="{{ checking }}" hint-placeholder-val="{{ false }}">
+            <div style="position: absolute; inset: 0; background: rgba(246, 247, 249, 0.72); display: grid; place-items: center;">
+              <div style="display: flex; align-items: center; gap: 9px; padding: 9px 15px; background: var(--tool-panel); border: 1px solid var(--tool-border); border-radius: 999px; box-shadow: var(--tool-shadow-2); font-size: 12px; color: var(--tool-text-2);">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style="animation: tool-spin 900ms linear infinite; color: var(--tool-accent);" aria-hidden="true">
+                  <circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.9" stroke-opacity="0.25"></circle>
+                  <path d="M8 2a6 6 0 016 6" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"></path>
+                </svg>
+                正在跑渲染体检…
+              </div>
+            </div>
+          </sc-if>
+        </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isDead }}" hint-placeholder-val="{{ false }}">
+        <div style="max-width: 560px; width: 100%; background: var(--tool-panel); border: 2px solid var(--tool-err); border-radius: var(--tool-radius-lg); box-shadow: var(--tool-shadow-2); overflow: hidden;">
+          <div style="padding: 18px 20px; background: var(--tool-err-soft); border-bottom: 1px solid var(--tool-err-border); display: flex; gap: 12px;">
+            <svg width="20" height="20" viewBox="0 0 16 16" fill="none" style="flex: none; margin-top: 2px; color: var(--tool-err);" aria-hidden="true">
+              <circle cx="8" cy="8" r="6.6" stroke="currentColor" stroke-width="1.5"></circle>
+              <path d="M5.6 5.6l4.8 4.8M10.4 5.6l-4.8 4.8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path>
+            </svg>
+            <div>
+              <div style="font-size: 17px; font-weight: 650; color: var(--tool-err); margin-bottom: 5px;">这份稿渲染不出来，页面卡死了</div>
+              <div style="color: var(--tool-text-2); line-height: 1.6;">体检在 10 秒超时内没等到首帧。iframe 已经掐掉，免得拖死整个壳。这是最坏的一种结果 —— 稿子现在不能落盘。</div>
+            </div>
+          </div>
+          <div style="padding: 16px 20px; display: grid; gap: 14px;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px;">
+              <sc-for list="{{ deadStats }}" as="d" hint-placeholder-count="3">
+                <div style="background: var(--tool-panel-2); border: 1px solid var(--tool-border); border-radius: var(--tool-radius); padding: 9px 11px;">
+                  <div style="font-size: 11px; color: var(--tool-muted); margin-bottom: 3px;">{{ d.k }}</div>
+                  <div style="font-family: var(--tool-mono); font-size: 13px; font-weight: 600; color: {{ d.fg }};">{{ d.v }}</div>
+                </div>
+              </sc-for>
+            </div>
+            <div>
+              <div style="font-size: 11px; font-weight: 600; letter-spacing: 0.04em; color: var(--tool-muted); margin-bottom: 6px;">最可能的原因</div>
+              <div style="color: var(--tool-text-2); line-height: 1.65;">{{ deadCause }}</div>
+            </div>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+              <button type="button" onClick="{{ onRecheck }}" style="padding: 7px 13px; border-radius: var(--tool-radius); border: 1px solid var(--tool-accent); background: var(--tool-accent); color: var(--tool-on-accent); font-weight: 560; cursor: pointer; transition: background .13s ease;" style-hover="background: var(--tool-accent-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">再跑一次体检</button>
+              <button type="button" onClick="{{ tabDiag }}" style="padding: 7px 13px; border-radius: var(--tool-radius); border: 1px solid var(--tool-border-strong); background: var(--tool-panel); cursor: pointer; transition: background .13s ease;" style-hover="background: var(--tool-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">看诊断详情</button>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isMissing }}" hint-placeholder-val="{{ false }}">
+        <div style="max-width: 460px; text-align: center;">
+          <svg width="44" height="44" viewBox="0 0 48 48" fill="none" style="color: var(--tool-border-strong); margin-bottom: 14px;" aria-hidden="true">
+            <path d="M12 6.5h14L36 16.5v25H12z" stroke="currentColor" stroke-width="1.6" stroke-dasharray="4 3"></path>
+            <path d="M19 26l10 10M29 26l-10 10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path>
+          </svg>
+          <div style="font-size: 18px; font-weight: 620; margin-bottom: 7px;">这份稿不在了</div>
+          <div style="color: var(--tool-text-2); line-height: 1.65; margin-bottom: 8px;">索引里还有它的记录，但磁盘上找不到文件 —— 可能被改名或删掉了。</div>
+          <div style="font-family: var(--tool-mono); font-size: 12px; color: var(--tool-muted); background: var(--tool-panel); border: 1px solid var(--tool-border); border-radius: var(--tool-radius); padding: 7px 10px; margin-bottom: 18px; word-break: break-all;">{{ missingPath }}</div>
+          <div style="display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;">
+            <a href="./S1-稿件索引.dc.html" style="padding: 7px 13px; border-radius: var(--tool-radius); border: 1px solid var(--tool-border-strong); background: var(--tool-panel); color: var(--tool-text); text-decoration: none; transition: background .13s ease;" style-hover="background: var(--tool-hover); text-decoration: none;" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">回索引</a>
+            <button type="button" onClick="{{ onRescan }}" style="padding: 7px 13px; border-radius: var(--tool-radius); border: 1px solid var(--tool-border-strong); background: var(--tool-panel); cursor: pointer; transition: background .13s ease;" style-hover="background: var(--tool-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">重新扫目录</button>
+          </div>
+        </div>
+      </sc-if>
+    </div>
+
+    <sc-if value="{{ railOpen }}" hint-placeholder-val="{{ true }}">
+      <div style="min-width: 0; min-height: 0; background: var(--tool-panel); border-left: 1px solid var(--tool-border); display: flex; flex-direction: column; overflow: hidden;">
+        <div style="flex: none; display: flex; align-items: center; gap: 8px; padding: 11px 14px; border-bottom: 1px solid var(--tool-border);">
+          <span style="font-weight: 620;">{{ railTitle }}</span>
+          <span style="flex: 1;"></span>
+          <span title="整页形态属于 S3 / S4，这一轮（第一批 A）没出" style="font-size: 11px; color: var(--tool-muted); border: 1px dashed var(--tool-border-strong); border-radius: var(--tool-radius-sm); padding: 1px 6px; white-space: nowrap;">{{ railFullNote }}</span>
+          <button type="button" onClick="{{ toggleRail }}" title="收起面板" style="width: 24px; height: 24px; display: grid; place-items: center; border: 0; background: transparent; color: var(--tool-muted); border-radius: var(--tool-radius-sm); cursor: pointer; transition: background .13s ease, color .13s ease;" style-hover="background: var(--tool-hover); color: var(--tool-text);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4.4 4.4l7.2 7.2M11.6 4.4l-7.2 7.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path></svg>
+          </button>
+        </div>
+
+        <div style="flex: 1; min-height: 0; overflow: auto;">
+          <sc-if value="{{ isDiag }}" hint-placeholder-val="{{ true }}">
+            <div>
+              <div style="display: grid; grid-template-columns: repeat(3, 1fr); border-bottom: 1px solid var(--tool-border);">
+                <sc-for list="{{ statCells }}" as="c" hint-placeholder-count="3">
+                  <div style="padding: 10px 12px; border-right: 1px solid var(--tool-border);">
+                    <div style="font-size: 11px; color: var(--tool-muted); margin-bottom: 2px;">{{ c.k }}</div>
+                    <div style="font-family: var(--tool-mono); font-size: 14px; font-weight: 600; color: {{ c.fg }};">{{ c.v }}</div>
+                  </div>
+                </sc-for>
+              </div>
+
+              <sc-if value="{{ allGreen }}" hint-placeholder-val="{{ false }}">
+                <div style="padding: 32px 18px; text-align: center;">
+                  <div style="width: 40px; height: 40px; margin: 0 auto 12px; border-radius: 999px; background: var(--tool-ok-soft); border: 1px solid var(--tool-ok-border); display: grid; place-items: center; color: var(--tool-ok);">
+                    <svg width="20" height="20" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.6 8.4l3 3 5.8-6.4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                  </div>
+                  <div style="font-size: 15px; font-weight: 600; margin-bottom: 6px;">这份稿是干净的</div>
+                  <div style="color: var(--tool-text-2); line-height: 1.6; font-size: 12px;">143 个洞全部解析到了，4 个 dc-import 都拿到了组件，没有资源 404，控制台没有告警。可以落盘。</div>
+                </div>
+              </sc-if>
+
+              <sc-if value="{{ neverChecked }}" hint-placeholder-val="{{ false }}">
+                <div style="padding: 28px 18px; text-align: center;">
+                  <div style="width: 40px; height: 40px; margin: 0 auto 12px; border-radius: 999px; background: var(--tool-panel-2); border: 1px dashed var(--tool-border-strong); display: grid; place-items: center; color: var(--tool-muted);">
+                    <svg width="18" height="18" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="6.2" stroke="currentColor" stroke-width="1.4" stroke-dasharray="3 2.6"></circle></svg>
+                  </div>
+                  <div style="font-size: 15px; font-weight: 600; margin-bottom: 6px;">还没跑过渲染体检</div>
+                  <div style="color: var(--tool-text-2); line-height: 1.6; font-size: 12px; margin-bottom: 14px;">校验只看得到模板和逻辑。元素数、节点数、卡不卡死、资源有没有 404，都要跑一次才知道。</div>
+                  <button type="button" onClick="{{ onRecheck }}" style="padding: 6px 12px; border-radius: var(--tool-radius); border: 1px solid var(--tool-accent); background: var(--tool-accent); color: var(--tool-on-accent); font-size: 12px; font-weight: 560; cursor: pointer;" style-hover="background: var(--tool-accent-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">现在跑一次</button>
+                </div>
+              </sc-if>
+
+              <sc-if value="{{ hasDiags }}" hint-placeholder-val="{{ true }}">
+                <div>
+                  <sc-for list="{{ diags }}" as="d" hint-placeholder-count="3">
+                    <div style="border-bottom: 1px solid var(--tool-border); padding: 11px 14px; background: {{ d.rowBg }};">
+                      <div style="display: flex; align-items: center; gap: 7px; margin-bottom: 6px; flex-wrap: wrap;">
+                        <span style="display: inline-flex; align-items: center; height: 18px; padding: 0 7px; border-radius: var(--tool-radius-sm); font-size: 10px; font-weight: 700; letter-spacing: 0.04em; background: {{ d.badgeBg }}; color: {{ d.badgeFg }};">{{ d.levelLabel }}</span>
+                        <span style="font-family: var(--tool-mono); font-size: 11px; color: {{ d.codeFg }}; font-weight: 600;">{{ d.code }}</span>
+                        <span style="flex: 1;"></span>
+                        <sc-if value="{{ d.hasLine }}" hint-placeholder-val="{{ true }}">
+                          <a href="#" style="font-family: var(--tool-mono); font-size: 11px;">{{ d.loc }}</a>
+                        </sc-if>
+                        <sc-if value="{{ d.noLine }}" hint-placeholder-val="{{ false }}">
+                          <span title="工具定位不到行号，不瞎填" style="font-family: var(--tool-mono); font-size: 11px; color: var(--tool-muted); border: 1px dashed var(--tool-border-strong); border-radius: var(--tool-radius-sm); padding: 0 5px;">行号不明</span>
+                        </sc-if>
+                      </div>
+                      <div style="line-height: 1.6; color: var(--tool-text); margin-bottom: 7px;">{{ d.message }}</div>
+                      <sc-if value="{{ d.hasFix }}" hint-placeholder-val="{{ true }}">
+                        <div style="display: flex; gap: 8px; padding: 8px 10px; background: var(--tool-panel-2); border: 1px solid var(--tool-border); border-radius: var(--tool-radius); font-size: 12px;">
+                          <span style="flex: none; font-weight: 700; color: var(--tool-accent); font-size: 11px; letter-spacing: 0.04em;">改法</span>
+                          <span style="color: var(--tool-text-2); line-height: 1.55;">{{ d.fix }}</span>
+                        </div>
+                      </sc-if>
+                      <sc-if value="{{ d.noFix }}" hint-placeholder-val="{{ false }}">
+                        <div style="font-size: 12px; color: var(--tool-muted); font-style: normal;">这一条没有给改法 —— 需要人判断该不该管。</div>
+                      </sc-if>
+                    </div>
+                  </sc-for>
+                  <div style="padding: 11px 14px; font-size: 12px; color: var(--tool-muted);">{{ diagMoreLabel }}</div>
+                </div>
+              </sc-if>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ isChange }}" hint-placeholder-val="{{ false }}">
+            <div style="padding: 14px;">
+              <div style="display: flex; align-items: baseline; gap: 8px; margin-bottom: 12px;">
+                <span style="font-family: var(--tool-mono); font-size: 12px; color: var(--tool-muted);">v216</span>
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style="color: var(--tool-muted);" aria-hidden="true"><path d="M3 8h9.4M9.4 4.8L12.8 8l-3.4 3.2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                <span style="font-family: var(--tool-mono); font-size: 12px; font-weight: 600;">v217</span>
+              </div>
+              <div style="display: grid; gap: 7px;">
+                <sc-for list="{{ levels }}" as="l" hint-placeholder-count="4">
+                  <div style="display: flex; align-items: center; gap: 10px; padding: 9px 11px; border: 1px solid; border-radius: var(--tool-radius); background: {{ l.bg }}; border-color: {{ l.bd }};">
+                    <span style="font-family: var(--tool-mono); font-size: 11px; font-weight: 700; color: {{ l.fg }}; flex: none;">{{ l.key }}</span>
+                    <span style="font-weight: 560; flex: none;">{{ l.name }}</span>
+                    <span style="font-size: 12px; color: var(--tool-text-2); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ l.action }}</span>
+                    <span style="flex: 1;"></span>
+                    <span style="font-family: var(--tool-mono); font-size: 13px; font-weight: 600; color: {{ l.fg }}; flex: none;">{{ l.count }}</span>
+                  </div>
+                </sc-for>
+              </div>
+              <div style="margin-top: 14px; font-size: 12px; color: var(--tool-muted); line-height: 1.6;">变更清单的完整形态是 S4。这里只给一眼能看完的分级计数，够判断“这一版要不要动代码”。</div>
+              <span style="display: inline-block; margin-top: 10px; font-size: 11px; color: var(--tool-muted); border: 1px dashed var(--tool-border-strong); border-radius: var(--tool-radius-sm); padding: 2px 7px;">{{ changeFullNote }}</span>
+            </div>
+          </sc-if>
+        </div>
+      </div>
+    </sc-if>
+  </div>
+
+  <sc-if value="{{ isNarrow }}" hint-placeholder-val="{{ false }}">
+    <div style="flex: none; background: var(--tool-panel); border-top: 1px solid var(--tool-border); max-height: 44vh; display: flex; flex-direction: column; overflow: hidden;">
+      <button type="button" onClick="{{ toggleSheet }}" aria-expanded="{{ sheetOpen }}" style="flex: none; display: flex; align-items: center; gap: 9px; width: 100%; padding: 10px 14px; border: 0; background: transparent; cursor: pointer; text-align: left; transition: background .13s ease;" style-hover="background: var(--tool-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: -2px;">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" style="flex: none; color: var(--tool-muted); transform: rotate({{ sheetArrow }}); transition: transform .13s ease;" aria-hidden="true"><path d="M4.4 6.2L8 9.8l3.6-3.6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+        <span style="font-weight: 600;">诊断</span>
+        <span style="display: inline-flex; align-items: center; height: 19px; padding: 0 8px; border-radius: 999px; font-size: 11px; font-weight: 560; border: 1px solid; background: {{ hBg }}; border-color: {{ hBd }}; color: {{ hFg }};">{{ healthLabel }}</span>
+        <span style="flex: 1;"></span>
+        <span style="font-size: 12px; color: var(--tool-muted);">{{ sheetHint }}</span>
+      </button>
+      <sc-if value="{{ sheetOpen }}" hint-placeholder-val="{{ false }}">
+        <div style="flex: 1; min-height: 0; overflow: auto; border-top: 1px solid var(--tool-border);">
+          <div style="display: grid; grid-template-columns: repeat(3, 1fr); border-bottom: 1px solid var(--tool-border);">
+            <sc-for list="{{ statCells }}" as="c" hint-placeholder-count="3">
+              <div style="padding: 9px 12px; border-right: 1px solid var(--tool-border);">
+                <div style="font-size: 11px; color: var(--tool-muted); margin-bottom: 2px;">{{ c.k }}</div>
+                <div style="font-family: var(--tool-mono); font-size: 13px; font-weight: 600;">{{ c.v }}</div>
+              </div>
+            </sc-for>
+          </div>
+          <sc-for list="{{ diags }}" as="d" hint-placeholder-count="2">
+            <div style="padding: 10px 14px; border-bottom: 1px solid var(--tool-border);">
+              <div style="display: flex; align-items: center; gap: 7px; margin-bottom: 4px;">
+                <span style="display: inline-flex; align-items: center; height: 17px; padding: 0 6px; border-radius: var(--tool-radius-sm); font-size: 10px; font-weight: 700; background: {{ d.badgeBg }}; color: {{ d.badgeFg }};">{{ d.levelLabel }}</span>
+                <span style="font-family: var(--tool-mono); font-size: 11px; color: {{ d.codeFg }}; font-weight: 600;">{{ d.code }}</span>
+                <span style="flex: 1;"></span>
+                <span style="font-family: var(--tool-mono); font-size: 11px; color: var(--tool-muted);">{{ d.loc }}</span>
+              </div>
+              <div style="line-height: 1.55; font-size: 12px;">{{ d.message }}</div>
+            </div>
+          </sc-for>
+          <div style="padding: 10px 14px; font-size: 12px; color: var(--tool-muted); line-height: 1.55;">窄窗下诊断从常驻侧栏退化成底部抽屉 —— 预览优先，但入口不消失。</div>
+        </div>
+      </sc-if>
+    </div>
+  </sc-if>
+
+  <div style="flex: none; display: flex; align-items: center; gap: 12px; padding: 7px 16px; background: var(--tool-panel); border-top: 1px solid var(--tool-border); font-size: 11px; color: var(--tool-muted); flex-wrap: wrap;">
+    <span style="font-family: var(--tool-mono);">{{ file }}</span>
+    <span style="color: var(--tool-border-strong);">·</span>
+    <span>{{ iframeNote }}</span>
+    <span style="flex: 1;"></span>
+    <span style="display: flex; align-items: center; gap: 5px;"><kbd style="font-family: var(--tool-mono); background: var(--tool-panel-2); border: 1px solid var(--tool-border); border-radius: var(--tool-radius-sm); padding: 1px 5px;">R</kbd> 重跑体检</span>
+    <span style="display: flex; align-items: center; gap: 5px;"><kbd style="font-family: var(--tool-mono); background: var(--tool-panel-2); border: 1px solid var(--tool-border); border-radius: var(--tool-radius-sm); padding: 1px 5px;">D</kbd> 诊断栏</span>
+    <span style="display: flex; align-items: center; gap: 5px;"><kbd style="font-family: var(--tool-mono); background: var(--tool-panel-2); border: 1px solid var(--tool-border); border-radius: var(--tool-radius-sm); padding: 1px 5px;">Esc</kbd> 收起</span>
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{
+  &quot;railWidth&quot;: { &quot;editor&quot;: &quot;int&quot;, &quot;default&quot;: 340, &quot;min&quot;: 280, &quot;max&quot;: 480, &quot;step&quot;: 20, &quot;unit&quot;: &quot;px&quot;, &quot;tsType&quot;: &quot;number&quot;, &quot;section&quot;: &quot;预览壳&quot; },
+  &quot;theme&quot;: { &quot;editor&quot;: &quot;enum&quot;, &quot;options&quot;: [&quot;light&quot;, &quot;dark&quot;], &quot;default&quot;: &quot;light&quot;, &quot;tsType&quot;: &quot;'light'|'dark'&quot;, &quot;section&quot;: &quot;工具皮肤&quot; }
+}">
+const PRESETS = [
+  { name: "PC", w: 1440, h: 900 },
+  { name: "笔记本", w: 1280, h: 800 },
+  { name: "iPhone", w: 390, h: 844 },
+  { name: "自适应", w: null, h: null }
+];
+
+const DEMOS = [
+  { n: 1, name: "正常 · 体检通过", note: "0 error 0 warning，缩略图与节点数都拿到了" },
+  { n: 2, name: "体检进行中", note: "匀速旋转，不做弹跳" },
+  { n: 3, name: "页面卡死（alive: false）", note: "最坏的结果，要最醒目" },
+  { n: 4, name: "有 error 诊断", note: "落盘会被拒" },
+  { n: 5, name: "只有 warning", note: "能落盘，但有要看的东西" },
+  { n: 6, name: "从没跑过体检", note: "unchecked，不是“没有数据”" },
+  { n: 7, name: "稿文件不存在", note: "索引里有记录，磁盘上没了" },
+  { n: 8, name: "窄窗口", note: "壳被压窄时侧栏让位给预览" },
+  { n: 9, name: "自适应视口", note: "宽度跟着画布走，不做自动撑高" }
+];
+
+const HEALTH = {
+  ok: { label: "体检通过", bg: "var(--tool-ok-soft)", bd: "var(--tool-ok-border)", fg: "var(--tool-ok)" },
+  warn: { label: "有提醒", bg: "var(--tool-warn-soft)", bd: "var(--tool-warn-border)", fg: "var(--tool-warn)" },
+  error: { label: "有错误", bg: "var(--tool-err-soft)", bd: "var(--tool-err-border)", fg: "var(--tool-err)" },
+  dead: { label: "渲染卡死", bg: "var(--tool-err-soft)", bd: "var(--tool-err)", fg: "var(--tool-err)" },
+  checking: { label: "体检中", bg: "var(--tool-accent-soft)", bd: "var(--tool-accent-border)", fg: "var(--tool-accent)" },
+  unchecked: { label: "未体检", bg: "var(--tool-unchecked-soft)", bd: "var(--tool-unchecked-border)", fg: "var(--tool-unchecked)" },
+  missing: { label: "文件缺失", bg: "var(--tool-err-soft)", bd: "var(--tool-err-border)", fg: "var(--tool-err)" }
+};
+
+const ERR_DIAGS = [
+  {
+    code: "E_HOLE_UNRESOLVED", level: "error", line: 128, col: 34,
+    message: "模板第 128 行的洞 “onRetry” 在 renderVals() 的顶层键里找不到",
+    fix: "在 renderVals() 的每一条返回路径里补 onRetry: P.onRetry ?? NOOP"
+  },
+  {
+    code: "E_IMPORT_MISSING", level: "error", line: 12, col: 6,
+    message: "dc-import 指向的 “PC 空态” 在同级目录下不存在",
+    fix: "确认文件名是「PC 空态.dc.html」并与本稿同级；跨目录引用要用相对路径"
+  },
+  {
+    code: "W_ELEMENTS_WARN", level: "warning", line: null, col: null,
+    message: "812 个元素，接近 1,200 的建议上限",
+    fix: "按顶层 section 或 dc-import 边界拆分"
+  },
+  {
+    code: "W_RESOURCE_404", level: "warning", line: 7, col: 3,
+    message: "样式表 _ds/umbra/tokens/ios.css 返回 404，稿子里引用它的 var() 会落回浏览器默认值",
+    fix: null
+  }
+];
+
+const WARN_DIAGS = [
+  ERR_DIAGS[2],
+  {
+    code: "W_CONSOLE", level: "warning", line: 204, col: 12,
+    message: "渲染时控制台出现 1 条 React key 告警：sc-for 的列表项没有稳定 key",
+    fix: "给列表数据加上稳定 id，或确认这一项的顺序不会变"
+  }
+];
+
+class Component extends DCLogic {
+  state = { demo: 1, preset: 0, zoom: 1, tab: "diag", rail: true, spin: false, sheet: true };
+
+  componentDidMount() {
+    this.onKey = (e) => {
+      const tag = (e.target && e.target.tagName) || "";
+      if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") return;
+      const k = e.key.toLowerCase();
+      if (k === "r") { e.preventDefault(); this.recheck(); }
+      if (k === "d") { e.preventDefault(); this.setState((s) => ({ rail: !s.rail, sheet: !s.sheet, tab: "diag" })); }
+      if (e.key === "Escape") this.setState({ rail: false, sheet: false });
+    };
+    document.addEventListener("keydown", this.onKey);
+  }
+
+  componentWillUnmount() {
+    document.removeEventListener("keydown", this.onKey);
+    if (this.t) clearTimeout(this.t);
+  }
+
+  recheck() {
+    if (this.state.spin) return;
+    this.setState({ spin: true });
+    this.t = setTimeout(() => this.setState({ spin: false }), 2200);
+  }
+
+  mode() {
+    const d = this.state.demo;
+    if (this.state.spin) return "checking";
+    if (d === 2) return "checking";
+    if (d === 3) return "dead";
+    if (d === 4) return "error";
+    if (d === 5) return "warn";
+    if (d === 6) return "unchecked";
+    if (d === 7) return "missing";
+    if (d === 8) return "warn";
+    return "ok";
+  }
+
+  renderVals() {
+    const s = this.state;
+    const mode = this.mode();
+    const demo = DEMOS[s.demo - 1];
+    const narrow = s.demo === 8;
+    const responsive = s.demo === 9 || s.preset === 3;
+    const p = PRESETS[s.preset];
+    const h = HEALTH[mode];
+    const checking = mode === "checking";
+    const dead = mode === "dead";
+    const missing = mode === "missing";
+    const unchecked = mode === "unchecked";
+    const railOpen = s.rail && !narrow;
+
+    const diags = mode === "error" ? ERR_DIAGS : mode === "warn" ? WARN_DIAGS : [];
+    const errCount = diags.filter((d) => d.level === "error").length;
+    const warnCount = diags.filter((d) => d.level === "warning").length;
+
+    const diagPill = unchecked ? "—" : dead ? "!" : errCount ? String(errCount + warnCount) : warnCount ? String(warnCount) : "0";
+
+    return {
+      theme: this.props.theme === "dark" ? "dark" : "light",
+      title: "日志",
+      file: missing ? "日志.dc.html（缺失）" : "日志.dc.html",
+      kindLabel: "页稿",
+      version: "v217",
+      elementsLabel: unchecked ? "元素数未知" : "812 元素",
+
+      healthLabel: h.label,
+      hBg: h.bg, hBd: h.bd, hFg: h.fg,
+      checking: checking,
+      notChecking: !checking,
+      onRecheck: () => this.recheck(),
+      recheckLabel: checking ? "体检中" : "重跑体检",
+      recheckOpacity: checking ? "0.55" : "1",
+      onRescan: () => this.setState({ demo: 1 }),
+
+      isDiag: s.tab === "diag",
+      isChange: s.tab === "change",
+      tabDiag: () => this.setState({ tab: "diag", rail: true }),
+      tabChange: () => this.setState({ tab: "change", rail: true }),
+      diagBtnBg: s.tab === "diag" ? "var(--tool-panel)" : "transparent",
+      diagBtnFg: s.tab === "diag" ? "var(--tool-text)" : "var(--tool-muted)",
+      diagBtnFw: s.tab === "diag" ? "560" : "400",
+      diagBtnSh: s.tab === "diag" ? "var(--tool-shadow-1)" : "none",
+      diagPill: diagPill,
+      diagPillBg: errCount || dead ? "var(--tool-err-soft)" : warnCount ? "var(--tool-warn-soft)" : "var(--tool-panel-3)",
+      diagPillFg: errCount || dead ? "var(--tool-err)" : warnCount ? "var(--tool-warn)" : "var(--tool-text-2)",
+      chgBtnBg: s.tab === "change" ? "var(--tool-panel)" : "transparent",
+      chgBtnFg: s.tab === "change" ? "var(--tool-text)" : "var(--tool-muted)",
+      chgBtnFw: s.tab === "change" ? "560" : "400",
+      chgBtnSh: s.tab === "change" ? "var(--tool-shadow-1)" : "none",
+      chgPill: "12",
+
+      railOpen: railOpen,
+      toggleRail: () => this.setState((st) => (narrow ? { sheet: !st.sheet } : { rail: !st.rail })),
+      railToggleTitle: narrow ? "展开 / 收起底部诊断抽屉" : railOpen ? "收起右侧面板" : "展开右侧面板",
+      railBtnBg: (narrow ? s.sheet : railOpen) ? "var(--tool-accent-soft)" : "var(--tool-panel)",
+      railBtnFg: (narrow ? s.sheet : railOpen) ? "var(--tool-accent)" : "var(--tool-text-2)",
+      railTitle: s.tab === "diag" ? "诊断" : "变更概览",
+      railFullNote: s.tab === "diag" ? "整页形态 · S3 待建" : "整页形态 · S4 待建",
+      changeFullNote: "完整清单 · S4 待建（第一批后续）",
+      gridCols: railOpen ? "minmax(0, 1fr) " + (this.props.railWidth || 340) + "px" : "minmax(0, 1fr)",
+
+      isNarrow: narrow,
+      shellMax: narrow ? "720px" : "none",
+      shellEdge: narrow ? "1px solid var(--tool-border-strong)" : "0",
+      sheetOpen: narrow && s.sheet,
+      toggleSheet: () => this.setState((st) => ({ sheet: !st.sheet })),
+      sheetArrow: narrow && s.sheet ? "180deg" : "0deg",
+      sheetHint: unchecked ? "从未体检" : dead ? "渲染卡死" : diags.length ? errCount + " 错误 · " + warnCount + " 提醒" : "0 错误 0 提醒",
+
+      presets: PRESETS.map((pr, i) => ({
+        name: pr.name,
+        title: pr.w ? pr.w + " × " + pr.h : "宽度跟着画布走",
+        active: i === s.preset,
+        bg: i === s.preset ? "var(--tool-panel)" : "transparent",
+        fg: i === s.preset ? "var(--tool-text)" : "var(--tool-muted)",
+        fw: i === s.preset ? "560" : "400",
+        sh: i === s.preset ? "var(--tool-shadow-1)" : "none",
+        pick: () => this.setState({ preset: i })
+      })),
+      sizeLabel: responsive ? "自适应 · 高度固定 900" : p.w + " × " + p.h,
+      zoom: String(s.zoom),
+      zoomLabel: Math.round(s.zoom * 100) + "%",
+      zoomIn: () => this.setState((st) => ({ zoom: Math.min(1.5, Math.round((st.zoom + 0.1) * 10) / 10) })),
+      zoomOut: () => this.setState((st) => ({ zoom: Math.max(0.3, Math.round((st.zoom - 0.1) * 10) / 10) })),
+      canvasAlign: responsive ? "start stretch" : "start center",
+      sizerW: responsive ? "100%" : Math.round(p.w * s.zoom) + "px",
+      sizerH: responsive ? Math.round(900 * s.zoom) + "px" : Math.round(p.h * s.zoom) + "px",
+      frameW: responsive ? "calc(100% / " + s.zoom + ")" : p.w + "px",
+      frameH: responsive ? "900px" : p.h + "px",
+
+      showFrame: !dead && !missing,
+      isDead: dead,
+      isMissing: missing,
+      missingPath: "~/work/umbra/设计稿/日志.dc.html",
+      deadStats: [
+        { k: "首帧", v: "超时 10s", fg: "var(--tool-err)" },
+        { k: "节点数", v: "读不到", fg: "var(--tool-muted)" },
+        { k: "落盘", v: "已拒绝", fg: "var(--tool-err)" }
+      ],
+      deadCause: "renderVals() 里有同步死循环，或者逻辑类在 componentDidMount 里无条件 setState。先把 v216 打开对一下 —— 上一版是能渲染的。",
+
+      lastCheckLabel: checking ? "正在体检…" : unchecked ? "从未体检" : missing ? "—" : dead ? "08:41 体检失败" : "08:41 体检 · 1,840ms · 2,307 节点",
+      demoLabel: demo.name,
+      demoNote: demo.note,
+      demoStates: DEMOS.map((d) => ({
+        n: d.n, name: d.name, active: d.n === s.demo,
+        bg: d.n === s.demo ? "var(--tool-accent)" : "var(--tool-panel)",
+        bd: d.n === s.demo ? "var(--tool-accent)" : "var(--tool-border-strong)",
+        fg: d.n === s.demo ? "var(--tool-on-accent)" : "var(--tool-muted)",
+        pick: () => this.setState({ demo: d.n, spin: false, zoom: 1, preset: d.n === 9 ? 3 : 0, rail: d.n !== 8, sheet: true })
+      })),
+
+      statCells: [
+        { k: "元素", v: unchecked ? "—" : "812", fg: "var(--tool-text)" },
+        { k: "洞", v: unchecked ? "—" : "143", fg: "var(--tool-text)" },
+        { k: "import", v: unchecked ? "—" : "4", fg: "var(--tool-text)" }
+      ],
+      allGreen: mode === "ok",
+      neverChecked: unchecked,
+      hasDiags: diags.length > 0,
+      diags: diags.map((d) => ({
+        code: d.code,
+        levelLabel: d.level === "error" ? "ERROR" : "WARN",
+        badgeBg: d.level === "error" ? "var(--tool-err-soft)" : "var(--tool-warn-soft)",
+        badgeFg: d.level === "error" ? "var(--tool-err)" : "var(--tool-warn)",
+        codeFg: d.level === "error" ? "var(--tool-err)" : "var(--tool-warn)",
+        rowBg: d.level === "error" ? "var(--tool-panel)" : "var(--tool-panel)",
+        hasLine: d.line !== null,
+        noLine: d.line === null,
+        loc: d.line !== null ? "L" + d.line + ":" + d.col : "",
+        message: d.message,
+        hasFix: !!d.fix,
+        noFix: !d.fix,
+        fix: d.fix || ""
+      })),
+      diagMoreLabel: diags.length + " 条全部 · 在整页里分组查看 →",
+
+      levels: [
+        { key: "L1", name: "契约", action: "必须改代码", count: "2", bg: "var(--tool-err-soft)", bd: "var(--tool-err-border)", fg: "var(--tool-err)" },
+        { key: "L2", name: "取值", action: "照抄新值", count: "5", bg: "var(--tool-warn-soft)", bd: "var(--tool-warn-border)", fg: "var(--tool-warn)" },
+        { key: "L3", name: "文案", action: "改字符串", count: "3", bg: "var(--tool-accent-soft)", bd: "var(--tool-accent-border)", fg: "var(--tool-accent)" },
+        { key: "L4", name: "等价", action: "无需处理", count: "2", bg: "var(--tool-panel-2)", bd: "var(--tool-border)", fg: "var(--tool-muted)" }
+      ],
+
+      iframeNote: "预览跑在独立 iframe 里 · 稿子的 :root 变量与 body 重置不会漏进壳"
+    };
+  }
+}
+
+</script>
+</body>
+</html>

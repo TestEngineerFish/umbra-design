@@ -79,10 +79,9 @@ UmbraDesign/                    ← 工具本身。这是一个 git 仓库，只
     _ds/…                       ← 设计系统，目录名固定为 _ds
     umbra-tokens.json           ← 判据与取值的唯一出处
     umbra-icons.json
-    _runtime/                   ← 运行时副本，由 MCP 维护，不进租户仓库
-      support.js
-      react.production.min.js
-      react-dom.production.min.js
+    support.js                  ← 运行时副本，与稿同层，由 MCP 维护，不进租户仓库
+    react.production.min.js
+    react-dom.production.min.js
     *.dc.html                   ← 页稿与组件稿
     index.dc.html               ← build_index 生成的入口页
     .umbradesign/               ← 工具产物（快照 / 缩略图 / 索引缓存）
@@ -96,9 +95,18 @@ UmbraDesign/                    ← 工具本身。这是一个 git 仓库，只
 / `UMBRADESIGN_PROJECTS_ROOT`），默认 `./projects`。
 
 ⚠️ **因此租户目录必须自包含。** 项目根可能在任何地方，稿子不能用
-`../../runtime/…` 这种跨出项目根的相对路径去找运行时。做法：
-`write_draft` 与 `build_index` 保证租户目录下有一份 `_runtime/`
-（从工具的 `runtime/` 拷过去，版本不一致时刷新），稿子只引用它。
+`../../runtime/…` 这种跨出项目根的相对路径去找运行时。
+
+做法：**运行时副本与稿同层。** `<script src="./support.js">` 是相对**文档**解析的，
+所以每一个放稿的目录都要有一份（旧项目里 `PC 端/`、`PC 端/Components/`、
+`PC 端/Pages/` 各有一份 support.js，就是这个原因）。
+`write_draft` 与 `build_index` 负责把工具 `runtime/` 里的三个文件
+（`support.js` + 两个 React UMD，共 211 KB）分发到每个放稿的目录并保持版本一致。
+
+> 早先版本这里写的是放在 `_runtime/` 子目录。**已改。** 子目录只会让
+> 每份稿的 `<script src>` 都要改写，而全部 32 份存量稿写的都是同层的 `./support.js`——
+> 为一个子目录去改 32 份稿，零收益。
+
 这也让整个租户目录可以直接打包交给实现侧——**打开就能跑，不依赖 UmbraDesign 在不在**。
 
 ### 3.1 `project.json`
@@ -120,7 +128,7 @@ UmbraDesign/                    ← 工具本身。这是一个 git 仓库，只
 
 两个字段**故意不在这里**：
 
-- `runtime` —— 运行时副本固定在租户目录的 `_runtime/`，由 MCP 维护，不配置
+- `runtime` —— 运行时副本与稿同层，由 MCP 分发与刷新，不配置
 - `git` —— 自动探测租户目录下有没有 `.git`，不手填（`00` §3.3）
 
 ### 3.2 `@ds` 别名：只活在落盘前
@@ -230,9 +238,23 @@ UmbraDesign/                    ← 工具本身。这是一个 git 仓库，只
 
 唯一写入口给三条保证：
 
-1. **归一化落盘** —— UTF-8 无 BOM、LF 换行、末尾恰好一个换行、`@ds` 别名展开。
+1. **归一化落盘** —— UTF-8 无 BOM、LF 换行、末尾恰好一个换行。
    这一条直接堵死 `04` 缺陷 #2 那一类"落盘方式影响结果"的怀疑，
    无论根因是什么（根因至今未证实，见 `05` §四）。
+
+   同时做两处**确定性改写**，它们是同一类事——**源头写抽象，落盘写具体**：
+
+   | 改写 | 源头写 | 落盘后 |
+   | --- | --- | --- |
+   | 设计系统路径 | `href="@ds/tokens/colors.css"` | `href="_ds/umbra-design-system-<uuid>/tokens/colors.css"` |
+   | 离线资源映射 | 什么都不写 | `support.js` 之前插入 `window.__resources` 块，把 React 的 CDN URL 指向同层本地副本 |
+
+   ⚠️ **第二条必须由工具做，不许写进设计稿。** 理由三条：
+   support.js 里 React 的 URL 是硬编码常量（`05` §1.2），映射是绕过它的唯一办法；
+   设计侧的宿主自己会注入这张表，写进稿里在那边是冗余；
+   React 版本升级时改一处（工具）而不是改 N 份稿。
+   注入块用 `<!-- umbradesign:resources -->` 包起来，**改写幂等**——
+   重复落盘不叠加，先删旧块再写新块。
 2. **落盘即校验** —— 内部先跑 `validate_draft`。有 `error` 级诊断则**拒绝落盘**并原样返回诊断；
    只有 `warning` 则落盘并把 warning 一并返回。
 3. **落盘即留痕** —— 写快照到 `.umbradesign/snapshots/`，追加一条 `CHANGELOG-设计侧.md`（见 `07`）。
