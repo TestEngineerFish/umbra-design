@@ -300,30 +300,69 @@ function normalizeUrl(url: string, p: Project): string {
  * 改法：挂 `data-*` 上，逻辑类里在 `componentDidMount` / `componentDidUpdate` 抄过去
  * （S5 的图标就是这么改的）。
  */
-const FETCH_ATTRS = ["src", "href", "srcset", "poster"];
-const SVG_ATTRS = ["d", "points", "viewBox", "transform", "cx", "cy", "r", "x1", "y1", "x2", "y2"];
+/* ⚠️⚠️ 2026-09-18 收回了 SVG 那一半 —— 详见 doc/00 §24。
+ *
+ * 原来这条检查同时管两类：「会发请求」和「SVG 解析时校验」。
+ * 后者**实测复现不了**：
+ *   · 语料里 4 份真稿（PC 吐司 / 折叠栏 / 空态 / 图标选择器）带 `d="{{ icon }}"`，
+ *     真渲染**零条** SVG 报警
+ *   · 8 种合成形态（裸写 / sc-for / 大页面 / 带 hint / sc-if false / x-import…）
+ *     也全不报
+ * 只有 S5 那一次观察到过，触发条件没隔离出来。
+ *
+ * 按 doc/04 §二 的纪律：**未复现的就标未复现，不能当成必改项。**
+ * 拿一条复现不了的判据让设计侧改 150 多处，等于制造「一条永远好不了的黄」——
+ * 那正是我自己写下的、不该做的事。
+ *
+ * 留下的只有「会发请求」那一半 —— 它是实测过的（§19.6：src="{{ previewSrc }}"
+ * 每次加载留一个 404，改成 about:blank 之后消失）。
+ *
+ * ⚠️ 判据必须看**宿主元素**，不能只看属性名。两条实测出来的边界：
+ *
+ *  1. `a[href]` 在解析时**不发请求**（只有 img / script / link / iframe / source /
+ *     video / audio / embed / track / object 这些会）。报它是误报。
+ *  2. `d` 只在 **SVG 元素**上被校验。抽图标组件之后写法是
+ *     `<dc-import name="图标" d="{{ ic.d }}">` —— dc-import 是自定义元素，
+ *     浏览器不校验它的 d，**那正是推荐的修法**，报它就是误报正确修法。
+ *
+ * 这是同一类错误的第二次（第一次是 `data-icon-d` 被 `` 命中）——
+ * 判据写松了就会拦住修法本身。
+ */
+const FETCH_HOSTS: Record<string, string[]> = {
+  img: ["src", "srcset"], script: ["src"], link: ["href"], iframe: ["src"],
+  source: ["src", "srcset"], video: ["src", "poster"], audio: ["src"],
+  embed: ["src"], track: ["src"], object: ["data"], input: ["src"],
+};
+const WATCH_ATTRS = ["src", "href", "srcset", "poster", "data"];
+
+/** 这个 (宿主, 属性) 组合，浏览器在解析时会不会真去发请求。
+ *  只认实测过的组合 —— 拿不准的一律不报（doc/04 §二：不报不能证明的错）。 */
+function parseTimeRisk(tag: string, attr: string): "fetch" | null {
+  return FETCH_HOSTS[tag.toLowerCase()]?.includes(attr.toLowerCase()) ? "fetch" : null;
+}
 
 function checkHoleInParsedAttr(d: Draft, f: string): Diagnostic[] {
   if (!d.template) return [];
   const out: Diagnostic[] = [];
   const tplStart = d.template.start;
   const tpl = d.src.slice(tplStart, d.template.end);
-  for (const attr of [...FETCH_ATTRS, ...SVG_ATTRS]) {
+  for (const attr of WATCH_ATTRS) {
     // ⚠️ 不能用 \b 开头：`-` 是非单词字符，于是 `data-icon-d="{{ x }}"` 也会命中 ——
     // 而那正是我们推荐的改法，报它就是误报（实测自己踩了）。用负向后查排掉。
     const re = new RegExp(`(?<![-\\w])${attr}\\s*=\\s*"([^"]*\\{\\{[^"]*)"`, "gi");
     for (const m of tpl.matchAll(re)) {
-      const abs = tplStart + (m.index as number);
+      const at = m.index as number;
+      const abs = tplStart + at;
       if (d.comments.some((c) => abs >= c.start && abs < c.end)) continue;
-      const fetchy = FETCH_ATTRS.includes(attr.toLowerCase());
-      out.push(warn(W.HOLE_IN_PARSED_ATTR, f, { kind: "key", name: attr },
-        fetchy
-          ? `${attr} 上写了洞 —— 浏览器在替换它之前就会去请求字面量，每次加载留一个 404`
-          : `${attr} 上写了洞 —— 浏览器在解析时就校验这个属性，控制台会报一条 error`,
+      // 往前找到宿主开标签的标签名
+      const lt = tpl.lastIndexOf("<", at);
+      const tag = lt < 0 ? "" : (/^<\s*([a-zA-Z][\w-]*)/.exec(tpl.slice(lt, at)) ?? ["", ""])[1] as string;
+      if (!parseTimeRisk(tag, attr)) continue;
+      out.push(warn(W.HOLE_IN_PARSED_ATTR, f, { kind: "key", name: `${tag}[${attr}]` },
+        `<${tag}> 的 ${attr} 上写了洞 —— 浏览器在替换它之前就会去请求字面量，每次加载留一个 404`,
         { ...d.at(abs),
-          fix: `改挂 data-${attr.toLowerCase()}="${(m[1] ?? "").trim()}"，` +
-               `在逻辑类的 componentDidMount / componentDidUpdate 里抄到 ${attr} 上` +
-               (fetchy ? `；或者静态值先写 about:blank 再由逻辑类设` : "") }));
+          fix: `静态值先写 about:blank（或占位路径），真地址在逻辑类的 componentDidMount / ` +
+               `componentDidUpdate 里设；或改挂 data-${attr.toLowerCase()} 再抄过去` }));
     }
   }
   return out;
