@@ -1,0 +1,50 @@
+{
+  "说明": "键是文件名，值里 解析期报错=true 表示这份稿必须报出 SVG 解析期那一类；false 表示控制台必须干净。判据见 doc/06 §2.8 与 doc/00 §二十七。",
+  "稿": {
+    "渲染/01-path的d-报.dc.html": {
+      "解析期报错": true
+    },
+    "渲染/02-polyline的points-报.dc.html": {
+      "解析期报错": true
+    },
+    "渲染/03-g的transform-报.dc.html": {
+      "解析期报错": true
+    },
+    "渲染/04-svg的viewBox-报.dc.html": {
+      "解析期报错": true
+    },
+    "渲染/05-circle的cx-报.dc.html": {
+      "解析期报错": true
+    },
+    "渲染/06-svg的width-报.dc.html": {
+      "解析期报错": true
+    },
+    "渲染/07-rect的xywh-报.dc.html": {
+      "解析期报错": true
+    },
+    "渲染/08-line的x1-报.dc.html": {
+      "解析期报错": true
+    },
+    "渲染/09-列表里的d-照样报.dc.html": {
+      "解析期报错": true
+    },
+    "渲染/10-空列表里的d-照样报.dc.html": {
+      "解析期报错": true
+    },
+    "渲染/11-关着的分支里的d-照样报.dc.html": {
+      "解析期报错": true
+    },
+    "渲染/12-fill不报.dc.html": {
+      "解析期报错": false
+    },
+    "渲染/13-img的width不报.dc.html": {
+      "解析期报错": false
+    },
+    "渲染/14-style里的洞不报.dc.html": {
+      "解析期报错": false
+    },
+    "渲染/15-data-icon-d的修法-干净.dc.html": {
+      "解析期报错": false
+    }
+  }
+}

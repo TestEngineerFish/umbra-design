@@ -14,6 +14,9 @@ projects/
 ui/support.js
 ui/react.production.min.js
 ui/react-dom.production.min.js
+fixtures/**/support.js
+fixtures/**/react.production.min.js
+fixtures/**/react-dom.production.min.js
 
 # 设计侧交回来的原件落脚处（doc/00 §二十七）。
 # 进来的是别人那边的版本，移植完就没用了 —— 不追踪，避免和 ui/ 下的正本混起来。

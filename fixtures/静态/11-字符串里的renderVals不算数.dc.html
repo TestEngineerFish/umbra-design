@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet><style>html,body{margin:0;padding:0}</style></helmet>
+<div><span>{{ real }}</span></div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{}">
+class Component extends DCLogic {
+  hint = "这份稿没有 renderVals() 就会被跳过";
+  /* 历史写法：renderVals( 之类的注释 */
+  renderVals() {
+    return { real: "有" };
+  }
+}
+</script>
+</body>
+</html>

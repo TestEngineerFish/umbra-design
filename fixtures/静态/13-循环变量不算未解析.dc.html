@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet><style>html,body{margin:0;padding:0}</style></helmet>
+<div><sc-for list="{{ rows }}" as="r"><span>{{ r.t }}</span></sc-for></div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{}">
+class Component extends DCLogic {
+  renderVals() {
+    return { rows: [{ t: "一" }] };
+  }
+}
+</script>
+</body>
+</html>

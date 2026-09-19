@@ -142,7 +142,12 @@ export function objectTopLevel(src: string, open: number): ObjectShape {
     if (!seg) continue;
     if (seg.startsWith("...")) { out.spreads.push(seg.slice(3).trim()); continue; }
     // key: value / 'key': value / "key": value / key（简写）/ key(){}（方法简写）
-    const m = seg.match(/^(?:(['"])([^'"]+)\1|([A-Za-z_$][\w$]*))\s*(?::|\(|$)/);
+    /* ⚠️ 键名要按 **JS 的标识符规则**匹配，不是 ASCII。`标题: "x"` 在 JS 里完全合法，
+       而原来的 [A-Za-z_$][\w$]* 匹配不上 —— 于是走到下面 bail("认不出的键形态")，
+       **整份稿的洞审计被放弃**。一个中文键废掉一份稿的审计，代价和收益完全不成比例。
+       （这个洞本身还是要报的：support.js 的 IDENT_RE 是纯 ASCII，运行时取不到它，
+       由 E_HOLE_EXPRESSION 在洞那一侧说 —— 两件事分开报，都不含糊。） */
+    const m = seg.match(/^(?:(['"])([^'"]+)\1|([\p{L}_$][\p{L}\p{N}_$]*))\s*(?::|\(|$)/u);
     if (m) {
       const key = (m[2] ?? m[3]) as string;
       out.keys.push(key);

@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<!-- umbradesign:resources -->
+<script>window.__resources = {
+    "https://unpkg.com/react@18.3.1/umd/react.production.min.js": "./react.production.min.js",
+    "https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js": "./react-dom.production.min.js"
+  };</script>
+<!-- /umbradesign:resources -->
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet><style>html,body{margin:0;padding:0}</style></helmet>
+<div><sc-for list="{{ items }}" as="i" hint-placeholder-count="6"><svg viewBox="0 0 16 16"><path d="{{ i.d }}"></path></svg></sc-for></div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{}">
+class Component extends DCLogic {
+  renderVals() {
+    return { v: "8", d: "M3 8h10", pts: "1,1 8,8", tr: "translate(2,2)", vb: "0 0 16 16",
+             col: "#E8590C", n: "12", items: [{ d: "M3 8h10" }], empty: [], no: false };
+  }
+}
+</script>
+</body>
+</html>

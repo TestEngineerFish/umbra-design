@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet><style>html,body{margin:0;padding:0}</style></helmet>
+<div><svg viewBox="0 0 16 16"><path d="M3 8h10" fill="{{ c }}" stroke-width="{{ w }}"></path></svg></div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{}">
+class Component extends DCLogic {
+  renderVals() {
+    return { c: "#E8590C", w: "1.4" };
+  }
+}
+</script>
+</body>
+</html>

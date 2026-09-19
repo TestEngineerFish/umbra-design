@@ -1,0 +1,71 @@
+{
+  "静态/01-SVG几何属性上的洞要报.dc.html": {
+    "codes": [
+      "W_HOLE_IN_PARSED_ATTR"
+    ],
+    "why": "path 的 d 是解析期按类型校验的属性。这条判据被误撤回过一次（doc/00 §二十七），撤回的代价是 render_check 的静音没人发现 —— 所以它必须被钉住。"
+  },
+  "静态/02-涂装属性上的洞不报.dc.html": {
+    "codes": [],
+    "why": "fill / stroke-width 是涂装属性，浏览器不按类型校验 —— 实测不报。报了就是误报。"
+  },
+  "静态/03-dc-import 上的 d 不报.dc.html": {
+    "codes": [],
+    "why": "dc-import 是自定义元素，浏览器不校验它的 d —— 而这**正是推荐的修法**。报它等于拦住修法本身，这类误报犯过两次。"
+  },
+  "静态/04-图标子组件.dc.html": {
+    "codes": [],
+    "why": "data-icon-d + 静态合法占位，是另一条修法。判据里 \\b 会命中 data-icon-d，必须用负向后查排掉 —— 这个误报犯过一次。顺便给 03 当 import 目标。"
+  },
+  "静态/05-a的href不报.dc.html": {
+    "codes": [],
+    "why": "a[href] 点击才跳转，解析时不发请求。只有 img/script/link/iframe 那批才发。"
+  },
+  "静态/06-img的src要报.dc.html": {
+    "codes": [
+      "W_HOLE_IN_PARSED_ATTR"
+    ],
+    "why": "img[src] 解析时就会去请求字面量，每次加载留一个 404。实测过（§19.6）。"
+  },
+  "静态/07-style里的洞不报.dc.html": {
+    "codes": [],
+    "why": "style 里的洞 CSS 静默丢弃，控制台干净。这是稿里最常见的写法，报它等于全盘皆红。"
+  },
+  "静态/08-select里的sc-for要报.dc.html": {
+    "codes": [
+      "E_CONTROL_IN_TABLE"
+    ],
+    "why": "HTML 解析器把 select 里的非 option 元素寄养出去，sc-for 一个选项都渲染不出来（doc/06 §2.7）。"
+  },
+  "静态/09-注释里的select不该连累后面.dc.html": {
+    "codes": [
+      "W_COMMENT_TAG"
+    ],
+    "why": "注释里的 <select> 曾被当成未闭合开标签，一路吞到文件末尾，把后面所有 sc-for 全报一遍 —— 一条发生在合法稿上的误报（doc/00 §22.4）。W_COMMENT_TAG 本身是这条检查该有的产物，钉的是**不能出现 E_CONTROL_IN_TABLE**。"
+  },
+  "静态/10-正则字面量不能截断键表.dc.html": {
+    "codes": [],
+    "why": "`.replace(/^.*\\//, \"\")` 结尾是 `//`，扫描器会当成行注释，把后面整段吞掉 —— S2 的键表因此从 87 条静悄悄缩成 3 条，而且 opaque 还报 false（doc/00 §二十三）。三个键都要认出来，一个都不能少。"
+  },
+  "静态/11-字符串里的renderVals不算数.dc.html": {
+    "codes": [],
+    "why": "第一个出现的 `renderVals(` 在字符串和块注释里 —— 扫描器不跳引号/注释就会认错入口，整份稿的洞审计被放弃（doc/00 §二十三，覆盖率 54→55/57，键 900→1165）。"
+  },
+  "静态/12-洞在renderVals里找不到要报.dc.html": {
+    "codes": [
+      "E_HOLE_UNRESOLVED",
+      "W_DEAD_KEY"
+    ],
+    "why": "正反两遍：模板里的 {{ missing }} 在 renderVals 顶层键里找不到（属性洞运行时没有任何信号，静态校验是唯一的网）；renderVals 里的 spare 没人用，反向报 W_DEAD_KEY。"
+  },
+  "静态/13-循环变量不算未解析.dc.html": {
+    "codes": [],
+    "why": "`r` 是 sc-for 的循环变量，不在 renderVals 顶层 —— 当成未解析就是误报。"
+  },
+  "静态/14-中文洞名解析不出来要报.dc.html": {
+    "codes": [
+      "E_HOLE_EXPRESSION"
+    ],
+    "why": "中文键在 JS 里合法，人很容易这么写。但 support.js 的 IDENT_RE 是 /^[A-Za-z_$][A-Za-z0-9_$]*/ —— 运行时**取不到**这个洞，渲染成空、只留一条控制台 warn。所以 E_HOLE_EXPRESSION 是对的，判据直接对齐运行时，不是我们另定的口味。同时钉两件：① 扫描器要认出中文键（按 JS 标识符规则，不是 ASCII），否则整份稿的洞审计被放弃；② **不额外报 W_DEAD_KEY** —— 键名在模板里出现过，同一件事不报两遍。"
+  }
+}

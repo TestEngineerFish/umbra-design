@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet><style>html,body{margin:0;padding:0}</style></helmet>
+<div><span>{{ a }}</span><span>{{ b }}</span><span>{{ c }}</span></div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{}">
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      a: String("x/y").replace(/^.*\//, ""),
+      b: /\d{2}/.test("12") ? "是" : "否",
+      c: "尾"
+    };
+  }
+}
+</script>
+</body>
+</html>

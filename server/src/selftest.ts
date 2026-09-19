@@ -1,16 +1,63 @@
-/** 回归自测：不经过 MCP，直接打模块，拿真实存量稿验校验器。
+/** 回归自测：不经过 MCP，直接打模块。三块，判据各不相同。
  *
- * 判据：**能渲染的稿一条 error 都不该报。** 报了就是误报，先修校验器。
+ *  1. `fixtures/静态/` —— **工具自己的基准**，随仓库走，精确匹配 `expect.json`。
+ *     该报的没报、不该报的报了，都算失败。这是唯一能证明「不该报的没报」的一块 ——
+ *     语料里不存在的写法，再多语料也照不出来。
+ *  2. `ui/` —— 工具界面稿。判据：**一条 error 都不许有**（这几份是我们自己写的）。
+ *  3. `projects/<名>` —— 用户的真实语料。**有就跑，没有就跳过**：那是用户自己的项目，
+ *     不进这个仓库，clone 下来不该因为它缺席就跑不了回归。判据是「零误报」——
+ *     语料里的真缺陷列在 KNOWN_REAL 里，那是稿的问题，不是工具的。
+ *
  * 用法：node dist/selftest.js [项目名]
  */
 import { readFile, readdir } from "node:fs/promises";
 import { basename, join, relative, sep } from "node:path";
-import { listDrafts, loadProject, projectsRoot, TOOL_ROOT } from "./project.js";
+import { buildProject, listDrafts, listProjectDirs, loadProject, projectsRoot, TOOL_ROOT } from "./project.js";
 import { getIcon, getToken, listComponents, listIcons, searchTokens } from "./assets.js";
 import { validateDraft } from "./validate.js";
 
 const name = process.argv[2] ?? "umbra";
 const bar = (s: string) => console.log("\n" + "─".repeat(4) + " " + s + " " + "─".repeat(Math.max(0, 62 - s.length)));
+
+// ════════════ 一、fixtures/静态 —— 工具自己的基准 ════════════
+const fxDir = join(TOOL_ROOT, "fixtures");
+const fxP = await buildProject(fxDir);
+const expect: Record<string, { codes: string[]; why: string }> =
+  JSON.parse(await readFile(join(fxDir, "expect.json"), "utf8"));
+
+bar("fixtures/静态 —— 精确匹配");
+let fxBad = 0;
+for (const rel of Object.keys(expect).sort()) {
+  const want = (expect[rel] as { codes: string[] }).codes;
+  const v = validateDraft(fxP, rel, await readFile(join(fxDir, rel), "utf8"), rel);
+  const got = [...new Set(v.diags.map((d) => String(d.code)))].sort();
+  // hint-* 是写法提示，和判据无关 —— 基准稿里也不写它，这里只是防御
+  const real = got.filter((c) => c !== "W_HINT_IGNORED");
+  const missing = want.filter((c) => !real.includes(c));
+  const extra = real.filter((c) => !want.includes(c));
+  const ok = !missing.length && !extra.length;
+  if (!ok) fxBad++;
+  console.log(`  ${ok ? "✓" : "✗"} ${rel.replace("静态/", "").replace(".dc.html", "").slice(0, 34).padEnd(36)}` +
+    (ok ? (want.length ? want.join(" ") : "（一条都不报）")
+        : `${missing.length ? " 该报没报：" + missing.join(" ") : ""}${extra.length ? " 不该报却报了：" + extra.join(" ") : ""}`));
+  if (!ok) {
+    console.log(`      钉的是：${(expect[rel] as { why: string }).why}`);
+    for (const d of v.diags.filter((x) => extra.includes(String(x.code)))) {
+      console.log(`      → ${d.code} ${d.locator?.name ?? ""} — ${d.message.slice(0, 90)}`);
+    }
+  }
+}
+console.log(fxBad ? `  ✗ ${fxBad} 条基准没过` : `  ✓ ${Object.keys(expect).length} 条基准全过`);
+
+// ════════════ 二、语料（有就跑） ════════════
+const dirs = await listProjectDirs();
+if (!dirs.length) {
+  bar("语料");
+  console.log(`  ${projectsRoot()} 下没有项目 —— 跳过这一块。`);
+  console.log("  语料是用户自己的项目，不进这个仓库；基准与界面稿两块不依赖它。");
+  await uiBlock();
+  finish(fxBad, 0, 0);
+}
 
 const p = await loadProject(name);
 console.log(`项目根 ${projectsRoot()}`);
@@ -114,28 +161,42 @@ if (unknown.length) {
   bar("⚠️ 表外的 error —— 逐条核对是不是误报");
   for (const u of unknown) console.log(`  ${u.f}  ${u.code}  ${u.at}\n      ${u.msg}`);
 }
-/* 工具自己的界面稿。它们不在 projects/ 下，原来整块没被回归覆盖 ——
-   而这几份恰恰是改得最勤的（每个批次都动）。判据比存量稿更严：
-   **一条 error 都不许有**，因为这几份是我自己写的，没有「稿的历史问题」可推。
-   import 以 ui/ 为基准解析（S7 引 IconGlyph），所以这里换一个 dir。 */
-bar("工具界面稿 ui/");
-const uiDir = join(TOOL_ROOT, "ui");
-const uiP = { ...p, dir: uiDir };
-let uiErr = 0;
-for (const f of (await readdir(uiDir)).filter((x) => x.endsWith(".dc.html")).sort()) {
-  const v = validateDraft(uiP, f, await readFile(join(uiDir, f), "utf8"), f);
-  const e = v.diags.filter((d) => d.level === "error");
-  const w = v.diags.filter((d) => d.level === "warning");
-  uiErr += e.length;
-  console.log(`  ${f.slice(0, 29).padEnd(30)} ${String(e.length).padStart(3)} ${String(w.length).padStart(5)} ` +
-    `${String(v.stats.elements).padStart(6)}  ${v.stats.holeAuditSkipped ? "放弃" : "已做"}    ` +
-    `${[...new Set(e.map((d) => d.code))].join(" ")}`);
-  for (const d of e) console.log(`      ✗ ${d.code} ${d.locator?.name ?? ""} — ${d.message}`);
-  for (const d of w) console.log(`      · ${d.code} ${d.locator?.name ?? ""} — ${d.message}`);
+const uiErr = await uiBlock();
+finish(fxBad, unknown.length, uiErr);
+
+
+/** 工具自己的界面稿。它们不在 projects/ 下，原来整块没被回归覆盖 ——
+ *  而这几份恰恰是改得最勤的（每个批次都动）。判据比语料更严：
+ *  **一条 error 都不许有**，因为这几份是我们自己写的，没有「稿的历史问题」可推。
+ *  import 以 ui/ 为基准解析（S7 引 IconGlyph），所以这里用 ui/ 当 dir。 */
+async function uiBlock(): Promise<number> {
+  bar("工具界面稿 ui/");
+  const uiDir = join(TOOL_ROOT, "ui");
+  const uiP = { ...fxP, dir: uiDir };
+  let uiErr = 0;
+  for (const f of (await readdir(uiDir)).filter((x) => x.endsWith(".dc.html")).sort()) {
+    const v = validateDraft(uiP, f, await readFile(join(uiDir, f), "utf8"), f);
+    const e = v.diags.filter((d) => d.level === "error");
+    const w = v.diags.filter((d) => d.level === "warning");
+    uiErr += e.length;
+    console.log(`  ${f.slice(0, 29).padEnd(30)} ${String(e.length).padStart(3)} ${String(w.length).padStart(5)} ` +
+      `${String(v.stats.elements).padStart(6)}  ${v.stats.holeAuditSkipped ? "放弃" : "已做"}    ` +
+      `${[...new Set(e.map((d) => d.code))].join(" ")}`);
+    for (const d of e) console.log(`      ✗ ${d.code} ${d.locator?.name ?? ""} — ${d.message}`);
+    for (const d of w) console.log(`      · ${d.code} ${d.locator?.name ?? ""} — ${d.message}`);
+  }
+  return uiErr;
 }
 
-const fail = unknown.length + uiErr;
-console.log(fail === 0
-  ? "✓ 零误报（表外 error 为 0）· 工具界面稿零 error"
-  : `✗ 回归失败：存量稿表外 error ${unknown.length} 条 · 工具界面稿 error ${uiErr} 条`);
-process.exitCode = fail === 0 ? 0 : 1;
+/** 三块的结论合成一条。基准和界面稿任一不过就是失败 —— 语料那块只看误报。 */
+function finish(fx: number, unknownErr: number, uiErr: number): never {
+  const parts = [
+    fx ? `基准 ${fx} 条没过` : "基准全过",
+    uiErr ? `界面稿 error ${uiErr} 条` : "界面稿零 error",
+    unknownErr ? `语料表外 error ${unknownErr} 条` : "语料零误报",
+  ];
+  const fail = fx + unknownErr + uiErr;
+  console.log(`\n${fail === 0 ? "✓" : "✗"} ${parts.join(" · ")}`);
+  process.exitCode = fail === 0 ? 0 : 1;
+  process.exit(fail === 0 ? 0 : 1);
+}
