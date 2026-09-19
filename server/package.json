@@ -14,10 +14,11 @@
     "build": "tsc -p .",
     "dev": "tsc -p . --watch",
     "start": "node dist/index.js",
+    "ui": "node dist/ui.js",
     "check": "tsc -p . --noEmit",
     "selftest": "node dist/selftest.js",
-    "incoming": "node dist/incoming.js",
-    "rendertest": "node dist/rendertest.js"
+    "rendertest": "node dist/rendertest.js",
+    "incoming": "node dist/incoming.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",

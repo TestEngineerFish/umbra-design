@@ -37,7 +37,25 @@ npm --prefix server run incoming     # 接设计侧交回来的稿（见 doc/00 
 `selftest` 的判据是三档：**基准精确匹配 · 界面稿零 error · 语料零误报**。
 `rendertest` 没有浏览器时整块跳过，并明说「跳过不等于通过」。
 
-### 4. 注册进大模型客户端
+### 4. 自己看稿 / 改稿（不需要模型）
+
+界面是给**人**用的，一条命令就起：
+
+```bash
+npm --prefix server run ui                       # 只有一个项目时
+npm --prefix server run ui -- <项目名>
+npm --prefix server run ui -- <项目名> --port 4173 --no-open
+```
+
+它做三件事：起本地 http、生成入口页并把界面壳与本地 API 令牌部署进项目、
+打开浏览器。然后停在前台 —— **回车**重跑索引（改完稿用），**Ctrl-C** 退出。
+
+在入口页点一份稿就进单稿预览壳，那里可以：点选节点、改属性（数字框 /
+拖标签 / token 色板）、看诊断、看变更清单、回退版本。**全程没有模型在场。**
+
+要模型参与的是另一件事：让它按需求写稿、改逻辑类、解释变更 —— 那走下面的 MCP。
+
+### 5. 注册进大模型客户端
 
 服务走 **stdio**，入口是 `server/dist/index.js`，**不依赖工作目录** ——
 命令里给绝对路径就行。
@@ -73,7 +91,7 @@ args = ["/Users/sam/Documents/SourceTree/Geek/UmbraDesign/server/dist/index.js"]
 起来之后 stderr 会打一行
 `[umbradesign] v0.1.0 已启动 · 项目根 …`，客户端里能看到 **27 个工具**。
 
-### 5. 设计项目放哪
+### 6. 设计项目放哪
 
 默认 `<仓库>/projects/`，一个子目录一个项目。要放别处，两种都行：
 
@@ -101,20 +119,19 @@ UMBRADESIGN_PROJECTS_ROOT=/path/to/projects node server/dist/index.js
 
 除 `name` 外都可省。
 
-### 6. 人要看稿的时候
+### 7. 模型侧的调用顺序
 
-模型侧按 `doc/00` §八 的顺序调工具。**人**要看稿走这条：
+模型按 `doc/00` §八 的顺序调工具：`get_project` → `get_syntax_guide` →
+`search_tokens` / `list_components` → `validate_draft` → `write_draft` →
+`render_check`。人要看稿的话，模型这边等价于 `serve_start` + `build_index`
+（`npm run ui` 做的就是这两步，外加打开浏览器）。
 
-```
-serve_start  →  build_index  →  浏览器打开入口页 index.dc.html
-```
-
-`build_index` 会在项目根生成入口页、把 S1–S5/S7 那几个界面壳和运行时拷过去、
-并把本地 API 的地址与令牌注进页面。入口页里点一份稿就进单稿预览壳，
-在那里点选节点、改属性、看诊断、看变更、回退版本。
+`build_index` 往项目根写：入口页、六个界面壳、索引数据、皮肤、运行时三件套，
+并把本地 API 的地址与令牌注进页面。它还会在租户的 `.gitignore` 里维护一段
+`<umbradesign:generated>` —— 这些都是可重算的产物，不该进设计项目的仓库。
 
 ⚠️ **带 `dc-import` 的稿双击打不开** —— Chrome 不允许对 `file://` 发 `fetch`，
-必须走 `serve_start` 起的 http。这是上一轮唯一稳定复现的挂死原因（`doc/04`）。
+必须走 http（`npm run ui` 或 `serve_start`）。这是上一轮唯一稳定复现的挂死原因（`doc/04`）。
 
 ---
 

@@ -106,9 +106,22 @@ export async function serveStart(p: Project, wantPort?: number): Promise<ServeIn
     });
   });
 
-  rec.server.unref();          // 不因为它挡住进程退出
+  /* MCP 进程的生命由客户端的 stdio 决定，静态服务不该挡住它退出 —— 所以 unref。
+     ⚠️ 但**前台用法正好相反**：`npm run ui` 里这个服务就是唯一的存活理由，
+     unref 之后进程打印完地址就退了，只留一个没人监听的 URL。
+     实测踩到（curl 全 000），所以补了下面这个 serveHold()。 */
+  rec.server.unref();
   running.set(p.name, rec);
   return info(p.name, rec);
+}
+
+/** 前台用法：把服务重新 ref 回来，让它撑住进程。
+ *  只有 `ui` 这类自己就是服务的入口才调它 —— MCP 不调。 */
+export function serveHold(name: string): boolean {
+  const r = running.get(name);
+  if (!r) return false;
+  r.server.ref();
+  return true;
 }
 
 export function serveStop(name: string): { stopped: boolean } {

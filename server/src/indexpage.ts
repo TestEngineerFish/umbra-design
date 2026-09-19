@@ -427,6 +427,8 @@ export interface BuildIndexResult {
   bridgeFile: string | null;
   /** 部署进项目的其余壳页面 */
   shells: string[];
+  /** 更新过租户 .gitignore 的工具产物段就给路径，没动就是 null */
+  ignoreUpdated: string | null;
   /** 本地 API 有没有起来（没起 serve 就没有） */
   api: boolean;
   /** 落盘前做了哪几步确定性改写（与 write_draft 同一条路） */
@@ -481,6 +483,43 @@ export function injectIndexData(src: string, data: IndexData, api?: { base: stri
   if (!head) throw new Error("入口页没有 <head>，注入不了索引数据");
   const at = head.index + head[0].length;
   return src.slice(0, at) + "\n" + block + src.slice(at);
+}
+
+/** 让租户的 `.gitignore` 跟得上我们**实际部署了什么**。
+ *
+ *  为什么不靠模板：`doc/_模板-租户 .gitignore` 是新建项目时拷一次的，
+ *  之后我们加了 S7 和 IconGlyph，模板和已有项目就都落后了 ——
+ *  实测就是这样：探针项目的 .gitignore 是旧版，缺整个「工具界面与入口页」段，
+ *  于是 build_index 生成的文件全变成那个仓库里的未跟踪文件。
+ *
+ *  部署了什么只有 build_index 自己知道，所以这件事归它做。
+ *  整段带标记、整段替换，幂等；没有 .gitignore 就不建（不替人决定要不要用 git）。
+ */
+const IGNORE_OPEN = "# <umbradesign:generated> —— 这一段由 build_index 维护，别手改";
+const IGNORE_CLOSE = "# </umbradesign:generated>";
+
+async function ensureIgnored(p: Project, deployed: string[]): Promise<string | null> {
+  const gi = join(p.dir, ".gitignore");
+  if (!existsSync(gi)) return null;                 // 没用 git 就不管
+  const cur = await readFile(gi, "utf8");
+  const block = [
+    IGNORE_OPEN,
+    "# 工具产物：入口页、界面壳、索引数据、皮肤、运行时副本。都可由稿件重算。",
+    ...deployed.sort(),
+    IGNORE_CLOSE,
+  ].join("\n");
+
+  const a = cur.indexOf(IGNORE_OPEN);
+  const z = cur.indexOf(IGNORE_CLOSE);
+  let next: string;
+  if (a >= 0 && z > a) {
+    next = cur.slice(0, a) + block + cur.slice(z + IGNORE_CLOSE.length);
+  } else {
+    next = cur.replace(/\s*$/, "") + "\n\n" + block + "\n";
+  }
+  if (next === cur) return null;
+  await writeAtomic(gi, next);
+  return rel(p, gi);
 }
 
 export async function buildIndex(p: Project, serveUrl: string | null): Promise<BuildIndexResult> {
@@ -545,6 +584,14 @@ export async function buildIndex(p: Project, serveUrl: string | null): Promise<B
     shells.push(rel(p, to));
   }
 
+  /* 部署清单 = 我们真的往项目目录里写过的东西。交给 .gitignore 那一段。 */
+  const ignored = await ensureIgnored(p, [
+    "index.dc.html", "index-data.js", "_ds-tool/", "_runtime/", ".umbradesign/",
+    "react.production.min.js", "react-dom.production.min.js", "support.js",
+    ...SHELLS,
+  ]);
+  if (ignored) prep.steps.push(`更新 ${ignored} 的工具产物忽略段`);
+
   const byHealth: Record<Health, number> = { ok: 0, warn: 0, error: 0, unchecked: 0 };
   for (const d of data.drafts) byHealth[d.health]++;
 
@@ -560,6 +607,7 @@ export async function buildIndex(p: Project, serveUrl: string | null): Promise<B
     indexSource: source,
     bridgeFile,
     shells,
+    ignoreUpdated: ignored,
     api: !!api,
     steps: prep.steps,
   };
