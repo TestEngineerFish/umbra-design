@@ -204,7 +204,9 @@
         <div style="flex: none; display: flex; align-items: center; gap: 8px; padding: 11px 14px; border-bottom: 1px solid var(--tool-border);">
           <span style="font-weight: 620;">{{ railTitle }}</span>
           <span style="flex: 1;"></span>
-          <span title="整页形态属于 S3 / S4，这一轮（第一批 A）没出" style="font-size: 11px; color: var(--tool-muted); border: 1px dashed var(--tool-border-strong); border-radius: var(--tool-radius-sm); padding: 1px 6px; white-space: nowrap;">{{ railFullNote }}</span>
+          <!-- S3 / S4 已经有了 —— 这里原来是一枚虚线死标签「S3 待建」，
+               是第一批 A 留下的。现在是真链接，带上当前稿的 ?file=。 -->
+          <a href="{{ railFullHref }}" title="{{ railFullTitle }}" style="font-size: 11px; color: var(--tool-accent); border: 1px solid var(--tool-accent-border); border-radius: var(--tool-radius-sm); padding: 1px 6px; white-space: nowrap;" style-hover="background: var(--tool-accent-soft); text-decoration: none;" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">{{ railFullNote }}</a>
           <button type="button" onClick="{{ toggleRail }}" title="收起面板" style="width: 24px; height: 24px; display: grid; place-items: center; border: 0; background: transparent; color: var(--tool-muted); border-radius: var(--tool-radius-sm); cursor: pointer; transition: background .13s ease, color .13s ease;" style-hover="background: var(--tool-hover); color: var(--tool-text);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">
             <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4.4 4.4l7.2 7.2M11.6 4.4l-7.2 7.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path></svg>
           </button>
@@ -453,7 +455,7 @@
                 </sc-for>
               </div>
               <div style="margin-top: 14px; font-size: 12px; color: var(--tool-muted); line-height: 1.6;">变更清单的完整形态是 S4。这里只给一眼能看完的分级计数，够判断“这一版要不要动代码”。</div>
-              <span style="display: inline-block; margin-top: 10px; font-size: 11px; color: var(--tool-muted); border: 1px dashed var(--tool-border-strong); border-radius: var(--tool-radius-sm); padding: 2px 7px;">{{ changeFullNote }}</span>
+              <a href="{{ changeFullHref }}" style="display: inline-block; margin-top: 10px; font-size: 11px; color: var(--tool-accent); border: 1px solid var(--tool-accent-border); border-radius: var(--tool-radius-sm); padding: 2px 7px;" style-hover="background: var(--tool-accent-soft); text-decoration: none;" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">{{ changeFullNote }}</a>
             </div>
           </sc-if>
         </div>
@@ -1224,8 +1226,16 @@ class Component extends DCLogic {
       railBtnBg: (narrow ? s.sheet : railOpen) ? "var(--tool-accent-soft)" : "var(--tool-panel)",
       railBtnFg: (narrow ? s.sheet : railOpen) ? "var(--tool-accent)" : "var(--tool-text-2)",
       railTitle: s.tab === "diag" ? "诊断" : "变更概览",
-      railFullNote: s.tab === "diag" ? "整页形态 · S3 待建" : "整页形态 · S4 待建",
-      changeFullNote: "完整清单 · S4 待建（第一批后续）",
+      /* 整页形态就是 S3 / S4 本身。带上 ?file= 过去，那边直接看这一份稿；
+         演示态（没有 ?file=）就不带，过去也是演示态。 */
+      railFullNote: s.tab === "diag" ? "整页看诊断 →" : "整页看变更 →",
+      railFullHref: (s.tab === "diag" ? "./S3-诊断面板.dc.html" : "./S4-变更清单.dc.html")
+        + (LIVE ? "?file=" + encodeURIComponent(LIVE) : ""),
+      railFullTitle: s.tab === "diag"
+        ? "在 S3 整页看这份稿的诊断（这里是抽屉形态，只放前几条）"
+        : "在 S4 整页看这份稿的变更清单",
+      changeFullNote: "完整清单 →",
+      changeFullHref: "./S4-变更清单.dc.html" + (LIVE ? "?file=" + encodeURIComponent(LIVE) : ""),
       gridCols: railOpen ? "minmax(0, 1fr) " + (this.props.railWidth || 340) + "px" : "minmax(0, 1fr)",
 
       isNarrow: narrow,
