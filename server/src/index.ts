@@ -25,6 +25,7 @@ import { getAiConfig, setAiConfig, getChannelA, type AiConfig } from "./ai_confi
 import { chat, type ToolDef, type ToolCall, type ChatMessage } from "./provider.js";
 import { createChat, loadChat, saveChat, listChats, deleteChat, addMessage, type ChatSession, type ChatEntry } from "./chat.js";
 import { findBrowser, renderCheck } from "./render.js";
+import { channelBRun, type ChannelBConfig } from "./channel_b.js";
 import {
   changesSince, diffDrafts, listVersions, projectChangesSince, readSnapshot,
   resolveSnapshot, toMarkdown,
@@ -1289,15 +1290,37 @@ server.registerTool("chat_send", {
     }, diags, {});
   }
 
-  // 通道 B：走 Claude Code 子进程（M2-3，后续实现）
-  return envelope<{ sessionId: string; channel: "a" | "b"; messages: ChatEntry[]; usage: null; interrupted: boolean; status: string }>({
+  // 通道 B：Claude Code 子进程（M2-3）
+  const providerCfg = await getChannelA();  // 通道 B 复用通道 A 的端点配置
+  const ccConfig: ChannelBConfig = {
+    baseUrl: providerCfg.baseUrl,
+    apiKey: providerCfg.apiKey,
+    model: providerCfg.model,
+    mcpServerPath: join(TOOL_ROOT, "server", "dist", "index.js"),
+  };
+
+  const ccResult = await channelBRun(ccConfig, message, undefined, 120000);
+
+  // 把结果存入会话
+  if (ccResult.result) {
+    await addMessage(p.dir, session.id, { role: "assistant", content: ccResult.result });
+  }
+
+  const usageInfo = ccResult.usage
+    ? { promptTokens: ccResult.usage.inputTokens, completionTokens: ccResult.usage.outputTokens, totalTokens: ccResult.usage.inputTokens + ccResult.usage.outputTokens }
+    : null;
+
+  const diagsB = ccResult.error ? [err(X.IO, p.rel, { kind: "key", name: "channel-b" }, ccResult.error)] : [];
+  const chValB: "a" | "b" = ch as "a" | "b";
+  return envelope<{ sessionId: string; channel: "a" | "b"; messages: ChatEntry[]; usage: typeof usageInfo; interrupted: boolean; toolCalls: typeof ccResult.toolCalls; numTurns: number }>({
     sessionId: session.id,
-    channel: ch as "a" | "b",
+    channel: chValB,
     messages: session.messages.slice(-10),
-    usage: null,
+    usage: usageInfo,
     interrupted: false,
-    status: "通道 B 未实现",
-  }, [], {});
+    toolCalls: ccResult.toolCalls,
+    numTurns: ccResult.numTurns,
+  }, diagsB, {});
 }));
 
 server.registerTool("list_chats", {
