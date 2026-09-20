@@ -39,6 +39,7 @@ import { buildRefGraph, listReferences, renameDraft, moveDraft, deleteDraft, del
 import { globalSearch } from "./search.js";
 import { setTokenValue } from "./token_edit.js";
 import { listTemplates, saveAsTemplate, deleteTemplate } from "./templates.js";
+import { exportProject, importProject } from "./export.js";
 
 const VERSION = "0.1.0";
 
@@ -632,6 +633,41 @@ server.registerTool("delete_template", {
     err(X.DRAFT_NOT_FOUND, p.rel, { kind: "key", name: "template" }, `模板 ${name} 不存在`),
   ];
   return envelope(r, diags, {});
+}));
+
+// ─────────────────────── 项目导出/导入 ─────────────────────
+
+server.registerTool("export_project", {
+  title: "导出项目",
+  description: [
+    "把整个项目目录打包成 .tar.gz，含所有稿、快照、changelog 与 .umbradesign/ 下的全部数据。",
+    "导出的文件可以在另一台机器上用 import_project 导入。",
+    "outputPath 指定导出文件的绝对路径。",
+  ].join("\n"),
+  inputSchema: {
+    project: z.string(),
+    outputPath: z.string().describe("导出文件绝对路径，如 /tmp/my-project.tar.gz"),
+  },
+}, async ({ project, outputPath }) => run(async () => {
+  const p = await loadProject(project);
+  const r = await exportProject(p.dir, outputPath);
+  return envelope(r, [], { size: r.sizeBytes });
+}));
+
+server.registerTool("import_project", {
+  title: "导入项目",
+  description: [
+    "从 .tar.gz 导入项目到指定目录。",
+    "导入后项目包含完整的版本历史与快照。",
+    "targetDir 是目标目录路径（会创建）。",
+  ].join("\n"),
+  inputSchema: {
+    tarPath: z.string().describe("导出文件绝对路径"),
+    targetDir: z.string().describe("导入目标目录（会创建）"),
+  },
+}, async ({ tarPath, targetDir }) => run(async () => {
+  const r = await importProject(tarPath, targetDir);
+  return envelope(r, [], { drafts: r.draftCount });
 }));
 
 // ───────────────────────── 组件契约 ─────────────────────────
