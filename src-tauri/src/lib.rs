@@ -451,7 +451,8 @@ fn open_project_command(
     eprintln!("[rust] list_projects parsed: {}", serde_json::to_string(&projects).unwrap_or_default().chars().take(300).collect::<String>());
 
     let project_name = projects.get("data")
-        .and_then(|d| d.as_array())
+        .and_then(|d| d.get("projects"))  // 修复：项目在 data.projects 里，不是 data 本身
+        .and_then(|p| p.as_array())
         .and_then(|arr| arr.iter().find(|p| {
             p.get("dir").and_then(|d| d.as_str()) == Some(&dir)
         }))
