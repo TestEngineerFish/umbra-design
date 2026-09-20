@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "identifier": "com.umbradesign.app",
   "build": {
-    "frontendDist": "../server/dist/ui",
+    "frontendDist": "../server/ui",
     "beforeDevCommand": "npm --prefix server run build",
     "beforeBuildCommand": "npm --prefix server run build"
   },

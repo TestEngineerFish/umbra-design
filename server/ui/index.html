@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UmbraDesign</title>
+<link rel="stylesheet" href="./_ds-tool/tokens.css">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: var(--tool-bg, #1a1a2e);
+    --panel: var(--tool-panel, #16213e);
+    --panel2: var(--tool-panel-2, #0f3460);
+    --text: var(--tool-text, #e0e0e0);
+    --muted: var(--tool-muted, #888);
+    --border: var(--tool-border, #333);
+    --accent: var(--tool-accent, #6c63ff);
+    --accent-soft: var(--tool-accent-soft, rgba(108,99,255,0.12));
+    --hover: var(--tool-hover, rgba(255,255,255,0.06));
+    --ok: var(--tool-ok, #22c55e);
+    --ok-soft: var(--tool-ok-soft, rgba(34,197,94,0.15));
+    --warn: var(--tool-warn, #f59e0b);
+    --warn-soft: var(--tool-warn-soft, rgba(245,158,11,0.15));
+    --err: var(--tool-err, #ef4444);
+    --err-soft: var(--tool-err-soft, rgba(239,68,68,0.15));
+    --sans: var(--tool-sans, system-ui, -apple-system, sans-serif);
+    --mono: var(--tool-mono, 'SF Mono', 'Fira Code', monospace);
+    --radius: var(--tool-radius, 6px);
+    --radius-lg: var(--tool-radius-lg, 10px);
+  }
+  html, body { height: 100%; overflow: hidden; }
+  body { background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 13px; }
+  a { color: var(--accent); text-decoration: none; }
+  input, button, select, textarea { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+
+  /* ── Layout ── */
+  #app { display: flex; flex-direction: column; height: 100vh; }
+
+  /* ── Top Bar ── */
+  .topbar { display: flex; align-items: center; gap: 12px; padding: 10px 16px;
+            border-bottom: 1px solid var(--border); background: var(--panel);
+            flex-shrink: 0; z-index: 10; min-height: 48px; }
+  .topbar-logo { display: flex; align-items: center; gap: 8px; font-weight: 620; font-size: 14px;
+                 letter-spacing: -0.01em; color: var(--text); }
+  .topbar-logo svg { color: var(--accent); flex: none; }
+  .topbar-sep { width: 1px; height: 20px; background: var(--border); flex: none; }
+  .topbar-project { display: flex; align-items: center; gap: 6px; font-size: 12px; min-width: 0; }
+  .topbar-project-name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .topbar-project-title { color: var(--muted); font-family: var(--mono); }
+  .topbar-spacer { flex: 1; }
+  .topbar-btn { display: flex; align-items: center; gap: 6px; padding: 5px 10px;
+                border: 1px solid var(--border); border-radius: var(--radius);
+                background: transparent; color: var(--text); font-size: 12px;
+                transition: background 0.13s ease; }
+  .topbar-btn:hover { background: var(--hover); }
+  .topbar-btn svg { width: 14px; height: 14px; flex: none; }
+  .topbar-status { font-size: 11px; color: var(--muted); }
+
+  /* ── Workspace (3-col layout) ── */
+  .workspace { display: flex; flex: 1; overflow: hidden; }
+  .sidebar { width: 280px; min-width: 200px; max-width: 400px; flex-shrink: 0;
+             border-right: 1px solid var(--border); background: var(--panel);
+             display: flex; flex-direction: column; overflow: hidden; }
+  .preview { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  .preview iframe { flex: 1; border: none; background: #fff; }
+  .preview-toolbar { display: flex; align-items: center; gap: 8px; padding: 6px 12px;
+                     border-bottom: 1px solid var(--border); background: var(--panel);
+                     font-size: 12px; flex-shrink: 0; }
+  .preview-toolbar span { color: var(--muted); }
+  .preview-toolbar .preview-url { font-family: var(--mono); font-size: 11px; color: var(--muted);
+                                   flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .preview-placeholder { flex: 1; display: flex; align-items: center; justify-content: center;
+                         color: var(--muted); font-size: 14px; text-align: center;
+                         flex-direction: column; gap: 8px; }
+  .preview-placeholder svg { width: 48px; height: 48px; opacity: 0.3; }
+
+  /* ── Sidebar: search ── */
+  .sidebar-search { padding: 10px 12px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  .sidebar-search input { width: 100%; padding: 6px 10px; border: 1px solid var(--border);
+                          border-radius: var(--radius); background: var(--bg); color: var(--text);
+                          font-size: 12px; outline: none; }
+  .sidebar-search input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+  .sidebar-search input::placeholder { color: var(--muted); }
+
+  /* ── Sidebar: filter pills ── */
+  .sidebar-filters { display: flex; gap: 4px; padding: 6px 12px; border-bottom: 1px solid var(--border); flex-shrink: 0; flex-wrap: wrap; }
+  .filter-pill { padding: 3px 8px; border-radius: 999px; font-size: 11px; cursor: pointer;
+                 border: 1px solid var(--border); background: transparent; color: var(--muted);
+                 transition: all 0.13s ease; }
+  .filter-pill.active { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
+  .filter-pill:hover:not(.active) { background: var(--hover); }
+
+  /* ── Sidebar: draft list ── */
+  .draft-list { flex: 1; overflow-y: auto; }
+  .draft-list::-webkit-scrollbar { width: 6px; }
+  .draft-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  .draft-item { display: flex; align-items: flex-start; gap: 8px; padding: 8px 12px;
+                border-bottom: 1px solid rgba(255,255,255,0.03); cursor: pointer;
+                transition: background 0.1s ease; }
+  .draft-item:hover { background: var(--hover); }
+  .draft-item.selected { background: var(--accent-soft); }
+  .draft-icon { width: 20px; height: 20px; border-radius: 4px; flex-shrink: 0;
+                display: flex; align-items: center; justify-content: center; font-size: 10px;
+                margin-top: 1px; }
+  .draft-icon.page { background: var(--panel2); color: var(--accent); }
+  .draft-icon.component { background: var(--warn-soft); color: var(--warn); }
+  .draft-info { flex: 1; min-width: 0; }
+  .draft-title { font-weight: 600; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .draft-meta { font-size: 11px; color: var(--muted); margin-top: 2px;
+                display: flex; gap: 8px; align-items: center; }
+  .draft-health { padding: 1px 6px; border-radius: 999px; font-size: 10px; font-weight: 600; }
+  .draft-health.ok { background: var(--ok-soft); color: var(--ok); }
+  .draft-health.warn { background: var(--warn-soft); color: var(--warn); }
+  .draft-health.error { background: var(--err-soft); color: var(--err); }
+  .draft-health.unchecked { background: rgba(255,255,255,0.06); color: var(--muted); }
+
+  /* ── Bottom Panel ── */
+  .bottom-panel { height: 220px; min-height: 100px; border-top: 1px solid var(--border);
+                  background: var(--panel); display: flex; flex-direction: column; flex-shrink: 0; }
+  .bottom-panel.collapsed { height: 32px; min-height: 32px; }
+  .bottom-tabs { display: flex; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  .bottom-tab { padding: 6px 14px; font-size: 12px; cursor: pointer; border: none;
+                background: transparent; color: var(--muted); position: relative;
+                transition: color 0.13s ease; }
+  .bottom-tab.active { color: var(--text); }
+  .bottom-tab.active::after { content: ''; position: absolute; bottom: -1px; left: 0; right: 0;
+                               height: 2px; background: var(--accent); }
+  .bottom-tab:hover:not(.active) { background: var(--hover); }
+  .bottom-tab .badge { background: var(--err); color: #fff; border-radius: 999px;
+                       font-size: 9px; padding: 1px 5px; margin-left: 4px; vertical-align: top; }
+  .bottom-content { flex: 1; overflow-y: auto; padding: 8px 12px; font-size: 12px; }
+  .bottom-content::-webkit-scrollbar { width: 6px; }
+  .bottom-content::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  .diag-row { display: flex; gap: 8px; padding: 4px 0; align-items: baseline; }
+  .diag-level { width: 48px; flex-shrink: 0; font-size: 10px; font-weight: 600; text-transform: uppercase; }
+  .diag-level.error { color: var(--err); }
+  .diag-level.warning { color: var(--warn); }
+  .diag-level.info { color: var(--accent); }
+  .diag-code { font-family: var(--mono); font-size: 10px; color: var(--muted); width: 64px; flex-shrink: 0; }
+  .diag-msg { flex: 1; }
+  .diag-file { font-family: var(--mono); font-size: 10px; color: var(--muted); flex-shrink: 0; }
+
+  /* ── Welcome screen ── */
+  .welcome { flex: 1; display: flex; align-items: center; justify-content: center; }
+  .welcome-inner { text-align: center; max-width: 520px; padding: 40px; }
+  .welcome h1 { font-size: 28px; font-weight: 700; margin-bottom: 6px; }
+  .welcome h1 span { color: var(--accent); }
+  .welcome-sub { color: var(--muted); margin-bottom: 32px; font-size: 14px; }
+  .welcome-actions { display: flex; gap: 12px; justify-content: center; margin-bottom: 32px; }
+  .welcome-btn { display: flex; align-items: center; gap: 10px; padding: 14px 24px;
+                 border: 1px solid var(--border); border-radius: var(--radius-lg);
+                 background: var(--panel); color: var(--text); font-size: 14px;
+                 transition: all 0.15s ease; cursor: pointer; }
+  .welcome-btn:hover { border-color: var(--accent); background: var(--accent-soft); }
+  .welcome-btn svg { width: 24px; height: 24px; color: var(--accent); flex: none; }
+  .welcome-btn-label { font-weight: 600; }
+  .welcome-btn-desc { font-size: 12px; color: var(--muted); display: block; margin-top: 2px; }
+  .welcome-recent { text-align: left; }
+  .welcome-recent h3 { font-size: 12px; font-weight: 600; color: var(--muted);
+                       text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
+  .welcome-recent-item { display: flex; align-items: center; gap: 8px; padding: 8px 12px;
+                          border-radius: var(--radius); cursor: pointer; transition: background 0.1s; }
+  .welcome-recent-item:hover { background: var(--hover); }
+  .welcome-recent-dot { width: 6px; height: 6px; border-radius: 999px; background: var(--ok); flex: none; }
+  .welcome-recent-name { font-weight: 600; }
+  .welcome-recent-path { font-size: 11px; color: var(--muted); font-family: var(--mono); margin-left: 8px; }
+
+  /* ── Spinner ── */
+  .spinner { width: 20px; height: 20px; border: 2px solid var(--border);
+             border-top-color: var(--accent); border-radius: 50%;
+             animation: spin 0.8s linear infinite; }
+  .spinner-lg { width: 32px; height: 32px; border-width: 3px; }
+
+  /* ── Toast ── */
+  .toast-container { position: fixed; bottom: 20px; right: 20px; z-index: 100;
+                     display: flex; flex-direction: column; gap: 8px; }
+  .toast { padding: 10px 16px; border-radius: var(--radius); background: var(--panel);
+           border: 1px solid var(--border); font-size: 12px; animation: fade-in 0.2s ease;
+           box-shadow: 0 4px 12px rgba(0,0,0,0.3); max-width: 360px; }
+  .toast.error { border-color: var(--err); }
+  .toast.success { border-color: var(--ok); }
+
+  /* ── Empty state ── */
+  .empty { padding: 40px 20px; text-align: center; color: var(--muted); }
+  .empty svg { width: 40px; height: 40px; opacity: 0.25; margin-bottom: 12px; }
+
+  /* ── Resize handle ── */
+  .resize-handle { width: 4px; cursor: col-resize; background: transparent;
+                   transition: background 0.1s; flex-shrink: 0; }
+  .resize-handle:hover { background: var(--accent); }
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- 由 JS 渲染 -->
+</div>
+<div class="toast-container" id="toasts"></div>
+
+<script>
+// ── Tauri invoke 封装 ──────────────────────────────────
+const T = typeof window.__TAURI__ !== 'undefined' ? window.__TAURI__ : null;
+
+function invoke(cmd, args) {
+  if (!T) {
+    console.warn('[app] Tauri API 不可用，使用 mock 数据');
+    return mockInvoke(cmd, args);
+  }
+  return T.core.invoke(cmd, args);
+}
+
+// ── Mock 数据（开发时 Tauri API 不可用时的兜底） ──
+async function mockInvoke(cmd, args) {
+  if (cmd === 'get_sidecar_status') return { status: 'running' };
+  if (cmd === 'get_recent_projects_command') {
+    return { projects: [] };
+  }
+  if (cmd === 'list_projects_command') {
+    return { projects: [], message: '没有项目 —— 先创建一个' };
+  }
+  if (cmd === 'open_project_command') {
+    return {
+      url: 'http://127.0.0.1:0/',
+      token: 'mock-token',
+      project: { name: 'mock', dir: args.dir },
+    };
+  }
+  if (cmd === 'invoke_mcp_command') {
+    if (args.tool === 'list_drafts') {
+      return { drafts: [], project: 'mock' };
+    }
+    return {};
+  }
+  return {};
+}
+
+// ── 应用状态 ──────────────────────────────────────────
+const state = {
+  sidecar: 'checking',    // checking | running | stopped
+  project: null,          // { name, title, dir, url, token }
+  drafts: [],             // 从 API 取的稿件列表
+  selectedDraft: null,    // 当前选中的稿件 file
+  search: '',
+  filter: 'all',          // all | page | component | error | warn | unchecked
+  validating: false,
+  diags: [],
+  changes: [],
+  bottomTab: 'diags',     // diags | changes | versions
+  loading: false,
+};
+
+const appEl = document.getElementById('app');
+
+// ── 渲染 ──────────────────────────────────────────────
+function render() {
+  if (!state.project) {
+    renderWelcome();
+  } else {
+    renderWorkspace();
+  }
+}
+
+// ── Welcome 屏 ──────────────────────────────────────
+async function renderWelcome() {
+  let recent = [];
+  try {
+    const r = await invoke('get_recent_projects_command');
+    recent = r.projects || [];
+  } catch (e) { /* ignore */ }
+
+  appEl.innerHTML = `
+    <div class="topbar">
+      <div class="topbar-logo">
+        <svg width="18" height="18" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <rect x="1.5" y="1.5" width="13" height="13" rx="3.2" stroke="currentColor" stroke-width="1.4"/>
+          <path d="M5 8.2h6M5 5.4h6M5 11h3.2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+        </svg>
+        UmbraDesign
+      </div>
+      <div class="topbar-spacer"></div>
+      <span class="topbar-status">sidecar: ${state.sidecar === 'running' ? '运行中' : state.sidecar === 'stopped' ? '已停止' : '检测中…'}</span>
+    </div>
+    <div class="welcome">
+      <div class="welcome-inner">
+        <h1><span>UmbraDesign</span></h1>
+        <p class="welcome-sub">本地 PC 端设计软件 · 打开或创建项目开始</p>
+        <div class="welcome-actions">
+          <button class="welcome-btn" onclick="handleOpenProject()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg>
+            <div><span class="welcome-btn-label">打开项目</span><span class="welcome-btn-desc">选择已有的项目目录</span></div>
+          </button>
+          <button class="welcome-btn" onclick="handleNewProject()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+            <div><span class="welcome-btn-label">新建项目</span><span class="welcome-btn-desc">创建一个新的设计项目</span></div>
+          </button>
+        </div>
+        ${recent.length ? `
+          <div class="welcome-recent">
+            <h3>最近项目</h3>
+            ${recent.map(p => `
+              <div class="welcome-recent-item" onclick="handleOpenPath('${escHtml(p)}')">
+                <span class="welcome-recent-dot"></span>
+                <span class="welcome-recent-name">${escHtml(baseName(p))}</span>
+                <span class="welcome-recent-path">${escHtml(p)}</span>
+              </div>
+            `).join('')}
+          </div>
+        ` : ''}
+      </div>
+    </div>
+  `;
+}
+
+// ── Workspace 屏 ─────────────────────────────────────
+function renderWorkspace() {
+  const p = state.project;
+  const filtered = filterDrafts();
+
+  appEl.innerHTML = `
+    <!-- Top Bar -->
+    <div class="topbar">
+      <div class="topbar-logo">
+        <svg width="18" height="18" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <rect x="1.5" y="1.5" width="13" height="13" rx="3.2" stroke="currentColor" stroke-width="1.4"/>
+          <path d="M5 8.2h6M5 5.4h6M5 11h3.2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+        </svg>
+        UmbraDesign
+      </div>
+      <div class="topbar-sep"></div>
+      <div class="topbar-project">
+        <span class="topbar-project-name" title="${escHtml(p.dir)}">${escHtml(p.name)}</span>
+        ${p.title ? `<span class="topbar-project-title">${escHtml(p.title)}</span>` : ''}
+      </div>
+      <div class="topbar-spacer"></div>
+      <button class="topbar-btn" onclick="handleBuildIndex()" title="重建索引">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3 3 0 0 0 0"/></svg>
+        索引
+      </button>
+      <button class="topbar-btn" onclick="handleCloseProject()" title="关闭项目">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/><path d="M9 21V9h6v12"/></svg>
+      </button>
+      <span class="topbar-status">${state.drafts.length} 份稿</span>
+    </div>
+
+    <!-- Workspace -->
+    <div class="workspace">
+      <!-- Sidebar -->
+      <div class="sidebar">
+        <div class="sidebar-search">
+          <input type="text" value="${escHtml(state.search)}" placeholder="搜稿名、演示态…"
+                 onInput="onSearch(event.target.value)" />
+        </div>
+        <div class="sidebar-filters">
+          ${filterPill('all', '全部')}
+          ${filterPill('page', '页稿')}
+          ${filterPill('component', '组件稿')}
+          ${filterPill('error', '有错误')}
+          ${filterPill('warn', '有提醒')}
+          ${filterPill('unchecked', '未体检')}
+        </div>
+        <div class="draft-list">
+          ${filtered.length === 0 ? '<div class="empty">没有匹配的稿</div>' :
+            filtered.map(d => draftItemHtml(d)).join('')}
+        </div>
+      </div>
+
+      <!-- Resize handle -->
+      <div class="resize-handle" id="resizeHandle"></div>
+
+      <!-- Preview area -->
+      <div class="preview">
+        ${state.selectedDraft ? `
+          <div class="preview-toolbar">
+            <span>预览:</span>
+            <span class="preview-url" title="${escHtml(p.url + state.selectedDraft)}">${escHtml(state.selectedDraft)}</span>
+            <button class="topbar-btn" onclick="handleValidate()" title="跑体检">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+              ${state.validating ? '体检中…' : '体检'}
+            </button>
+            <button class="topbar-btn" onclick="handleOpenInBrowser()" title="在浏览器中打开">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"/></svg>
+              浏览器
+            </button>
+          </div>
+          <iframe src="${p.url}${encodeURIComponent(state.selectedDraft.split('/').join('/'))}"
+                  id="previewFrame" sandbox="allow-scripts allow-same-origin"></iframe>
+        ` : `
+          <div class="preview-placeholder">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+            <div>在左侧选择一份稿件预览</div>
+          </div>
+        `}
+      </div>
+    </div>
+
+    <!-- Bottom Panel -->
+    <div class="bottom-panel ${state.bottomTab === '' ? 'collapsed' : ''}">
+      <div class="bottom-tabs">
+        <button class="bottom-tab ${state.bottomTab === 'diags' ? 'active' : ''}"
+                onclick="setBottomTab('diags')">
+          诊断${diagBadge('error')}
+        </button>
+        <button class="bottom-tab ${state.bottomTab === 'changes' ? 'active' : ''}"
+                onclick="setBottomTab('changes')">
+          变更
+        </button>
+        <button class="bottom-tab ${state.bottomTab === 'info' ? 'active' : ''}"
+                onclick="setBottomTab('info')">
+          稿件信息
+        </button>
+      </div>
+      <div class="bottom-content" id="bottomContent">
+        ${renderBottomContent()}
+      </div>
+    </div>
+  `;
+
+  // Sidebar resize
+  const handle = document.getElementById('resizeHandle');
+  if (handle) {
+    let startX, startW;
+    handle.addEventListener('mousedown', (e) => {
+      startX = e.clientX;
+      startW = document.querySelector('.sidebar').offsetWidth;
+      const onMove = (ev) => {
+        const w = Math.max(200, Math.min(400, startW + ev.clientX - startX));
+        document.querySelector('.sidebar').style.width = w + 'px';
+      };
+      const onUp = () => {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+      };
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+  }
+}
+
+function filterPill(key, label) {
+  return `<button class="filter-pill ${state.filter === key ? 'active' : ''}"
+                   onclick="setFilter('${key}')">${label}</button>`;
+}
+
+function draftItemHtml(d) {
+  const selected = state.selectedDraft === d.file ? ' selected' : '';
+  const hClass = d.health || 'unchecked';
+  const hLabel = { ok: '通过', warn: '有提醒', error: '错误', unchecked: '未体检' }[hClass] || hClass;
+  const typeLabel = d.kind === 'component' ? '组' : '页';
+  const statesLabel = d.states && d.states.length ? d.states.length + ' 态' : '';
+  return `
+    <div class="draft-item${selected}" onclick="selectDraft('${escHtml(d.file)}')">
+      <div class="draft-icon ${d.kind || 'page'}">${typeLabel}</div>
+      <div class="draft-info">
+        <div class="draft-title">${escHtml(d.title || baseName(d.file))}</div>
+        <div class="draft-meta">
+          <span class="draft-health ${hClass}">${hLabel}</span>
+          ${d.elements ? `<span>${d.elements} 元素</span>` : ''}
+          ${statesLabel ? `<span>${statesLabel}</span>` : ''}
+          ${d.version ? `<span style="font-family:var(--mono)">${escHtml(d.version)}</span>` : ''}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function diagBadge(level) {
+  if (!state.diags) return '';
+  const n = state.diags.filter(d => d.level === level).length;
+  return n > 0 ? `<span class="badge">${n}</span>` : '';
+}
+
+function renderBottomContent() {
+  if (!state.selectedDraft) return '<div style="color:var(--muted);text-align:center;padding:20px;">选择稿件后显示详情</div>';
+
+  if (state.bottomTab === 'diags') {
+    if (state.diags.length === 0) return '<div style="color:var(--muted);text-align:center;padding:20px;">暂无诊断 · 点顶栏「体检」按钮跑一次 render_check</div>';
+    return state.diags.map(d => `
+      <div class="diag-row">
+        <span class="diag-level ${d.level}">${d.level}</span>
+        <span class="diag-code">${d.code || ''}</span>
+        <span class="diag-msg">${escHtml(d.message)}</span>
+        <span class="diag-file">${escHtml(d.file || '')}</span>
+      </div>
+    `).join('');
+  }
+
+  if (state.bottomTab === 'changes') {
+    if (state.changes.length === 0) return '<div style="color:var(--muted);text-align:center;padding:20px;">暂无变更记录</div>';
+    return state.changes.map(c => `
+      <div class="diag-row">
+        <span class="diag-level info">${c.type || '变更'}</span>
+        <span class="diag-msg">${escHtml(c.message || JSON.stringify(c))}</span>
+      </div>
+    `).join('');
+  }
+
+  if (state.bottomTab === 'info') {
+    const draft = state.drafts.find(d => d.file === state.selectedDraft);
+    if (!draft) return '<div style="color:var(--muted);text-align:center;padding:20px;">找不到稿件信息</div>';
+    return `
+      <div style="display:grid;grid-template-columns:100px 1fr;gap:6px 12px;">
+        <span style="color:var(--muted)">文件名</span><span>${escHtml(draft.file)}</span>
+        <span style="color:var(--muted)">类型</span><span>${draft.kind === 'component' ? '组件稿' : '页稿'}</span>
+        <span style="color:var(--muted)">元素数</span><span>${draft.elements || '—'}</span>
+        <span style="color:var(--muted)">版本</span><span>${draft.version || '—'}</span>
+        <span style="color:var(--muted)">更新</span><span>${draft.updatedAt ? timeAgo(draft.updatedAt) : '—'}</span>
+        <span style="color:var(--muted)">演示态</span><span>${(draft.states || []).join(', ') || '—'}</span>
+        <span style="color:var(--muted)">引用</span><span>${(draft.importedBy || []).join(', ') || '无'}</span>
+        <span style="color:var(--muted)">导入</span><span>${(draft.imports || []).join(', ') || '无'}</span>
+        <span style="color:var(--muted)">健康</span><span>${draft.healthWhy || '—'}</span>
+      </div>
+    `;
+  }
+
+  return '';
+}
+
+// ── 过滤 ──────────────────────────────────────────────
+function filterDrafts() {
+  const q = state.search.trim().toLowerCase();
+  return state.drafts.filter(d => {
+    if (state.filter === 'page' && d.kind !== 'page') return false;
+    if (state.filter === 'component' && d.kind !== 'component') return false;
+    if (state.filter === 'error' && (!d.diagnostics || d.diagnostics.errors === 0)) return false;
+    if (state.filter === 'warn' && (!d.diagnostics || d.diagnostics.warnings === 0)) return false;
+    if (state.filter === 'unchecked' && d.health !== 'unchecked') return false;
+    if (q) {
+      const hay = [d.title, d.file, (d.states || []).join(' ')].join(' ').toLowerCase();
+      if (hay.indexOf(q) < 0) return false;
+    }
+    return true;
+  });
+}
+
+// ── 事件处理 ──────────────────────────────────────────
+function onSearch(v) { state.search = v; render(); }
+function setFilter(f) { state.filter = f; render(); }
+function setBottomTab(t) { state.bottomTab = t; render(); }
+
+function selectDraft(file) {
+  state.selectedDraft = file;
+  state.diags = [];
+  state.changes = [];
+  render();
+  fetchDiagnostics(file);
+}
+
+// ── API 调用 ──────────────────────────────────────────
+function apiUrl(path) {
+  return state.project.url.replace(/\/$/, '') + '/__ud/' + path + '?token=' + encodeURIComponent(state.project.token);
+}
+
+async function apiFetch(path) {
+  const r = await fetch(apiUrl(path));
+  if (!r.ok) throw new Error(`API ${r.status}: ${r.statusText}`);
+  return r.json();
+}
+
+async function fetchDrafts() {
+  try {
+    const res = await apiFetch('drafts');
+    if (res.ok && res.data) {
+      // 只有文件列表，需要走 validate 拿详情
+      state.drafts = (res.data.files || []).map(f => ({
+        file: f,
+        title: baseName(f).replace(/\.dc\.html$/, ''),
+        kind: 'page',
+        health: 'unchecked',
+        healthWhy: '未体检',
+        diagnostics: { errors: 0, warnings: 0 },
+        elements: null,
+        version: null,
+        states: [],
+        imports: [],
+        importedBy: [],
+      }));
+      render();
+    }
+  } catch (e) {
+    toast('获取稿件列表失败: ' + e.message, 'error');
+  }
+}
+
+async function fetchDiagnostics(file) {
+  try {
+    const res = await apiFetch('validate&file=' + encodeURIComponent(file));
+    if (res.ok && res.data) {
+      state.diags = res.data.diags || [];
+      // 从 stats 提取元素数
+      const s = res.data.stats || {};
+      const draft = state.drafts.find(d => d.file === file);
+      if (draft && s.elements) {
+        draft.elements = s.elements;
+      }
+      if (draft && res.data.workspace) {
+        draft.version = res.data.workspace.version || draft.version;
+      }
+      render();
+    }
+  } catch (e) {
+    toast('获取诊断失败: ' + e.message, 'error');
+  }
+}
+
+async function fetchChanges(file) {
+  try {
+    const res = await apiFetch('changes&file=' + encodeURIComponent(file));
+    if (res.ok && res.data && res.data.diff) {
+      state.changes = (res.data.diff.changes || []).map(c => ({
+        type: c.type || '变更',
+        message: c.summary || JSON.stringify(c),
+      }));
+    } else {
+      state.changes = [];
+    }
+    render();
+  } catch (e) {
+    toast('获取变更失败: ' + e.message, 'error');
+  }
+}
+
+// ── 操作 ──────────────────────────────────────────────
+async function handleOpenProject() {
+  if (!T) {
+    toast('Tauri API 不可用，请用 Tauri 方式启动', 'error');
+    return;
+  }
+  try {
+    // 用 Tauri dialog 选目录
+    const { open } = T.dialog;
+    const selected = await open({
+      title: '选择项目目录',
+      directory: true,
+    });
+    if (!selected) return;
+    await openProjectDir(selected);
+  } catch (e) {
+    toast('打开项目失败: ' + e.message, 'error');
+  }
+}
+
+async function handleOpenPath(path) {
+  await openProjectDir(path);
+}
+
+async function openProjectDir(dir) {
+  state.loading = true;
+  render();
+  try {
+    // 1. serve_start → 拿 URL + token
+    const serve = await invoke('open_project_command', { dir });
+    if (!serve || !serve.url) throw new Error('serve_start 未返回 URL');
+
+    state.project = {
+      name: serve.project?.name || baseName(dir),
+      title: serve.project?.title || '',
+      dir: dir,
+      url: serve.url,
+      token: serve.token,
+    };
+
+    // 2. 取稿件列表
+    await fetchDrafts();
+    render();
+  } catch (e) {
+    toast('打开项目失败: ' + e.message, 'error');
+    state.loading = false;
+  }
+}
+
+async function handleNewProject() {
+  if (!T) {
+    toast('Tauri API 不可用', 'error');
+    return;
+  }
+  try {
+    const { open } = T.dialog;
+    const dir = await open({ title: '选择项目存放目录', directory: true });
+    if (!dir) return;
+    const name = prompt('项目名称（英文/数字）:');
+    if (!name) return;
+    const title = prompt('项目标题（可选，中文描述）:') || '';
+    const result = await invoke('create_project_command', { name, dir, title: title || undefined });
+    if (result && result.project) {
+      toast('项目创建成功: ' + (result.project.name || name), 'success');
+      await openProjectDir(result.project.dir || join(dir, name));
+    } else {
+      toast('创建结果异常，请检查输出', 'error');
+    }
+  } catch (e) {
+    toast('创建项目失败: ' + e.message, 'error');
+  }
+}
+
+async function handleCloseProject() {
+  if (state.project) {
+    try {
+      await invoke('close_project_command', { name: state.project.name });
+    } catch (_) { /* ignore */ }
+  }
+  state.project = null;
+  state.drafts = [];
+  state.selectedDraft = null;
+  state.diags = [];
+  state.changes = [];
+  render();
+}
+
+async function handleBuildIndex() {
+  if (!state.project) return;
+  toast('正在重建索引…', 'success');
+  try {
+    await invoke('invoke_mcp_command', {
+      tool: 'build_index',
+      args: { project: state.project.name },
+      msg_id: Date.now(),
+    });
+    toast('索引重建完成', 'success');
+    await fetchDrafts();
+  } catch (e) {
+    toast('索引重建失败: ' + e.message, 'error');
+  }
+}
+
+async function handleValidate() {
+  if (!state.selectedDraft || !state.project) return;
+  state.validating = true;
+  render();
+  try {
+    // POST /__ud/check?token=...
+    const r = await fetch(apiUrl('check'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ file: state.selectedDraft }),
+    });
+    const res = await r.json();
+    if (res.ok && res.data) {
+      const job = res.data;
+      // 轮询 job 状态
+      await pollJob(job.id);
+    }
+  } catch (e) {
+    toast('体检失败: ' + e.message, 'error');
+  } finally {
+    state.validating = false;
+  }
+}
+
+async function pollJob(jobId) {
+  for (let i = 0; i < 60; i++) {
+    await sleep(2000);
+    try {
+      const res = await apiFetch('check_status&job=' + encodeURIComponent(jobId));
+      if (res.ok && res.data) {
+        const d = res.data;
+        if (d.status === 'done') {
+          toast('体检完成', 'success');
+          await fetchDiagnostics(state.selectedDraft);
+          return;
+        }
+        if (d.status === 'failed') {
+          toast('体检出错: ' + (d.error || '未知错误'), 'error');
+          return;
+        }
+        // running: keep polling
+      }
+    } catch (_) { /* keep polling */ }
+  }
+  toast('体检超时（>2 分钟）', 'error');
+}
+
+function handleOpenInBrowser() {
+  if (!state.project || !state.selectedDraft) return;
+  const url = state.project.url + state.selectedDraft;
+  if (T && T.shell) {
+    T.shell.open(url);
+  } else {
+    window.open(url, '_blank');
+  }
+}
+
+// ── 工具函数 ──────────────────────────────────────────
+function escHtml(s) {
+  if (!s) return '';
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function baseName(p) {
+  if (!p) return '';
+  return p.split('/').pop().split('\\').pop();
+}
+
+function join(a, b) {
+  return a.replace(/\/+$/, '') + '/' + b.replace(/^\/+/, '');
+}
+
+function timeAgo(iso) {
+  if (!iso) return '—';
+  const ms = Date.now() - new Date(iso).getTime();
+  const m = Math.floor(ms / 60000);
+  if (m < 1) return '刚刚';
+  if (m < 60) return m + ' 分钟前';
+  const h = Math.floor(m / 60);
+  if (h < 24) return h + ' 小时前';
+  return Math.floor(h / 24) + ' 天前';
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+function toast(msg, type) {
+  const el = document.getElementById('toasts');
+  const t = document.createElement('div');
+  t.className = 'toast ' + (type || '');
+  t.textContent = msg;
+  el.appendChild(t);
+  setTimeout(() => t.remove(), 4000);
+}
+
+// ── 启动 ──────────────────────────────────────────────
+async function boot() {
+  try {
+    const status = await invoke('get_sidecar_status');
+    state.sidecar = status.status === 'running' ? 'running' : 'stopped';
+  } catch (_) {
+    state.sidecar = 'stopped';
+  }
+  render();
+}
+
+boot();
+</script>
+</body>
+</html>

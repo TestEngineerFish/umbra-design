@@ -424,6 +424,75 @@ fn list_projects_command(state: State<'_, SidecarState>) -> Result<serde_json::V
     Ok(result)
 }
 
+/// 打开项目 + 启动 HTTP 服务，返回预览所需的 URL 和令牌
+#[tauri::command]
+fn open_project_command(
+    state: State<'_, SidecarState>,
+    dir: String,
+) -> Result<serde_json::Value, String> {
+    let params = serde_json::json!({
+        "projectDir": dir,
+    });
+    let result = send_mcp_message(
+        &state,
+        "tools/call",
+        serde_json::json!({
+            "name": "serve_start",
+            "arguments": params,
+        }),
+        10,
+    )?;
+
+    Ok(result)
+}
+
+/// 停止项目的 HTTP 服务
+#[tauri::command]
+fn close_project_command(
+    state: State<'_, SidecarState>,
+    name: String,
+) -> Result<serde_json::Value, String> {
+    let result = send_mcp_message(
+        &state,
+        "tools/call",
+        serde_json::json!({
+            "name": "serve_stop",
+            "arguments": { "project": name },
+        }),
+        11,
+    )?;
+
+    Ok(result)
+}
+
+/// 通用 MCP 工具调用（前端可以通过它调任何工具）
+#[tauri::command]
+fn invoke_mcp_command(
+    state: State<'_, SidecarState>,
+    tool: String,
+    args: serde_json::Value,
+    msg_id: u64,
+) -> Result<serde_json::Value, String> {
+    let result = send_mcp_message(
+        &state,
+        "tools/call",
+        serde_json::json!({
+            "name": tool,
+            "arguments": args,
+        }),
+        msg_id,
+    )?;
+
+    Ok(result)
+}
+
+/// 获取最近打开的项目列表
+#[tauri::command]
+fn get_recent_projects_command(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
+    let recent = get_recent(&app);
+    Ok(serde_json::json!({ "projects": recent }))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -462,6 +531,10 @@ pub fn run() {
             get_sidecar_status,
             create_project_command,
             list_projects_command,
+            get_recent_projects_command,
+            open_project_command,
+            close_project_command,
+            invoke_mcp_command,
         ])
         .setup(|app| {
             let menu = build_menu(app.handle())?;
