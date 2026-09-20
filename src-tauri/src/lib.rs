@@ -430,8 +430,30 @@ fn open_project_command(
     state: State<'_, SidecarState>,
     dir: String,
 ) -> Result<serde_json::Value, String> {
+    // 1. 先列出所有项目，找匹配目录的那个
+    let list_result = send_mcp_message(
+        &state,
+        "tools/call",
+        serde_json::json!({
+            "name": "list_projects",
+            "arguments": {},
+        }),
+        10,
+    )?;
+
+    // 解析 list_projects 的 MCP 响应
+    let projects = parse_mcp_text(&list_result)?;
+    let project_name = projects.get("data")
+        .and_then(|d| d.as_array())
+        .and_then(|arr| arr.iter().find(|p| {
+            p.get("dir").and_then(|d| d.as_str()) == Some(&dir)
+        }))
+        .and_then(|p| p.get("name").and_then(|n| n.as_str()))
+        .ok_or_else(|| format!("找不到目录对应的项目: {}", dir))?;
+
+    // 2. 用项目名启动服务
     let params = serde_json::json!({
-        "project": dir,
+        "project": project_name,
     });
     let result = send_mcp_message(
         &state,
@@ -440,10 +462,23 @@ fn open_project_command(
             "name": "serve_start",
             "arguments": params,
         }),
-        10,
+        11,
     )?;
 
     Ok(result)
+}
+
+/// 解析 MCP 响应中的 text 内容
+fn parse_mcp_text(raw: &serde_json::Value) -> Result<serde_json::Value, String> {
+    let content = raw.get("content")
+        .and_then(|c| c.as_array())
+        .ok_or("MCP 响应缺少 content")?;
+    let text = content.first()
+        .and_then(|c| c.get("text"))
+        .and_then(|t| t.as_str())
+        .ok_or("MCP content 缺少 text")?;
+    serde_json::from_str(text)
+        .map_err(|e| format!("解析 MCP text 失败: {}", e))
 }
 
 /// 停止项目的 HTTP 服务
