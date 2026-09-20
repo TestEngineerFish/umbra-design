@@ -1,8 +1,10 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use std::path::PathBuf;
+use std::process::{Child, Stdio};
+use std::sync::Mutex;
 use tauri::menu::{MenuBuilder, PredefinedMenuItem, SubmenuBuilder};
-use tauri::{Emitter, Manager};
+use tauri::{Emitter, Manager, State};
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_store::StoreExt;
 
@@ -10,13 +12,15 @@ const STORE_FILE: &str = "store.json";
 const RECENT_KEY: &str = "recentProjects";
 const MAX_RECENT: usize = 10;
 
+/// 管理 MCP server 子进程的生命周期
+struct SidecarState(Mutex<Option<Child>>);
+
 #[derive(Clone, serde::Serialize)]
 struct SecondInstancePayload {
     args: Vec<String>,
     cwd: String,
 }
 
-/// Read recent projects list from the persistent store
 fn get_recent(app: &tauri::AppHandle) -> Vec<String> {
     match app.store(STORE_FILE) {
         Ok(store) => store
@@ -27,7 +31,6 @@ fn get_recent(app: &tauri::AppHandle) -> Vec<String> {
     }
 }
 
-/// Add a path to recent projects (dedup + LRU)
 fn add_recent(app: &tauri::AppHandle, path: String) {
     if let Ok(store) = app.store(STORE_FILE) {
         let mut recent = get_recent(app);
@@ -181,10 +184,100 @@ fn refresh_menu(app: &tauri::AppHandle) -> Result<(), tauri::Error> {
     Ok(())
 }
 
+/// 找到 server/dist/index.js 的绝对路径
+fn find_server_path() -> Option<String> {
+    // 开发模式：从 src-tauri 向上找仓库根目录
+    let mut current = std::env::current_exe().ok()?;
+    for _ in 0..10 {
+        if let Some(parent) = current.parent() {
+            current = parent.to_path_buf();
+            let candidate = current.join("server").join("dist").join("index.js");
+            if candidate.exists() {
+                return candidate.to_str().map(|s| s.to_string());
+            }
+        }
+    }
+    // 生产模式：从资源目录找
+    None
+}
+
+/// 启动 MCP server 子进程
+#[tauri::command]
+fn start_sidecar(state: State<'_, SidecarState>) -> Result<String, String> {
+    let mut guard = state.0.lock().unwrap();
+    if guard.is_some() {
+        return Ok("already_running".to_string());
+    }
+
+    let server_path = find_server_path()
+        .ok_or_else(|| "找不到 server/dist/index.js —— 请先运行 npm --prefix server run build".to_string())?;
+
+    // 用 shell 执行 node，因为 node 不在 externalBin 里
+    let node_path = if cfg!(windows) { "node.exe" } else { "node" };
+
+    let result = std::process::Command::new(node_path)
+        .arg(&server_path)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn();
+
+    match result {
+        Ok(child) => {
+            *guard = Some(child);
+            Ok("started".to_string())
+        }
+        Err(e) => Err(format!("启动失败: {}", e)),
+    }
+}
+
+/// 停止 MCP server 子进程
+#[tauri::command]
+fn stop_sidecar(state: State<'_, SidecarState>) -> Result<String, String> {
+    let mut guard = state.0.lock().unwrap();
+    if let Some(mut child) = guard.take() {
+        // 先尝试优雅退出 (SIGTERM on Unix)
+        #[cfg(unix)]
+        {
+            let pid = child.id();
+            unsafe {
+                libc::kill(pid as i32, libc::SIGTERM);
+            }
+            // 等 2 秒，如果还在就 kill
+            for _ in 0..20 {
+                match child.try_wait() {
+                    Ok(Some(_)) => return Ok("stopped".to_string()),
+                    Ok(None) => std::thread::sleep(std::time::Duration::from_millis(100)),
+                    Err(_) => break,
+                }
+            }
+        }
+        // 强制终止
+        let _ = child.kill();
+        Ok("stopped".to_string())
+    } else {
+        Ok("not_running".to_string())
+    }
+}
+
+/// 查询 sidecar 状态
+#[tauri::command]
+fn get_sidecar_status(state: State<'_, SidecarState>) -> Result<serde_json::Value, String> {
+    let guard = state.0.lock().unwrap();
+    if guard.is_some() {
+        Ok(serde_json::json!({
+            "status": "running",
+        }))
+    } else {
+        Ok(serde_json::json!({
+            "status": "stopped",
+        }))
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        // Single instance: second launch focuses existing window
         .plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {
             println!("[single-instance] {argv:?}, cwd={cwd}");
             let _ = app.emit(
@@ -213,17 +306,35 @@ pub fn run() {
                     .build()
             }
         })
+        .manage(SidecarState(Mutex::new(None)))
+        .invoke_handler(tauri::generate_handler![
+            start_sidecar,
+            stop_sidecar,
+            get_sidecar_status,
+        ])
         .setup(|app| {
             let menu = build_menu(app.handle())?;
             app.set_menu(menu)?;
 
-            // Menu event handler
             app.on_menu_event(|app, event| {
                 let id = event.id().0.clone();
                 menu_event_handler(app, &id);
             });
 
+            // 启动时自动启动 sidecar
+            let state = app.state::<SidecarState>();
+            match start_sidecar(state.clone()) {
+                Ok(msg) => println!("[sidecar] {}", msg),
+                Err(e) => eprintln!("[sidecar] {}", e),
+            }
+
             Ok(())
+        })
+        .on_window_event(|_window, event| {
+            // 窗口关闭时清理 sidecar
+            if let tauri::WindowEvent::CloseRequested { .. } = event {
+                // 这里不需要阻止关闭，在 exit 钩子里清理
+            }
         })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
