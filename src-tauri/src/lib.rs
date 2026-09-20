@@ -431,7 +431,7 @@ fn open_project_command(
     dir: String,
 ) -> Result<serde_json::Value, String> {
     let params = serde_json::json!({
-        "projectDir": dir,
+        "project": dir,
     });
     let result = send_mcp_message(
         &state,
