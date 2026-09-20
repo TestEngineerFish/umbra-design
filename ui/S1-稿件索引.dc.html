@@ -40,11 +40,54 @@
         <span style="font-weight: 620; letter-spacing: -0.01em;">UmbraDesign</span>
       </div>
       <div style="width: 1px; height: 18px; background: var(--tool-border); flex: none;"></div>
-      <div style="display: flex; align-items: baseline; gap: 8px; min-width: 0; overflow: hidden;">
-        <span style="font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ projectTitle }}</span>
-        <span style="font-family: var(--tool-mono); font-size: 11px; color: var(--tool-muted); white-space: nowrap;">{{ projectName }}</span>
+
+      <!-- 项目切换器 -->
+      <div style="position: relative; min-width: 0;">
+        <button type="button" onClick="{{ onProjectClick }}" style="display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 10px; border: 1px solid var(--tool-border-strong); border-radius: var(--tool-radius); background: var(--tool-panel); color: var(--tool-text); font-size: 12px; cursor: pointer; transition: background .13s ease; max-width: 240px;" style-hover="background: var(--tool-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">
+          <span style="font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ projectTitle }}</span>
+          <span style="font-family: var(--tool-mono); font-size: 11px; color: var(--tool-muted); white-space: nowrap;">{{ projectName }}</span>
+          <svg width="10" height="10" viewBox="0 0 12 12" fill="none" style="flex: none; color: var(--tool-muted); transform: rotate({{ projDropRot }});" aria-hidden="true"><path d="M3 4.5l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+        </button>
+
+        <!-- 项目下拉菜单 -->
+        <sc-if value="{{ projDropOpen }}" hint-placeholder-val="{{ false }}">
+          <div style="position: absolute; top: 34px; left: 0; z-index: 10; min-width: 260px; background: var(--tool-panel); border: 1px solid var(--tool-border-strong); border-radius: var(--tool-radius-lg); box-shadow: var(--tool-shadow-2); overflow: hidden;">
+            <div style="padding: 8px 12px 4px; font-size: 10px; font-weight: 650; letter-spacing: 0.05em; color: var(--tool-muted); text-transform: uppercase;">最近项目</div>
+            <sc-for list="{{ recentProjects }}" as="rp" hint-placeholder-count="3">
+              <div onClick="{{ rp.pick }}" style="display: flex; align-items: center; gap: 8px; padding: 7px 12px; cursor: pointer; transition: background .13s ease; background: {{ rp.bg }};" style-hover="background: var(--tool-hover);">
+                <span style="width: 6px; height: 6px; flex: none; border-radius: 999px; background: {{ rp.dot }};"></span>
+                <span style="flex: 1 1 0; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13px;">{{ rp.name }}</span>
+                <sc-if value="{{ rp.existsNeg }}" hint-placeholder-val="{{ true }}">
+                  <span style="font-size: 10px; color: var(--tool-muted); flex: none;">找不到</span>
+                </sc-if>
+              </div>
+            </sc-for>
+            <div style="border-top: 1px solid var(--tool-border);"></div>
+            <div onClick="{{ onNewProject }}" style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; cursor: pointer; transition: background .13s ease;" style-hover="background: var(--tool-hover);">
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" style="flex: none; color: var(--tool-accent);" aria-hidden="true"><path d="M8 3.6v8.8M3.6 8h8.8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path></svg>
+              <span style="font-size: 13px; color: var(--tool-accent); font-weight: 560;">新建项目</span>
+            </div>
+            <div style="border-top: 1px solid var(--tool-border);"></div>
+            <a href="./S8-项目设置.dc.html" style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; cursor: pointer; transition: background .13s ease; text-decoration: none; color: inherit;" style-hover="background: var(--tool-hover);">
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" style="flex: none; color: var(--tool-muted);" aria-hidden="true"><circle cx="8" cy="8" r="1.6" fill="currentColor"></circle><circle cx="8" cy="2.8" r="1.6" fill="currentColor"></circle><circle cx="8" cy="13.2" r="1.6" fill="currentColor"></circle></svg>
+              <span style="font-size: 13px; color: var(--tool-muted);">项目设置</span>
+            </a>
+          </div>
+        </sc-if>
       </div>
+
       <span style="flex: 1;"></span>
+
+      <!-- 新建稿件按钮 -->
+      <button type="button" onClick="{{ onNewDraft }}" style="display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 12px; border-radius: var(--tool-radius); border: 1px solid var(--tool-accent); background: var(--tool-accent); color: var(--tool-on-accent); font-size: 12px; font-weight: 560; cursor: pointer; transition: background .13s ease;" style-hover="background: var(--tool-accent-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 3.6v8.8M3.6 8h8.8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path></svg>
+        新建稿件
+      </button>
+
+      <!-- 回收站按钮 -->
+      <button type="button" onClick="{{ onOpenTrash }}" title="回收站" style="width: 28px; height: 28px; display: grid; place-items: center; border: 1px solid var(--tool-border-strong); border-radius: var(--tool-radius); background: var(--tool-panel); color: var(--tool-muted); cursor: pointer; transition: background .13s ease, color .13s ease;" style-hover="background: var(--tool-hover); color: var(--tool-text);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.6 4.4h8.8M5.2 4.4V3.2c0-.7.5-1.2 1.2-1.2h3.2c.7 0 1.2.5 1.2 1.2v1.2M4.4 4.4l.6 8.4c0 .7.6 1.2 1.2 1.2h5.6c.6 0 1.2-.5 1.2-1.2L13.6 4.4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+      </button>
     </div>
     <sc-if value="{{ showDemoBar }}" hint-placeholder-val="{{ true }}">
     <div style="display: flex; align-items: center; gap: 8px; padding: 0 20px 10px; flex-wrap: wrap; font-size: 12px;">
@@ -208,6 +251,85 @@
         </div>
       </sc-if>
 
+      <!-- 新建稿件弹窗 -->
+      <sc-if value="{{ showNewDraft }}" hint-placeholder-val="{{ false }}">
+        <div style="position: fixed; inset: 0; z-index: 20; background: rgba(0,0,0,.35); display: grid; place-items: center;" onClick="{{ onCloseNewDraft }}">
+          <div style="width: 440px; max-height: 80vh; background: var(--tool-panel); border: 1px solid var(--tool-border-strong); border-radius: var(--tool-radius-lg); box-shadow: var(--tool-shadow-2); overflow: hidden;" onClick="{{ stopProp }}">
+            <div style="display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid var(--tool-border);">
+              <span style="font-size: 15px; font-weight: 620;">新建稿件</span>
+              <button type="button" onClick="{{ onCloseNewDraft }}" style="width: 24px; height: 24px; display: grid; place-items: center; border: 0; background: transparent; color: var(--tool-muted); border-radius: var(--tool-radius-sm); cursor: pointer;" style-hover="background: var(--tool-hover); color: var(--tool-text);">
+                <dc-import name="IconGlyph" d="M4.4 4.4l7.2 7.2M11.6 4.4l-7.2 7.2" size="12" stroke="1.5" hint-size="12px,12px"></dc-import>
+              </button>
+            </div>
+            <div style="padding: 16px 18px; display: grid; gap: 14px;">
+              <div>
+                <div style="font-size: 11px; font-weight: 600; letter-spacing: 0.04em; color: var(--tool-muted); margin-bottom: 6px;">来源</div>
+                <div style="display: grid; gap: 6px;">
+                  <sc-for list="{{ draftSources }}" as="src" hint-placeholder-count="4">
+                    <div onClick="{{ src.pick }}" style="display: flex; align-items: center; gap: 10px; padding: 9px 12px; border: 1px solid {{ src.bd }}; border-radius: var(--tool-radius); background: {{ src.bg }}; cursor: pointer; transition: background .13s ease, border-color .13s ease;" style-hover="background: var(--tool-hover);">
+                      <span style="width: 14px; height: 14px; flex: none; display: grid; place-items: center; border-radius: 999px; border: 2px solid {{ src.rd }}; background: {{ src.rbg }};">
+                        <sc-if value="{{ src.selected }}" hint-placeholder-val="{{ false }}">
+                          <svg width="8" height="8" viewBox="0 0 10 10" fill="none"><path d="M2 5.2l2 2 4-4" stroke="var(--tool-accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                        </sc-if>
+                      </span>
+                      <span style="font-size: 13px; font-weight: {{ src.fw }};">{{ src.label }}</span>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+              <div>
+                <div style="font-size: 11px; font-weight: 600; letter-spacing: 0.04em; color: var(--tool-muted); margin-bottom: 6px;">稿名</div>
+                <input type="text" value="{{ newDraftName }}" onChange="{{ onNewDraftName }}" placeholder="留空自动生成" style="width: 100%; height: 32px; padding: 0 10px; border-radius: var(--tool-radius); border: 1px solid var(--tool-border-strong); background: var(--tool-panel); font-size: 13px; outline: none;" style-focus="border-color: var(--tool-accent); box-shadow: 0 0 0 3px var(--tool-accent-soft);">
+              </div>
+            </div>
+            <div style="display: flex; gap: 8px; padding: 12px 18px; border-top: 1px solid var(--tool-border); justify-content: flex-end;">
+              <button type="button" onClick="{{ onCloseNewDraft }}" style="height: 30px; padding: 0 14px; border-radius: var(--tool-radius); border: 1px solid var(--tool-border-strong); background: var(--tool-panel); font-size: 12px; cursor: pointer;" style-hover="background: var(--tool-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">取消</button>
+              <button type="button" onClick="{{ onCreateDraft }}" style="height: 30px; padding: 0 14px; border-radius: var(--tool-radius); border: 0; background: var(--tool-accent); color: var(--tool-on-accent); font-size: 12px; font-weight: 560; cursor: pointer;" style-hover="background: var(--tool-accent-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">创建</button>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+
+      <!-- 回收站视图 -->
+      <sc-if value="{{ showTrashView }}" hint-placeholder-val="{{ false }}">
+        <div style="padding: 20px;">
+          <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 16px;">
+            <a href="#" onClick="{{ onCloseTrashView }}" style="display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 10px; border-radius: var(--tool-radius); border: 1px solid var(--tool-border-strong); background: var(--tool-panel); color: var(--tool-text); font-size: 12px;" style-hover="background: var(--tool-hover); text-decoration: none;" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">
+              <dc-import name="IconGlyph" d="M9.6 3.6L5.2 8l4.4 4.4" size="12" hint-size="12px,12px"></dc-import>
+              返回索引
+            </a>
+            <span style="font-size: 15px; font-weight: 620;">回收站</span>
+            <span style="font-family: var(--tool-mono); font-size: 11px; color: var(--tool-muted);">{{ trashCount }} 份</span>
+          </div>
+          <sc-if value="{{ trashViewEmpty }}" hint-placeholder-val="{{ true }}">
+            <div style="padding: 48px 20px; display: grid; place-items: center;">
+              <div style="text-align: center;">
+                <svg width="36" height="36" viewBox="0 0 16 16" fill="none" style="color: var(--tool-muted); margin-bottom: 12px;" aria-hidden="true"><path d="M3.6 4.4h8.8M5.2 4.4V3.2c0-.7.5-1.2 1.2-1.2h3.2c.7 0 1.2.5 1.2 1.2v1.2M4.4 4.4l.6 8.4c0 .7.6 1.2 1.2 1.2h5.6c.6 0 1.2-.5 1.2-1.2L13.6 4.4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                <div style="font-size: 15px; font-weight: 600; margin-bottom: 4px;">回收站是空的</div>
+                <div style="color: var(--tool-muted); font-size: 12px;">删掉的稿会出现在这里。</div>
+              </div>
+            </div>
+          </sc-if>
+          <sc-if value="{{ trashViewNotEmpty }}" hint-placeholder-val="{{ false }}">
+            <div style="background: var(--tool-panel); border: 1px solid var(--tool-border); border-radius: var(--tool-radius-lg); box-shadow: var(--tool-shadow-1); overflow: hidden;">
+              <sc-for list="{{ trashViewItems }}" as="ti" hint-placeholder-count="3">
+                <div style="display: grid; grid-template-columns: minmax(0, 1fr) 130px 80px 100px; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--tool-border); align-items: center;">
+                  <div style="min-width: 0;">
+                    <div style="font-weight: 560; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ ti.name }}</div>
+                    <div style="font-family: var(--tool-mono); font-size: 11px; color: var(--tool-muted);">{{ ti.deletedAt }}</div>
+                  </div>
+                  <span style="font-family: var(--tool-mono); font-size: 11px; color: var(--tool-muted);">{{ ti.size }}</span>
+                  <span style="font-size: 11px; color: var(--tool-muted);">{{ ti.imports }}</span>
+                  <div style="display: flex; gap: 6px;">
+                    <button type="button" onClick="{{ ti.restore }}" style="flex: 1; height: 26px; padding: 0 8px; border-radius: var(--tool-radius-sm); border: 1px solid var(--tool-ok-border); background: var(--tool-ok-soft); color: var(--tool-ok); font-size: 11px; cursor: pointer;" style-hover="background: var(--tool-ok-border);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">恢复</button>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+        </div>
+      </sc-if>
+
       <sc-if value="{{ showList }}" hint-placeholder-val="{{ true }}">
         <div style="padding: 14px 20px 0;">
           <div style="background: var(--tool-panel); border: 1px solid var(--tool-border); border-radius: var(--tool-radius-lg); overflow: hidden; box-shadow: var(--tool-shadow-1);">
@@ -258,6 +380,22 @@
                     {{ r.healthLabel }}
                   </span>
                   <span style="font-family: var(--tool-mono); font-size: 11px; color: var(--tool-muted); white-space: nowrap;">{{ r.diagLabel }}</span>
+
+                  <!-- 行操作菜单按钮 -->
+                  <div style="position: relative; flex: none;">
+                    <button type="button" onClick="{{ r.openActions }}" title="操作" style="width: 22px; height: 22px; display: grid; place-items: center; border: 0; background: transparent; color: var(--tool-muted); border-radius: var(--tool-radius-sm); cursor: pointer; transition: background .13s ease, color .13s ease;" style-hover="background: var(--tool-hover); color: var(--tool-text);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">
+                      <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="3" r="1.6" fill="currentColor"></circle><circle cx="8" cy="8" r="1.6" fill="currentColor"></circle><circle cx="8" cy="13" r="1.6" fill="currentColor"></circle></svg>
+                    </button>
+                    <sc-if value="{{ r.actionsOpen }}" hint-placeholder-val="{{ false }}">
+                      <div style="position: absolute; top: 26px; right: 0; z-index: 10; min-width: 140px; background: var(--tool-panel); border: 1px solid var(--tool-border-strong); border-radius: var(--tool-radius); box-shadow: var(--tool-shadow-2); overflow: hidden;">
+                        <div onClick="{{ r.rename }}" style="padding: 7px 12px; font-size: 12px; cursor: pointer; transition: background .13s ease;" style-hover="background: var(--tool-hover);">重命名</div>
+                        <div onClick="{{ r.duplicate }}" style="padding: 7px 12px; font-size: 12px; cursor: pointer; transition: background .13s ease;" style-hover="background: var(--tool-hover);">复制</div>
+                        <div onClick="{{ r.move }}" style="padding: 7px 12px; font-size: 12px; cursor: pointer; transition: background .13s ease;" style-hover="background: var(--tool-hover);">移动到…</div>
+                        <div style="border-top: 1px solid var(--tool-border);"></div>
+                        <div onClick="{{ r.deleteDraft }}" style="padding: 7px 12px; font-size: 12px; color: var(--tool-err); cursor: pointer; transition: background .13s ease;" style-hover="background: var(--tool-err-soft);">删除</div>
+                      </div>
+                    </sc-if>
+                  </div>
                 </div>
               </div>
             </sc-for>
@@ -405,7 +543,11 @@ const DEMOS = [
   { n: 6, short: "有报错", name: "有 error / warning", note: "2 份报错 3 份有提醒，排到最上面" },
   { n: 7, short: "超限", name: "元素数超限", note: "1 份已超 1,200，1 份逼近，排到最上面" },
   { n: 8, short: "配置缺失", name: "项目配置读不到", note: "project.json 缺失或不合法" },
-  { n: 9, short: "高密度", name: "稿很多（112 份）", note: "112 份稿，高密度下的可读性" }
+  { n: 9, short: "高密度", name: "稿很多（112 份）", note: "112 份稿，高密度下的可读性" },
+  { n: 10, short: "项目切换", name: "项目切换器下拉", note: "点项目名展开下拉，显示最近项目 + 新建 + 设置" },
+  { n: 11, short: "行操作", name: "行操作菜单展开", note: "点行末「…」弹出重命名/复制/移动/删除" },
+  { n: 12, short: "新建稿件", name: "新建稿件弹窗", note: "选来源（空白/组件/模板/复制）、填稿名" },
+  { n: 13, short: "回收站", name: "回收站有稿件", note: "3 份被删的稿，显示删除时间和引用数" }
 ];
 
 const HEALTH = {
@@ -426,7 +568,7 @@ class Component extends DCLogic {
      那行不出现（43px），窄窗里顶栏还会折行，写死的 76px 两种情况都会把下面的
      卡片头盖掉。所以量出来用。 */
   state = { demo: 1, view: null, query: "", kind: "all", health: "all", sort: "updated", cursor: 0, barH: 76,
-            stale: null };
+            stale: null, projDrop: false, showNewDraft: false, showTrashView: false, draftSource: "blank", newDraftName: "" };
 
   measure() {
     const el = this.barRef && this.barRef.current;
@@ -625,7 +767,13 @@ class Component extends DCLogic {
         bg: sel ? "var(--tool-accent-soft)" : "var(--tool-panel)",
         sel: sel ? "inset 2px 0 0 var(--tool-accent)" : "none",
         open: () => this.go(r),
-        hover: () => this.setState({ cursor: i })
+        hover: () => this.setState({ cursor: i }),
+        // ── 行操作菜单 ──
+        actionsOpen: s.rowActionsDemo && i === 0,
+        rename: () => {},
+        duplicate: () => {},
+        move: () => {},
+        deleteDraft: () => {}
       };
     });
 
@@ -713,7 +861,49 @@ class Component extends DCLogic {
       footerCount: isEmptyProject ? "0 份稿" : rows.length === pool.length ? pool.length + " 份稿" : "筛出 " + rows.length + " / " + pool.length + " 份稿",
       footerScan: LIVE
         ? (dense ? "紧凑密度 · 索引生成于 " + this.ago(LIVE.project.generatedAt) : "索引生成于 " + this.ago(LIVE.project.generatedAt) + " · 改稿后重跑 build_index")
-        : (dense ? "紧凑密度 · 上次扫目录 08:52" : "上次扫目录 08:52 · 自动监听文件变更")
+        : (dense ? "紧凑密度 · 上次扫目录 08:52" : "上次扫目录 08:52 · 自动监听文件变更"),
+
+      // ── 项目切换器 ──
+      projDropOpen: s.demo === 10,
+      projDropRot: s.demo === 10 ? "180deg" : "0deg",
+      onProjectClick: () => this.setState({ projDrop: !s.projDrop, demo: 10 }),
+      onNewProject: () => {},
+      recentProjects: [
+        { name: "Umbra_design", exists: true, existsNeg: false, bg: s.demo === 10 ? "var(--tool-accent-soft)" : "transparent", dot: "var(--tool-ok)", pick: () => {} },
+        { name: "Umbra_design_next", exists: true, existsNeg: false, bg: "transparent", dot: "var(--tool-ok)", pick: () => {} },
+        { name: "旧项目_已删除", exists: false, existsNeg: true, bg: "transparent", dot: "var(--tool-muted)", pick: () => {} }
+      ],
+
+      // ── 新建稿件弹窗 ──
+      showNewDraft: s.demo === 12,
+      draftSources: [
+        { key: "blank", label: "空白骨架", selected: s.draftSource === "blank", bg: s.draftSource === "blank" ? "var(--tool-accent-soft)" : "var(--tool-panel)", bd: s.draftSource === "blank" ? "var(--tool-accent)" : "var(--tool-border-strong)", rd: s.draftSource === "blank" ? "var(--tool-accent)" : "var(--tool-border-strong)", rbg: s.draftSource === "blank" ? "var(--tool-accent)" : "transparent", fw: s.draftSource === "blank" ? "560" : "400", pick: () => this.setState({ draftSource: "blank" }) },
+        { key: "component", label: "把组件包一层", selected: s.draftSource === "component", bg: s.draftSource === "component" ? "var(--tool-accent-soft)" : "var(--tool-panel)", bd: s.draftSource === "component" ? "var(--tool-accent)" : "var(--tool-border-strong)", rd: s.draftSource === "component" ? "var(--tool-accent)" : "var(--tool-border-strong)", rbg: s.draftSource === "component" ? "var(--tool-accent)" : "transparent", fw: s.draftSource === "component" ? "560" : "400", pick: () => this.setState({ draftSource: "component" }) },
+        { key: "template", label: "从模板", selected: s.draftSource === "template", bg: s.draftSource === "template" ? "var(--tool-accent-soft)" : "var(--tool-panel)", bd: s.draftSource === "template" ? "var(--tool-accent)" : "var(--tool-border-strong)", rd: s.draftSource === "template" ? "var(--tool-accent)" : "var(--tool-border-strong)", rbg: s.draftSource === "template" ? "var(--tool-accent)" : "transparent", fw: s.draftSource === "template" ? "560" : "400", pick: () => this.setState({ draftSource: "template" }) },
+        { key: "copy", label: "复制现有稿", selected: s.draftSource === "copy", bg: s.draftSource === "copy" ? "var(--tool-accent-soft)" : "var(--tool-panel)", bd: s.draftSource === "copy" ? "var(--tool-accent)" : "var(--tool-border-strong)", rd: s.draftSource === "copy" ? "var(--tool-accent)" : "var(--tool-border-strong)", rbg: s.draftSource === "copy" ? "var(--tool-accent)" : "transparent", fw: s.draftSource === "copy" ? "560" : "400", pick: () => this.setState({ draftSource: "copy" }) }
+      ],
+      newDraftName: s.draftSource || "",
+      onNewDraftName: (e) => this.setState({ newDraftName: e.target.value }),
+      onNewDraft: () => this.setState({ showNewDraft: true, demo: 12 }),
+      onCloseNewDraft: () => this.setState({ showNewDraft: false, demo: 1 }),
+      onCreateDraft: () => this.setState({ showNewDraft: false, demo: 1 }),
+
+      // ── 回收站视图 ──
+      showTrashView: s.demo === 13,
+      trashCount: "3",
+      trashViewEmpty: s.demo !== 13,
+      trashViewNotEmpty: s.demo === 13,
+      onOpenTrash: () => this.setState({ showTrashView: true, demo: 13 }),
+      onCloseTrashView: () => this.setState({ showTrashView: false, demo: 1 }),
+      trashViewItems: [
+        { name: "旧版首页", deletedAt: "2026-09-18 14:32", size: "703 元素", imports: "被 2 份引用", restore: () => {} },
+        { name: "PC 按钮 v1", deletedAt: "2026-09-17 09:15", size: "14 元素", imports: "被 1 份引用", restore: () => {} },
+        { name: "临时测试稿", deletedAt: "2026-09-16 22:08", size: "86 元素", imports: "孤立稿", restore: () => {} }
+      ],
+
+      // ── 行操作菜单 ──
+      rowActionsDemo: s.demo === 11,
+      stopProp: (e) => e.stopPropagation(),
     };
   }
 }

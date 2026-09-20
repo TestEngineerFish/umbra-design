@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>S10-组件Props面板</title>
+</head>
+<body>
+
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="./_ds-tool/tokens.css">
+<style>
+@font-face { font-family: 'DC'; src: local('SF Pro Display'), local('PingFang SC'), local('Microsoft YaHei'), local('Segoe UI'), local('Roboto'); }
+html, body { margin: 0; padding: 0; }
+body { background: var(--tool-bg); font-family: 'DC', sans-serif; font-size: 13px; line-height: 1.5; color: var(--tool-text); }
+</style>
+</helmet>
+
+<div data-tool-theme="{{ theme }}" style="min-height: 100vh; display: flex; flex-direction: column;">
+
+  <!-- ═══ 顶栏 ═══ -->
+  <div style="display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--tool-border); background: var(--tool-panel);">
+    <button onClick="{{ goBack }}" style="display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; border: none; background: transparent; border-radius: 6px; cursor: pointer; color: var(--tool-text);" style-hover="background: var(--tool-hover);" title="返回索引">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M10 3L5 8l5 5"/></svg>
+    </button>
+    <div style="flex: 1 1 0; min-width: 0;">
+      <div style="font-size: 14px; font-weight: 560;">{{ compName }}</div>
+      <div style="font-size: 11px; color: var(--tool-muted);">{{ compMeta }}</div>
+    </div>
+    <!-- 演示态切换（独立于 props 面板） -->
+    <div style="display: flex; gap: 4px;">
+      <sc-for list="{{ demoStates }}" as="d">
+        <button onClick="{{ d.pick }}" style="padding: 2px 8px; font-size: 10px; border: 1px solid {{ d.bd }}; border-radius: 4px; background: {{ d.bg }}; color: {{ d.fg }}; cursor: pointer; font-weight: {{ d.fw }};" style-hover="background: var(--tool-hover);" title="{{ d.note }}">
+          {{ d.short }}
+        </button>
+      </sc-for>
+    </div>
+  </div>
+
+  <!-- ═══ 主内容区：左侧预览 + 右侧 props 面板 ═══ -->
+  <div style="flex: 1 1 0; display: flex; overflow: hidden;">
+
+    <!-- 左侧：组件预览 -->
+    <div style="flex: 1 1 0; display: flex; align-items: center; justify-content: center; background: var(--tool-bg-2); padding: 24px;">
+      <div style="text-align: center;">
+        <!-- 组件预览占位 -->
+        <div style="padding: 20px 32px; background: var(--tool-panel); border: 1px solid var(--tool-border); border-radius: 8px; margin-bottom: 12px;">
+          <sc-if value="{{ previewKind }} == textPreview" hint-placeholder-val="{{ true }}">
+            <div style="display: inline-block; padding: 8px 20px; background: {{ prevBg }}; color: {{ prevColor }}; border: 1px solid {{ prevBd }}; border-radius: {{ prevRd }}; font-size: 13px; font-weight: 500; cursor: pointer;" style-hover="opacity: .9;">
+              {{ previewText }}
+            </div>
+          </sc-if>
+        </div>
+        <div style="font-size: 11px; color: var(--tool-muted);">组件预览（走 __dcSetProps 实时重渲染）</div>
+      </div>
+    </div>
+
+    <!-- 右侧：Props 面板 -->
+    <div style="width: 320px; flex: none; border-left: 1px solid var(--tool-border); background: var(--tool-panel); display: flex; flex-direction: column; overflow: auto;">
+
+      <!-- 面板标题 -->
+      <div style="padding: 10px 12px 8px; font-size: 11px; font-weight: 600; color: var(--tool-muted); text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid var(--tool-border);">
+        组件 Props
+      </div>
+
+      <!-- Props 列表 -->
+      <sc-for list="{{ propsList }}" as="p">
+        <div style="padding: 8px 12px; border-bottom: 1px solid var(--tool-border);">
+          <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
+            <span style="font-size: 12px; font-weight: 500; flex: 1 1 0;">{{ p.name }}</span>
+            <span style="font-size: 10px; color: var(--tool-muted); font-family: ui-monospace, 'SF Mono', monospace;">{{ p.type }}</span>
+          </div>
+          <div style="font-size: 10px; color: var(--tool-muted); margin-bottom: 6px;">{{ p.desc }}</div>
+
+          <!-- text editor -->
+          <sc-if value="{{ p.showText }}" hint-placeholder-val="{{ true }}">
+            <input type="text" value="{{ p.value }}" onChange="{{ p.onChange }}" style="width: 100%; padding: 5px 8px; font-size: 12px; border: 1px solid var(--tool-border); border-radius: 4px; background: var(--tool-bg); color: var(--tool-text); box-sizing: border-box;" style-hover="border-color: var(--tool-border-strong);" style-focus="border-color: var(--tool-accent); outline: none; box-shadow: 0 0 0 2px var(--tool-accent-soft);">
+          </sc-if>
+
+          <!-- enum editor -->
+          <sc-if value="{{ p.showEnum }}" hint-placeholder-val="{{ true }}">
+            <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+              <sc-for list="{{ p.options }}" as="o">
+                <button onClick="{{ o.pick }}" style="padding: 3px 10px; font-size: 11px; border: 1px solid {{ o.bd }}; border-radius: 4px; background: {{ o.bg }}; color: {{ o.fg }}; cursor: pointer; font-weight: {{ o.fw }};" style-hover="opacity: .85;">{{ o.label }}</button>
+              </sc-for>
+            </div>
+          </sc-if>
+
+          <!-- boolean editor -->
+          <sc-if value="{{ p.showBool }}" hint-placeholder-val="{{ true }}">
+            <div onClick="{{ p.toggle }}" style="display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 2px 0;">
+              <div style="width: 32px; height: 18px; border-radius: 9px; background: {{ p.switchBg }}; position: relative; transition: background .12s ease;">
+                <div style="width: 14px; height: 14px; border-radius: 50%; background: white; position: absolute; top: 2px; left: {{ p.switchLeft }}; transition: left .12s ease; box-shadow: 0 1px 2px rgba(0,0,0,.15);"></div>
+              </div>
+              <span style="font-size: 11px; color: var(--tool-text);">{{ p.switchLabel }}</span>
+            </div>
+          </sc-if>
+
+          <!-- number editor -->
+          <sc-if value="{{ p.showNumber }}" hint-placeholder-val="{{ true }}">
+            <div style="display: flex; align-items: center; gap: 0;">
+              <button onClick="{{ p.down }}" style="width: 24px; height: 24px; border: 1px solid var(--tool-border); border-right: none; border-radius: 4px 0 0 4px; background: var(--tool-bg); color: var(--tool-text); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 12px;" style-hover="background: var(--tool-hover);">−</button>
+              <input type="number" value="{{ p.value }}" onChange="{{ p.onChange }}" style="width: 60px; height: 24px; border: 1px solid var(--tool-border); background: var(--tool-bg); color: var(--tool-text); text-align: center; font-size: 12px; font-family: ui-monospace, 'SF Mono', monospace;" style-hover="border-color: var(--tool-border-strong);" style-focus="border-color: var(--tool-accent); outline: none;">
+              <button onClick="{{ p.up }}" style="width: 24px; height: 24px; border: 1px solid var(--tool-border); border-left: none; border-radius: 0 4px 4px 0; background: var(--tool-bg); color: var(--tool-text); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 12px;" style-hover="background: var(--tool-hover);">+</button>
+            </div>
+          </sc-if>
+
+          <!-- null editor (no controls, just show value) -->
+          <sc-if value="{{ p.showNull }}" hint-placeholder-val="{{ true }}">
+            <div style="font-size: 11px; color: var(--tool-muted); font-family: ui-monospace, 'SF Mono', monospace; padding: 4px 6px; background: var(--tool-bg); border-radius: 4px;">{{ p.value }}</div>
+            <div style="font-size: 10px; color: var(--tool-muted); margin-top: 2px;">回调类型，不可编辑</div>
+          </sc-if>
+
+          <!-- default badge -->
+          <sc-if value="{{ p.isDefault }}" hint-placeholder-val="{{ true }}">
+            <div style="font-size: 10px; color: var(--tool-muted); margin-top: 4px;">默认值</div>
+          </sc-if>
+        </div>
+      </sc-for>
+
+      <!-- 空态 -->
+      <sc-if value="{{ noProps }}" hint-placeholder-val="{{ true }}">
+        <div style="padding: 40px 20px; text-align: center; color: var(--tool-muted);">
+          <div style="font-size: 12px;">这份稿没有 props</div>
+        </div>
+      </sc-if>
+    </div>
+
+  </div>
+
+  <!-- ═══ 底部状态栏 ═══ -->
+  <div style="padding: 4px 12px; font-size: 10px; color: var(--tool-muted); border-top: 1px solid var(--tool-border); background: var(--tool-panel); display: flex; align-items: center; gap: 12px;">
+    <span>{{ propCount }}</span>
+    <span style="flex: 1 1 0;"></span>
+    <span>{{ footerLabel }}</span>
+  </div>
+
+</div>
+
+</x-dc>
+
+<script>
+
+const DEMOS = [
+  { n: 1, short: "混合", name: "混合 editor 类型", note: "text / enum / boolean / number / null 各一个" },
+  { n: 2, short: "全text", name: "全是 text 编辑器", note: "多个文本型 props" },
+  { n: 3, short: "全enum", name: "全是 enum 编辑器", note: "多个枚举型 props" },
+  { n: 4, short: "null", name: "只有 null（回调）", note: "没有可编辑的 props" },
+  { n: 5, short: "空", name: "没有 props", note: "空态" },
+  { n: 6, short: "很多", name: "很多 props（20+）", note: "需要滚动" }
+];
+
+class Component extends DCLogic {
+  state = { demo: 1, props: {} };
+
+  goBack() {}
+
+  renderVals() {
+    const s = this.state;
+    const demo = DEMOS[s.demo - 1];
+
+    const rawProps = this.demoProps(s.demo);
+    const propState = { ...s.props };
+
+    const propsList = rawProps.map((p) => {
+      const val = propState[p.name] != null ? propState[p.name] : p.default;
+
+      // text
+      const showText = p.editor === "text";
+      // enum
+      const showEnum = p.editor === "enum";
+      // boolean
+      const showBool = p.editor === "boolean";
+      // number
+      const showNumber = p.editor === "number";
+      // null
+      const showNull = p.editor == null;
+
+      return {
+        name: p.name, type: p.tsType || "", desc: p.desc || "",
+        editor: p.editor, value: String(val), isDefault: val === p.default,
+        showText: showText, showEnum: showEnum, showBool: showBool, showNumber: showNumber, showNull: showNull,
+        // text handler
+        onChange: (e) => this.setState({ props: { ...propState, [p.name]: e.target.value } }),
+        // enum options
+        options: p.options ? p.options.map((opt) => ({
+          label: opt,
+          bg: val === opt ? "var(--tool-accent)" : "transparent",
+          bd: val === opt ? "var(--tool-accent)" : "var(--tool-border)",
+          fg: val === opt ? "white" : "var(--tool-text)",
+          fw: val === opt ? "560" : "400",
+          pick: () => this.setState({ props: { ...propState, [p.name]: opt } })
+        })) : [],
+        // boolean
+        switchBg: val ? "var(--tool-accent)" : "var(--tool-muted)",
+        switchLeft: val ? "16px" : "2px",
+        switchLabel: val ? "开" : "关",
+        toggle: () => this.setState({ props: { ...propState, [p.name]: !val } }),
+        // number
+        up: () => this.setState({ props: { ...propState, [p.name]: Number(val) + 1 } }),
+        down: () => this.setState({ props: { ...propState, [p.name]: Math.max(0, Number(val) - 1) } }),
+      };
+    });
+
+    const editableCount = rawProps.filter((p) => p.editor != null).length;
+
+    // ── 预览 ──
+    const firstText = rawProps.find((p) => p.editor === "text");
+    const previewText = firstText ? (propState[firstText.name] || firstText.default) : "按钮";
+
+    return {
+      theme: this.props.theme === "dark" ? "dark" : null,
+      compName: "PC 按钮",
+      compMeta: "35 元素 · 6 个 props · 组件稿",
+      propCount: rawProps.length + " 个 prop" + (rawProps.length !== 1 ? "s" : "") + "，" + editableCount + " 个可编辑",
+      footerLabel: "当前演示态 " + (demo ? demo.name : ""),
+
+      // ── 预览 ──
+      previewKind: "textPreview",
+      previewText: previewText,
+      prevBg: "var(--tool-accent)",
+      prevColor: "white",
+      prevBd: "var(--tool-accent)",
+      prevRd: "6px",
+
+      // ── Props ──
+      propsList: propsList,
+      noProps: rawProps.length === 0,
+
+      // ── 演示态 ──
+      demoStates: DEMOS.map((d) => ({
+        short: d.short, note: d.note,
+        bg: s.demo === d.n ? "var(--tool-accent)" : "transparent",
+        fg: s.demo === d.n ? "white" : "var(--tool-text)",
+        bd: s.demo === d.n ? "var(--tool-accent)" : "var(--tool-border)",
+        fw: s.demo === d.n ? "560" : "400",
+        pick: () => this.setState({ demo: d.n, props: {} })
+      }))
+    };
+  }
+
+  demoProps(demo) {
+    if (demo === 1) {
+      // 混合
+      return [
+        { name: "text", editor: "text", default: "点击我", tsType: "string", desc: "按钮显示的文案" },
+        { name: "tone", editor: "enum", default: "primary", options: ["primary", "danger", "ghost"], tsType: "'primary'|'danger'|'ghost'", desc: "按钮的色调" },
+        { name: "disabled", editor: "boolean", default: false, tsType: "boolean", desc: "是否禁用" },
+        { name: "count", editor: "number", default: 5, tsType: "number", desc: "点击计数" },
+        { name: "onClick", editor: null, default: "() => void", tsType: "() => void", desc: "点击回调" }
+      ];
+    }
+    if (demo === 2) {
+      // 全 text
+      return [
+        { name: "title", editor: "text", default: "标题", tsType: "string", desc: "标题文案" },
+        { name: "subtitle", editor: "text", default: "副标题", tsType: "string", desc: "副标题文案" },
+        { name: "label", editor: "text", default: "标签", tsType: "string", desc: "标签文案" },
+        { name: "placeholder", editor: "text", default: "请输入…", tsType: "string", desc: "占位提示" }
+      ];
+    }
+    if (demo === 3) {
+      // 全 enum
+      return [
+        { name: "size", editor: "enum", default: "md", options: ["sm", "md", "lg"], tsType: "'sm'|'md'|'lg'", desc: "按钮尺寸" },
+        { name: "variant", editor: "enum", default: "solid", options: ["solid", "outline", "ghost"], tsType: "'solid'|'outline'|'ghost'", desc: "按钮样式" },
+        { name: "place", editor: "enum", default: "center", options: ["left", "center", "right"], tsType: "'left'|'center'|'right'", desc: "对齐位置" }
+      ];
+    }
+    if (demo === 4) {
+      // null only
+      return [
+        { name: "onClick", editor: null, default: "() => void", tsType: "() => void", desc: "点击回调" },
+        { name: "onHover", editor: null, default: "() => void", tsType: "() => void", desc: "悬停回调" }
+      ];
+    }
+    if (demo === 5) {
+      // 空
+      return [];
+    }
+    if (demo === 6) {
+      // 很多
+      const items = [];
+      items.push({ name: "text", editor: "text", default: "按钮", tsType: "string", desc: "文案" });
+      items.push({ name: "tone", editor: "enum", default: "primary", options: ["primary", "danger", "ghost"], tsType: "string", desc: "色调" });
+      items.push({ name: "disabled", editor: "boolean", default: false, tsType: "boolean", desc: "是否禁用" });
+      items.push({ name: "size", editor: "number", default: 14, tsType: "number", desc: "字号" });
+      items.push({ name: "onClick", editor: null, default: "() => void", tsType: "() => void", desc: "点击回调" });
+      for (let i = 0; i < 18; i++) {
+        const editors = ["text", "enum", "boolean", "number"];
+        const ed = editors[i % 4];
+        if (ed === "enum") {
+          items.push({ name: "prop_" + i, editor: ed, default: "a", options: ["a", "b", "c"], tsType: "string", desc: "第 " + (i + 1) + " 个 prop" });
+        } else {
+          const defs = { text: "值 " + i, boolean: false, number: i * 10 };
+          items.push({ name: "prop_" + i, editor: ed, default: defs[ed], tsType: ed === "text" ? "string" : "boolean", desc: "第 " + (i + 1) + " 个 prop" });
+        }
+      }
+      return items;
+    }
+    return [];
+  }
+}
+
+</script>
+</body>
+</html>

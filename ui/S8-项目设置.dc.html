@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- umbradesign:resources -->
+<script>window.__resources = {
+    "https://unpkg.com/react@18.3.1/umd/react.production.min.js": "./react.production.min.js",
+    "https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js": "./react-dom.production.min.js"
+  };</script>
+<!-- /umbradesign:resources -->
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="./_ds-tool/tokens.css">
+<style>
+  html, body { margin: 0; padding: 0; }
+  body { background: var(--tool-bg); }
+  * { box-sizing: border-box; }
+  a { color: var(--tool-accent); text-decoration: none; }
+  a:hover { color: var(--tool-accent-hover); text-decoration: underline; }
+  input, button, select { font: inherit; color: inherit; }
+</style>
+</helmet>
+
+<div style="min-height: 100vh; background: var(--tool-bg); color: var(--tool-text); font-family: var(--tool-sans); font-size: 13px; -webkit-font-smoothing: antialiased;" data-tool-theme="{{ theme }}">
+
+  <div style="position: sticky; top: 0; z-index: 6; background: var(--tool-panel); border-bottom: 1px solid var(--tool-border);">
+    <div style="display: flex; align-items: center; gap: 12px; padding: 11px 20px; flex-wrap: wrap;">
+      <a href="./S1-稿件索引.dc.html" style="display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px 0 8px; border-radius: var(--tool-radius); border: 1px solid var(--tool-border-strong); background: var(--tool-panel); color: var(--tool-text); font-size: 12px; flex: none; transition: background .13s ease;" style-hover="background: var(--tool-hover); text-decoration: none;" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">
+        <dc-import name="IconGlyph" d="M9.6 3.6L5.2 8l4.4 4.4" size="13" hint-size="13px,13px"></dc-import>
+        索引
+      </a>
+      <div style="display: flex; align-items: baseline; gap: 9px; min-width: 0; flex: 1 1 220px;">
+        <span style="font-size: 15px; font-weight: 620; letter-spacing: -0.01em; white-space: nowrap;">项目设置</span>
+        <span style="font-family: var(--tool-mono); font-size: 12px; color: var(--tool-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ projectRel }}</span>
+      </div>
+    </div>
+    <sc-if value="{{ showDemoBar }}" hint-placeholder-val="{{ true }}">
+    <div style="display: flex; align-items: center; gap: 8px; padding: 0 20px 10px; flex-wrap: wrap; font-size: 12px;">
+      <span style="font-size: 11px; color: var(--tool-muted); flex: none;">演示态</span>
+      <sc-for list="{{ demoStates }}" as="st" hint-placeholder-count="5">
+        <button type="button" onClick="{{ st.pick }}" title="{{ st.name }}" aria-pressed="{{ st.active }}" style="display: inline-flex; align-items: center; gap: 5px; height: 23px; padding: 0 9px 0 6px; border-radius: var(--tool-radius-sm); border: 1px solid; cursor: pointer; font-size: 11px; white-space: nowrap; transition: background .13s ease, border-color .13s ease, color .13s ease; background: {{ st.bg }}; border-color: {{ st.bd }}; color: {{ st.fg }};" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">
+          <span style="font-family: var(--tool-mono); opacity: 0.6;">{{ st.n }}</span>
+          <span style="font-weight: {{ st.fw }};">{{ st.short }}</span>
+        </button>
+      </sc-for>
+      <span style="color: var(--tool-border-strong); flex: none;">·</span>
+      <span style="color: var(--tool-muted); min-width: 0;">{{ demoNote }}</span>
+    </div>
+    </sc-if>
+  </div>
+
+  <div style="display: flex; align-items: flex-start; gap: 0; padding: 0; max-width: 960px; margin: 0 auto;">
+
+    <!-- 左侧 Tab 栏 -->
+    <div style="flex: 0 0 160px; position: sticky; top: 64px; align-self: flex-start; padding: 16px 0 40px;">
+      <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="5">
+        <button type="button" onClick="{{ t.pick }}" style="display: flex; align-items: center; gap: 8px; width: 100%; height: 34px; padding: 0 14px; border: 0; border-radius: 0; cursor: pointer; text-align: left; font-size: 13px; background: {{ t.bg }}; color: {{ t.fg }}; font-weight: {{ t.fw }}; transition: background .13s ease, color .13s ease; border-left: 2px solid {{ t.bar }};" style-hover="background: var(--tool-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: -2px;">
+          <span style="flex: none; color: {{ t.iconFg }};">
+            <dc-import name="IconGlyph" d="{{ t.icon }}" size="14" stroke="1.5" hint-size="14px,14px"></dc-import>
+          </span>
+          <span>{{ t.label }}</span>
+        </button>
+      </sc-for>
+    </div>
+
+    <!-- 右侧内容区 -->
+    <div style="flex: 1 1 0; min-width: 0; padding: 16px 20px 40px;">
+
+      <!-- ── 基本信息 ── -->
+      <sc-if value="{{ showBasic }}" hint-placeholder-val="{{ false }}">
+        <div style="display: grid; gap: 20px;">
+          <div>
+            <div style="font-size: 15px; font-weight: 620; margin-bottom: 2px;">基本信息</div>
+            <div style="color: var(--tool-muted); font-size: 12px;">项目名称和标题，用于索引页显示。</div>
+          </div>
+          <div style="background: var(--tool-panel); border: 1px solid var(--tool-border); border-radius: var(--tool-radius-lg); box-shadow: var(--tool-shadow-1); overflow: hidden;">
+            <div style="display: grid; gap: 0;">
+              <div style="display: grid; grid-template-columns: 100px minmax(0, 1fr); gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--tool-border); background: {{ fieldBg }};">
+                <span style="font-size: 12px; font-weight: 560; padding-top: 5px;">名称</span>
+                <input type="text" value="{{ projectName }}" onChange="{{ onNameChange }}" style="height: 32px; padding: 0 10px; border-radius: var(--tool-radius); border: 1px solid var(--tool-border-strong); background: var(--tool-panel); font-family: var(--tool-mono); font-size: 13px; outline: none; transition: border-color .13s ease;" style-focus="border-color: var(--tool-accent); box-shadow: 0 0 0 3px var(--tool-accent-soft);">
+              </div>
+              <div style="display: grid; grid-template-columns: 100px minmax(0, 1fr); gap: 12px; padding: 12px 16px;">
+                <span style="font-size: 12px; font-weight: 560; padding-top: 5px;">标题</span>
+                <input type="text" value="{{ projectTitle }}" onChange="{{ onTitleChange }}" style="height: 32px; padding: 0 10px; border-radius: var(--tool-radius); border: 1px solid var(--tool-border-strong); background: var(--tool-panel); font-size: 13px; outline: none; transition: border-color .13s ease;" style-focus="border-color: var(--tool-accent); box-shadow: 0 0 0 3px var(--tool-accent-soft);">
+              </div>
+            </div>
+          </div>
+          <div style="background: var(--tool-panel); border: 1px solid var(--tool-border); border-radius: var(--tool-radius-lg); box-shadow: var(--tool-shadow-1); overflow: hidden;">
+            <div style="padding: 12px 16px; font-size: 12px; color: var(--tool-muted);">
+              <div style="font-size: 11px; font-weight: 600; letter-spacing: 0.04em; color: var(--tool-muted); margin-bottom: 8px;">位置</div>
+              <div style="font-family: var(--tool-mono); font-size: 12px; background: var(--tool-panel-2); border: 1px solid var(--tool-border); border-radius: var(--tool-radius); padding: 8px 10px; word-break: break-all; user-select: all;">{{ projectDir }}</div>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+
+      <!-- ── 设计系统 ── -->
+      <sc-if value="{{ showDs }}" hint-placeholder-val="{{ false }}">
+        <div style="display: grid; gap: 20px;">
+          <div>
+            <div style="font-size: 15px; font-weight: 620; margin-bottom: 2px;">设计系统</div>
+            <div style="color: var(--tool-muted); font-size: 12px;">指向 tokens 和图标目录，S5 检索依赖它。</div>
+          </div>
+          <div style="background: var(--tool-panel); border: 1px solid var(--tool-border); border-radius: var(--tool-radius-lg); box-shadow: var(--tool-shadow-1); overflow: hidden;">
+            <div style="display: grid; gap: 0;">
+              <div style="display: grid; grid-template-columns: 100px minmax(0, 1fr); gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--tool-border);">
+                <span style="font-size: 12px; font-weight: 560; padding-top: 5px;">目录</span>
+                <div style="display: flex; gap: 6px; min-width: 0;">
+                  <input type="text" value="{{ dsDir }}" onChange="{{ onDsDirChange }}" placeholder="_ds/..." style="flex: 1 1 0; min-width: 0; height: 32px; padding: 0 10px; border-radius: var(--tool-radius); border: 1px solid var(--tool-border-strong); background: var(--tool-panel); font-family: var(--tool-mono); font-size: 12px; outline: none; transition: border-color .13s ease;" style-focus="border-color: var(--tool-accent); box-shadow: 0 0 0 3px var(--tool-accent-soft);">
+                  <button type="button" onClick="{{ onBrowseDs }}" style="height: 32px; padding: 0 12px; border-radius: var(--tool-radius); border: 1px solid var(--tool-border-strong); background: var(--tool-panel); font-size: 12px; cursor: pointer; white-space: nowrap; flex: none; transition: background .13s ease;" style-hover="background: var(--tool-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">浏览</button>
+                </div>
+              </div>
+              <div style="display: grid; grid-template-columns: 100px minmax(0, 1fr); gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--tool-border);">
+                <span style="font-size: 12px; font-weight: 560; padding-top: 5px;">别名</span>
+                <input type="text" value="{{ dsAlias }}" onChange="{{ onDsAliasChange }}" placeholder="@ds" style="height: 32px; width: 120px; padding: 0 10px; border-radius: var(--tool-radius); border: 1px solid var(--tool-border-strong); background: var(--tool-panel); font-family: var(--tool-mono); font-size: 12px; outline: none; transition: border-color .13s ease;" style-focus="border-color: var(--tool-accent); box-shadow: 0 0 0 3px var(--tool-accent-soft);">
+                <span style="font-size: 11px; color: var(--tool-muted); padding-top: 5px;">稿里用 <span style="font-family: var(--tool-mono);">@ds/token</span> 引</span>
+              </div>
+              <div style="display: grid; grid-template-columns: 100px minmax(0, 1fr); gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--tool-border);">
+                <span style="font-size: 12px; font-weight: 560; padding-top: 5px;">tokens</span>
+                <input type="text" value="{{ tokensPath }}" onChange="{{ onTokensChange }}" placeholder="umbra-tokens.json" style="height: 32px; padding: 0 10px; border-radius: var(--tool-radius); border: 1px solid var(--tool-border-strong); background: var(--tool-panel); font-family: var(--tool-mono); font-size: 12px; outline: none; transition: border-color .13s ease;" style-focus="border-color: var(--tool-accent); box-shadow: 0 0 0 3px var(--tool-accent-soft);">
+              </div>
+              <div style="display: grid; grid-template-columns: 100px minmax(0, 1fr); gap: 12px; padding: 12px 16px;">
+                <span style="font-size: 12px; font-weight: 560; padding-top: 5px;">图标</span>
+                <input type="text" value="{{ iconsPath }}" onChange="{{ onIconsChange }}" placeholder="_icons/" style="height: 32px; padding: 0 10px; border-radius: var(--tool-radius); border: 1px solid var(--tool-border-strong); background: var(--tool-panel); font-family: var(--tool-mono); font-size: 12px; outline: none; transition: border-color .13s ease;" style-focus="border-color: var(--tool-accent); box-shadow: 0 0 0 3px var(--tool-accent-soft);">
+              </div>
+            </div>
+          </div>
+          <sc-if value="{{ dsConfigured }}" hint-placeholder-val="{{ true }}">
+            <div style="display: flex; gap: 10px; padding: 10px 14px; background: var(--tool-ok-soft); border: 1px solid var(--tool-ok-border); border-radius: var(--tool-radius); color: var(--tool-ok); font-size: 12px;">
+              <dc-import name="IconGlyph" d="M4 8.6L6.8 11.4 12 6.2" size="14" stroke="1.6" hint-size="14px,14px"></dc-import>
+              设计系统已配好：{{ dsStats }}
+            </div>
+          </sc-if>
+          <sc-if value="{{ dsNotConfigured }}" hint-placeholder-val="{{ false }}">
+            <div style="display: flex; gap: 10px; padding: 10px 14px; background: var(--tool-warn-soft); border: 1px solid var(--tool-warn-border); border-radius: var(--tool-radius); color: var(--tool-warn); font-size: 12px;">
+              <dc-import name="IconGlyph" d="M8 2.2l6 11.2H2z" size="14" stroke="1.6" fill="none" hint-size="14px,14px"></dc-import>
+              还没配设计系统，S5 检索会不可用。
+            </div>
+          </sc-if>
+        </div>
+      </sc-if>
+
+      <!-- ── 限额 ── -->
+      <sc-if value="{{ showLimits }}" hint-placeholder-val="{{ false }}">
+        <div style="display: grid; gap: 20px;">
+          <div>
+            <div style="font-size: 15px; font-weight: 620; margin-bottom: 2px;">元素数限额</div>
+            <div style="color: var(--tool-muted); font-size: 12px;">单份稿元素数上限，超了会被拒绝落盘。建议按 1,200 警戒、1,500 硬性。</div>
+          </div>
+          <div style="background: var(--tool-panel); border: 1px solid var(--tool-border); border-radius: var(--tool-radius-lg); box-shadow: var(--tool-shadow-1); overflow: hidden;">
+            <div style="display: grid; gap: 0;">
+              <div style="display: grid; grid-template-columns: 100px minmax(0, 1fr); gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--tool-border);">
+                <span style="font-size: 12px; font-weight: 560; padding-top: 5px;">预警值</span>
+                <div style="display: flex; align-items: center; gap: 6px;">
+                  <input type="text" value="{{ elementsWarn }}" onChange="{{ onWarnChange }}" style="height: 32px; width: 100px; padding: 0 10px; border-radius: var(--tool-radius); border: 1px solid var(--tool-border-strong); background: var(--tool-panel); font-family: var(--tool-mono); font-size: 13px; outline: none; transition: border-color .13s ease;" style-focus="border-color: var(--tool-warn); box-shadow: 0 0 0 3px var(--tool-warn-soft);">
+                  <span style="font-size: 12px; color: var(--tool-muted);">超了显示橙色提醒</span>
+                </div>
+              </div>
+              <div style="display: grid; grid-template-columns: 100px minmax(0, 1fr); gap: 12px; padding: 12px 16px;">
+                <span style="font-size: 12px; font-weight: 560; padding-top: 5px;">硬性上限</span>
+                <div style="display: flex; align-items: center; gap: 6px;">
+                  <input type="text" value="{{ elementsHard }}" onChange="{{ onHardChange }}" style="height: 32px; width: 100px; padding: 0 10px; border-radius: var(--tool-radius); border: 1px solid var(--tool-border-strong); background: var(--tool-panel); font-family: var(--tool-mono); font-size: 13px; outline: none; transition: border-color .13s ease;" style-focus="border-color: var(--tool-err); box-shadow: 0 0 0 3px var(--tool-err-soft);">
+                  <span style="font-size: 12px; color: var(--tool-muted);">超了拒绝落盘</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <sc-if value="{{ showLimitExample }}" hint-placeholder-val="{{ false }}">
+            <div style="background: var(--tool-panel); border: 1px solid var(--tool-border); border-radius: var(--tool-radius-lg); box-shadow: var(--tool-shadow-1); overflow: hidden;">
+              <div style="padding: 10px 14px; border-bottom: 1px solid var(--tool-border); background: var(--tool-panel-2); font-size: 11px; font-weight: 600; letter-spacing: 0.03em; color: var(--tool-muted);">当前稿里离超限最近的</div>
+              <sc-for list="{{ limitExamples }}" as="ex" hint-placeholder-count="2">
+                <div style="display: grid; grid-template-columns: minmax(0, 1fr) 80px 50px; gap: 10px; padding: 9px 14px; border-bottom: 1px solid var(--tool-border); align-items: center;">
+                  <span style="font-weight: 560; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ ex.name }}</span>
+                  <span style="font-family: var(--tool-mono); font-size: 12px; text-align: right; color: {{ ex.color }};">{{ ex.exCount }}</span>
+                  <span style="display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 7px; border-radius: 999px; font-size: 11px; font-weight: 560; border: 1px solid; background: {{ ex.bg }}; border-color: {{ ex.bd }}; color: {{ ex.fg }};">
+                    <span style="width: 5px; height: 5px; border-radius: 999px; background: currentColor; flex: none;"></span>
+                    {{ ex.label }}
+                  </span>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+        </div>
+      </sc-if>
+
+      <!-- ── 回收站 ── -->
+      <sc-if value="{{ showTrash }}" hint-placeholder-val="{{ false }}">
+        <div style="display: grid; gap: 20px;">
+          <div>
+            <div style="font-size: 15px; font-weight: 620; margin-bottom: 2px;">回收站</div>
+            <div style="color: var(--tool-muted); font-size: 12px;">被删的稿在这里，恢复后引用关系也会恢复。</div>
+          </div>
+          <sc-if value="{{ trashEmpty }}" hint-placeholder-val="{{ false }}">
+            <div style="padding: 48px 20px; display: grid; place-items: center;">
+              <div style="text-align: center;">
+                <dc-import name="IconGlyph" d="M3.6 4.4h8.8M5.2 4.4V3.2c0-.7.5-1.2 1.2-1.2h3.2c.7 0 1.2.5 1.2 1.2v1.2M4.4 4.4l.6 8.4c0 .7.6 1.2 1.2 1.2h5.6c.6 0 1.2-.5 1.2-1.2L13.6 4.4" size="28" stroke="1.4" hint-size="28px,28px" style="color: var(--tool-muted);"></dc-import>
+                <div style="font-size: 15px; font-weight: 600; margin-top: 12px; margin-bottom: 4px;">回收站是空的</div>
+                <div style="color: var(--tool-muted); font-size: 12px;">删掉的稿会出现在这里，可以从这里恢复。</div>
+              </div>
+            </div>
+          </sc-if>
+          <sc-if value="{{ trashNotEmpty }}" hint-placeholder-val="{{ true }}">
+            <div style="background: var(--tool-panel); border: 1px solid var(--tool-border); border-radius: var(--tool-radius-lg); box-shadow: var(--tool-shadow-1); overflow: hidden;">
+              <sc-for list="{{ trashItems }}" as="item" hint-placeholder-count="3">
+                <div style="display: grid; grid-template-columns: minmax(0, 1fr) 130px 100px; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--tool-border); align-items: center;">
+                  <div style="min-width: 0;">
+                    <div style="font-weight: 560; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="{{ item.name }}">{{ item.name }}</div>
+                    <div style="font-family: var(--tool-mono); font-size: 11px; color: var(--tool-muted);">{{ item.deletedAt }}</div>
+                  </div>
+                  <span style="font-family: var(--tool-mono); font-size: 11px; color: var(--tool-muted);">{{ item.size }}</span>
+                  <div style="display: flex; gap: 6px;">
+                    <button type="button" onClick="{{ item.restore }}" style="height: 26px; padding: 0 10px; border-radius: var(--tool-radius-sm); border: 1px solid var(--tool-ok-border); background: var(--tool-ok-soft); color: var(--tool-ok); font-size: 11px; cursor: pointer; flex: 1; transition: background .13s ease;" style-hover="background: var(--tool-ok-border);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">恢复</button>
+                    <button type="button" onClick="{{ item.permanentDelete }}" style="height: 26px; padding: 0 8px; border-radius: var(--tool-radius-sm); border: 1px solid var(--tool-err-border); background: var(--tool-panel); color: var(--tool-err); font-size: 11px; cursor: pointer; transition: background .13s ease;" style-hover="background: var(--tool-err-soft);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">
+                      <dc-import name="IconGlyph" d="M4.4 4.4l7.2 7.2M11.6 4.4l-7.2 7.2" size="11" stroke="1.6" hint-size="11px,11px"></dc-import>
+                    </button>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+            <div style="display: flex; gap: 8px;">
+              <button type="button" onClick="{{ onEmptyTrash }}" style="height: 30px; padding: 0 14px; border-radius: var(--tool-radius); border: 1px solid var(--tool-err-border); background: var(--tool-panel); color: var(--tool-err); font-size: 12px; cursor: pointer; transition: background .13s ease;" style-hover="background: var(--tool-err-soft);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">清空回收站</button>
+            </div>
+          </sc-if>
+        </div>
+      </sc-if>
+
+      <!-- ── 危险操作 ── -->
+      <sc-if value="{{ showDanger }}" hint-placeholder-val="{{ false }}">
+        <div style="display: grid; gap: 20px;">
+          <div>
+            <div style="font-size: 15px; font-weight: 620; margin-bottom: 2px;">危险操作</div>
+            <div style="color: var(--tool-muted); font-size: 12px;">这些操作不可撤销，请确认后再执行。</div>
+          </div>
+          <div style="background: var(--tool-panel); border: 1px solid var(--tool-err-border); border-radius: var(--tool-radius-lg); box-shadow: var(--tool-shadow-1); overflow: hidden;">
+            <div style="display: grid; gap: 0;">
+              <div style="display: grid; grid-template-columns: minmax(0, 1fr) 120px; gap: 12px; padding: 14px 16px; border-bottom: 1px solid var(--tool-border); align-items: center;">
+                <div>
+                  <div style="font-weight: 560; margin-bottom: 2px;">重命名项目</div>
+                  <div style="color: var(--tool-muted); font-size: 11px;">改目录名和 project.json 的 name。引用该项目的稿会受影响。</div>
+                </div>
+                <button type="button" onClick="{{ onRenameProject }}" style="height: 30px; padding: 0 14px; border-radius: var(--tool-radius); border: 1px solid var(--tool-border-strong); background: var(--tool-panel); font-size: 12px; cursor: pointer; transition: background .13s ease;" style-hover="background: var(--tool-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">重命名</button>
+              </div>
+              <div style="display: grid; grid-template-columns: minmax(0, 1fr) 120px; gap: 12px; padding: 14px 16px; border-bottom: 1px solid var(--tool-border); align-items: center;">
+                <div>
+                  <div style="font-weight: 560; margin-bottom: 2px;">移动项目</div>
+                  <div style="color: var(--tool-muted); font-size: 11px;">把项目目录移到别的位置。最近项目列表会自动更新。</div>
+                </div>
+                <button type="button" onClick="{{ onMoveProject }}" style="height: 30px; padding: 0 14px; border-radius: var(--tool-radius); border: 1px solid var(--tool-border-strong); background: var(--tool-panel); font-size: 12px; cursor: pointer; transition: background .13s ease;" style-hover="background: var(--tool-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">移动</button>
+              </div>
+              <div style="display: grid; grid-template-columns: minmax(0, 1fr) 120px; gap: 12px; padding: 14px 16px; border-bottom: 1px solid var(--tool-border); align-items: center;">
+                <div>
+                  <div style="font-weight: 560; margin-bottom: 2px;">归档项目</div>
+                  <div style="color: var(--tool-muted); font-size: 11px;">把项目移到 .archived/ 目录。项目目录保留，可随时移回来。</div>
+                </div>
+                <button type="button" onClick="{{ onArchiveProject }}" style="height: 30px; padding: 0 14px; border-radius: var(--tool-radius); border: 1px solid var(--tool-warn-border); background: var(--tool-warn-soft); color: var(--tool-warn); font-size: 12px; cursor: pointer; transition: background .13s ease;" style-hover="background: var(--tool-warn-border);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">归档</button>
+              </div>
+              <div style="display: grid; grid-template-columns: minmax(0, 1fr) 120px; gap: 12px; padding: 14px 16px; align-items: center;">
+                <div>
+                  <div style="font-weight: 560; margin-bottom: 2px; color: var(--tool-err);">删除项目</div>
+                  <div style="color: var(--tool-muted); font-size: 11px;">先归档，然后手动彻底删除。建议先归档再删。</div>
+                </div>
+                <button type="button" onClick="{{ onDeleteProject }}" style="height: 30px; padding: 0 14px; border-radius: var(--tool-radius); border: 1px solid var(--tool-err-border); background: var(--tool-err-soft); color: var(--tool-err); font-size: 12px; cursor: pointer; font-weight: 560; transition: background .13s ease;" style-hover="background: var(--tool-err-border);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">删除</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+
+    </div>
+  </div>
+
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{
+  &quot;theme&quot;: { &quot;editor&quot;: &quot;enum&quot;, &quot;options&quot;: [&quot;跟随外层&quot;, &quot;dark&quot;], &quot;default&quot;: &quot;跟随外层&quot;, &quot;tsType&quot;: &quot;'dark'|null&quot;, &quot;section&quot;: &quot;工具皮肤&quot; }
+}">
+
+const NUM = (n) => String(n).replace(/\B(?=(\d{3})+$)/g, ",");
+
+const DEMOS = [
+  { n: 1, short: "基本信息", name: "基本信息页", note: "项目名称、标题、路径" },
+  { n: 2, short: "设计系统", name: "已配设计系统", note: "目录、别名、tokens、图标都已配好" },
+  { n: 3, short: "限额", name: "限额设置", note: "预警值 1,200、上限 1,500，有示例稿" },
+  { n: 4, short: "回收站", name: "回收站有稿件", note: "3 份被删的稿，可恢复或彻底删除" },
+  { n: 5, short: "危险操作", name: "危险操作区", note: "重命名、移动、归档、删除" }
+];
+
+const DRAFTS_DEMO = [
+  { name: "登录页.dc.html", elements: 342, health: "ok" },
+  { name: "会话时间线.dc.html", elements: 1180, health: "warn" },
+  { name: "设置页.dc.html", elements: 1490, health: "error" }
+];
+
+const TRASH_DEMO = [
+  { name: "旧版首页.dc.html", deletedAt: "2026-09-18 14:32", size: "703 元素" },
+  { name: "PC 按钮 v1.dc.html", deletedAt: "2026-09-17 09:15", size: "14 元素" },
+  { name: "临时测试稿.dc.html", deletedAt: "2026-09-16 22:08", size: "86 元素" }
+];
+
+class Component extends DCLogic {
+  state = { demo: 1, tab: "basic" };
+
+  renderVals() {
+    const s = this.state;
+    const demo = DEMOS[s.demo - 1];
+    return {
+      theme: this.props.theme === "dark" ? "dark" : null,
+      showDemoBar: true,
+      projectRel: "Umbra_design · 57 份稿",
+      demoNote: demo.note,
+      demoStates: DEMOS.map((d) => ({
+        n: d.n, name: d.name, short: d.short, active: d.n === s.demo,
+        fw: d.n === s.demo ? "600" : "400",
+        bg: d.n === s.demo ? "var(--tool-accent)" : "var(--tool-panel)",
+        bd: d.n === s.demo ? "var(--tool-accent)" : "var(--tool-border-strong)",
+        fg: d.n === s.demo ? "var(--tool-on-accent)" : "var(--tool-text-2)",
+        pick: () => this.setState({ demo: d.n, tab: ["basic", "ds", "limits", "trash", "danger"][d.n - 1] })
+      })),
+
+      // Tab 栏
+      tabs: [
+        { key: "basic", label: "基本信息", icon: "M2.6 3h10.8c.6 0 1 .4 1 1v10c0 .6-.4 1-1 1H2.6c-.6 0-1-.4-1-1V4c0-.6.4-1 1-1z" },
+        { key: "ds", label: "设计系统", icon: "M8 1.8l5.2 3v6.4L8 14.2 2.8 11.2V4.8z" },
+        { key: "limits", label: "限额", icon: "M3 4.4h10M3 8h10M3 11.6h6" },
+        { key: "trash", label: "回收站", icon: "M3.6 4.4h8.8M5.2 4.4V3.2c0-.7.5-1.2 1.2-1.2h3.2c.7 0 1.2.5 1.2 1.2v1.2M4.4 4.4l.6 8.4c0 .7.6 1.2 1.2 1.2h5.6c.6 0 1.2-.5 1.2-1.2L13.6 4.4" },
+        { key: "danger", label: "危险操作", icon: "M8 2.2l6 11.2H2z" }
+      ].map((t) => ({
+        ...t,
+        bg: t.key === s.tab ? "var(--tool-accent-soft)" : "transparent",
+        fg: t.key === s.tab ? "var(--tool-accent)" : "var(--tool-text-2)",
+        fw: t.key === s.tab ? "560" : "400",
+        iconFg: t.key === s.tab ? "var(--tool-accent)" : "var(--tool-muted)",
+        bar: t.key === s.tab ? "var(--tool-accent)" : "transparent",
+        pick: () => this.setState({ tab: t.key })
+      })),
+
+      tab: s.tab,
+
+      // 每 Tab 的 sc-if 布尔值
+      showBasic: s.tab === "basic",
+      showDs: s.tab === "ds",
+      showLimits: s.tab === "limits",
+      showTrash: s.tab === "trash",
+      showDanger: s.tab === "danger",
+
+      // 基本信息
+      projectName: "Umbra_design",
+      projectTitle: "Umbra 私人 AI 助手",
+      projectDir: "/Users/sam/Documents/SourceTree/Geek/UmbraDesign/projects/Umbra_design",
+      fieldBg: "var(--tool-panel)",
+      onNameChange: () => {},
+      onTitleChange: () => {},
+
+      // 设计系统
+      dsDir: "_ds/umbra-design-system-ec7cf6a5",
+      dsAlias: "@ds",
+      tokensPath: "umbra-tokens.json",
+      iconsPath: "_icons/",
+      onDsDirChange: () => {},
+      onDsAliasChange: () => {},
+      onTokensChange: () => {},
+      onIconsChange: () => {},
+      onBrowseDs: () => {},
+      dsConfigured: s.demo === 2,
+      dsNotConfigured: s.demo !== 2,
+      dsStats: "57 token · 42 图标 · 35 组件稿",
+
+      // 限额
+      elementsWarn: "1,200",
+      elementsHard: "1,500",
+      onWarnChange: () => {},
+      onHardChange: () => {},
+      showLimitExample: s.demo === 3,
+      limitExamples: DRAFTS_DEMO.map((d) => {
+        const h = { ok: { label: "通过", bg: "var(--tool-ok-soft)", bd: "var(--tool-ok-border)", fg: "var(--tool-ok)" },
+                    warn: { label: "接近上限", bg: "var(--tool-warn-soft)", bd: "var(--tool-warn-border)", fg: "var(--tool-warn)" },
+                    error: { label: "已超限", bg: "var(--tool-err-soft)", bd: "var(--tool-err-border)", fg: "var(--tool-err)" } }[d.health];
+        return { ...h, name: d.name.replace(".dc.html", ""), exCount: d.elements };
+      }),
+
+      // 回收站
+      trashEmpty: s.demo !== 4,
+      trashNotEmpty: s.demo === 4,
+      trashItems: TRASH_DEMO.map((t) => ({
+        name: t.name,
+        deletedAt: t.deletedAt,
+        size: t.size,
+        restore: () => {},
+        permanentDelete: () => {}
+      })),
+      onEmptyTrash: () => {},
+
+      // 危险操作
+      onRenameProject: () => {},
+      onMoveProject: () => {},
+      onArchiveProject: () => {},
+      onDeleteProject: () => {}
+    };
+  }
+}
+
+</script>
+</body>
+</html>

@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>S9-会话面板</title>
+</head>
+<body>
+
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="./_ds-tool/tokens.css">
+<style>
+@font-face { font-family: 'DC'; src: local('SF Pro Display'), local('PingFang SC'), local('Microsoft YaHei'), local('Segoe UI'), local('Roboto'); }
+html, body { margin: 0; padding: 0; }
+body { background: var(--tool-bg); font-family: 'DC', sans-serif; font-size: 13px; line-height: 1.5; color: var(--tool-text); }
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+</style>
+</helmet>
+
+<div data-tool-theme="{{ theme }}" style="min-height: 100vh; display: flex; flex-direction: column;">
+
+  <!-- ═══ 顶栏 ═══ -->
+  <div style="display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--tool-border); background: var(--tool-panel);">
+    <button onClick="{{ goBack }}" style="display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; border: none; background: transparent; border-radius: 6px; cursor: pointer; color: var(--tool-text);" style-hover="background: var(--tool-hover);" title="返回预览">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M10 3L5 8l5 5"/></svg>
+    </button>
+    <div style="flex: 1 1 0; min-width: 0;">
+      <div style="font-size: 14px; font-weight: 560;">AI 会话</div>
+      <div style="font-size: 11px; color: var(--tool-muted);">{{ sessionInfo }}</div>
+    </div>
+    <!-- 中断按钮 -->
+    <sc-if value="{{ isRunning }}" hint-placeholder-val="{{ true }}">
+      <button onClick="{{ onInterrupt }}" style="padding: 4px 12px; font-size: 11px; border: 1px solid var(--tool-err-border); border-radius: 4px; background: var(--tool-err-soft); color: var(--tool-err); cursor: pointer; font-weight: 500;" style-hover="opacity: .85;">
+        ⏹ 中断
+      </button>
+    </sc-if>
+    <!-- 通道选择 -->
+    <div style="display: flex; border: 1px solid var(--tool-border); border-radius: 6px; overflow: hidden;">
+      <button onClick="{{ onChannelA }}" style="padding: 4px 10px; font-size: 11px; border: none; cursor: pointer; background: {{ chanABg }}; color: {{ chanAFg }}; font-weight: {{ chanAFw }};" style-hover="opacity: .85;">通道 A</button>
+      <button onClick="{{ onChannelB }}" style="padding: 4px 10px; font-size: 11px; border: none; cursor: pointer; background: {{ chanBBg }}; color: {{ chanBFg }}; font-weight: {{ chanBFw }};" style-hover="opacity: .85;">通道 B</button>
+    </div>
+  </div>
+
+  <!-- ═══ 消息区 ═══ -->
+  <div style="flex: 1 1 0; overflow: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px;">
+
+    <sc-for list="{{ messages }}" as="m">
+
+      <!-- 用户消息 -->
+      <sc-if value="{{ m.isUser }}" hint-placeholder-val="{{ true }}">
+        <div style="display: flex; justify-content: flex-end;">
+          <div style="max-width: 80%; padding: 10px 14px; border-radius: 12px 12px 4px 12px; background: var(--tool-accent); color: white; font-size: 13px; line-height: 1.6;">
+            {{ m.content }}
+          </div>
+        </div>
+      </sc-if>
+
+      <!-- AI 消息 -->
+      <sc-if value="{{ m.isAi }}" hint-placeholder-val="{{ true }}">
+        <div style="display: flex; gap: 8px; align-items: flex-start;">
+          <div style="width: 24px; height: 24px; flex: none; border-radius: 50%; background: var(--tool-panel-2); border: 1px solid var(--tool-border); display: flex; align-items: center; justify-content: center;">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="var(--tool-accent)"><circle cx="6" cy="6" r="4"/></svg>
+          </div>
+          <div style="flex: 1 1 0; min-width: 0;">
+            <div style="font-size: 13px; line-height: 1.6; color: var(--tool-text);">{{ m.content }}</div>
+            <!-- 工具调用 -->
+            <sc-if value="{{ m.hasTools }}" hint-placeholder-val="{{ true }}">
+              <sc-for list="{{ m.tools }}" as="t">
+                <div style="margin-top: 6px; padding: 6px 10px; border: 1px solid var(--tool-border); border-radius: 6px; background: var(--tool-bg); font-size: 11px;">
+                  <div style="display: flex; align-items: center; gap: 6px;">
+                    <sc-if value="{{ t.running }}" hint-placeholder-val="{{ true }}">
+                      <svg width="12" height="12" viewBox="0 0 12 12" style="animation: spin 1s linear infinite;">
+                        <circle cx="6" cy="6" r="5" fill="none" stroke="var(--tool-accent)" stroke-width="1.5" stroke-dasharray="20 12"/>
+                      </svg>
+                    </sc-if>
+                    <sc-if value="{{ t.done }}" hint-placeholder-val="{{ true }}">
+                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="var(--tool-ok)" stroke-width="1.5"><path d="M2 6l3 3 5-5"/></svg>
+                    </sc-if>
+                    <span style="font-weight: 500; font-family: ui-monospace, 'SF Mono', monospace;">{{ t.name }}</span>
+                    <span style="color: var(--tool-muted);">({{ t.args }})</span>
+                  </div>
+                  <sc-if value="{{ t.result }}" hint-placeholder-val="{{ true }}">
+                    <div style="margin-top: 4px; padding: 4px 6px; background: var(--tool-panel); border-radius: 4px; font-size: 10px; color: var(--tool-muted); font-family: ui-monospace, 'SF Mono', monospace; max-height: 60px; overflow: auto;">{{ t.result }}</div>
+                  </sc-if>
+                </div>
+              </sc-for>
+            </sc-if>
+          </div>
+        </div>
+      </sc-if>
+
+      <!-- 系统消息 -->
+      <sc-if value="{{ m.isSystem }}" hint-placeholder-val="{{ true }}">
+        <div style="text-align: center; font-size: 11px; color: var(--tool-muted); padding: 4px 0;">
+          {{ m.content }}
+        </div>
+      </sc-if>
+
+    </sc-for>
+
+    <!-- 流式输出中 -->
+    <sc-if value="{{ streaming }}" hint-placeholder-val="{{ true }}">
+      <div style="display: flex; gap: 8px; align-items: flex-start;">
+        <div style="width: 24px; height: 24px; flex: none; border-radius: 50%; background: var(--tool-panel-2); border: 1px solid var(--tool-border); display: flex; align-items: center; justify-content: center;">
+          <svg width="12" height="12" viewBox="0 0 12 12" style="animation: spin 1s linear infinite;">
+            <circle cx="6" cy="6" r="5" fill="none" stroke="var(--tool-accent)" stroke-width="1.5" stroke-dasharray="20 12"/>
+          </svg>
+        </div>
+        <div style="flex: 1 1 0; min-width: 0;">
+          <div style="font-size: 13px; line-height: 1.6; color: var(--tool-text);">{{ streamContent }}</div>
+          <div style="display: inline-block; width: 2px; height: 14px; background: var(--tool-text); animation: blink 1s steps(1) infinite; margin-left: 1px;"></div>
+        </div>
+      </div>
+    </sc-if>
+
+  </div>
+
+  <!-- ═══ 输入区 ═══ -->
+  <div style="padding: 12px 16px; border-top: 1px solid var(--tool-border); background: var(--tool-panel);">
+    <div style="display: flex; gap: 8px; align-items: flex-end;">
+      <textarea ref="{{ inputRef }}" onInput="{{ onInput }}" onKeyDown="{{ onKey }}" rows="1" style="flex: 1 1 0; padding: 8px 12px; font-size: 13px; border: 1px solid var(--tool-border); border-radius: 8px; background: var(--tool-bg); color: var(--tool-text); resize: none; font-family: inherit; line-height: 1.5; max-height: 120px; box-sizing: border-box;" style-focus="border-color: var(--tool-accent); outline: none; box-shadow: 0 0 0 2px var(--tool-accent-soft);" placeholder="输入消息… ⏎ 发送"></textarea>
+      <button onClick="{{ onSend }}" style="padding: 8px 16px; font-size: 13px; border: none; border-radius: 8px; background: {{ sendBg }}; color: {{ sendFg }}; cursor: pointer; font-weight: 500;" style-hover="opacity: .85;">发送</button>
+    </div>
+  </div>
+
+  <!-- ═══ 底部状态栏 ═══ -->
+  <div style="padding: 4px 12px; font-size: 10px; color: var(--tool-muted); border-top: 1px solid var(--tool-border); background: var(--tool-panel); display: flex; align-items: center; gap: 12px;">
+    <span>{{ usageLabel }}</span>
+    <span style="flex: 1 1 0;"></span>
+    <span>{{ footerLabel }}</span>
+  </div>
+
+</div>
+
+</x-dc>
+
+<script>
+
+const DEMOS = [
+  { n: 1, short: "正常对话", name: "正常的对话流程", note: "用户 + AI + 工具调用" },
+  { n: 2, short: "流式输出", name: "AI 正在流式输出", note: "打字机效果 + 旋转动画" },
+  { n: 3, short: "工具调用", name: "连续调用多个工具", note: "running / done 状态" },
+  { n: 4, short: "中断", name: "运行中可中断", note: "显示中断按钮" },
+  { n: 5, short: "空会话", name: "空会话 + 引导", note: "还没有消息" },
+  { n: 6, short: "通道B", name: "使用通道 B（Claude Code）", note: "显示调用次数而非 token" },
+  { n: 7, short: "选中节点", name: "选中节点后发给 AI", note: "消息中包含节点上下文" }
+];
+
+class Component extends DCLogic {
+  state = { demo: 1, channel: "a", input: "" };
+
+  goBack() {}
+
+  renderVals() {
+    const s = this.state;
+    const demo = DEMOS[s.demo - 1];
+
+    const messages = this.demoMessages(s.demo);
+    const isRunning = s.demo === 2 || s.demo === 3 || s.demo === 4;
+    const streaming = s.demo === 2;
+    const streamContent = "好的，我来把这里的字号调大一点，然后更新一下行高——";
+
+    const sendBg = s.input || isRunning ? "var(--tool-accent)" : "var(--tool-muted)";
+    const sendFg = "white";
+
+    // 用量显示
+    let usageLabel = "";
+    if (s.channel === "a") {
+      usageLabel = "通道 A · 1,284 tokens · ¥0.13";
+    } else {
+      usageLabel = "通道 B · 第 3 次调用（订阅制）";
+    }
+
+    return {
+      theme: this.props.theme === "dark" ? "dark" : null,
+      sessionInfo: s.channel === "a" ? "通道 A（DeepSeek）· 2 条消息" : "通道 B（Claude Code headless）· 2 条消息",
+      isRunning: isRunning,
+      streaming: streaming,
+      streamContent: streamContent,
+      sendBg: sendBg,
+      sendFg: sendFg,
+      onInput: (e) => this.setState({ input: e.target.value }),
+      onKey: (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); this.onSend(); } },
+      onSend: () => this.setState({ input: "" }),
+      onInterrupt: () => {},
+
+      // 通道切换
+      chanABg: s.channel === "a" ? "var(--tool-accent)" : "transparent",
+      chanAFg: s.channel === "a" ? "white" : "var(--tool-text)",
+      chanAFw: s.channel === "a" ? "560" : "400",
+      chanBBg: s.channel === "b" ? "var(--tool-accent)" : "transparent",
+      chanBFg: s.channel === "b" ? "white" : "var(--tool-text)",
+      chanBFw: s.channel === "b" ? "560" : "400",
+      onChannelA: () => this.setState({ channel: "a" }),
+      onChannelB: () => this.setState({ channel: "b" }),
+
+      // 消息
+      messages: messages,
+      usageLabel: usageLabel,
+      footerLabel: "当前演示态 " + (demo ? demo.name : ""),
+
+      // 演示态
+      demoStates: DEMOS.map((d) => ({
+        short: d.short, note: d.note,
+        bg: s.demo === d.n ? "var(--tool-accent)" : "transparent",
+        fg: s.demo === d.n ? "white" : "var(--tool-text)",
+        bd: s.demo === d.n ? "var(--tool-accent)" : "var(--tool-border)",
+        fw: s.demo === d.n ? "560" : "400",
+        pick: () => this.setState({ demo: d.n, input: "" })
+      }))
+    };
+  }
+
+  demoMessages(demo) {
+    if (demo === 1 || demo === 7) {
+      const msgs = [
+        { isSystem: true, content: "会话开始 · 通道 A · 模型 deepseek-chat" },
+        { isUser: true, content: demo === 7 ? "把这个按钮的字号调大一点" : "把日志行的行高调一下，现在太挤了" }
+      ];
+      if (demo === 7) {
+        msgs.splice(1, 0, { isSystem: true, content: "📎 已选中节点：「重试按钮」L245 · style.fontSize = '12px'" });
+      }
+      msgs.push({
+        isAi: true, content: "好的，我来改一下行高。找到日志行的样式了，在 L131，line-height 从 20px 改成 22px。",
+        hasTools: true, tools: [
+          { name: "set_prop", args: "file=日志.dc.html, at=L131", running: false, done: true, result: "ok" },
+          { name: "validate_draft", args: "file=日志.dc.html", running: false, done: true, result: "✓ 0 errors, 2 warnings" }
+        ]
+      });
+      msgs.push({ isUser: true, content: "顺便把按钮的颜色也改一下" });
+      msgs.push({
+        isAi: true, content: "按钮颜色也改好了。我把失败态的底色从 var(--danger-soft) 换成了 var(--warning-soft)，这样视觉上更统一。一共改了两处：\n1. 行高 L131（L2）\n2. 失败态底色 L136（L2）\n\n这两处都是取值级变更，实现侧照抄新值即可。",
+        hasTools: true, tools: [
+          { name: "set_prop", args: "file=日志.dc.html, at=L136", running: false, done: true, result: "ok" },
+          { name: "validate_draft", args: "file=日志.dc.html", running: false, done: true, result: "✓ 0 errors, 2 warnings" }
+        ]
+      });
+      return msgs;
+    }
+    if (demo === 2) {
+      return [
+        { isSystem: true, content: "会话开始 · 通道 A" },
+        { isUser: true, content: "帮我把空态标题改得更友好一些" },
+        {
+          isAi: true, content: "",
+          hasTools: true, tools: [
+            { name: "get_component", args: "name=PC 空态", running: false, done: true, result: "35 elements, 3 props" },
+            { name: "set_prop", args: "target=空态标题 text", running: true, done: false, result: "" }
+          ]
+        }
+      ];
+    }
+    if (demo === 3) {
+      return [
+        { isSystem: true, content: "会话开始 · 通道 A" },
+        { isUser: true, content: "检查一下这份稿有没有问题" },
+        {
+          isAi: true, content: "我来跑一下校验和体检。",
+          hasTools: true, tools: [
+            { name: "validate_draft", args: "file=日志.dc.html", running: false, done: true, result: "0 errors, 2 warnings" },
+            { name: "render_check", args: "file=日志.dc.html", running: false, done: true, result: "alive: true, 2307 nodes, 1840ms" },
+            { name: "get_changes_since", args: "file=日志.dc.html, from=v216", running: false, done: true, result: "12 changes (2 L1, 5 L2, 3 L3, 2 L4)" },
+            { name: "list_references", args: "file=日志.dc.html", running: false, done: true, result: "importedBy: 1, imports: 2" }
+          ]
+        }
+      ];
+    }
+    if (demo === 4) {
+      return [
+        { isSystem: true, content: "会话开始 · 通道 A" },
+        { isUser: true, content: "把整个页面的布局重写一下" },
+        {
+          isAi: true, content: "正在分析布局结构，准备使用 write_draft 生成新版本…",
+          hasTools: true, tools: [
+            { name: "get_component", args: "name=PC 页面骨架", running: false, done: true, result: "703 elements" },
+            { name: "write_draft", args: "file=日志.dc.html, source=...", running: true, done: false, result: "" }
+          ]
+        }
+      ];
+    }
+    if (demo === 5) {
+      return [
+        { isSystem: true, content: "会话已创建 · 通道 A · 选择模型后开始对话" }
+      ];
+    }
+    if (demo === 6) {
+      return [
+        { isSystem: true, content: "会话开始 · 通道 B（Claude Code headless）" },
+        { isUser: true, content: "帮我看看这份稿有没有错误" },
+        {
+          isAi: true, content: "我来跑一下校验。",
+          hasTools: true, tools: [
+            { name: "validate_draft", args: "file=日志.dc.html", running: false, done: true, result: "0 errors, 2 warnings" },
+            { name: "render_check", args: "file=日志.dc.html", running: false, done: true, result: "alive: true" }
+          ]
+        }
+      ];
+    }
+    return [];
+  }
+}
+
+</script>
+</body>
+</html>
