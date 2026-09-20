@@ -579,7 +579,9 @@ function selectDraft(file) {
 
 // ── API 调用 ──────────────────────────────────────────
 function apiUrl(path) {
-  const url = state.project.url.replace(/\/$/, '') + '/__ud/' + path + '?token=' + encodeURIComponent(state.project.token);
+  const basePath = state.project.url.replace(/\/$/, '') + '/__ud/' + path;
+  const separator = path.includes('?') ? '&' : '?';
+  const url = basePath + separator + 'token=' + encodeURIComponent(state.project.token);
   console.log('[apiUrl]', path, '→', url);
   return url;
 }
