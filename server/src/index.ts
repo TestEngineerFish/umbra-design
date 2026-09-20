@@ -38,6 +38,7 @@ import { touchProject, listRecentProjects, removeRecentProject, clearRecentProje
 import { buildRefGraph, listReferences, renameDraft, moveDraft, deleteDraft, deleteDraftImpact, listTrash, restoreDraft } from "./refs.js";
 import { globalSearch } from "./search.js";
 import { setTokenValue } from "./token_edit.js";
+import { listTemplates, saveAsTemplate, deleteTemplate } from "./templates.js";
 
 const VERSION = "0.1.0";
 
@@ -258,8 +259,9 @@ server.registerTool("create_draft", {
     sourceFile: z.string().optional().describe("source=copy 时的源稿路径（相对项目根）"),
     componentName: z.string().optional().describe("source=component 时的组件名（dc-import name）"),
     templatePath: z.string().optional().describe("source=template 时的模板绝对路径"),
+    templateName: z.string().optional().describe("source=template 时的模板名（用 list_templates 可查）"),
   },
-}, async ({ project, path, source, title, sourceFile, componentName, templatePath }) => run(async () => {
+}, async ({ project, path, source, title, sourceFile, componentName, templatePath, templateName }) => run(async () => {
   const p = await loadProject(project);
 
   let src: any;
@@ -275,10 +277,16 @@ server.registerTool("create_draft", {
       if (!componentName) throw new Error("source=component 时必须传 componentName");
       src = { kind: "component", componentName, title };
       break;
-    case "template":
-      if (!templatePath) throw new Error("source=template 时必须传 templatePath");
-      src = { kind: "template", templatePath };
+    case "template": {
+      let tPath = templatePath;
+      if (templateName && !tPath) {
+        // 从模板目录解析
+        tPath = join(p.dir, ".umbradesign/templates", `${templateName}.dc.html`);
+      }
+      if (!tPath) throw new Error("source=template 时必须传 templatePath 或 templateName");
+      src = { kind: "template", templatePath: tPath };
       break;
+    }
   }
 
   const r = await createDraft(p, path, src);
@@ -579,6 +587,51 @@ server.registerTool("set_token_value", {
       `token ${path} 的取值未改变：${r.oldValue}`),
   ];
   return envelope(r, diags, { affected: r.affectedDrafts });
+}));
+
+// ─────────────────────── 稿件模板 ─────────────────────
+
+server.registerTool("list_templates", {
+  title: "列出稿件模板",
+  description: "列出项目内所有已保存的稿件模板。新建稿时可以用 source=template + templateName 来基于模板创建。",
+  inputSchema: { project: z.string() },
+}, async ({ project }) => run(async () => {
+  const p = await loadProject(project);
+  const templates = await listTemplates(p);
+  return envelope({ templates }, [], { total: templates.length });
+}));
+
+server.registerTool("save_as_template", {
+  title: "保存稿为模板",
+  description: [
+    "把项目中的一份稿保存为模板，之后新建稿时可以基于此模板创建。",
+    "模板存在项目的 .umbradesign/templates/ 目录下。",
+  ].join("\n"),
+  inputSchema: {
+    project: z.string(),
+    draftPath: z.string().describe("相对项目根的稿路径"),
+    name: z.string().describe("模板名称"),
+  },
+}, async ({ project, draftPath, name }) => run(async () => {
+  const p = await loadProject(project);
+  const r = await saveAsTemplate(p, draftPath, name);
+  return envelope(r, [], {});
+}));
+
+server.registerTool("delete_template", {
+  title: "删除稿件模板",
+  description: "删除一个已保存的稿件模板。",
+  inputSchema: {
+    project: z.string(),
+    name: z.string().describe("模板名称"),
+  },
+}, async ({ project, name }) => run(async () => {
+  const p = await loadProject(project);
+  const r = await deleteTemplate(p, name);
+  const diags = r.deleted ? [] : [
+    err(X.DRAFT_NOT_FOUND, p.rel, { kind: "key", name: "template" }, `模板 ${name} 不存在`),
+  ];
+  return envelope(r, diags, {});
 }));
 
 // ───────────────────────── 组件契约 ─────────────────────────
