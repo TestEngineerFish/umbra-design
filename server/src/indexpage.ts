@@ -22,6 +22,7 @@ import { ensureRuntimeBeside, prepareForDisk, writeAtomic } from "./normalize.js
 import { listVersions } from "./history.js";
 import { serveOf } from "./serve.js";
 import { readCheck, sha256, type CheckRecord } from "./check.js";
+import { renderCheck } from "./render.js";
 
 export type Health = "ok" | "warn" | "error" | "unchecked";
 
@@ -522,7 +523,25 @@ async function ensureIgnored(p: Project, deployed: string[]): Promise<string | n
   return rel(p, gi);
 }
 
-export async function buildIndex(p: Project, serveUrl: string | null): Promise<BuildIndexResult> {
+export interface BuildIndexOpts {
+  renderCheck?: boolean;
+}
+
+export async function buildIndex(p: Project, serveUrl: string | null, opts?: BuildIndexOpts): Promise<BuildIndexResult> {
+  // M4-5: 如果要求，先跑渲染体检生成截图
+  if (opts?.renderCheck) {
+    const files = await listDrafts(p);
+    for (const abs of files) {
+      const r = rel(p, abs);
+      if (isToolPage(r)) continue;
+      const chk = await readCheck(p, r);
+      const hasShot = chk?.screenshot && existsSync(join(p.dir, chk.screenshot));
+      if (!hasShot) {
+        await renderCheck(p, r, { screenshot: true }).catch(() => { /* 单份失败不阻断 */ });
+      }
+    }
+  }
+
   const data = await collectIndex(p);
   const udDir = join(p.dir, ".umbradesign");
   await mkdir(udDir, { recursive: true });

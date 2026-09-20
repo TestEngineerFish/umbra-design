@@ -102,6 +102,15 @@
         </button>
       </div>
 
+      <!-- 稿的主题切换（M4-4） -->
+      <div style="display: flex; align-items: center; gap: 4px; flex: none;">
+        <span style="font-size: 11px; color: var(--tool-muted);">稿</span>
+        <div style="display: flex; padding: 2px; gap: 2px; background: var(--tool-panel-2); border: 1px solid var(--tool-border); border-radius: var(--tool-radius);">
+          <button type="button" onClick="{{ draftThemeLight }}" style="padding: 0 8px; height: 20px; font-size: 10px; border: 0; border-radius: var(--tool-radius-sm); cursor: pointer; background: {{ dtLightBg }}; color: {{ dtLightFg }}; font-weight: {{ dtLightFw }};" style-hover="opacity: .85;">浅</button>
+          <button type="button" onClick="{{ draftThemeDark }}" style="padding: 0 8px; height: 20px; font-size: 10px; border: 0; border-radius: var(--tool-radius-sm); cursor: pointer; background: {{ dtDarkBg }}; color: {{ dtDarkFg }}; font-weight: {{ dtDarkFw }};" style-hover="opacity: .85;">深</button>
+        </div>
+      </div>
+
       <span style="flex: 1;"></span>
 
       <span style="color: var(--tool-muted); white-space: nowrap;">{{ lastCheckLabel }}</span>
@@ -572,7 +581,8 @@ const DEMOS = [
   { n: 6, short: "未体检", name: "从没跑过体检", note: "unchecked，不是“没有数据”" },
   { n: 7, short: "文件没了", name: "稿文件不存在", note: "索引里有记录，磁盘上没了" },
   { n: 8, short: "窄窗", name: "窄窗口", note: "壳压到 720px，诊断退化成底部抽屉" },
-  { n: 9, short: "自适应", name: "自适应视口", note: "宽度跟着画布走，不做自动撑高" }
+  { n: 9, short: "自适应", name: "自适应视口", note: "宽度跟着画布走，不做自动撑高" },
+  { n: 10, short: "稿深色", name: "稿的深色主题", note: "M4-4：壳保持浅色，iframe 里的稿切深色" }
 ];
 
 const HEALTH = {
@@ -624,6 +634,7 @@ class Component extends DCLogic {
   state = { demo: 1, preset: 0, zoom: 1, tab: "diag", rail: true, spin: false, sheet: true,
             selectOn: false, picked: null, bridgeReady: false,
             live: null, chg: null, slots: null, apiErr: null, drafts: {}, busy: null,
+            draftTheme: "light",
             revertPick: "", checkNote: null, previewing: null,
             /* 属性面板的形制状态（设计侧 §五）：组折叠 / ? 展开 / 色板展开 /
                行级失败 / 已落盘条 / sc-for 改完那条 / 回退两段式 */
@@ -671,7 +682,7 @@ class Component extends DCLogic {
           d.head.appendChild(sc);
         } catch (e) { /* 跨源就算了，同源才有点选 */ }
       };
-      this.onFrameLoad = () => this.injectBridge();
+      this.onFrameLoad = () => { this.injectBridge(); this.pushDraftTheme(); };
       this.onMsg = (e) => {
         const m = e.data;
         if (!m || m.source !== "umbradesign") return;
@@ -1066,6 +1077,14 @@ class Component extends DCLogic {
       { source: "umbradesign-shell", type: "set-mode", payload: this.state.selectOn }, "*");
   }
 
+  /** 往 iframe 发主题切换消息（M4-4）。稿的 support.js 已监听 __dc_theme 消息。 */
+  pushDraftTheme() {
+    const f = this.frameRef && this.frameRef.current;
+    if (!f || !f.contentWindow) return;
+    f.contentWindow.postMessage(
+      { source: "umbradesign-shell", type: "__dc_theme", theme: this.state.draftTheme }, "*");
+  }
+
   componentWillUnmount() {
     if (this.onMsg) window.removeEventListener("message", this.onMsg);
     const f = this.frameRef && this.frameRef.current;
@@ -1267,6 +1286,16 @@ class Component extends DCLogic {
       frameW: responsive ? "calc(100% / " + s.zoom + ")" : p.w + "px",
       frameH: responsive ? "900px" : p.h + "px",
 
+      // ── 稿的主题切换（M4-4） ──
+      draftThemeLight: () => { this.setState({ draftTheme: "light" }); this.pushDraftTheme(); },
+      draftThemeDark: () => { this.setState({ draftTheme: "dark" }); this.pushDraftTheme(); },
+      dtLightBg: s.draftTheme === "light" ? "var(--tool-accent)" : "transparent",
+      dtLightFg: s.draftTheme === "light" ? "white" : "var(--tool-text-2)",
+      dtLightFw: s.draftTheme === "light" ? "560" : "400",
+      dtDarkBg: s.draftTheme === "dark" ? "var(--tool-accent)" : "transparent",
+      dtDarkFg: s.draftTheme === "dark" ? "white" : "var(--tool-text-2)",
+      dtDarkFw: s.draftTheme === "dark" ? "560" : "400",
+
       showFrame: !dead && !missing,
       isDead: dead,
       isMissing: missing,
@@ -1295,7 +1324,7 @@ class Component extends DCLogic {
         bg: d.n === s.demo ? "var(--tool-accent)" : "var(--tool-panel)",
         bd: d.n === s.demo ? "var(--tool-accent)" : "var(--tool-border-strong)",
         fg: d.n === s.demo ? "var(--tool-on-accent)" : "var(--tool-text-2)",
-        pick: () => this.setState({ demo: d.n, spin: false, zoom: 1, preset: d.n === 9 ? 3 : 0, rail: d.n !== 8, sheet: true })
+        pick: () => this.setState({ demo: d.n, spin: false, zoom: 1, preset: d.n === 9 ? 3 : 0, rail: d.n !== 8, sheet: true, draftTheme: d.n === 10 ? "dark" : "light" })
       })),
 
       statCells: LIVE

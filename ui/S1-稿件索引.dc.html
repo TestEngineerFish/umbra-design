@@ -547,7 +547,8 @@ const DEMOS = [
   { n: 10, short: "项目切换", name: "项目切换器下拉", note: "点项目名展开下拉，显示最近项目 + 新建 + 设置" },
   { n: 11, short: "行操作", name: "行操作菜单展开", note: "点行末「…」弹出重命名/复制/移动/删除" },
   { n: 12, short: "新建稿件", name: "新建稿件弹窗", note: "选来源（空白/组件/模板/复制）、填稿名" },
-  { n: 13, short: "回收站", name: "回收站有稿件", note: "3 份被删的稿，显示删除时间和引用数" }
+  { n: 13, short: "回收站", name: "回收站有稿件", note: "3 份被删的稿，显示删除时间和引用数" },
+  { n: 14, short: "索引过期", name: "索引过期横幅", note: "M4-6：build_index 之后又有文件被改过，至少 3 份过期" }
 ];
 
 const HEALTH = {
@@ -837,9 +838,9 @@ class Component extends DCLogic {
       wallBtnBg: view === "wall" ? "var(--tool-panel)" : "transparent",
       wallBtnFg: view === "wall" ? "var(--tool-text)" : "var(--tool-muted)",
       wallBtnSh: view === "wall" ? "var(--tool-shadow-1)" : "none",
-      indexStale: !!(s.stale && s.stale.stale),
-      indexStaleReason: s.stale ? (s.stale.reason || "") : "",
-      indexStaleFiles: (function (st) {
+      indexStale: s.demo === 14 || !!(s.stale && s.stale.stale),
+      indexStaleReason: s.demo === 14 ? "build_index 跑过之后有 3 份稿被改过，元素数/健康状态/更新时间都是旧的" : (s.stale ? (s.stale.reason || "") : ""),
+      indexStaleFiles: s.demo === 14 ? "任务.dc.html · 日志.dc.html · 提醒.dc.html 等 3 份" : (function (st) {
         if (!st) return "";
         const xs = (st.changed || []).concat(st.added || []);
         if (!xs.length) return "";

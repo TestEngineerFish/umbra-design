@@ -945,12 +945,14 @@ server.registerTool("build_index", {
     "健康状态与诊断条数、演示态清单、引用与被引用关系。",
     "入口页优先用设计侧那份 ui/S1-稿件索引.dc.html；它缺失时才用内置过渡页兜底",
     "（返回里的 indexSource 写明用了哪个）。",
+    "",
+    "renderCheck=true 时，对缺截图或截图过期的稿跑一次渲染体检并生成缩略图。",
   ].join("\n"),
-  inputSchema: { project: z.string(), serve: z.boolean().optional().describe("true 时顺手起静态服务并回地址") },
-}, async ({ project, serve }) => run(async () => {
+  inputSchema: { project: z.string(), serve: z.boolean().optional().describe("true 时顺手起静态服务并回地址"), renderCheck: z.boolean().optional().describe("true 时对缺截图的稿跑渲染体检生成缩略图（M4-5）") },
+}, async ({ project, serve, renderCheck }) => run(async () => {
   const p = await loadProject(project);
   const url = serve ? (await serveStart(p)).url : null;
-  const r = await buildIndex(p, url);
+  const r = await buildIndex(p, url, { renderCheck });
   return envelope(r, [], { drafts: r.drafts, ...r.byHealth });
 }));
 
