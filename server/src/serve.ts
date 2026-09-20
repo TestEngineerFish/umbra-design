@@ -30,10 +30,36 @@ const running = new Map<string, Running>();
 function makeServer(dir: string, onHit: () => void, api: () => ApiCtx | null): Server {
   return createServer((req, reply) => {
     onHit();
+
+    // CORS：允许 Tauri webview（tauri://localhost 或 http://127.0.0.1:*）跨域访问
+    const origin = req.headers.origin;
+    const allowOrigin = origin?.startsWith('http://127.0.0.1:') || origin?.startsWith('http://localhost:') || origin === 'tauri://localhost'
+      ? origin
+      : null;
+
+    // 处理 OPTIONS 预检请求
+    if (req.method === 'OPTIONS') {
+      if (allowOrigin) {
+        reply.writeHead(204, {
+          'access-control-allow-origin': allowOrigin,
+          'access-control-allow-methods': 'GET, POST, OPTIONS',
+          'access-control-allow-headers': 'content-type, x-ud-token',
+        });
+      } else {
+        reply.writeHead(403);
+      }
+      reply.end();
+      return;
+    }
+
     // /__ud/* 交给本地 JSON API（doc/00 §二十）。壳要的诊断 / 变更 / slots
     // 每改一次稿就变，注入解决不了，所以走接口。
     const ctx = api();
     if (ctx && (req.url ?? "").startsWith(API_PREFIX)) {
+      // 设置 CORS 头
+      if (allowOrigin) {
+        reply.setHeader('access-control-allow-origin', allowOrigin);
+      }
       void handleApi(req, reply, ctx).catch(() => {
         reply.writeHead(500, { "content-type": "application/json; charset=utf-8" });
         reply.end(JSON.stringify({ ok: false, errors: [{ code: "E_API", message: "接口内部出错" }] }));
@@ -54,6 +80,8 @@ function makeServer(dir: string, onHit: () => void, api: () => ApiCtx | null): S
       "content-type": MIME[extname(abs).toLowerCase()] ?? "application/octet-stream",
       // 设计稿改一下就要能刷出来，所以一律不缓存
       "cache-control": "no-store, must-revalidate",
+      // CORS 头
+      ...(allowOrigin && { "access-control-allow-origin": allowOrigin }),
     });
     createReadStream(abs).pipe(reply);
   });
