@@ -431,6 +431,8 @@ fn open_project_command(
     state: State<'_, SidecarState>,
     dir: String,
 ) -> Result<serde_json::Value, String> {
+    eprintln!("[rust] open_project_command: dir={}", dir);
+
     // 1. 先列出所有项目，找匹配目录的那个
     let list_result = send_mcp_message(
         &state,
@@ -442,8 +444,12 @@ fn open_project_command(
         10,
     )?;
 
+    eprintln!("[rust] list_projects raw: {}", serde_json::to_string(&list_result).unwrap_or_default().chars().take(300).collect::<String>());
+
     // 解析 list_projects 的 MCP 响应
     let projects = parse_mcp_text(&list_result)?;
+    eprintln!("[rust] list_projects parsed: {}", serde_json::to_string(&projects).unwrap_or_default().chars().take(300).collect::<String>());
+
     let project_name = projects.get("data")
         .and_then(|d| d.as_array())
         .and_then(|arr| arr.iter().find(|p| {
@@ -451,6 +457,8 @@ fn open_project_command(
         }))
         .and_then(|p| p.get("name").and_then(|n| n.as_str()))
         .ok_or_else(|| format!("找不到目录对应的项目: {}", dir))?;
+
+    eprintln!("[rust] found project: {}", project_name);
 
     // 2. 用项目名启动服务
     let params = serde_json::json!({
@@ -471,15 +479,33 @@ fn open_project_command(
 
 /// 解析 MCP 响应中的 text 内容
 fn parse_mcp_text(raw: &serde_json::Value) -> Result<serde_json::Value, String> {
+    eprintln!("[rust] parse_mcp_text input keys: {:?}", raw.as_object().map(|o| o.keys().collect::<Vec<_>>()));
+
     let content = raw.get("content")
         .and_then(|c| c.as_array())
-        .ok_or("MCP 响应缺少 content")?;
+        .ok_or_else(|| {
+            eprintln!("[rust] parse_mcp_text: no content array found");
+            "MCP 响应缺少 content".to_string()
+        })?;
+
     let text = content.first()
         .and_then(|c| c.get("text"))
         .and_then(|t| t.as_str())
-        .ok_or("MCP content 缺少 text")?;
-    serde_json::from_str(text)
-        .map_err(|e| format!("解析 MCP text 失败: {}", e))
+        .ok_or_else(|| {
+            eprintln!("[rust] parse_mcp_text: no text in content[0]");
+            "MCP content 缺少 text".to_string()
+        })?;
+
+    eprintln!("[rust] parse_mcp_text text first 200: {}", text.chars().take(200).collect::<String>());
+
+    let result: serde_json::Value = serde_json::from_str(text)
+        .map_err(|e| {
+            eprintln!("[rust] parse_mcp_text JSON parse error: {}", e);
+            format!("解析 MCP text 失败: {}", e)
+        })?;
+
+    eprintln!("[rust] parse_mcp_text success, keys: {:?}", result.as_object().map(|o| o.keys().collect::<Vec<_>>()));
+    Ok(result)
 }
 
 /// 停止项目的 HTTP 服务
