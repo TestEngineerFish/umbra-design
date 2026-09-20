@@ -1256,6 +1256,18 @@ server.registerTool("chat_send", {
   // 通道 A：跑 agent 循环
   if (ch === "a") {
     const providerCfg = await getChannelA();
+
+    // ── 记录循环前各稿的版本（用于审计变更） ──
+    const draftVersionsBefore: Map<string, string> = new Map();
+    try {
+      const allDrafts = await listDrafts(p);
+      for (const abs of allDrafts) {
+        const rel = abs.slice(p.dir.length + 1).split("\\").join("/");
+        const vs = await listVersions(p, rel);
+        if (vs.length > 0) draftVersionsBefore.set(rel, vs[vs.length - 1] as string);
+      }
+    } catch { /* 忽略，不影响主流程 */ }
+
     const history: ChatMessage[] = session.messages.map((m) => ({
       role: m.role as ChatMessage["role"],
       content: m.content,
@@ -1319,17 +1331,56 @@ server.registerTool("chat_send", {
     }
 
     const diags = result.error ? [err(X.IO, p.rel, { kind: "key", name: "ai" }, result.error)] : [];
+
+    // ── 审计本次 AI 会话对稿件的变更（M2-9） ──
+    const changes: Array<{ path: string; counts: Record<string, number>; summary: string }> = [];
+    try {
+      const allDrafts = await listDrafts(p);
+      for (const abs of allDrafts) {
+        const rel = abs.slice(p.dir.length + 1).split("\\").join("/");
+        const vs = await listVersions(p, rel);
+        if (!vs.length) continue;
+        const before = draftVersionsBefore.get(rel);
+        if (!before) continue;
+        const after = vs[vs.length - 1];
+        if (after === before) continue;  // 这个稿没变
+
+        // 有变更，计算 diff
+        const d = await diffDrafts(p, rel, { from: before, to: after });
+        if (d.changes.length > 0) {
+          changes.push({
+            path: rel,
+            counts: d.counts,
+            summary: `${d.counts.L1 ?? 0} 处契约变更(需改代码) · ${d.counts.L2 ?? 0} 处取值变更 · ${d.counts.L3 ?? 0} 处文案变更 · ${d.counts.L4 ?? 0} 处等价变更`,
+          });
+        }
+      }
+    } catch { /* 忽略，不影响主流程 */ }
+
     const chVal: "a" | "b" = ch;
-    return envelope<{ sessionId: string; channel: "a" | "b"; messages: ChatEntry[]; usage: typeof result.usage; interrupted: boolean }>({
+    return envelope<{ sessionId: string; channel: "a" | "b"; messages: ChatEntry[]; usage: typeof result.usage; interrupted: boolean; changes: typeof changes }>({
       sessionId: session.id,
       channel: chVal,
       messages: session.messages.slice(-10),
       usage: result.usage,
       interrupted: result.interrupted,
+      changes,
     }, diags, {});
   }
 
   // 通道 B：Claude Code 子进程（M2-3）
+
+  // 记录循环前各稿的版本（用于审计变更）
+  const draftVersionsBeforeB: Map<string, string> = new Map();
+  try {
+    const allDrafts = await listDrafts(p);
+    for (const abs of allDrafts) {
+      const rel = abs.slice(p.dir.length + 1).split("\\").join("/");
+      const vs = await listVersions(p, rel);
+      if (vs.length > 0) draftVersionsBeforeB.set(rel, vs[vs.length - 1] as string);
+    }
+  } catch { /* 忽略 */ }
+
   const providerCfg = await getChannelA();  // 通道 B 复用通道 A 的端点配置
   const ccConfig: ChannelBConfig = {
     baseUrl: providerCfg.baseUrl,
@@ -1359,8 +1410,33 @@ server.registerTool("chat_send", {
     : null;
 
   const diagsB = ccResult.error ? [err(X.IO, p.rel, { kind: "key", name: "channel-b" }, ccResult.error)] : [];
+
+  // ── 审计本次 AI 会话对稿件的变更（M2-9，通道 B） ──
+  const changesB: Array<{ path: string; counts: Record<string, number>; summary: string }> = [];
+  try {
+    const allDrafts = await listDrafts(p);
+    for (const abs of allDrafts) {
+      const rel = abs.slice(p.dir.length + 1).split("\\").join("/");
+      const vs = await listVersions(p, rel);
+      if (!vs.length) continue;
+      const before = draftVersionsBeforeB.get(rel);
+      if (!before) continue;
+      const after = vs[vs.length - 1];
+      if (after === before) continue;
+
+      const d = await diffDrafts(p, rel, { from: before, to: after });
+      if (d.changes.length > 0) {
+        changesB.push({
+          path: rel,
+          counts: d.counts,
+          summary: `${d.counts.L1 ?? 0} 处契约变更(需改代码) · ${d.counts.L2 ?? 0} 处取值变更 · ${d.counts.L3 ?? 0} 处文案变更 · ${d.counts.L4 ?? 0} 处等价变更`,
+        });
+      }
+    }
+  } catch { /* 忽略 */ }
+
   const chValB: "a" | "b" = ch as "a" | "b";
-  return envelope<{ sessionId: string; channel: "a" | "b"; messages: ChatEntry[]; usage: typeof usageInfo; interrupted: boolean; toolCalls: typeof ccResult.toolCalls; numTurns: number }>({
+  return envelope<{ sessionId: string; channel: "a" | "b"; messages: ChatEntry[]; usage: typeof usageInfo; interrupted: boolean; toolCalls: typeof ccResult.toolCalls; numTurns: number; changes: typeof changesB }>({
     sessionId: session.id,
     channel: chValB,
     messages: session.messages.slice(-10),
@@ -1368,6 +1444,7 @@ server.registerTool("chat_send", {
     interrupted: false,
     toolCalls: ccResult.toolCalls,
     numTurns: ccResult.numTurns,
+    changes: changesB,
   }, diagsB, {});
 }));
 
