@@ -36,6 +36,7 @@ import { locateNode } from "./locate.js";
 import { revertTo, setProp } from "./edit.js";
 import { touchProject, listRecentProjects, removeRecentProject, clearRecentProjects } from "./workspace.js";
 import { buildRefGraph, listReferences, renameDraft, moveDraft, deleteDraft, deleteDraftImpact, listTrash, restoreDraft } from "./refs.js";
+import { globalSearch } from "./search.js";
 
 const VERSION = "0.1.0";
 
@@ -524,6 +525,34 @@ server.registerTool("get_icon", {
 }, async ({ project, name }) => run(async () => {
   const p = await loadProject(project);
   return envelope(await getIcon(p, name));
+}));
+
+// ─────────────────────── 全局搜索 ───────────────────────
+
+server.registerTool("global_search", {
+  title: "跨稿搜索",
+  description: [
+    "在一份项目的所有稿里搜索。返回匹配的稿、行号与上下文。",
+    "能搜：",
+    "  - token 引用：var(--xxx)、@ds.xxx",
+    "  - 组件引用：dc-import name=\"X\"",
+    "  - CSS 引用：stylesheet",
+    "  - 任意文案（忽略大小写）",
+    "没有匹配时会返回空数组；limit 控制最大返回条数。",
+  ].join("\n"),
+  inputSchema: {
+    project: z.string(),
+    query: z.string().describe("搜索词，如 token 名 / 组件名 / 任意文案"),
+    limit: z.number().int().min(1).max(500).optional().describe("最大返回条数，默认 100"),
+  },
+}, async ({ project, query, limit }) => run(async () => {
+  const p = await loadProject(project);
+  const r = await globalSearch(p, query, limit ?? 100);
+  return envelope({ hits: r.hits }, [], {
+    total: r.total,
+    scanned: r.scanned,
+    query: r.query,
+  });
 }));
 
 // ───────────────────────── 组件契约 ─────────────────────────
