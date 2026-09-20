@@ -1201,14 +1201,19 @@ server.registerTool("chat_send", {
     "向 AI 发送一条用户消息，自动跑 agent 循环（通道 A）。",
     "返回模型的回复和所有工具调用结果。",
     "不指定 sessionId 时自动新建；指定了则追加到已有会话。",
+    "",
+    "选中节点参数（编辑方式 ②）：当用户在预览中选中了一个元素并发送消息时，",
+    "带上该元素的地址和所在稿名，模型能针对这个元素做精确修改。",
   ].join("\n"),
   inputSchema: {
     message: z.string().describe("用户消息"),
     sessionId: z.string().optional().describe("会话 ID，不填自动新建"),
     project: z.string().describe("项目名"),
     channel: z.enum(["a", "b"]).optional().describe("通道，默认 a"),
+    selectedNodeFile: z.string().optional().describe("选中节点所在稿的相对路径（data-sc-name）"),
+    selectedNodeAddress: z.string().optional().describe("选中节点的 data-ud-node 值"),
   },
-}, async ({ message, sessionId, project, channel }) => run(async () => {
+}, async ({ message, sessionId, project, channel, selectedNodeFile, selectedNodeAddress }) => run(async () => {
   const p = await loadProject(project);
   const ch = channel ?? "a";
 
@@ -1225,6 +1230,28 @@ server.registerTool("chat_send", {
 
   // 用户消息写入会话
   await addMessage(p.dir, session.id, { role: "user", content: message });
+
+  // ── 选中节点上下文（M2-8） ──
+  let nodeContext: string | null = null;
+  if (selectedNodeFile && selectedNodeAddress) {
+    try {
+      const loc = await locateNode(p, selectedNodeFile, selectedNodeAddress);
+      const editableSlots = loc.slots.filter((s) => s.editable);
+      nodeContext = [
+        `【当前选中节点】`,
+        `  稿: ${loc.file}`,
+        `  节点地址: ${loc.node}`,
+        `  标签: ${loc.tag}`,
+        `  源码位置: 第 ${loc.at.line} 行第 ${loc.at.col} 列`,
+        `  在 sc-for 循环中: ${loc.inList ? "是（改动会影响循环所有行）" : "否"}`,
+        `  可编辑项 (${editableSlots.length} 个):`,
+        ...editableSlots.slice(0, 15).map((s) => `    - ${s.kind}: ${s.name} = "${String(s.value).slice(0, 80)}"`),
+        ...(editableSlots.length > 15 ? [`    ... 还有 ${editableSlots.length - 15} 个可编辑项`] : []),
+      ].join("\n");
+    } catch {
+      // 节点地址可能已过期，静默忽略
+    }
+  }
 
   // 通道 A：跑 agent 循环
   if (ch === "a") {
@@ -1261,7 +1288,19 @@ server.registerTool("chat_send", {
       { type: "function", function: { name: "get_changes_since", description: "跨版本净变更，回答「我实现的是 vX，现在最新 vY，我要改什么」", parameters: { type: "object", properties: { project: { type: "string" }, since: { type: "string" }, path: { type: "string" } }, required: ["project", "since"] } } },
     ];
 
+    // 系统提示：设计助手角色 + 选中节点上下文
+    const systemParts: string[] = [
+      "你是 UmbraDesign 设计助手。你可以通过工具调用读取和修改设计稿。",
+      "修改稿必须用 write_draft 或 patch_draft 落盘，不要口头说改了什么。",
+      "修改前先 validate_draft 确认当前状态，修改后再次 validate 确认无 error。",
+      "⚠️ set_prop 只能改一处（一条样式/一个属性），用户说改多处时先改当前选中的。",
+    ];
+    if (nodeContext) {
+      systemParts.push("", "### 当前选中节点（用户正在编辑的元素）", nodeContext, "", "用户说「这个」「这里」「字号大一点」等指向性描述时，就是指这个节点。用 set_prop 修改它的可编辑项，或调用 write_draft/patch_draft 做更大改动。");
+    }
+
     const result = await chat(providerCfg, {
+      systemPrompt: systemParts.join("\n"),
       messages: history,
       tools,
       maxSteps: 10,
@@ -1299,7 +1338,16 @@ server.registerTool("chat_send", {
     mcpServerPath: join(TOOL_ROOT, "server", "dist", "index.js"),
   };
 
-  const ccResult = await channelBRun(ccConfig, message, undefined, 120000);
+  // 通道 B 的系统提示（含选中节点上下文）
+  const bSystemParts: string[] = [
+    "你是 UmbraDesign 设计助手。你可以通过 MCP 工具 umbradesign 读取和修改设计稿。",
+    "修改稿必须用 write_draft 或 patch_draft 落盘。修改前先 validate_draft，修改后再次 validate。",
+  ];
+  if (nodeContext) {
+    bSystemParts.push("", "### 当前选中节点", nodeContext, "", "用户说「这个」「这里」时，就是指这个节点。");
+  }
+
+  const ccResult = await channelBRun(ccConfig, message, bSystemParts.join("\n"), 120000);
 
   // 把结果存入会话
   if (ccResult.result) {
