@@ -138,6 +138,7 @@ M1 的验收口径是 `doc/01` §7.5 第 18–20 条：
 | --- | --- |
 | `npm --prefix server run build` | 编译 |
 | `npm --prefix server run selftest` | 静态回归（三层判据） |
+| `npm --prefix server run lifecycletest` | 生命周期回归（建/改/删/恢复全流程） |
 | `npm --prefix server run rendertest` | 渲染回归（要浏览器） |
 | `npm --prefix server run ui -- <项目名>` | 起界面给人用 |
 | `npm --prefix server run incoming` | 接设计侧交回来的稿（`ui/_incoming/`） |

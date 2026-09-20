@@ -12,7 +12,9 @@ import { z } from "zod";
 import { envelope, toContent, ToolError, err, type Envelope } from "./envelope.js";
 import { X } from "./codes.js";
 import {
-  TOOL_ROOT, buildProject, draftPath, listDrafts, listProjectDirs, loadProject, projectsRoot,
+  TOOL_ROOT, buildProject, createProject, createDraft, duplicateDraft, createFolder,
+  updateProject, archiveProject, deleteProject,
+  draftPath, listDrafts, listProjectDirs, loadProject, projectsRoot,
 } from "./project.js";
 import { getComponent, getIcon, getToken, listComponents, listIcons, searchTokens } from "./assets.js";
 import { validateDraft } from "./validate.js";
@@ -27,6 +29,8 @@ import { serveStart, serveStatus, serveStop } from "./serve.js";
 import { buildIndex, collectIndex } from "./indexpage.js";
 import { locateNode } from "./locate.js";
 import { revertTo, setProp } from "./edit.js";
+import { touchProject, listRecentProjects, removeRecentProject, clearRecentProjects } from "./workspace.js";
+import { buildRefGraph, listReferences, renameDraft, moveDraft, deleteDraft, deleteDraftImpact, listTrash, restoreDraft } from "./refs.js";
 
 const VERSION = "0.1.0";
 
@@ -96,6 +100,8 @@ server.registerTool("get_project", {
   inputSchema: { project: z.string().describe("项目名，或项目目录名") },
 }, async ({ project }) => run(async () => {
   const p = await loadProject(project);
+  // 自动记录到最近项目列表
+  await touchProject(p.dir, p.name, p.title);
   const drafts = (await listDrafts(p)).map((a) => a.slice(p.dir.length + 1).split("\\").join("/"));
   const diags = [];
   if (!p.config.designSystem) {
@@ -113,6 +119,362 @@ server.registerTool("get_project", {
     gitEnabled: p.gitEnabled,
     drafts,
   }, diags, { drafts: drafts.length });
+}));
+
+// ─────────────────────── 工作区（M1-2）────────────────────────
+
+server.registerTool("list_recent_projects", {
+  title: "最近打开过的项目",
+  description: [
+    "列出最近打开过的设计项目，按时间倒排。",
+    "每条包含目录、名称、标题、最后打开时间、打开次数、目录是否还在。",
+    "删掉的目录会标「找不到」而不是崩 —— 用户可以从列表里清掉。",
+  ].join("\n"),
+  inputSchema: {
+    limit: z.number().int().min(1).max(50).optional().describe("最多返回几条，默认全部"),
+  },
+}, async ({ limit }) => run(async () => {
+  const r = await listRecentProjects(limit);
+  return envelope(r, [], { total: r.total });
+}));
+
+server.registerTool("remove_recent_project", {
+  title: "从最近列表移除项目",
+  description: "从最近项目列表移除一个条目。不影响项目目录本身，只是列表操作。",
+  inputSchema: { dir: z.string().describe("项目目录绝对路径") },
+}, async ({ dir }) => run(async () => {
+  const r = await removeRecentProject(dir);
+  return envelope(r, [], { removed: r.removed });
+}));
+
+server.registerTool("clear_recent_projects", {
+  title: "清空最近项目列表",
+  description: "清空最近项目列表。不影响任何项目目录。",
+  inputSchema: {},
+}, async () => run(async () => {
+  await clearRecentProjects();
+  return envelope({ cleared: true });
+}));
+
+// ─────────────────────── 引用图谱（M1-0）───────────────────────
+
+server.registerTool("list_references", {
+  title: "查询稿件的引用关系",
+  description: [
+    "回答「谁引用了我 / 我引用了谁」。dc-import 按文件名解析（doc/01 H4），",
+    "改名 / 移动 / 删除任何被引用的稿都会静默打断引用。",
+    "生命周期操作前必须先查这个工具确认影响面。",
+    "",
+    "传 file → 返回该稿的双向引用关系；",
+    "不传 file → 返回整个项目的引用图谱概览（按被引用次数排序）。",
+  ].join("\n"),
+  inputSchema: {
+    project: z.string(),
+    file: z.string().optional().describe("稿的相对路径。不给时返回整个项目的引用概览"),
+  },
+}, async ({ project, file }) => run(async () => {
+  const p = await loadProject(project);
+  const r = await listReferences(p, file);
+  const data: Record<string, unknown> = { ...r };
+  if (r.file) {
+    return envelope(data, [], {
+      imports: r.imports.length,
+      importedBy: r.importedBy.length,
+    });
+  }
+  // 没给 file 时，imports/importedBy 是空数组，重点是 overview
+  return envelope(data, [], {
+    drafts: r.overview?.length ?? 0,
+    referenced: r.overview?.filter((o) => o.importedByCount > 0).length ?? 0,
+  });
+}));
+
+// ─────────────────────── 项目创建（M1-1）───────────────────────
+
+server.registerTool("create_project", {
+  title: "新建一个设计项目",
+  description: [
+    "从一个空目录起步，创建一个设计项目。写入：",
+    "  project.json         项目配置（名称、标题、设计系统路径、限额）",
+    "  .gitignore           租户级忽略规则",
+    "  <标题>.dc.html      第一份空白稿（含一个可编辑的 div）",
+    "  .git/                默认初始化 git 仓库",
+    "",
+    "创建完立刻 get_project 能读、build_index 能跑。",
+    "dir 指定绝对路径；不给时默认在工具目录 projects/<name> 下。",
+  ].join("\n"),
+  inputSchema: {
+    name: z.string().describe("项目名（也是目录名，除非另外传 dir）"),
+    dir: z.string().optional().describe("项目目录绝对路径。不给时默认 projects/<name>"),
+    title: z.string().optional().describe("项目显示标题，不给时等于 name"),
+    designSystemDir: z.string().optional().describe("设计系统目录相对路径，如 _ds/umbra-design-system-xxx"),
+    designSystemAlias: z.string().optional().describe("设计系统别名，默认 @ds"),
+    tokens: z.string().optional().describe("tokens 文件相对路径，如 umbra-tokens.json"),
+    icons: z.string().optional().describe("icons 文件相对路径，如 umbra-icons.json"),
+    elementsWarn: z.number().int().optional().describe("元素数 warning 阈值，默认 1200"),
+    elementsHard: z.number().int().optional().describe("元素数 hard 上限，默认 1500"),
+    initGit: z.boolean().optional().describe("是否初始化 .git，默认 true"),
+  },
+}, async ({ name, dir, title, designSystemDir, designSystemAlias, tokens, icons, elementsWarn, elementsHard, initGit }) => run(async () => {
+  const limits: { elementsWarn?: number; elementsHard?: number } = {};
+  if (elementsWarn) limits.elementsWarn = elementsWarn;
+  if (elementsHard) limits.elementsHard = elementsHard;
+
+  const r = await createProject(name, {
+    dir, title, designSystemDir, designSystemAlias, tokens, icons,
+    limits: Object.keys(limits).length ? limits : undefined,
+    initGit,
+  });
+  // 自动记录到最近项目列表
+  await touchProject(r.dir, r.name, r.title);
+  return envelope(r, [], { created: r.created.length });
+}));
+
+// ─────────────────────── 稿件创建（M1-3）───────────────────────
+
+server.registerTool("create_draft", {
+  title: "新建一份稿",
+  description: [
+    "四种来源：",
+    "  blank        —— 空白骨架（默认）",
+    "  copy         —— 复制现有稿（不复制快照，新稿从 v1 起）",
+    "  component    —— 把组件包一层，创建只含 dc-import 的页稿",
+    "  template     —— 从模板文件复制",
+    "",
+    "path 相对项目根，必须以 .dc.html 结尾。文件已存在会报错。",
+  ].join("\n"),
+  inputSchema: {
+    project: z.string(),
+    path: z.string().describe("相对项目根的路径，必须以 .dc.html 结尾"),
+    source: z.enum(["blank", "copy", "component", "template"]).describe("稿的来源"),
+    title: z.string().optional().describe("空白稿或组件包装稿的标题，不给时用文件名"),
+    sourceFile: z.string().optional().describe("source=copy 时的源稿路径（相对项目根）"),
+    componentName: z.string().optional().describe("source=component 时的组件名（dc-import name）"),
+    templatePath: z.string().optional().describe("source=template 时的模板绝对路径"),
+  },
+}, async ({ project, path, source, title, sourceFile, componentName, templatePath }) => run(async () => {
+  const p = await loadProject(project);
+
+  let src: any;
+  switch (source) {
+    case "blank":
+      src = { kind: "blank", title };
+      break;
+    case "copy":
+      if (!sourceFile) throw new Error("source=copy 时必须传 sourceFile");
+      src = { kind: "copy", sourceFile };
+      break;
+    case "component":
+      if (!componentName) throw new Error("source=component 时必须传 componentName");
+      src = { kind: "component", componentName, title };
+      break;
+    case "template":
+      if (!templatePath) throw new Error("source=template 时必须传 templatePath");
+      src = { kind: "template", templatePath };
+      break;
+  }
+
+  const r = await createDraft(p, path, src);
+  return envelope(r, [], {});
+}));
+
+// ─────────────────────── 稿件改名（M1-4）───────────────────────
+
+server.registerTool("rename_draft", {
+  title: "重命名一份稿",
+  description: [
+    "重命名稿，并**连带更新所有引用它的 dc-import name**（doc/01 H4）。",
+    "改名只改基名，不改所在目录（移动用 move_draft）。",
+    "返回里会列出哪些稿被更新了 —— 改名前应该先看 list_references 确认影响面。",
+  ].join("\n"),
+  inputSchema: {
+    project: z.string(),
+    path: z.string().describe("当前稿的相对路径，如 组件A.dc.html"),
+    newName: z.string().describe("新基名，如 新名字（不用加 .dc.html）"),
+  },
+}, async ({ project, path, newName }) => run(async () => {
+  const p = await loadProject(project);
+  const r = await renameDraft(p, path, newName);
+  return envelope(r, [], { referencesUpdated: r.referencesUpdated });
+}));
+
+// ─────────────────────── 稿件复制（M1-5）───────────────────────
+
+server.registerTool("duplicate_draft", {
+  title: "复制一份稿",
+  description: [
+    "复制一份稿到同目录下，默认名 `<原名> 副本.dc.html`，冲突时自动加序号。",
+    "快照不跟着复制 —— 新稿从 v1 起（doc/12 M1-5）。",
+    "复制后的稿保留原有的 dc-import 引用，两份互不影响。",
+  ].join("\n"),
+  inputSchema: {
+    project: z.string(),
+    path: z.string().describe("要复制的稿的相对路径"),
+    newName: z.string().optional().describe("新稿名，不给时默认 `<原名> 副本`"),
+  },
+}, async ({ project, path, newName }) => run(async () => {
+  const p = await loadProject(project);
+  const r = await duplicateDraft(p, path, { newName });
+  return envelope(r, [], { newPath: r.newPath });
+}));
+
+// ─────────────────────── 稿件移动（M1-6）───────────────────────
+
+server.registerTool("move_draft", {
+  title: "移动稿到目标目录",
+  description: [
+    "移动稿到目标目录，跨目录移动时引用路径要跟着修（相对路径基准变了）。",
+    "目标目录不存在会自动创建。目标文件已存在会自动加序号。",
+    "返回里会列出哪些稿的 dc-import name 被更新了。",
+  ].join("\n"),
+  inputSchema: {
+    project: z.string(),
+    path: z.string().describe("当前稿的相对路径"),
+    targetDir: z.string().describe("目标目录相对项目根的路径，如 Components 或 Pages"),
+  },
+}, async ({ project, path, targetDir }) => run(async () => {
+  const p = await loadProject(project);
+  const r = await moveDraft(p, path, targetDir);
+  return envelope(r, [], { referencesUpdated: r.referencesUpdated });
+}));
+
+// ─────────────────────── 删除与回收站（M1-7）───────────────────────
+
+server.registerTool("get_delete_impact", {
+  title: "查看删除稿的影响面",
+  description: [
+    "删除前先看有哪些稿引用了它。删除后这些稿都会报 E_IMPORT_MISSING。",
+    "这个工具不实际删除，只返回影响面。确认后再调 delete_draft。",
+  ].join("\n"),
+  inputSchema: {
+    project: z.string(),
+    path: z.string().describe("要检查的稿的相对路径"),
+  },
+}, async ({ project, path }) => run(async () => {
+  const p = await loadProject(project);
+  const impact = await deleteDraftImpact(p, path);
+  return envelope(impact, [], { affectedCount: impact.affectedCount });
+}));
+
+server.registerTool("delete_draft", {
+  title: "删除稿到回收站",
+  description: [
+    "删除稿到 `.umbradesign/trash/<时间戳>/` 目录下（回收站语义，doc/11 Q4）。",
+    "不彻底删除，随时可以恢复。删除前建议先调 get_delete_impact 看影响面。",
+    "如果稿被其他稿引用，删除后那些稿会报 E_IMPORT_MISSING。",
+  ].join("\n"),
+  inputSchema: {
+    project: z.string(),
+    path: z.string().describe("要删除的稿的相对路径"),
+  },
+}, async ({ project, path }) => run(async () => {
+  const p = await loadProject(project);
+  const r = await deleteDraft(p, path);
+  return envelope(r, [], { trashPath: r.trashPath });
+}));
+
+server.registerTool("list_trash", {
+  title: "列出回收站中的稿件",
+  description: "列出回收站（`.umbradesign/trash/`）中的所有已删除稿。",
+  inputSchema: { project: z.string() },
+}, async ({ project }) => run(async () => {
+  const p = await loadProject(project);
+  const items = await listTrash(p);
+  return envelope({ items }, [], { count: items.length });
+}));
+
+server.registerTool("restore_draft", {
+  title: "从回收站恢复稿",
+  description: [
+    "从回收站恢复稿到原始位置（同名冲突时自动加序号）。",
+    "恢复后，引用了这份稿的其他稿不再报 E_IMPORT_MISSING。",
+  ].join("\n"),
+  inputSchema: {
+    project: z.string(),
+    trashPath: z.string().describe("回收站路径，如 .umbradesign/trash/2026-09-20T12-00-00-000Z/组件.dc.html"),
+  },
+}, async ({ project, trashPath }) => run(async () => {
+  const p = await loadProject(project);
+  const r = await restoreDraft(p, trashPath);
+  return envelope(r, [], { restored: r.originalPath });
+}));
+
+// ─────────────────────── 文件夹（M1-8）─────────────────────────
+
+server.registerTool("create_folder", {
+  title: "创建稿件目录",
+  description: "在项目目录下创建一个子目录。稿可以用 move_draft 移进去。",
+  inputSchema: {
+    project: z.string(),
+    path: z.string().describe("目录相对项目根的路径，如 Components 或 Pages/子目录"),
+  },
+}, async ({ project, path }) => run(async () => {
+  const p = await loadProject(project);
+  const r = await createFolder(p, path);
+  return envelope(r, [], { path: r.path });
+}));
+
+// ─────────────────────── 项目设置（M1-9）───────────────────────
+
+server.registerTool("update_project", {
+  title: "更新项目配置",
+  description: [
+    "改项目配置：标题、设计系统路径/别名、tokens / icons 文件、元素数限额。",
+    "只改 project.json，不影响已有稿件。传 null 可清除对应字段。",
+  ].join("\n"),
+  inputSchema: {
+    project: z.string(),
+    title: z.string().optional().describe("新标题"),
+    designSystemDir: z.string().nullable().optional().describe("设计系统目录，传 null 清除"),
+    designSystemAlias: z.string().optional().describe("设计系统别名，默认 @ds"),
+    tokens: z.string().nullable().optional().describe("tokens 文件相对路径，传 null 清除"),
+    icons: z.string().nullable().optional().describe("icons 文件相对路径，传 null 清除"),
+    elementsWarn: z.number().int().optional().describe("元素数 warning 阈值"),
+    elementsHard: z.number().int().optional().describe("元素数 hard 上限"),
+  },
+}, async ({ project, title, designSystemDir, designSystemAlias, tokens, icons, elementsWarn, elementsHard }) => run(async () => {
+  const p = await loadProject(project);
+  const r = await updateProject(p, {
+    title,
+    designSystemDir,
+    designSystemAlias,
+    tokens,
+    icons,
+    elementsWarn,
+    elementsHard,
+  });
+  return envelope(r, [], { updated: r.updated.length });
+}));
+
+// ─────────────────────── 项目删除/归档（M1-10）───────────────────────
+
+server.registerTool("archive_project", {
+  title: "归档项目",
+  description: [
+    "把项目目录移到归档目录（默认 `.archived/`）。二次确认由界面处理。",
+    "归档后项目从项目列表消失，但目录仍在，可随时移回来。",
+  ].join("\n"),
+  inputSchema: {
+    project: z.string(),
+    archiveDir: z.string().optional().describe("归档目录绝对路径，默认 <工具根>/.archived"),
+  },
+}, async ({ project, archiveDir }) => run(async () => {
+  const p = await loadProject(project);
+  const r = await archiveProject(p, archiveDir);
+  return envelope(r, [], { archivePath: r.archivePath });
+}));
+
+server.registerTool("delete_project", {
+  title: "删除项目",
+  description: [
+    "删除设计项目：移到归档目录。等同于 archive_project，语义上表达「删除」意图。",
+    "二次确认由界面处理。不彻底删除，归档目录还在。",
+  ].join("\n"),
+  inputSchema: { project: z.string() },
+}, async ({ project }) => run(async () => {
+  const p = await loadProject(project);
+  const r = await deleteProject(p);
+  return envelope(r, [], { archivePath: r.archivePath });
 }));
 
 // ─────────────────────── 设计系统检索 ───────────────────────

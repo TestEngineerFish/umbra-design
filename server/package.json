@@ -17,6 +17,7 @@
     "ui": "node dist/ui.js",
     "check": "tsc -p . --noEmit",
     "selftest": "node dist/selftest.js",
+    "lifecycletest": "node dist/lifecycletest.js",
     "rendertest": "node dist/rendertest.js",
     "incoming": "node dist/incoming.js"
   },
