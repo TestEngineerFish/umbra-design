@@ -10,6 +10,7 @@
  */
 import { mkdir, readdir, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { dirname, join } from "node:path";
 import { execFile } from "node:child_process";
 import { X } from "./codes.js";
@@ -58,7 +59,8 @@ async function gitHead(p: Project): Promise<string | null> {
 
 /** 写一份稿。内容相同则不落盘也不新增快照（避免版本号空转）。 */
 export async function writeDraft(
-  p: Project, relPath: string, content: string, kind: "page" | "component", note?: string
+  p: Project, relPath: string, content: string, kind: "page" | "component",
+  note?: string, opts?: { expectedSourceSha256?: string },
 ): Promise<{ outcome: WriteOutcome; diags: Diagnostic[]; stats: Record<string, unknown> }> {
   if (!/\.dc\.html$/.test(relPath)) {
     throw new ToolError(
@@ -82,6 +84,23 @@ export async function writeDraft(
   const hasError = diags.some((d) => d.level === "error");
   const before = await readIfExists(abs);
   const unchanged = before === prep.content;
+
+  // ①½ 并发写保护：如果传了预期 sha256，盘上不一致就拒绝
+  if (opts?.expectedSourceSha256 && before !== undefined) {
+    const currentSha = createHash("sha256").update(before as string, "utf8").digest("hex");
+    if (currentSha !== opts.expectedSourceSha256) {
+      return {
+        outcome: {
+          path: relPath, written: false,
+          refused: `并发写入冲突：盘上源码 sha256=${currentSha.slice(0, 8)}…，预期 ${opts.expectedSourceSha256.slice(0, 8)}…`,
+          steps: ["并发保护：源码已被其他客户端修改，拒绝覆盖"],
+          bytes: prep.content.length, version: null, snapshot: null,
+          runtimeCopied: [], unchanged: false, change: null, changelog: null,
+        },
+        diags: [], stats: {},
+      };
+    }
+  }
 
   if (hasError) {
     return {
@@ -155,9 +174,24 @@ export async function writeDraft(
 export interface PatchEdit { old: string; new: string; count?: number }
 
 /** 增量改。old 必须唯一命中；命中 0 次或多次返回 E_PATCH_ANCHOR，并把相关片段回给模型。 */
-export async function patchDraft(p: Project, relPath: string, edits: PatchEdit[]) {
+export async function patchDraft(
+  p: Project, relPath: string, edits: PatchEdit[],
+  opts?: { expectedSourceSha256?: string; note?: string },
+) {
   const abs = draftPath(p, relPath);
   const original = (await readIfExists(abs)) ?? "";
+
+  // 并发写保护
+  if (opts?.expectedSourceSha256 && original !== "") {
+    const currentSha = createHash("sha256").update(original, "utf8").digest("hex");
+    if (currentSha !== opts.expectedSourceSha256) {
+      throw new ToolError(
+        err(X.BAD_INPUT, relPath, { kind: "key", name: "sourceSha256" },
+          `并发写入冲突：盘上源码 sha256=${currentSha.slice(0, 8)}…，预期 ${opts.expectedSourceSha256.slice(0, 8)}…`,
+          { fix: "重新 read_snapshot 或 get_component 取最新版本后再改" }));
+    }
+  }
+
   let cur = original;
   const applied: Array<{ old: string; at: number }> = [];
 
@@ -186,7 +220,7 @@ export async function patchDraft(p: Project, relPath: string, edits: PatchEdit[]
     cur = cur.split(e.old).join(e.new);
   }
 
-  const r = await writeDraft(p, relPath, cur, "page");
+  const r = await writeDraft(p, relPath, cur, "page", opts?.note);
   return { ...r, outcome: { ...r.outcome, steps: [`应用 ${edits.length} 处 edit`, ...r.outcome.steps] } };
 }
 

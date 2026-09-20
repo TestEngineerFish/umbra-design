@@ -670,10 +670,12 @@ server.registerTool("write_draft", {
     path: z.string().describe("相对项目根的路径，必须以 .dc.html 结尾"),
     content: z.string().describe("完整文件内容"),
     kind: z.enum(["page", "component"]).optional(),
+    expectedSourceSha256: z.string().length(64).optional().describe("并发保护：预期盘上源码 sha256，不匹配就拒绝"),
   },
-}, async ({ project, path, content, kind }) => run(async () => {
+}, async ({ project, path, content, kind, expectedSourceSha256 }) => run(async () => {
   const p = await loadProject(project);
-  const r = await writeDraft(p, path, content, kind ?? "page");
+  const r = await writeDraft(p, path, content, kind ?? "page", undefined,
+    expectedSourceSha256 ? { expectedSourceSha256 } : undefined);
   return envelope(r.outcome, r.diags, r.stats);
 }));
 
@@ -693,10 +695,12 @@ server.registerTool("patch_draft", {
       new: z.string().describe("替换成什么；空串表示删除"),
       count: z.number().int().min(1).optional().describe("期望命中几次，默认 1"),
     })).min(1),
+    expectedSourceSha256: z.string().length(64).optional().describe("并发保护：预期盘上源码 sha256，不匹配就拒绝"),
   },
-}, async ({ project, path, edits }) => run(async () => {
+}, async ({ project, path, edits, expectedSourceSha256 }) => run(async () => {
   const p = await loadProject(project);
-  const r = await patchDraft(p, path, edits);
+  const r = await patchDraft(p, path, edits,
+    expectedSourceSha256 ? { expectedSourceSha256 } : undefined);
   return envelope(r.outcome, r.diags, r.stats);
 }));
 
