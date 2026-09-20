@@ -203,28 +203,41 @@
 // ── Tauri invoke 封装 ──────────────────────────────────
 const T = typeof window.__TAURI__ !== 'undefined' ? window.__TAURI__ : null;
 
-function invoke(cmd, args) {
+async function invoke(cmd, args) {
   if (!T) {
     console.warn('[app] Tauri API 不可用，使用 mock 数据');
     return mockInvoke(cmd, args);
   }
-  return T.core.invoke(cmd, args);
+  console.log(`[invoke] → ${cmd}`, JSON.stringify(args).slice(0, 200));
+  try {
+    const result = await T.core.invoke(cmd, args);
+    console.log(`[invoke] ← ${cmd} OK`, JSON.stringify(result).slice(0, 500));
+    return result;
+  } catch (e) {
+    console.error(`[invoke] ✗ ${cmd}`, e);
+    throw e;
+  }
 }
 
 // ── MCP 响应解析 ──────────────────────────────────────
 // MCP 工具调用的返回格式：{ content: [{ type: "text", text: "JSON字符串" }], isError: bool }
 // 需要从中提取并解析真正的业务数据
 function parseMcpResult(raw) {
+  console.log('[parseMcp] input:', raw ? (typeof raw) : 'null/undefined', raw ? Object.keys(raw) : '');
   if (!raw) return null;
   if (raw.content && Array.isArray(raw.content) && raw.content.length > 0) {
     const text = raw.content[0].text;
+    console.log('[parseMcp] MCP text first 200:', text?.slice(0, 200));
     try {
-      return JSON.parse(text);
+      const parsed = JSON.parse(text);
+      console.log('[parseMcp] parsed ok:', parsed.ok, 'errors:', parsed.errors?.length || 0, 'data keys:', parsed.data ? Object.keys(parsed.data) : 'null');
+      return parsed;
     } catch (e) {
-      console.warn('[app] MCP 响应解析失败:', e, '原始:', text);
+      console.warn('[parseMcp] JSON parse failed:', e.message);
       return raw;
     }
   }
+  console.log('[parseMcp] not MCP format, returning raw');
   return raw;
 }
 
@@ -665,6 +678,7 @@ async function handleOpenPath(path) {
 async function openProjectDir(dir) {
   state.loading = true;
   render();
+  console.log('[openProject] dir:', dir);
   try {
     const raw = await invoke('open_project_command', { dir });
     const serve = parseMcpResult(raw);
@@ -696,6 +710,7 @@ async function handleNewProject() {
   if (!T) {
     toast('Tauri API 不可用', 'error');
     return;
+    console.log('[newProject] starting, T:', !!T);
   }
   try {
     const { open } = T.dialog;
