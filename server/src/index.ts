@@ -15,11 +15,15 @@ import {
   TOOL_ROOT, buildProject, createProject, createDraft, duplicateDraft, createFolder,
   updateProject, archiveProject, deleteProject,
   draftPath, listDrafts, listProjectDirs, loadProject, projectsRoot,
+  type Project,
 } from "./project.js";
 import { getComponent, getIcon, getToken, listComponents, listIcons, searchTokens } from "./assets.js";
 import { validateDraft } from "./validate.js";
 import { patchDraft, writeDraft } from "./write.js";
 import { missingRuntime } from "./normalize.js";
+import { getAiConfig, setAiConfig, getChannelA, type AiConfig } from "./ai_config.js";
+import { chat, type ToolDef, type ToolCall, type ChatMessage } from "./provider.js";
+import { createChat, loadChat, saveChat, listChats, deleteChat, addMessage, type ChatSession, type ChatEntry } from "./chat.js";
 import { findBrowser, renderCheck } from "./render.js";
 import {
   changesSince, diffDrafts, listVersions, projectChangesSince, readSnapshot,
@@ -964,6 +968,357 @@ server.registerTool("get_index_data", {
   const p = await loadProject(project);
   const d = await collectIndex(p);
   return envelope(d, [], { drafts: d.drafts.length });
+}));
+
+// ──────────────────────────── AI 会话（M2） ────────────────────────────
+
+/** agent 循环中真正执行一个工具调用。返回 JSON 字符串给模型。 */
+async function executeToolCall(p: Project, tc: ToolCall): Promise<string> {
+  let args: Record<string, unknown>;
+  try {
+    args = JSON.parse(tc.function.arguments);
+  } catch {
+    return JSON.stringify({ ok: false, error: `参数解析失败: ${tc.function.arguments.slice(0, 200)}` });
+  }
+
+  try {
+    switch (tc.function.name) {
+      // ── 项目/稿件读取 ──
+      case "get_project": {
+        const drafts = (await listDrafts(p)).map((a) => a.slice(p.dir.length + 1).split("\\").join("/"));
+        return JSON.stringify({
+          ok: true,
+          name: p.name, title: p.title, dir: p.dir,
+          designSystem: p.config.designSystem ? { dir: p.dsDir, alias: p.dsAlias } : null,
+          tokens: p.config.tokens ?? null, icons: p.config.icons ?? null,
+          limits: p.limits, gitEnabled: p.gitEnabled,
+          drafts,
+        });
+      }
+      case "list_drafts": {
+        const drafts = (await listDrafts(p)).map((a) => a.slice(p.dir.length + 1).split("\\").join("/"));
+        return JSON.stringify({ ok: true, drafts });
+      }
+
+      // ── 设计系统检索 ──
+      case "search_tokens": {
+        const r = await searchTokens(p, args.query as string, (args.limit as number) ?? 30);
+        return JSON.stringify({ ok: true, hits: r.hits.length, total: r.total, truncated: r.truncated });
+      }
+      case "get_token": {
+        const r = await getToken(p, args.path as string);
+        return JSON.stringify({ ok: true, ...r });
+      }
+      case "list_components": {
+        const list = await listComponents(p);
+        return JSON.stringify({ ok: true, components: list, total: list.length });
+      }
+      case "get_component": {
+        const r = await getComponent(p, args.name as string, (args.mode as "contract" | "full") ?? "contract");
+        return JSON.stringify({ ok: true, ...r });
+      }
+      case "list_icons": {
+        const r = await listIcons(p, args.query as string | undefined, (args.limit as number) ?? 60);
+        return JSON.stringify({ ok: true, viewBox: r.viewBox, icons: r.icons, total: r.total });
+      }
+      case "get_icon": {
+        const r = await getIcon(p, args.name as string);
+        return JSON.stringify({ ok: true, ...r });
+      }
+      case "get_syntax_guide": {
+        const topic = args.topic as string;
+        const g = GUIDES[topic] as { file: string; note: string } | undefined;
+        if (!g) return JSON.stringify({ ok: false, error: `未知 topic: ${topic}` });
+        const text = await readFile(join(TOOL_ROOT, "doc", g.file), "utf8");
+        return JSON.stringify({ ok: true, topic, note: g.note, source: `doc/${g.file}`, text: text.slice(0, 20000) });
+      }
+
+      // ── 校验与写入 ──
+      case "validate_draft": {
+        const path = args.path as string;
+        const abs = draftPath(p, path);
+        const src = await readFile(abs, "utf8");
+        const { diags, stats } = validateDraft(p, path, src, path);
+        return JSON.stringify({ ok: true, project: p.name, path, errors: diags.filter((d) => d.level === "error").length, warnings: diags.filter((d) => d.level === "warning").length, diags: diags.slice(0, 50), stats });
+      }
+      case "write_draft": {
+        const path = args.path as string;
+        const content = args.content as string;
+        const kind = (args.kind as "page" | "component") ?? "page";
+        const r = await writeDraft(p, path, content, kind);
+        return JSON.stringify({ ok: r.outcome.written, outcome: r.outcome, stats: r.stats, errors: r.diags.filter((d) => d.level === "error").length });
+      }
+      case "patch_draft": {
+        const path = args.path as string;
+        const edits = args.edits as Array<{ old: string; new: string; count?: number }>;
+        const r = await patchDraft(p, path, edits);
+        return JSON.stringify({ ok: r.outcome.written, outcome: r.outcome, stats: r.stats, errors: r.diags.filter((d) => d.level === "error").length });
+      }
+      case "render_check": {
+        const path = args.path as string;
+        const r = await renderCheck(p, path, {
+          width: args.width as number | undefined,
+          height: args.height as number | undefined,
+        });
+        return JSON.stringify({
+          ok: true, alive: r.result.alive, nodeCount: r.result.nodeCount,
+          renderMs: r.result.renderMs,
+          unresolvedHoles: r.result.unresolvedHoles.length,
+          consoleWarnings: r.result.consoleWarnings?.length ?? 0,
+          externalRequests: r.result.externalRequests.length,
+        });
+      }
+
+      // ── 版本与变更 ──
+      case "list_versions": {
+        const path = args.path as string;
+        const vs = await listVersions(p, path);
+        return JSON.stringify({ ok: true, path, versions: vs, latest: vs[vs.length - 1] ?? null, count: vs.length });
+      }
+      case "diff_drafts": {
+        const path = args.path as string;
+        const from = args.from as string;
+        const to = (args.to as string) ?? undefined;
+        const d = await diffDrafts(p, path, { from, to });
+        return JSON.stringify({ ok: true, path, from, to: to ?? "latest", counts: d.counts, changes: d.changes.slice(0, 100) });
+      }
+      case "snapshot_draft": {
+        const path = args.path as string;
+        const version = (args.version as string) ?? "工作区";
+        const snap = await resolveSnapshot(p, path, version);
+        return JSON.stringify({
+          ok: true, path, version,
+          nodes: snap.nodes.length, texts: snap.texts.length,
+          tokensUsed: snap.tokensUsed.length, branches: snap.branches.length,
+          props: snap.props,
+        });
+      }
+      case "get_changes_since": {
+        const since = args.since as string;
+        const path = (args.path as string) ?? undefined;
+        if (path) {
+          const d = await changesSince(p, path, since);
+          return JSON.stringify({ ok: true, path, since, counts: d.counts, changes: d.changes.slice(0, 100) });
+        }
+        const drafts = (await listDrafts(p)).map((a) => a.slice(p.dir.length + 1).split("\\").join("/"));
+        const rows = await projectChangesSince(p, drafts, since);
+        const changed = rows.filter((r) => r.diff && r.diff.changes.length > 0);
+        return JSON.stringify({
+          ok: true, since,
+          draftsScanned: rows.length,
+          draftsChanged: changed.length,
+          drafts: changed.map((r) => ({ path: r.path, counts: r.diff?.counts })),
+        });
+      }
+      case "revert_to": {
+        const file = args.file as string;
+        const version = args.version as string;
+        const r = await revertTo(p, file, version);
+        return JSON.stringify({ ok: true, written: r.write.written, newVersion: r.write.version, restored: r.restored });
+      }
+
+      // ── 节点定位与属性编辑 ──
+      case "locate_node": {
+        const file = args.file as string;
+        const node = args.node as string;
+        const r = await locateNode(p, file, node);
+        return JSON.stringify({
+          ok: true, file, node, line: r.at.line, col: r.at.col, tag: r.tag,
+          slots: r.slots.map((s) => ({ kind: s.kind, name: s.name, value: s.value, editable: s.editable, note: s.note })),
+          inList: r.inList,
+        });
+      }
+      case "set_prop": {
+        const file = args.file as string;
+        const node = args.node as string;
+        const kind = args.kind as "style" | "attr" | "text";
+        const name = args.name as string;
+        const value = args.value as string;
+        const r = await setProp(p, file, node, kind, name, value);
+        return JSON.stringify({
+          ok: true, written: r.write.written, version: r.write.version,
+          newNode: r.newNode, bytesDelta: r.write.bytes,
+        });
+      }
+
+      // ── 引用图谱 ──
+      case "list_references": {
+        const file = args.file as string | undefined;
+        const r = await listReferences(p, file);
+        return JSON.stringify({ ok: true, file: r.file ?? null, imports: r.imports, importedBy: r.importedBy, overview: r.overview?.slice(0, 30) });
+      }
+
+      default:
+        return JSON.stringify({ ok: false, error: `未实现的工具: ${tc.function.name}` });
+    }
+  } catch (e) {
+    const m = (e as Error)?.message ?? String(e);
+    return JSON.stringify({ ok: false, error: `${tc.function.name} 执行失败: ${m}` });
+  }
+}
+
+server.registerTool("get_ai_config", {
+  title: "获取 AI 配置",
+  description: "返回当前 AI 配置（通道 A 的端点和模型名）。⚠️ 密钥不回显，只显示是否已设置。",
+  inputSchema: {},
+}, async () => run(async () => {
+  const cfg = await getAiConfig();
+  const masked = cfg.channelA ? {
+    baseUrl: cfg.channelA.baseUrl,
+    apiKeySet: !!cfg.channelA.apiKey,
+    model: cfg.channelA.model,
+  } : null;
+  return envelope({ channelA: masked, defaultChannel: cfg.defaultChannel }, [], {});
+}));
+
+server.registerTool("set_ai_config", {
+  title: "设置 AI 配置",
+  description: "设置通道 A 的 OpenAI 兼容端点、API 密钥和模型名。密钥只存本地，不进任何日志或项目文件。",
+  inputSchema: {
+    baseUrl: z.string().optional().describe("OpenAI 兼容端点，如 https://api.deepseek.com/v1"),
+    apiKey: z.string().optional().describe("API 密钥（存本地不进日志）"),
+    model: z.string().optional().describe("模型名，不硬编码"),
+    defaultChannel: z.enum(["a", "b"]).optional().describe("默认通道"),
+  },
+}, async ({ baseUrl, apiKey, model, defaultChannel }) => run(async () => {
+  const current = await getAiConfig();
+  const updated: AiConfig = {
+    channelA: {
+      baseUrl: baseUrl ?? current.channelA?.baseUrl ?? "",
+      apiKey: apiKey ?? current.channelA?.apiKey ?? "",
+      model: model ?? current.channelA?.model ?? "",
+    },
+    defaultChannel: defaultChannel ?? current.defaultChannel,
+  };
+  await setAiConfig(updated);
+  return envelope({ ok: true }, [], {});
+}));
+
+server.registerTool("chat_send", {
+  title: "发送 AI 会话消息",
+  description: [
+    "向 AI 发送一条用户消息，自动跑 agent 循环（通道 A）。",
+    "返回模型的回复和所有工具调用结果。",
+    "不指定 sessionId 时自动新建；指定了则追加到已有会话。",
+  ].join("\n"),
+  inputSchema: {
+    message: z.string().describe("用户消息"),
+    sessionId: z.string().optional().describe("会话 ID，不填自动新建"),
+    project: z.string().describe("项目名"),
+    channel: z.enum(["a", "b"]).optional().describe("通道，默认 a"),
+  },
+}, async ({ message, sessionId, project, channel }) => run(async () => {
+  const p = await loadProject(project);
+  const ch = channel ?? "a";
+
+  // 加载或新建会话
+  let session: ChatSession | null = sessionId ? await loadChat(p.dir, sessionId) : null;
+  if (!session) {
+    const cfg = await getAiConfig();
+    session = await createChat(p.dir, {
+      projectId: p.name,
+      channel: ch as "a" | "b",
+      model: cfg.channelA?.model ?? "unknown",
+    });
+  }
+
+  // 用户消息写入会话
+  await addMessage(p.dir, session.id, { role: "user", content: message });
+
+  // 通道 A：跑 agent 循环
+  if (ch === "a") {
+    const providerCfg = await getChannelA();
+    const history: ChatMessage[] = session.messages.map((m) => ({
+      role: m.role as ChatMessage["role"],
+      content: m.content,
+      ...(m.toolCalls ? { tool_calls: m.toolCalls } : {}),
+      ...(m.toolCallId ? { tool_call_id: m.toolCallId, name: m.toolName } : {}),
+    }));
+
+    // 工具定义：把我们现有的 MCP 工具暴露给模型
+    const tools: ToolDef[] = [
+      { type: "function", function: { name: "get_project", description: "取项目配置与稿清单", parameters: { type: "object", properties: { project: { type: "string" } }, required: ["project"] } } },
+      { type: "function", function: { name: "list_drafts", description: "列出项目所有稿", parameters: { type: "object", properties: { project: { type: "string" } }, required: ["project"] } } },
+      { type: "function", function: { name: "search_tokens", description: "按路径或取值模糊检索 token", parameters: { type: "object", properties: { project: { type: "string" }, query: { type: "string" }, limit: { type: "number" } }, required: ["project", "query"] } } },
+      { type: "function", function: { name: "get_token", description: "取单个 token 全文", parameters: { type: "object", properties: { project: { type: "string" }, path: { type: "string" } }, required: ["project", "path"] } } },
+      { type: "function", function: { name: "list_components", description: "列出所有组件与页稿", parameters: { type: "object", properties: { project: { type: "string" } }, required: ["project"] } } },
+      { type: "function", function: { name: "get_component", description: "取组件契约或全文", parameters: { type: "object", properties: { project: { type: "string" }, name: { type: "string" }, mode: { type: "string", enum: ["contract", "full"] } }, required: ["project", "name"] } } },
+      { type: "function", function: { name: "list_icons", description: "检索图标", parameters: { type: "object", properties: { project: { type: "string" }, query: { type: "string" }, limit: { type: "number" } }, required: ["project"] } } },
+      { type: "function", function: { name: "get_icon", description: "取图标 SVG", parameters: { type: "object", properties: { project: { type: "string" }, name: { type: "string" } }, required: ["project", "name"] } } },
+      { type: "function", function: { name: "get_syntax_guide", description: "取模板语义与写稿规则", parameters: { type: "object", properties: { topic: { type: "string", enum: ["template", "logic", "interaction", "checklist", "tokens"] } }, required: ["topic"] } } },
+      { type: "function", function: { name: "validate_draft", description: "静态校验一份稿，errors 非空=不该落盘", parameters: { type: "object", properties: { project: { type: "string" }, path: { type: "string" } }, required: ["project", "path"] } } },
+      { type: "function", function: { name: "write_draft", description: "整份写一份稿（唯一写入口），自动归一化/@ds展开/__resources注入/校验/快照", parameters: { type: "object", properties: { project: { type: "string" }, path: { type: "string" }, content: { type: "string" }, kind: { type: "string", enum: ["page", "component"] } }, required: ["project", "path", "content"] } } },
+      { type: "function", function: { name: "patch_draft", description: "按 {old,new} 增量替换稿中的文本", parameters: { type: "object", properties: { project: { type: "string" }, path: { type: "string" }, edits: { type: "array" } }, required: ["project", "path", "edits"] } } },
+      { type: "function", function: { name: "render_check", description: "真实渲染体检——唯一验收证据", parameters: { type: "object", properties: { project: { type: "string" }, path: { type: "string" }, width: { type: "number" }, height: { type: "number" } }, required: ["project", "path"] } } },
+      { type: "function", function: { name: "list_versions", description: "列出一份稿的版本序列", parameters: { type: "object", properties: { project: { type: "string" }, path: { type: "string" } }, required: ["project", "path"] } } },
+      { type: "function", function: { name: "diff_drafts", description: "两版之间的语义 diff（L1-L4 四级分类）", parameters: { type: "object", properties: { project: { type: "string" }, path: { type: "string" }, from: { type: "string" }, to: { type: "string" } }, required: ["project", "path", "from"] } } },
+      { type: "function", function: { name: "snapshot_draft", description: "取一份稿的语义快照", parameters: { type: "object", properties: { project: { type: "string" }, path: { type: "string" }, version: { type: "string" } }, required: ["project", "path"] } } },
+      { type: "function", function: { name: "locate_node", description: "把预览里点中的节点对回源码", parameters: { type: "object", properties: { project: { type: "string" }, file: { type: "string" }, node: { type: "string" } }, required: ["project", "file", "node"] } } },
+      { type: "function", function: { name: "set_prop", description: "改一个节点上的一处属性/样式/文本", parameters: { type: "object", properties: { project: { type: "string" }, file: { type: "string" }, node: { type: "string" }, kind: { type: "string", enum: ["style", "attr", "text"] }, name: { type: "string" }, value: { type: "string" } }, required: ["project", "file", "node", "kind", "name", "value"] } } },
+      { type: "function", function: { name: "revert_to", description: "把稿退回某一版（历史只增不改）", parameters: { type: "object", properties: { project: { type: "string" }, file: { type: "string" }, version: { type: "string" } }, required: ["project", "file", "version"] } } },
+      { type: "function", function: { name: "list_references", description: "查询稿件的引用关系（谁引用了我/我引用了谁）", parameters: { type: "object", properties: { project: { type: "string" }, file: { type: "string" } }, required: ["project"] } } },
+      { type: "function", function: { name: "get_changes_since", description: "跨版本净变更，回答「我实现的是 vX，现在最新 vY，我要改什么」", parameters: { type: "object", properties: { project: { type: "string" }, since: { type: "string" }, path: { type: "string" } }, required: ["project", "since"] } } },
+    ];
+
+    const result = await chat(providerCfg, {
+      messages: history,
+      tools,
+      maxSteps: 10,
+      onToolCall: async (tc: ToolCall) => {
+        return executeToolCall(p, tc);
+      },
+    });
+
+    // 模型回复存入会话
+    for (const m of result.messages.slice(history.length)) {
+      await addMessage(p.dir, session.id, {
+        role: m.role as ChatEntry["role"],
+        content: m.content ?? "",
+        ...(m.tool_calls ? { toolCalls: m.tool_calls } : {}),
+      });
+    }
+
+    const diags = result.error ? [err(X.IO, p.rel, { kind: "key", name: "ai" }, result.error)] : [];
+    const chVal: "a" | "b" = ch;
+    return envelope<{ sessionId: string; channel: "a" | "b"; messages: ChatEntry[]; usage: typeof result.usage; interrupted: boolean }>({
+      sessionId: session.id,
+      channel: chVal,
+      messages: session.messages.slice(-10),
+      usage: result.usage,
+      interrupted: result.interrupted,
+    }, diags, {});
+  }
+
+  // 通道 B：走 Claude Code 子进程（M2-3，后续实现）
+  return envelope<{ sessionId: string; channel: "a" | "b"; messages: ChatEntry[]; usage: null; interrupted: boolean; status: string }>({
+    sessionId: session.id,
+    channel: ch as "a" | "b",
+    messages: session.messages.slice(-10),
+    usage: null,
+    interrupted: false,
+    status: "通道 B 未实现",
+  }, [], {});
+}));
+
+server.registerTool("list_chats", {
+  title: "列出会话",
+  description: "列出当前项目的所有 AI 会话。",
+  inputSchema: { project: z.string() },
+}, async ({ project }) => run(async () => {
+  const p = await loadProject(project);
+  const r = await listChats(p.dir);
+  return envelope(r, [], {});
+}));
+
+server.registerTool("delete_chat", {
+  title: "删除会话",
+  description: "删除一个 AI 会话。",
+  inputSchema: { project: z.string(), sessionId: z.string() },
+}, async ({ project, sessionId }) => run(async () => {
+  const p = await loadProject(project);
+  const ok = await deleteChat(p.dir, sessionId);
+  const diags = ok ? [] : [err(X.IO, p.rel, { kind: "key", name: "chat" }, `会话 ${sessionId} 不存在`)];
+  return envelope({ deleted: ok }, diags, {});
 }));
 
 // ──────────────────────────── 启动 ────────────────────────────
