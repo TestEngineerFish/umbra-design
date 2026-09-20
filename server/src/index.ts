@@ -37,6 +37,7 @@ import { revertTo, setProp } from "./edit.js";
 import { touchProject, listRecentProjects, removeRecentProject, clearRecentProjects } from "./workspace.js";
 import { buildRefGraph, listReferences, renameDraft, moveDraft, deleteDraft, deleteDraftImpact, listTrash, restoreDraft } from "./refs.js";
 import { globalSearch } from "./search.js";
+import { setTokenValue } from "./token_edit.js";
 
 const VERSION = "0.1.0";
 
@@ -553,6 +554,31 @@ server.registerTool("global_search", {
     scanned: r.scanned,
     query: r.query,
   });
+}));
+
+// ─────────────────────── 设计系统编辑 ─────────────────────
+
+server.registerTool("set_token_value", {
+  title: "修改 token 取值",
+  description: [
+    "只改 token 的取值，不改结构（不增删 token、不改层级）。",
+    "改之前自动分析影响面：哪些稿引用了这个 token。",
+    "改完后受影响的稿在下一次渲染时会反映新值。",
+    "新旧值相同时不会写入文件，直接返回。",
+  ].join("\n"),
+  inputSchema: {
+    project: z.string(),
+    path: z.string().describe("token 的点号路径，如 color.light.danger"),
+    value: z.string().describe("新取值（字符串）"),
+  },
+}, async ({ project, path, value }) => run(async () => {
+  const p = await loadProject(project);
+  const r = await setTokenValue(p, path, value);
+  const diags = r.changed ? [] : [
+    err(X.IO, p.rel, { kind: "key", name: "token" },
+      `token ${path} 的取值未改变：${r.oldValue}`),
+  ];
+  return envelope(r, diags, { affected: r.affectedDrafts });
 }));
 
 // ───────────────────────── 组件契约 ─────────────────────────
