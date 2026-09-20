@@ -1,0 +1,8 @@
+{
+  "name": "umbradesign-ui",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@tauri-apps/api": "^2.11.1"
+  }
+}

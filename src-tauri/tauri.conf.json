@@ -9,6 +9,7 @@
     "beforeBuildCommand": "npm --prefix server run build"
   },
   "app": {
+    "withGlobalTauri": true,
     "windows": [
       {
         "title": "UmbraDesign",
