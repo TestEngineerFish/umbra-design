@@ -12,6 +12,7 @@ use tauri_plugin_store::StoreExt;
 const STORE_FILE: &str = "store.json";
 const RECENT_KEY: &str = "recentProjects";
 const MAX_RECENT: usize = 10;
+const SESSION_MARKER: &str = ".session_active";
 
 /// 管理 MCP server 子进程的生命周期
 struct SidecarState(Mutex<Option<(Child, u64)>>);
@@ -20,6 +21,37 @@ struct SidecarState(Mutex<Option<(Child, u64)>>);
 struct SecondInstancePayload {
     args: Vec<String>,
     cwd: String,
+}
+
+/// 检查上次是否非正常退出
+fn check_crash_recovery(app: &tauri::AppHandle) -> bool {
+    let data_dir = match app.path().app_data_dir() {
+        Ok(d) => d,
+        Err(_) => return false,
+    };
+    let marker = data_dir.join(SESSION_MARKER);
+    if marker.exists() {
+        eprintln!("[crash-recovery] 检测到上次非正常退出，marker 仍然存在");
+        return true;
+    }
+    false
+}
+
+/// 标记 session 为活跃
+fn mark_session_active(app: &tauri::AppHandle) {
+    if let Ok(data_dir) = app.path().app_data_dir() {
+        let _ = std::fs::create_dir_all(&data_dir);
+        let marker = data_dir.join(SESSION_MARKER);
+        let _ = std::fs::write(&marker, format!("{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)));
+    }
+}
+
+/// 标记 session 为正常退出
+fn mark_session_clean(app: &tauri::AppHandle) {
+    if let Ok(data_dir) = app.path().app_data_dir() {
+        let marker = data_dir.join(SESSION_MARKER);
+        let _ = std::fs::remove_file(marker);
+    }
 }
 
 fn get_recent(app: &tauri::AppHandle) -> Vec<String> {
@@ -440,6 +472,18 @@ pub fn run() {
                 menu_event_handler(app, &id);
             });
 
+            // 崩溃恢复：检查上次是否非正常退出
+            if check_crash_recovery(app.handle()) {
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.emit("crash-recovery-detected", serde_json::json!({
+                        "message": "检测到上次非正常退出，未保存的改动可能已丢失",
+                    }));
+                }
+            }
+
+            // 标记 session 为活跃
+            mark_session_active(app.handle());
+
             // 启动时自动启动 sidecar
             let state = app.state::<SidecarState>();
             match start_sidecar(app.handle().clone(), state.clone()) {
@@ -448,6 +492,20 @@ pub fn run() {
             }
 
             Ok(())
+        })
+        // 正常退出时清理
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { .. } = event {
+                let app = window.app_handle();
+                // 清理 session marker
+                mark_session_clean(app);
+                // 停止 sidecar
+                let state = app.state::<SidecarState>();
+                match stop_sidecar(state.clone()) {
+                    Ok(msg) => println!("[sidecar] {}", msg),
+                    Err(e) => eprintln!("[sidecar] {}", e),
+                }
+            }
         })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
