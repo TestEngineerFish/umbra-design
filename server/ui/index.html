@@ -628,7 +628,7 @@ async function fetchDrafts() {
 
 async function fetchDiagnostics(file) {
   try {
-    const res = await apiFetch('validate&file=' + encodeURIComponent(file));
+    const res = await apiFetch('validate?file=' + encodeURIComponent(file));
     if (res.ok && res.data) {
       state.diags = res.data.diags || [];
       // 从 stats 提取元素数
@@ -649,7 +649,7 @@ async function fetchDiagnostics(file) {
 
 async function fetchChanges(file) {
   try {
-    const res = await apiFetch('changes&file=' + encodeURIComponent(file));
+    const res = await apiFetch('changes?file=' + encodeURIComponent(file));
     if (res.ok && res.data && res.data.diff) {
       state.changes = (res.data.diff.changes || []).map(c => ({
         type: c.type || '变更',
@@ -810,7 +810,7 @@ async function pollJob(jobId) {
   for (let i = 0; i < 60; i++) {
     await sleep(2000);
     try {
-      const res = await apiFetch('check_status&job=' + encodeURIComponent(jobId));
+      const res = await apiFetch('check_status?job=' + encodeURIComponent(jobId));
       if (res.ok && res.data) {
         const d = res.data;
         if (d.status === 'done') {
