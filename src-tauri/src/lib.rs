@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use std::io::{BufRead, BufReader, Write};
 use std::path::PathBuf;
 use std::process::{Child, Stdio};
 use std::sync::Mutex;
@@ -45,8 +46,13 @@ fn add_recent(app: &tauri::AppHandle, path: String) {
 fn menu_event_handler(app: &tauri::AppHandle, id: &str) {
     match id {
         "new_project" => {
-            if let Some(window) = app.get_webview_window("main") {
-                let _ = window.emit("menu-action", "new-project");
+            // 打开新建项目对话框
+            let result = app.dialog().file().blocking_pick_folder();
+            if let Some(path) = result {
+                let path_str = path.to_string();
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.emit("new-project-folder", path_str);
+                }
             }
         }
         "open_project" => {
@@ -186,7 +192,6 @@ fn refresh_menu(app: &tauri::AppHandle) -> Result<(), tauri::Error> {
 
 /// 找到 server/dist/index.js 的绝对路径
 fn find_server_path() -> Option<String> {
-    // 开发模式：从 src-tauri 向上找仓库根目录
     let mut current = std::env::current_exe().ok()?;
     for _ in 0..10 {
         if let Some(parent) = current.parent() {
@@ -197,8 +202,59 @@ fn find_server_path() -> Option<String> {
             }
         }
     }
-    // 生产模式：从资源目录找
     None
+}
+
+/// 通过 sidecar 的 stdin/stdout 发送一条 MCP JSON-RPC 消息，读取响应
+fn send_mcp_message(
+    state: &SidecarState,
+    method: &str,
+    params: serde_json::Value,
+    id: u64,
+) -> Result<serde_json::Value, String> {
+    let mut guard = state.0.lock().unwrap();
+    let child = guard.as_mut().ok_or("sidecar 未运行")?;
+
+    // 构造 JSON-RPC 请求
+    let request = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": id,
+        "method": method,
+        "params": params,
+    });
+    let request_str = serde_json::to_string(&request).map_err(|e| format!("序列化失败: {}", e))?;
+
+    // 写入 stdin
+    let stdin = child.stdin.as_mut().ok_or("无法访问 sidecar stdin")?;
+    writeln!(stdin, "{}", request_str).map_err(|e| format!("写入 stdin 失败: {}", e))?;
+
+    // 从 stdout 读取响应（跳过空行）
+    let stdout = child.stdout.as_mut().ok_or("无法访问 sidecar stdout")?;
+    let mut reader = BufReader::new(stdout);
+    let mut line = String::new();
+    loop {
+        line.clear();
+        let n = reader.read_line(&mut line).map_err(|e| format!("读取 stdout 失败: {}", e))?;
+        if n == 0 {
+            return Err("sidecar stdout 已关闭".to_string());
+        }
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue; // 跳过空行
+        }
+        // 解析 JSON 响应
+        let response: serde_json::Value = serde_json::from_str(trimmed)
+            .map_err(|e| format!("解析响应失败: {} (原始: {})", e, trimmed))?;
+
+        // 检查是否是我们要的 id 的响应
+        if response.get("id").and_then(|v| v.as_u64()) == Some(id) {
+            if let Some(error) = response.get("error") {
+                return Err(format!("MCP 错误: {}", error));
+            }
+            return Ok(response.get("result").cloned().unwrap_or(serde_json::Value::Null));
+        }
+        // 否则是其他消息（比如通知），继续读下一行
+    }
 }
 
 /// 启动 MCP server 子进程
@@ -212,7 +268,6 @@ fn start_sidecar(state: State<'_, SidecarState>) -> Result<String, String> {
     let server_path = find_server_path()
         .ok_or_else(|| "找不到 server/dist/index.js —— 请先运行 npm --prefix server run build".to_string())?;
 
-    // 用 shell 执行 node，因为 node 不在 externalBin 里
     let node_path = if cfg!(windows) { "node.exe" } else { "node" };
 
     let result = std::process::Command::new(node_path)
@@ -236,14 +291,12 @@ fn start_sidecar(state: State<'_, SidecarState>) -> Result<String, String> {
 fn stop_sidecar(state: State<'_, SidecarState>) -> Result<String, String> {
     let mut guard = state.0.lock().unwrap();
     if let Some(mut child) = guard.take() {
-        // 先尝试优雅退出 (SIGTERM on Unix)
         #[cfg(unix)]
         {
             let pid = child.id();
             unsafe {
                 libc::kill(pid as i32, libc::SIGTERM);
             }
-            // 等 2 秒，如果还在就 kill
             for _ in 0..20 {
                 match child.try_wait() {
                     Ok(Some(_)) => return Ok("stopped".to_string()),
@@ -252,7 +305,6 @@ fn stop_sidecar(state: State<'_, SidecarState>) -> Result<String, String> {
                 }
             }
         }
-        // 强制终止
         let _ = child.kill();
         Ok("stopped".to_string())
     } else {
@@ -273,6 +325,50 @@ fn get_sidecar_status(state: State<'_, SidecarState>) -> Result<serde_json::Valu
             "status": "stopped",
         }))
     }
+}
+
+/// 创建新项目（通过 sidecar 调用 create_project MCP 工具）
+#[tauri::command]
+fn create_project_command(
+    state: State<'_, SidecarState>,
+    name: String,
+    dir: String,
+    title: Option<String>,
+) -> Result<serde_json::Value, String> {
+    let params = serde_json::json!({
+        "name": name,
+        "dir": dir,
+        "title": title.unwrap_or_default(),
+        "initGit": true,
+    });
+
+    let result = send_mcp_message(
+        &state,
+        "tools/call",
+        serde_json::json!({
+            "name": "create_project",
+            "arguments": params,
+        }),
+        1, // 固定 id，因为一次只调用一个工具
+    )?;
+
+    Ok(result)
+}
+
+/// 列出当前已有的项目
+#[tauri::command]
+fn list_projects_command(state: State<'_, SidecarState>) -> Result<serde_json::Value, String> {
+    let result = send_mcp_message(
+        &state,
+        "tools/call",
+        serde_json::json!({
+            "name": "list_projects",
+            "arguments": {},
+        }),
+        2,
+    )?;
+
+    Ok(result)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -311,6 +407,8 @@ pub fn run() {
             start_sidecar,
             stop_sidecar,
             get_sidecar_status,
+            create_project_command,
+            list_projects_command,
         ])
         .setup(|app| {
             let menu = build_menu(app.handle())?;
@@ -329,12 +427,6 @@ pub fn run() {
             }
 
             Ok(())
-        })
-        .on_window_event(|_window, event| {
-            // 窗口关闭时清理 sidecar
-            if let tauri::WindowEvent::CloseRequested { .. } = event {
-                // 这里不需要阻止关闭，在 exit 钩子里清理
-            }
         })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
