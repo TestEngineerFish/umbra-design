@@ -216,7 +216,6 @@ function invoke(cmd, args) {
 // 需要从中提取并解析真正的业务数据
 function parseMcpResult(raw) {
   if (!raw) return null;
-  // 如果已经是普通对象（非 MCP 格式），直接返回
   if (raw.content && Array.isArray(raw.content) && raw.content.length > 0) {
     const text = raw.content[0].text;
     try {
@@ -667,10 +666,13 @@ async function openProjectDir(dir) {
   state.loading = true;
   render();
   try {
-    // 1. serve_start → 拿 URL + token
     const raw = await invoke('open_project_command', { dir });
     const serve = parseMcpResult(raw);
-    if (!serve || !serve.data?.url) throw new Error('serve_start 未返回 URL');
+    if (!serve?.ok) {
+      const errMsg = serve?.errors?.[0]?.message || '未知错误';
+      throw new Error(errMsg);
+    }
+    if (!serve.data?.url) throw new Error('serve_start 未返回 URL');
     const info = serve.data;
 
     state.project = {
