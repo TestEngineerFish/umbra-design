@@ -579,18 +579,27 @@ function selectDraft(file) {
 
 // ── API 调用 ──────────────────────────────────────────
 function apiUrl(path) {
-  return state.project.url.replace(/\/$/, '') + '/__ud/' + path + '?token=' + encodeURIComponent(state.project.token);
+  const url = state.project.url.replace(/\/$/, '') + '/__ud/' + path + '?token=' + encodeURIComponent(state.project.token);
+  console.log('[apiUrl]', path, '→', url);
+  return url;
 }
 
 async function apiFetch(path) {
-  const r = await fetch(apiUrl(path));
+  const url = apiUrl(path);
+  console.log('[apiFetch] →', url);
+  const r = await fetch(url);
+  console.log('[apiFetch] ←', r.status, r.statusText);
   if (!r.ok) throw new Error(`API ${r.status}: ${r.statusText}`);
-  return r.json();
+  const json = await r.json();
+  console.log('[apiFetch] data keys:', Object.keys(json));
+  return json;
 }
 
 async function fetchDrafts() {
+  console.log('[fetchDrafts] starting');
   try {
     const res = await apiFetch('drafts');
+    console.log('[fetchDrafts] response:', JSON.stringify(res).slice(0, 500));
     if (res.ok && res.data) {
       // 只有文件列表，需要走 validate 拿详情
       state.drafts = (res.data.files || []).map(f => ({
@@ -606,9 +615,13 @@ async function fetchDrafts() {
         imports: [],
         importedBy: [],
       }));
+      console.log('[fetchDrafts] loaded', state.drafts.length, 'drafts');
       render();
+    } else {
+      console.warn('[fetchDrafts] res.ok=', res.ok, 'res.data=', !!res.data);
     }
   } catch (e) {
+    console.error('[fetchDrafts] error:', e);
     toast('获取稿件列表失败: ' + e.message, 'error');
   }
 }
@@ -682,6 +695,7 @@ async function openProjectDir(dir) {
   try {
     const raw = await invoke('open_project_command', { dir });
     const serve = parseMcpResult(raw);
+    console.log('[openProject] serve parsed:', JSON.stringify(serve).slice(0, 500));
     if (!serve?.ok) {
       const errMsg = serve?.errors?.[0]?.message || '未知错误';
       throw new Error(errMsg);
@@ -690,12 +704,14 @@ async function openProjectDir(dir) {
     const info = serve.data;
 
     state.project = {
-      name: info.project?.name || serve.project || baseName(dir),
+      name: info.project || serve.project || baseName(dir),
       title: info.project?.title || '',
       dir: dir,
       url: info.url,
       token: info.token,
     };
+
+    console.log('[openProject] state.project:', JSON.stringify(state.project));
 
     // 2. 取稿件列表
     await fetchDrafts();
