@@ -19,6 +19,7 @@
     "selftest": "node dist/selftest.js",
     "lifecycletest": "node dist/lifecycletest.js",
     "rendertest": "node dist/rendertest.js",
+    "agenttest": "node dist/agenttest.js",
     "incoming": "node dist/incoming.js"
   },
   "dependencies": {
