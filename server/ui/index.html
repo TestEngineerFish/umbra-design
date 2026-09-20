@@ -211,6 +211,24 @@ function invoke(cmd, args) {
   return T.core.invoke(cmd, args);
 }
 
+// ── MCP 响应解析 ──────────────────────────────────────
+// MCP 工具调用的返回格式：{ content: [{ type: "text", text: "JSON字符串" }], isError: bool }
+// 需要从中提取并解析真正的业务数据
+function parseMcpResult(raw) {
+  if (!raw) return null;
+  // 如果已经是普通对象（非 MCP 格式），直接返回
+  if (raw.content && Array.isArray(raw.content) && raw.content.length > 0) {
+    const text = raw.content[0].text;
+    try {
+      return JSON.parse(text);
+    } catch (e) {
+      console.warn('[app] MCP 响应解析失败:', e, '原始:', text);
+      return raw;
+    }
+  }
+  return raw;
+}
+
 // ── Mock 数据（开发时 Tauri API 不可用时的兜底） ──
 async function mockInvoke(cmd, args) {
   if (cmd === 'get_sidecar_status') return { status: 'running' };
@@ -266,8 +284,8 @@ function render() {
 async function renderWelcome() {
   let recent = [];
   try {
-    const r = await invoke('get_recent_projects_command');
-    recent = r.projects || [];
+    const r = parseMcpResult(await invoke('get_recent_projects_command'));
+    recent = r?.projects || [];
   } catch (e) { /* ignore */ }
 
   appEl.innerHTML = `
@@ -650,15 +668,17 @@ async function openProjectDir(dir) {
   render();
   try {
     // 1. serve_start → 拿 URL + token
-    const serve = await invoke('open_project_command', { dir });
-    if (!serve || !serve.url) throw new Error('serve_start 未返回 URL');
+    const raw = await invoke('open_project_command', { dir });
+    const serve = parseMcpResult(raw);
+    if (!serve || !serve.data?.url) throw new Error('serve_start 未返回 URL');
+    const info = serve.data;
 
     state.project = {
-      name: serve.project?.name || baseName(dir),
-      title: serve.project?.title || '',
+      name: info.project?.name || serve.project || baseName(dir),
+      title: info.project?.title || '',
       dir: dir,
-      url: serve.url,
-      token: serve.token,
+      url: info.url,
+      token: info.token,
     };
 
     // 2. 取稿件列表
@@ -682,12 +702,13 @@ async function handleNewProject() {
     const name = prompt('项目名称（英文/数字）:');
     if (!name) return;
     const title = prompt('项目标题（可选，中文描述）:') || '';
-    const result = await invoke('create_project_command', { name, dir, title: title || undefined });
-    if (result && result.project) {
-      toast('项目创建成功: ' + (result.project.name || name), 'success');
-      await openProjectDir(result.project.dir || join(dir, name));
+    const result = parseMcpResult(await invoke('create_project_command', { name, dir, title: title || undefined }));
+    if (result?.ok && result.data) {
+      const created = result.data;
+      toast('项目创建成功: ' + (created.name || name), 'success');
+      await openProjectDir(created.dir || join(dir, name));
     } else {
-      toast('创建结果异常，请检查输出', 'error');
+      toast('创建结果异常: ' + (result?.errors?.[0]?.message || '未知错误'), 'error');
     }
   } catch (e) {
     toast('创建项目失败: ' + e.message, 'error');
@@ -697,7 +718,7 @@ async function handleNewProject() {
 async function handleCloseProject() {
   if (state.project) {
     try {
-      await invoke('close_project_command', { name: state.project.name });
+      parseMcpResult(await invoke('close_project_command', { name: state.project.name }));
     } catch (_) { /* ignore */ }
   }
   state.project = null;
@@ -712,13 +733,17 @@ async function handleBuildIndex() {
   if (!state.project) return;
   toast('正在重建索引…', 'success');
   try {
-    await invoke('invoke_mcp_command', {
+    const res = parseMcpResult(await invoke('invoke_mcp_command', {
       tool: 'build_index',
       args: { project: state.project.name },
       msg_id: Date.now(),
-    });
-    toast('索引重建完成', 'success');
-    await fetchDrafts();
+    }));
+    if (res?.ok) {
+      toast('索引重建完成', 'success');
+      await fetchDrafts();
+    } else {
+      toast('索引重建失败: ' + (res?.errors?.[0]?.message || '未知错误'), 'error');
+    }
   } catch (e) {
     toast('索引重建失败: ' + e.message, 'error');
   }
