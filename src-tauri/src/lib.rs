@@ -14,7 +14,7 @@ const RECENT_KEY: &str = "recentProjects";
 const MAX_RECENT: usize = 10;
 
 /// 管理 MCP server 子进程的生命周期
-struct SidecarState(Mutex<Option<Child>>);
+struct SidecarState(Mutex<Option<(Child, u64)>>);
 
 #[derive(Clone, serde::Serialize)]
 struct SecondInstancePayload {
@@ -190,13 +190,19 @@ fn refresh_menu(app: &tauri::AppHandle) -> Result<(), tauri::Error> {
     Ok(())
 }
 
-/// 找到 server/dist/index.js 的绝对路径
-fn find_server_path() -> Option<String> {
-    let mut current = std::env::current_exe().ok()?;
-    for _ in 0..10 {
-        if let Some(parent) = current.parent() {
-            current = parent.to_path_buf();
-            let candidate = current.join("server").join("dist").join("index.js");
+/// 找到捆绑的 Node.js 或回退到系统 Node
+fn find_node_path(app: &tauri::AppHandle) -> Option<String> {
+    // 尝试 Tauri 的 sidecar 路径（打包后）
+    let resource_dir = app.path().resource_dir().ok()?;
+    let bundled_node = resource_dir.join("binaries").join("node");
+    if bundled_node.exists() {
+        return bundled_node.to_str().map(|s| s.to_string());
+    }
+    // 开发模式：回退到系统 Node
+    let node_name = if cfg!(windows) { "node.exe" } else { "node" };
+    if let Ok(path) = std::env::var("PATH") {
+        for dir in path.split(':') {
+            let candidate = PathBuf::from(dir).join(node_name);
             if candidate.exists() {
                 return candidate.to_str().map(|s| s.to_string());
             }
@@ -213,9 +219,10 @@ fn send_mcp_message(
     id: u64,
 ) -> Result<serde_json::Value, String> {
     let mut guard = state.0.lock().unwrap();
-    let child = guard.as_mut().ok_or("sidecar 未运行")?;
+    let (child, seq) = guard.as_mut()
+        .ok_or("sidecar 未运行")?;
+    *seq = id;
 
-    // 构造 JSON-RPC 请求
     let request = serde_json::json!({
         "jsonrpc": "2.0",
         "id": id,
@@ -224,11 +231,9 @@ fn send_mcp_message(
     });
     let request_str = serde_json::to_string(&request).map_err(|e| format!("序列化失败: {}", e))?;
 
-    // 写入 stdin
     let stdin = child.stdin.as_mut().ok_or("无法访问 sidecar stdin")?;
     writeln!(stdin, "{}", request_str).map_err(|e| format!("写入 stdin 失败: {}", e))?;
 
-    // 从 stdout 读取响应（跳过空行）
     let stdout = child.stdout.as_mut().ok_or("无法访问 sidecar stdout")?;
     let mut reader = BufReader::new(stdout);
     let mut line = String::new();
@@ -240,38 +245,54 @@ fn send_mcp_message(
         }
         let trimmed = line.trim();
         if trimmed.is_empty() {
-            continue; // 跳过空行
+            continue;
         }
-        // 解析 JSON 响应
         let response: serde_json::Value = serde_json::from_str(trimmed)
             .map_err(|e| format!("解析响应失败: {} (原始: {})", e, trimmed))?;
 
-        // 检查是否是我们要的 id 的响应
         if response.get("id").and_then(|v| v.as_u64()) == Some(id) {
             if let Some(error) = response.get("error") {
                 return Err(format!("MCP 错误: {}", error));
             }
             return Ok(response.get("result").cloned().unwrap_or(serde_json::Value::Null));
         }
-        // 否则是其他消息（比如通知），继续读下一行
     }
+}
+
+/// 找到 server/dist/index.js 的绝对路径
+fn find_server_script() -> Option<String> {
+    let mut current = std::env::current_exe().ok()?;
+    for _ in 0..10 {
+        if let Some(parent) = current.parent() {
+            current = parent.to_path_buf();
+            let candidate = current.join("server").join("dist").join("index.js");
+            if candidate.exists() {
+                return candidate.to_str().map(|s| s.to_string());
+            }
+        }
+    }
+    None
 }
 
 /// 启动 MCP server 子进程
 #[tauri::command]
-fn start_sidecar(state: State<'_, SidecarState>) -> Result<String, String> {
+fn start_sidecar(
+    app: tauri::AppHandle,
+    state: State<'_, SidecarState>,
+) -> Result<String, String> {
     let mut guard = state.0.lock().unwrap();
     if guard.is_some() {
         return Ok("already_running".to_string());
     }
 
-    let server_path = find_server_path()
+    let node_path = find_node_path(&app)
+        .ok_or_else(|| "找不到 Node.js —— 请先安装 Node.js >= 20".to_string())?;
+
+    let script_path = find_server_script()
         .ok_or_else(|| "找不到 server/dist/index.js —— 请先运行 npm --prefix server run build".to_string())?;
 
-    let node_path = if cfg!(windows) { "node.exe" } else { "node" };
-
-    let result = std::process::Command::new(node_path)
-        .arg(&server_path)
+    let result = std::process::Command::new(&node_path)
+        .arg(&script_path)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -279,7 +300,7 @@ fn start_sidecar(state: State<'_, SidecarState>) -> Result<String, String> {
 
     match result {
         Ok(child) => {
-            *guard = Some(child);
+            *guard = Some((child, 0));
             Ok("started".to_string())
         }
         Err(e) => Err(format!("启动失败: {}", e)),
@@ -290,7 +311,7 @@ fn start_sidecar(state: State<'_, SidecarState>) -> Result<String, String> {
 #[tauri::command]
 fn stop_sidecar(state: State<'_, SidecarState>) -> Result<String, String> {
     let mut guard = state.0.lock().unwrap();
-    if let Some(mut child) = guard.take() {
+    if let Some((mut child, _)) = guard.take() {
         #[cfg(unix)]
         {
             let pid = child.id();
@@ -421,7 +442,7 @@ pub fn run() {
 
             // 启动时自动启动 sidecar
             let state = app.state::<SidecarState>();
-            match start_sidecar(state.clone()) {
+            match start_sidecar(app.handle().clone(), state.clone()) {
                 Ok(msg) => println!("[sidecar] {}", msg),
                 Err(e) => eprintln!("[sidecar] {}", e),
             }
