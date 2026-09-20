@@ -411,7 +411,7 @@ fn create_project_command(
 /// 列出当前已有的项目
 #[tauri::command]
 fn list_projects_command(state: State<'_, SidecarState>) -> Result<serde_json::Value, String> {
-    let result = send_mcp_message(
+    let raw = send_mcp_message(
         &state,
         "tools/call",
         serde_json::json!({
@@ -421,7 +421,8 @@ fn list_projects_command(state: State<'_, SidecarState>) -> Result<serde_json::V
         2,
     )?;
 
-    Ok(result)
+    // 解析 MCP 响应格式
+    parse_mcp_text(&raw)
 }
 
 /// 打开项目 + 启动 HTTP 服务，返回预览所需的 URL 和令牌
