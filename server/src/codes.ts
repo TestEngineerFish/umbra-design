@@ -14,6 +14,10 @@ export const E = {
   CONTROL_IN_TABLE: "E_CONTROL_IN_TABLE",
   /** set_prop 的目标不是字面量（值来自洞），不能直接覆盖 —— doc/09 §3.2 */
   SLOT_NOT_EDITABLE: "E_SLOT_NOT_EDITABLE",
+  /** 模板里有洞，却没有逻辑类 —— 没有东西能填它们，整页的洞都渲染成空 */
+  HOLES_WITHOUT_LOGIC: "E_HOLES_WITHOUT_LOGIC",
+  /** 有 <x-dc> 却没引 support.js —— 运行时根本不加载，模板原样当 HTML 显示 */
+  RUNTIME_NOT_LOADED: "E_RUNTIME_NOT_LOADED",
 } as const;
 
 /** warning：放行但必须回报（00 §6.2） */

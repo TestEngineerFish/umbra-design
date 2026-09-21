@@ -102,6 +102,38 @@ export function validateDraft(p: Project, relPath: string, src: string, fileLabe
   const builtin = new Set(["children", "$index"]);
   const auditable = !audit.opaque && !audit.missing && logicOk;
 
+  /* ⚠️ 漏报补丁（2026-09-21）：**没有逻辑类 ≠ 没有洞要审**。
+   *
+   * 原来 `audit.missing` 一律把整块洞审计跳过，理由写的是「纯静态稿」。
+   * 但「纯静态稿」的真正判据是**模板里没有洞**，不是「没有逻辑类」——
+   * 一份有 108 个洞却没有逻辑类的稿，每个洞都没有东西能填，
+   * 运行时会把它们全渲染成空，而校验器报**零 error**。
+   *
+   * 实测踩到：S6 / S9 / S10 三份新稿就是这样混过去的（108 / 47 / 57 个洞，
+   * 零 error），而它们连 support.js 都没引，根本不会 boot。
+   * 这是**漏报**——和「不许误报」是同一条纪律的两面：工具说干净就必须真干净。
+   */
+  const realHoles = d.holes.filter((h) => h.root && !h.literal);
+  if (!d.logic && realHoles.length) {
+    const names = [...new Set(realHoles.map((h) => h.root as string))];
+    diags.push(err(E.HOLES_WITHOUT_LOGIC, f, { kind: "hole", name: names.slice(0, 3).join(", ") },
+      `模板里有 ${realHoles.length} 个洞（${names.length} 个根名），但这份稿没有逻辑类 —— ` +
+      `没有任何东西能填它们，运行时会把它们全渲染成空`,
+      { ...(realHoles[0]?.pos ?? {}),
+        fix: '补一段 `<script type="text/x-dc" data-dc-script data-props="{}">`，' +
+             "里面写 `class Component extends DCLogic { renderVals() { return { … } } }`；" +
+             "真的不需要数据就把模板里的洞去掉（doc/02 §一）" }));
+  }
+
+  /* 有 <x-dc> 却没引 support.js：运行时不加载，浏览器把模板当普通 HTML 显示，
+     `{{ … }}` 原样出现在画面上。这条和上面那条经常同时犯 —— 都是「骨架没写全」。 */
+  if (d.template && !/<script[^>]*\ssrc\s*=\s*["'][^"']*support\.js["']/i.test(d.src)) {
+    diags.push(err(E.RUNTIME_NOT_LOADED, f, { kind: "tag", name: "script[src=support.js]" },
+      "有 <x-dc> 模板，却没有引 support.js —— 运行时根本不加载，整份稿不会渲染",
+      { fix: '在 <head> 里加 `<script src="./support.js"></script>`；' +
+             "运行时三件套要与稿同层（check_runtime 可以查）" }));
+  }
+
   if (auditable) {
     const valid = new Set([...audit.union, ...propKeys, ...aliases, ...builtin]);
 
