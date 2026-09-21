@@ -128,7 +128,8 @@ claude mcp add umbradesign -- node <仓库绝对路径>/server/dist/index.js
 | `npm --prefix server run lifecycletest` | 生命周期回归（建/改/删/恢复全流程） |
 | `npm --prefix server run rendertest` | 渲染回归（要浏览器） |
 | `npm --prefix server run ui -- <项目名>` | 起界面给人用 |
-| `npm --prefix server run incoming` | 接设计侧交回来的稿（`ui/_incoming/`） |
+| `npm --prefix server run outgoing` | 给设计侧打包 ui/（每份稿插 baseline 行），产出 `outgoing/UmbraDesign-ui-<时间>.zip`；**每一轮交办都要随附这个包**（`doc/00` §三十二） |
+| `npm --prefix server run incoming` | 接设计侧交回来的稿（`ui/_incoming/`），先查底稿（正确 / 过时 / 不明），再查合法性与接线标记 |
 
 ---
 

@@ -2486,3 +2486,30 @@ S10 已改 `type="text" inputmode="decimal"`。**S2 的属性面板一直是这�
 
 【实测】19 条基准全过 · 界面稿零 error · 语料零误报（`W_HOLE_IN_PARSED_ATTR`
 仍是 158 条，说明新判据在语料上一条都没多报）。
+
+## 三十二、设计侧的 ui/ 只到 S7：两棵 ui/ 树，从没同步过
+
+**现象**：Sam 把 ClaudeDesign 项目里的 ui/ 导出到 `表单色板与布局方案/ui`，只有 S1–S7 + IconGlyph；开发侧 `ui/` 已到 S10。
+
+**根因【已核实】**：ClaudeDesign 的项目在云端，**只拥有被上传过的东西**。我们一直只发文档（它的 uploads/ 里只有 6 份 .md，没有一份 .dc.html），所以：
+
+- 它没有 S6 / S8 / S9 / S10 —— 这几屏是开发侧建的，它从没收到过；
+- 它的 S1 / S2 是**接线之前的老底稿**（`LIVE` 出现 0 次）。它按 §三 改完交回的 S1 / S2 丢了全部接线：S1 915→660 行、少 27 个键（含生命周期入口），S2 1495→726 行、少 54 个键（含属性面板）；接线标记 4/4、8/8 全丢；
+- 它的 S3 / S4 / S5 / S7 / IconGlyph 与上一轮字节一致（这一轮没动）。
+
+它自己没做错：它在自己仅有的文件上干活。错在协议 —— 只发文档、不发文件。
+
+**处置**：不在开发侧手工移植它的 S1 / S2（那是把设计判断搬进开发侧，且底稿不对）。改成把正确底稿发过去，让它在上面重做；它已经给出的裁决（`14` §0.4）由我们实现（`12` M5-8/9/10）。
+
+**新协议（工具化，不靠记性）**：
+
+| 环节 | 做什么 |
+| --- | --- |
+| `npm run outgoing` | 拷 `ui/*.dc.html` + `_ds-tool` + `_demo`，每份稿 `<head>` 后插一行 `<!-- umbradesign:baseline file sha sent -->`（sha = 正本内容 sha256 前 16 位），写 `README-给设计侧.md`，打成 `outgoing/UmbraDesign-ui-<时间>.zip`；发件记录写 `.umbradesign/outgoing/<时间>.json`。正本里若已有 baseline 行则拒绝打包 |
+| 设计侧 | 整体替换它项目里的同名文件；**保留 baseline 行**；交回放 `ui/_incoming/` |
+| `npm run incoming` | ⓪ 底稿检查（覆盖现有文件的稿）：无标记 → **底稿不明**（blocking）；sha ≠ 当前正本 → **底稿过时**，提示三方合并，共同祖先 = 对应 zip 里的同名文件；一致 → **底稿正确**。之后剥掉 baseline 行，照旧在叠加目录里做合法性 + 接线标记检查 |
+
+`BASELINE_RE / shaOf / readBaseline / stripBaseline` 在 `server/src/baseline.ts`，outgoing 与 incoming 共用（outgoing 有顶层副作用，不能被 import）。
+
+**往返实测【实测】**：用包里的 S1 原样改一处文案放进 `_incoming` → 底稿正确、接线 4/4、行数 +1；改动 sha → 底稿过时；这一轮设计侧交回的真实 S1 / S2 → 底稿不明（blocking），正是本节要拦的情况。
+

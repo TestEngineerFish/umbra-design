@@ -43,7 +43,8 @@ npm --prefix server run build
 ```bash
 npm --prefix server run selftest     # 静态：基准 14 份 + 界面稿 7 份 + 语料（有就跑）
 npm --prefix server run rendertest   # 渲染：15 份基准，真开浏览器
-npm --prefix server run incoming     # 接设计侧交回来的稿（见 doc/00 §二十七）
+npm --prefix server run outgoing     # 给设计侧打包 ui/ → outgoing/*.zip（见 doc/00 §三十二）
+npm --prefix server run incoming     # 接设计侧交回来的稿，先查底稿（见 doc/00 §二十七、§三十二）
 ```
 
 `selftest` 的判据是三档：**基准精确匹配 · 界面稿零 error · 语料零误报**。

@@ -22,6 +22,9 @@ fixtures/**/react-dom.production.min.js
 # 进来的是别人那边的版本，移植完就没用了 —— 不追踪，避免和 ui/ 下的正本混起来。
 ui/_incoming/
 
+# 发给设计侧的打包件（npm run outgoing 产出）：每次都能重打，不进仓库
+outgoing/
+
 # 设计侧交付的压缩包：解出来就完了，不进仓库
 *.zip
 

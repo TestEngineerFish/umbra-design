@@ -20,7 +20,8 @@
     "lifecycletest": "node dist/lifecycletest.js",
     "rendertest": "node dist/rendertest.js",
     "agenttest": "node dist/agenttest.js",
-    "incoming": "node dist/incoming.js"
+    "incoming": "node dist/incoming.js",
+    "outgoing": "node dist/outgoing.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",

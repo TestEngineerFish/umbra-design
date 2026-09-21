@@ -27,6 +27,7 @@ import { tmpdir } from "node:os";
 import { TOOL_ROOT, loadProject, listProjectDirs, buildProject, type Project } from "./project.js";
 import { parseDraft, auditRenderVals } from "./draft.js";
 import { validateDraft } from "./validate.js";
+import { readBaseline, shaOf, stripBaseline } from "./baseline.js";
 
 /** 每份壳稿必须保住的接线标记。少一个就是被覆盖掉了。 */
 const WIRING: Record<string, Array<{ mark: string; what: string }>> = {
@@ -106,8 +107,30 @@ async function main(): Promise<void> {
       continue;
     }
 
-    // ① 合法性
-    const v = validateDraft(pStage, f, incoming, f);
+    /* ⓪ 底稿对不对 —— 这是其余所有检查的前提（doc/00 §三十二）。
+       设计侧在云端，只拥有我们上传过的东西。它若在自己那份旧底稿上改，
+       交回来的文件形制也许很好，但我们这边后来加的一切都不在里面 ——
+       而且它自己不可能知道缺了什么（它会真心地说「接线原样保留」）。
+       所以先问「你是在哪一版上改的」，答不上来就别往下看了。 */
+    if (!isNew) {
+      const base = readBaseline(incoming);
+      const cur = await readFile(curPath, "utf8");
+      if (!base) {
+        blocking++;
+        console.log(`     ${red("底稿不明 —— 没有 baseline 标记")}`);
+        console.log(dim("       这份不是在我们用 `npm run outgoing` 发出去的底稿上改的，多半是它自己的旧版本。"));
+        console.log(dim("       做法：先 outgoing 打包发过去，请设计侧在那个包的底稿上重做，别在这份上移植"));
+      } else if (base.sha !== shaOf(cur)) {
+        blocking++;
+        console.log(`     ${ylw(`底稿过时 —— 它基于 ${base.sent ?? "?"} 发出的版本（${base.sha}），我们这边之后又改过（现在 ${shaOf(cur)}）`)}`);
+        console.log(dim(`       做法：三方合并 —— 共同祖先是 outgoing/UmbraDesign-ui-${base.sent ?? "<那次>"}.zip 里的同名文件`));
+      } else {
+        console.log(`     ${grn(`底稿正确 —— 基于 ${base.sent ?? "?"} 发出的现版`)}`);
+      }
+    }
+
+    // ① 合法性（baseline 注释不算稿的内容，校验前拿掉）
+    const v = validateDraft(pStage, f, stripBaseline(incoming), f);
     const errs = v.diags.filter((d) => d.level === "error");
     const warns = v.diags.filter((d) => d.level === "warning");
     console.log(`     校验：${errs.length ? red(`error ${errs.length}`) : grn("error 0")} · warning ${warns.length}` +
