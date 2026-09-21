@@ -83,5 +83,15 @@
   "静态/17-真纯静态稿不报.dc.html": {
     "codes": [],
     "why": "没有洞、也没有逻辑类 —— 这才是真的纯静态稿，必须一条都不报。这一份钉的是**边界**：证明 15 那条检查没有误伤合法写法。"
+  },
+  "静态/18-数字输入框的value写洞要报.dc.html": {
+    "codes": [
+      "W_HOLE_IN_PARSED_ATTR"
+    ],
+    "why": "`<input type=\"number\" value=\"{{ x }}\">` 解析时就按数字校验，控制台留一条 「cannot be parsed, or is out of range」。是 render_check 在 S10 上抓出来的 —— 静态校验当时不认识这个组合（doc/00 §三十一）。修法是改 type=\"text\"。"
+  },
+  "静态/19-数字框的minmax与文本框不报.dc.html": {
+    "codes": [],
+    "why": "边界：实测 6 个探针，**只有** input[type=number] 的 value 会报；min / max / step 不报，type=range 不报（静默夹取），type=text 不报，progress / meter 的 value 不报。这一份钉住「判据没有外推」。"
   }
 }

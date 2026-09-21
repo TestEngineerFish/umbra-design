@@ -4,6 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>S6-版本对比</title>
+<!-- umbradesign:resources -->
+<script>window.__resources = {
+    "https://unpkg.com/react@18.3.1/umd/react.production.min.js": "./react.production.min.js",
+    "https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js": "./react-dom.production.min.js"
+  };</script>
+<!-- /umbradesign:resources -->
+<script src="./support.js"></script>
 </head>
 <body>
 
@@ -238,7 +245,14 @@ body { background: var(--tool-bg); font-family: 'DC', sans-serif; font-size: 13p
 
 </x-dc>
 
-<script>
+<script type="text/x-dc" data-dc-script data-props="{&quot;theme&quot;: { &quot;editor&quot;: &quot;enum&quot;, &quot;options&quot;: [&quot;跟随外层&quot;, &quot;dark&quot;], &quot;default&quot;: &quot;跟随外层&quot;, &quot;tsType&quot;: &quot;'dark'|null&quot;, &quot;section&quot;: &quot;工具皮肤&quot; }}">
+
+/* 地址栏带 ?file= 就是在看真稿；不带就走下面的演示数据 ——
+   一份文件两种用法，和 S1–S4 同一套办法（doc/00 §14.7）。 */
+const LIVE = (function () {
+  try { const q = new URLSearchParams(location.search).get("file"); return q ? decodeURIComponent(q) : null; }
+  catch (e) { return null; }
+})();
 
 const DEMOS = [
   { n: 1, short: "四级都有", name: "正常 · 四级变更都有", note: "L1–L4 各有多条，并排显示" },
@@ -258,6 +272,12 @@ const LEVEL = {
 };
 
 class Component extends DCLogic {
+/* ref 用类字段建：renderVals 首次渲染就会被调用，
+   那时 componentDidMount 还没跑，ref 会是 undefined。 */
+  leftRef = React.createRef();
+  rightRef = React.createRef();
+  barRef = React.createRef();
+
   state = { demo: 1, view: "visual", fromVer: "v216", toVer: "v217", open: {}, scrollLeft: 0, scrollRight: 0 };
 
   goBack() {
@@ -350,6 +370,10 @@ class Component extends DCLogic {
     });
 
     return {
+      goBack: () => this.goBack(),
+      leftRef: this.leftRef,
+      rightRef: this.rightRef,
+      barRef: this.barRef,
       theme: this.props.theme === "dark" ? "dark" : null,
       showDemoBar: !LIVE,
 

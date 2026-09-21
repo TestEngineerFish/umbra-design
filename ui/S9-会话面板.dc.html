@@ -4,6 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>S9-会话面板</title>
+<!-- umbradesign:resources -->
+<script>window.__resources = {
+    "https://unpkg.com/react@18.3.1/umd/react.production.min.js": "./react.production.min.js",
+    "https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js": "./react-dom.production.min.js"
+  };</script>
+<!-- /umbradesign:resources -->
+<script src="./support.js"></script>
 </head>
 <body>
 
@@ -41,6 +48,21 @@ body { background: var(--tool-bg); font-family: 'DC', sans-serif; font-size: 13p
       <button onClick="{{ onChannelB }}" style="padding: 4px 10px; font-size: 11px; border: none; cursor: pointer; background: {{ chanBBg }}; color: {{ chanBFg }}; font-weight: {{ chanBFw }};" style-hover="opacity: .85;">通道 B</button>
     </div>
   </div>
+
+  <!-- ═══ 演示态切换条（只在 ui/ 下直接打开时出现；被工具部署进项目后整行不出现） ═══ -->
+  <sc-if value="{{ showDemoBar }}" hint-placeholder-val="{{ true }}">
+  <div style="display: flex; align-items: center; gap: 8px; padding: 8px 16px; border-bottom: 1px solid var(--tool-border); background: var(--tool-panel-2); flex-wrap: wrap; font-size: 12px;">
+    <span style="font-size: 11px; color: var(--tool-muted); flex: none;">演示态</span>
+    <sc-for list="{{ demoStates }}" as="st" hint-placeholder-count="6">
+      <button type="button" onClick="{{ st.pick }}" title="{{ st.name }}" aria-pressed="{{ st.active }}" style="display: inline-flex; align-items: center; gap: 5px; height: 23px; padding: 0 9px 0 6px; border-radius: var(--tool-radius-sm); border: 1px solid; cursor: pointer; font-size: 11px; white-space: nowrap; transition: background .13s ease, border-color .13s ease, color .13s ease; background: {{ st.bg }}; border-color: {{ st.bd }}; color: {{ st.fg }};" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">
+        <span style="font-family: var(--tool-mono); opacity: 0.6;">{{ st.n }}</span>
+        <span style="font-weight: {{ st.fw }};">{{ st.short }}</span>
+      </button>
+    </sc-for>
+    <span style="color: var(--tool-border-strong); flex: none;">·</span>
+    <span style="color: var(--tool-muted); min-width: 0;">{{ demoNote }}</span>
+  </div>
+  </sc-if>
 
   <!-- ═══ 消息区 ═══ -->
   <div style="flex: 1 1 0; overflow: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px;">
@@ -135,7 +157,7 @@ body { background: var(--tool-bg); font-family: 'DC', sans-serif; font-size: 13p
 
 </x-dc>
 
-<script>
+<script type="text/x-dc" data-dc-script data-props="{&quot;theme&quot;: { &quot;editor&quot;: &quot;enum&quot;, &quot;options&quot;: [&quot;跟随外层&quot;, &quot;dark&quot;], &quot;default&quot;: &quot;跟随外层&quot;, &quot;tsType&quot;: &quot;'dark'|null&quot;, &quot;section&quot;: &quot;工具皮肤&quot; }}">
 
 const DEMOS = [
   { n: 1, short: "正常对话", name: "正常的对话流程", note: "用户 + AI + 工具调用" },
@@ -148,6 +170,10 @@ const DEMOS = [
 ];
 
 class Component extends DCLogic {
+/* ref 用类字段建：renderVals 首次渲染就会被调用，
+   那时 componentDidMount 还没跑，ref 会是 undefined。 */
+  inputRef = React.createRef();
+
   state = { demo: 1, channel: "a", input: "" };
 
   goBack() {}
@@ -173,6 +199,10 @@ class Component extends DCLogic {
     }
 
     return {
+      showDemoBar: true,
+      demoNote: demo.note,
+      goBack: () => this.goBack(),
+      inputRef: this.inputRef,
       theme: this.props.theme === "dark" ? "dark" : null,
       sessionInfo: s.channel === "a" ? "通道 A（DeepSeek）· 2 条消息" : "通道 B（Claude Code headless）· 2 条消息",
       isRunning: isRunning,
@@ -202,6 +232,7 @@ class Component extends DCLogic {
 
       // 演示态
       demoStates: DEMOS.map((d) => ({
+        n: d.n, name: d.name, active: d.n === s.demo,
         short: d.short, note: d.note,
         bg: s.demo === d.n ? "var(--tool-accent)" : "transparent",
         fg: s.demo === d.n ? "white" : "var(--tool-text)",

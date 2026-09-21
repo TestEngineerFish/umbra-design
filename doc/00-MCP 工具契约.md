@@ -2402,3 +2402,87 @@ const auditable = !audit.opaque && !audit.missing && logicOk;
 
 判断一条检查有没有意义，要同时问两句：它会不会误伤合法写法（基准 17 钉这个），
 以及它**能不能真的抓到**那种坏（基准 15、16 钉这个）。只有前者是半张网。
+
+---
+
+## 三十一、补三份渲染不出来的稿 · 顺带量清一类解析期属性
+
+接 §三十。三份稿（`S6-版本对比` / `S9-会话面板` / `S10-组件Props面板`）的
+**逻辑类其实是写好的**（166 / 169 / 235 行，DEMOS、state、renderVals、演示数据方法都在）——
+坏的只是骨架。所以这不是重做，是补三处。
+
+### 31.1 补了什么
+
+| # | 补的东西 | 为什么 |
+| --- | --- | --- |
+| 1 | `<script src="./support.js">` + `__resources` 离线映射 | 运行时根本没加载 |
+| 2 | 逻辑那段的裸 `<script>` → `type="text/x-dc" data-dc-script data-props="…"` | 运行时与我们的解析器都按这两个标记找逻辑类，缺了等于没有 |
+| 3 | `goBack` 等键进 `renderVals` 的返回 | `goBack()` 是**类方法**，不是 renderVals 的键 —— 模板里 `onClick="{{ goBack }}"` 取不到它 |
+| 4 | `leftRef` / `rightRef` / `barRef` / `inputRef` 用**类字段**建 | `renderVals` 在首次渲染就会被调用，那时 `componentDidMount` 还没跑，ref 会是 undefined。类字段在首渲染前就有了 |
+| 5 | S6 的 `const LIVE = …` | 它的 `goBack()` 里用了 `LIVE`，但从没定义过 |
+| 6 | S9 的演示态切换条 | `demoStates` renderVals 里返回了，**模板里却没有对应标记**，所以一个按钮都没有 |
+
+⚠️ S6 / S10 的演示条本来就是完整的，只是用 `as="d"` 且没有 `aria-pressed` ——
+我第一次用 `button[aria-pressed]` 去找，第二次用 `:text-is("正常对话")` 去找，
+两次都判成「没有演示钮」。按钮文本其实是 `1\n正常对话`（序号 + 标签两个 span）。
+**两次都是检查写错了，不是稿坏了。** 记这一笔是因为：
+在断定「东西没做」之前，先怀疑自己的选择器。
+
+### 31.2 实测读数（真 chromium，`render_check`）
+
+| 稿 | alive | 节点 | 未解析洞 | 404 | 外部请求 | 演示态切换 |
+| --- | --- | --- | --- | --- | --- | --- |
+| S6-版本对比 | ✓ | 149 | 0 | 0 | 0 | 逐个点过，内容真的变 |
+| S9-会话面板 | ✓ | 144 | 0 | 0 | 0 | 同上 |
+| S10-组件Props面板 | ✓ | 122 | 0 | 0 | 0 | 同上 |
+| S8-项目设置 | ✓ | 115 | 0 | 0 | 0 | 同上 |
+
+浏览器里还看到过一条 404，`render_check` 没有把它算进 `missingResources` ——
+查了稿里只引 `./support.js` 与 `./_ds-tool/tokens.css`，两个都在。
+那是浏览器自己要 `favicon.ico`，`render_check` 不算它是对的。
+
+### 31.3 `render_check` 抓出的一条静态校验不认识的属性
+
+S10 报：`The specified value "{{ p.value }}" cannot be parsed, or is out of range.`
+来自 `<input type="number" value="{{ p.value }}">` —— 数字输入框的 `value`
+在**解析时**就按数字校验，和 §2.8 是同一类，但我们的判据表里没有它。
+
+拿 6 个探针量清边界，**不外推**：
+
+| 组合 | 报不报 |
+| --- | --- |
+| `input[type=number][value]` | ✗ **报** |
+| `input[type=number][min\|max\|step]` | ✓ 不报 |
+| `input[type=range][value\|min\|max]` | ✓ 不报（静默夹取） |
+| `input[type=text][value]` | ✓ 不报 |
+| `progress[value\|max]` · `meter[value]` | ✓ 不报 |
+
+所以判据只卡 `input` + `type=number` + `value` 这一个组合，
+要读同一个开标签上的 `type` 才能判 —— 之前的 `parseTimeRisk(tag, attr)`
+只看标签名和属性名，不够，加了第三个参数 `openTag`。
+
+S10 已改 `type="text" inputmode="decimal"`。**S2 的属性面板一直是这么写的**，
+当时只是觉得「文本框够用」，现在知道真正的原因了。
+
+### 31.4 又一次：判据写了却不触发
+
+第一版加完判据，基准 18 直接红：**该报没报**。
+原因是 `WATCH_ATTRS` 这张「要扫哪些属性名」的表里没加 `value` ——
+判据写在 `parseTimeRisk` 里，但扫描根本没走到那个属性。
+
+和 §二十九 那条 `unref` 是同一个形状：**改动写在了一处，而生效要两处都对。**
+基准第一次跑就把它照出来了 —— 这正是「只在真犯过之后加基准」还要配一条
+「加完立刻跑」的原因。
+
+### 31.5 新增的基准（共 5 条，含 2 条边界）
+
+| 基准 | 钉住 |
+| --- | --- |
+| `15-有洞却没有逻辑类要报` | §三十 的漏报 |
+| `16-没引support没法渲染要报` | 同上 |
+| `17-真纯静态稿不报` | **边界**：没有洞也没有逻辑类是合法的 |
+| `18-数字输入框的value写洞要报` | §31.3 |
+| `19-数字框的minmax与文本框不报` | **边界**：判据没有外推 |
+
+【实测】19 条基准全过 · 界面稿零 error · 语料零误报（`W_HOLE_IN_PARSED_ATTR`
+仍是 158 条，说明新判据在语料上一条都没多报）。

@@ -385,15 +385,27 @@ const SVG_TYPED: Record<string, string[]> = {
 
 const WATCH_ATTRS = ["src", "href", "srcset", "poster", "data",
   "d", "points", "transform", "viewBox", "cx", "cy", "r", "rx", "ry",
-  "x", "y", "x1", "y1", "x2", "y2", "width", "height"];
+  "x", "y", "x1", "y1", "x2", "y2", "width", "height",
+  // value 只为 input[type=number] 而扫；parseTimeRisk 会把其余组合全部放过。
+  // ⚠️ 忘了往这张表里加，判据写了也不会触发 —— 基准 18 第一次跑就是这么红的。
+  "value"];
 
 /** 这个 (宿主, 属性) 组合，浏览器在解析时会怎么出事。
  *  只认实测过的组合 —— 拿不准的一律不报（doc/04 §二：不报不能证明的错）。 */
-function parseTimeRisk(tag: string, attr: string): "fetch" | "svg" | null {
+function parseTimeRisk(tag: string, attr: string, openTag?: string): "fetch" | "svg" | "number" | null {
   const t = tag.toLowerCase(), a = attr.toLowerCase();
   if (FETCH_HOSTS[t]?.includes(a)) return "fetch";
   // 属性名大小写：HTML 解析不分大小写，viewBox 在稿里也可能写成 viewbox
   if (SVG_TYPED[t]?.some((x) => x.toLowerCase() === a)) return "svg";
+  /* `<input type="number" value="{{ x }}">` —— 数字输入框的 value 在解析时按数字校验，
+     控制台留一条 `The specified value "{{ x }}" cannot be parsed, or is out of range.`
+     实测（6 个探针，2026-09-21）：**只有这一个组合报**，
+     min / max / step 不报，type=range 不报（静默夹取），
+     type=text 不报，progress / meter 的 value 不报。所以判据就卡这一个组合。
+     修法：改 type="text"（要数字键盘就加 inputmode="decimal"）——
+     S2 的属性面板一直是这么写的，原因就是这条。 */
+  if (t === "input" && a === "value" && openTag
+      && /\stype\s*=\s*["']?number\b/i.test(openTag)) return "number";
   return null;
 }
 
@@ -413,7 +425,9 @@ function checkHoleInParsedAttr(d: Draft, f: string): Diagnostic[] {
       // 往前找到宿主开标签的标签名
       const lt = tpl.lastIndexOf("<", at);
       const tag = lt < 0 ? "" : (/^<\s*([a-zA-Z][\w-]*)/.exec(tpl.slice(lt, at)) ?? ["", ""])[1] as string;
-      const risk = parseTimeRisk(tag, attr);
+      const gt = tpl.indexOf(">", lt);
+      const openTag = lt < 0 ? "" : tpl.slice(lt, gt < 0 ? at + 200 : gt + 1);
+      const risk = parseTimeRisk(tag, attr, openTag);
       if (!risk) continue;
       out.push(risk === "fetch"
         ? warn(W.HOLE_IN_PARSED_ATTR, f, { kind: "key", name: `${tag}[${attr}]` },
@@ -421,6 +435,12 @@ function checkHoleInParsedAttr(d: Draft, f: string): Diagnostic[] {
             { ...d.at(abs),
               fix: `静态值先写 about:blank（或占位路径），真地址在逻辑类的 componentDidMount / ` +
                    `componentDidUpdate 里设；或改挂 data-${attr.toLowerCase()} 再抄过去` })
+        : risk === "number"
+        ? warn(W.HOLE_IN_PARSED_ATTR, f, { kind: "key", name: `input[type=number][value]` },
+            '<input type="number"> 的 value 上写了洞 —— 解析时就按数字校验，' +
+            '控制台必留一条 "cannot be parsed, or is out of range"',
+            { ...d.at(abs),
+              fix: '改成 type="text"，要数字键盘就加 inputmode="decimal"（S2 的属性面板就是这么写的）' })
         : warn(W.HOLE_IN_PARSED_ATTR, f, { kind: "key", name: `${tag}[${attr}]` },
             `<${tag}> 的 ${attr} 是解析期按类型校验的属性，上面写了洞 —— ` +
             `浏览器在替换它之前就校验，控制台必留一条 "attribute ${attr}: Expected …"`,
