@@ -36,7 +36,8 @@
 
 ### 0.2 协议（以后每一轮都这样）
 
-**我们发**：`doc/14` + 一个文件包 `UmbraDesign-ui-<时间>.zip`（`npm run outgoing` 打出来的），
+**我们发**：`doc/14` + 一个文件包 `UmbraDesign-ui-<时间>.zip`（`npm run outgoing` 打出来的；
+从 2026-09-22 起，可能由我们的开发 Agent 通过 MCP 直接放进你的项目，也可能由 Sam 转交，内容一样），
 里面是我们 `ui/` 的**完整现版**：S1–S10 全部 11 份稿 + `IconGlyph` + 皮肤 + 演示页，外加一页说明。
 
 **你收到后**：
