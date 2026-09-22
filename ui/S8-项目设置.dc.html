@@ -53,11 +53,20 @@
     </sc-if>
   </div>
 
-  <div style="display: flex; align-items: flex-start; gap: 0; padding: 0; max-width: 960px; margin: 0 auto;">
+  <!-- 设置区收进一个容器（设计侧 §2.2）。原来 Tab 栏和内容区是两个浮在空白里的物体，
+       宽窗下那根 160px 的栏没有东西扣着。左 Tab 这个组织方式是对的
+       —— 设置是并列的类别，不是一条流程 —— 但它得和内容同居一张面板。 -->
+  <div style="max-width: 900px; margin: 20px auto 40px; padding: 0 20px;">
+    <div style="display: flex; align-items: stretch; background: var(--tool-panel); border: 1px solid var(--tool-border); border-radius: var(--tool-radius-lg); box-shadow: var(--tool-shadow-1); overflow: hidden;">
 
     <!-- 左侧 Tab 栏 -->
-    <div style="flex: 0 0 160px; position: sticky; top: 64px; align-self: flex-start; padding: 16px 0 40px;">
+    <div style="flex: 0 0 168px; padding: 10px 0; border-right: 1px solid var(--tool-border); background: var(--tool-panel-2);">
       <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="5">
+        <!-- 危险操作前面加一条分隔 + 换成 err 色标题：
+             它和上面四项不是同一类东西，不应该在同一串里等高。 -->
+        <sc-if value="{{ t.sep }}" hint-placeholder-val="{{ false }}">
+          <div style="height: 1px; background: var(--tool-border); margin: 8px 0;"></div>
+        </sc-if>
         <button type="button" onClick="{{ t.pick }}" style="display: flex; align-items: center; gap: 8px; width: 100%; height: 34px; padding: 0 14px; border: 0; border-radius: 0; cursor: pointer; text-align: left; font-size: 13px; background: {{ t.bg }}; color: {{ t.fg }}; font-weight: {{ t.fw }}; transition: background .13s ease, color .13s ease; border-left: 2px solid {{ t.bar }};" style-hover="background: var(--tool-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: -2px;">
           <span style="flex: none; color: {{ t.iconFg }};">
             <dc-import name="IconGlyph" d="{{ t.icon }}" size="14" stroke="1.5" hint-size="14px,14px"></dc-import>
@@ -68,7 +77,7 @@
     </div>
 
     <!-- 右侧内容区 -->
-    <div style="flex: 1 1 0; min-width: 0; padding: 16px 20px 40px;">
+    <div style="flex: 1 1 0; min-width: 0; padding: 18px 20px 26px;">
 
       <!-- ── 基本信息 ── -->
       <sc-if value="{{ showBasic }}" hint-placeholder-val="{{ false }}">
@@ -235,41 +244,39 @@
             <div style="font-size: 15px; font-weight: 620; margin-bottom: 2px;">危险操作</div>
             <div style="color: var(--tool-muted); font-size: 12px;">这些操作不可撤销，请确认后再执行。</div>
           </div>
-          <div style="background: var(--tool-panel); border: 1px solid var(--tool-err-border); border-radius: var(--tool-radius-lg); box-shadow: var(--tool-shadow-1); overflow: hidden;">
-            <div style="display: grid; gap: 0;">
-              <div style="display: grid; grid-template-columns: minmax(0, 1fr) 120px; gap: 12px; padding: 14px 16px; border-bottom: 1px solid var(--tool-border); align-items: center;">
-                <div>
-                  <div style="font-weight: 560; margin-bottom: 2px;">重命名项目</div>
-                  <div style="color: var(--tool-muted); font-size: 11px;">改目录名和 project.json 的 name。引用该项目的稿会受影响。</div>
+          <div style="background: var(--tool-panel); border: 1px solid var(--tool-err-border); border-radius: var(--tool-radius-lg); overflow: hidden;">
+            <!-- 二次确认统一一种形制（设计侧 §2.2）：**行内两段式**，和 S2 版本回退、
+                 S7 属性行同一个手势。不开模态框 —— 弹窗会被肌肉记忆点掉，
+                 危险留在原地更拦得住人。不可逆的那两条多一道：要把项目名敲一遍。
+                 按钮一律描边，只有确认那一颗是实心的 —— 平时就摆一颗红实心钮是在邀请点它。 -->
+            <sc-for list="{{ dangerRows }}" as="d" hint-placeholder-count="4">
+              <div style="padding: 14px 16px; border-bottom: 1px solid var(--tool-border);">
+                <div style="display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: center;">
+                  <div style="min-width: 0;">
+                    <div style="font-weight: 560; margin-bottom: 2px; color: {{ d.titleFg }};">{{ d.title }}</div>
+                    <div style="color: var(--tool-muted); font-size: 11px; line-height: 1.5;">{{ d.body }}</div>
+                  </div>
+                  <button type="button" onClick="{{ d.ask }}" style="flex: none; height: 30px; padding: 0 14px; border-radius: var(--tool-radius); border: 1px solid {{ d.bd }}; background: var(--tool-panel); color: {{ d.fg }}; font-size: 12px; font-weight: {{ d.fw }}; cursor: pointer; transition: background .13s ease;" style-hover="background: {{ d.softBg }};" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">{{ d.btn }}</button>
                 </div>
-                <button type="button" onClick="{{ onRenameProject }}" style="height: 30px; padding: 0 14px; border-radius: var(--tool-radius); border: 1px solid var(--tool-border-strong); background: var(--tool-panel); font-size: 12px; cursor: pointer; transition: background .13s ease;" style-hover="background: var(--tool-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">重命名</button>
+                <sc-if value="{{ d.arming }}" hint-placeholder-val="{{ false }}">
+                  <div style="margin-top: 11px; padding: 10px 12px; border-radius: var(--tool-radius); background: {{ d.softBg }}; border: 1px solid {{ d.bd }};">
+                    <div style="font-size: 12px; color: {{ d.fg }}; line-height: 1.55;">{{ d.confirmText }}</div>
+                    <sc-if value="{{ d.needsType }}" hint-placeholder-val="{{ false }}">
+                      <input type="text" value="{{ typed }}" onChange="{{ onTyped }}" placeholder="{{ d.typeHint }}" style="width: 100%; box-sizing: border-box; height: 28px; margin-top: 9px; padding: 0 9px; font-family: var(--tool-mono); font-size: 12px; border: 1px solid var(--tool-border-strong); border-radius: var(--tool-radius-sm); background: var(--tool-panel); color: var(--tool-text);" style-focus="border-color: var(--tool-accent); outline: none; box-shadow: 0 0 0 2px var(--tool-accent-soft);">
+                    </sc-if>
+                    <div style="display: flex; gap: 6px; margin-top: 9px;">
+                      <button type="button" onClick="{{ d.go }}" disabled="{{ d.blocked }}" style="height: 28px; padding: 0 12px; border: 0; border-radius: var(--tool-radius-sm); background: {{ d.solidBg }}; color: var(--tool-on-accent); font-size: 12px; font-weight: 560; cursor: {{ d.goCursor }}; opacity: {{ d.goOpacity }};" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">{{ d.confirmLabel }}</button>
+                      <button type="button" onClick="{{ d.cancel }}" style="height: 28px; padding: 0 12px; border-radius: var(--tool-radius-sm); border: 1px solid {{ d.bd }}; background: transparent; color: {{ d.fg }}; font-size: 12px; cursor: pointer;" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">取消</button>
+                    </div>
+                  </div>
+                </sc-if>
               </div>
-              <div style="display: grid; grid-template-columns: minmax(0, 1fr) 120px; gap: 12px; padding: 14px 16px; border-bottom: 1px solid var(--tool-border); align-items: center;">
-                <div>
-                  <div style="font-weight: 560; margin-bottom: 2px;">移动项目</div>
-                  <div style="color: var(--tool-muted); font-size: 11px;">把项目目录移到别的位置。最近项目列表会自动更新。</div>
-                </div>
-                <button type="button" onClick="{{ onMoveProject }}" style="height: 30px; padding: 0 14px; border-radius: var(--tool-radius); border: 1px solid var(--tool-border-strong); background: var(--tool-panel); font-size: 12px; cursor: pointer; transition: background .13s ease;" style-hover="background: var(--tool-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">移动</button>
-              </div>
-              <div style="display: grid; grid-template-columns: minmax(0, 1fr) 120px; gap: 12px; padding: 14px 16px; border-bottom: 1px solid var(--tool-border); align-items: center;">
-                <div>
-                  <div style="font-weight: 560; margin-bottom: 2px;">归档项目</div>
-                  <div style="color: var(--tool-muted); font-size: 11px;">把项目移到 .archived/ 目录。项目目录保留，可随时移回来。</div>
-                </div>
-                <button type="button" onClick="{{ onArchiveProject }}" style="height: 30px; padding: 0 14px; border-radius: var(--tool-radius); border: 1px solid var(--tool-warn-border); background: var(--tool-warn-soft); color: var(--tool-warn); font-size: 12px; cursor: pointer; transition: background .13s ease;" style-hover="background: var(--tool-warn-border);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">归档</button>
-              </div>
-              <div style="display: grid; grid-template-columns: minmax(0, 1fr) 120px; gap: 12px; padding: 14px 16px; align-items: center;">
-                <div>
-                  <div style="font-weight: 560; margin-bottom: 2px; color: var(--tool-err);">删除项目</div>
-                  <div style="color: var(--tool-muted); font-size: 11px;">先归档，然后手动彻底删除。建议先归档再删。</div>
-                </div>
-                <button type="button" onClick="{{ onDeleteProject }}" style="height: 30px; padding: 0 14px; border-radius: var(--tool-radius); border: 1px solid var(--tool-err-border); background: var(--tool-err-soft); color: var(--tool-err); font-size: 12px; cursor: pointer; font-weight: 560; transition: background .13s ease;" style-hover="background: var(--tool-err-border);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">删除</button>
-              </div>
-            </div>
+            </sc-for>
           </div>
         </div>
       </sc-if>
 
+    </div>
     </div>
   </div>
 
@@ -296,6 +303,10 @@ const DRAFTS_DEMO = [
   { name: "设置页.dc.html", elements: 1490, health: "error" }
 ];
 
+/* 项目名只写一处 —— 危险操作里的「敲一遍项目名」和基本信息那一格必须同源，
+   不然改了一处另一处就成了假数据（§一 第 2 条）。 */
+const PROJECT_NAME = "Umbra_design";
+
 const TRASH_DEMO = [
   { name: "旧版首页.dc.html", deletedAt: "2026-09-18 14:32", size: "703 元素" },
   { name: "PC 按钮 v1.dc.html", deletedAt: "2026-09-17 09:15", size: "14 元素" },
@@ -303,7 +314,7 @@ const TRASH_DEMO = [
 ];
 
 class Component extends DCLogic {
-  state = { demo: 1, tab: "basic" };
+  state = { demo: 1, tab: "basic", arm: null, typed: "" };
 
   renderVals() {
     const s = this.state;
@@ -311,7 +322,7 @@ class Component extends DCLogic {
     return {
       theme: this.props.theme === "dark" ? "dark" : null,
       showDemoBar: true,
-      projectRel: "Umbra_design · 57 份稿",
+      projectRel: PROJECT_NAME + " · 57 份稿",
       demoNote: demo.note,
       demoStates: DEMOS.map((d) => ({
         n: d.n, name: d.name, short: d.short, active: d.n === s.demo,
@@ -328,15 +339,16 @@ class Component extends DCLogic {
         { key: "ds", label: "设计系统", icon: "M8 1.8l5.2 3v6.4L8 14.2 2.8 11.2V4.8z" },
         { key: "limits", label: "限额", icon: "M3 4.4h10M3 8h10M3 11.6h6" },
         { key: "trash", label: "回收站", icon: "M3.6 4.4h8.8M5.2 4.4V3.2c0-.7.5-1.2 1.2-1.2h3.2c.7 0 1.2.5 1.2 1.2v1.2M4.4 4.4l.6 8.4c0 .7.6 1.2 1.2 1.2h5.6c.6 0 1.2-.5 1.2-1.2L13.6 4.4" },
-        { key: "danger", label: "危险操作", icon: "M8 2.2l6 11.2H2z" }
+        { key: "danger", label: "危险操作", icon: "M8 2.2l6 11.2H2z", sep: true, danger: true }
       ].map((t) => ({
         ...t,
-        bg: t.key === s.tab ? "var(--tool-accent-soft)" : "transparent",
-        fg: t.key === s.tab ? "var(--tool-accent)" : "var(--tool-text-2)",
+        sep: !!t.sep,
+        bg: t.key === s.tab ? (t.danger ? "var(--tool-err-soft)" : "var(--tool-accent-soft)") : "transparent",
+        fg: t.key === s.tab ? (t.danger ? "var(--tool-err)" : "var(--tool-accent)") : (t.danger ? "var(--tool-err)" : "var(--tool-text-2)"),
         fw: t.key === s.tab ? "560" : "400",
-        iconFg: t.key === s.tab ? "var(--tool-accent)" : "var(--tool-muted)",
-        bar: t.key === s.tab ? "var(--tool-accent)" : "transparent",
-        pick: () => this.setState({ tab: t.key })
+        iconFg: t.key === s.tab ? (t.danger ? "var(--tool-err)" : "var(--tool-accent)") : (t.danger ? "var(--tool-err)" : "var(--tool-muted)"),
+        bar: t.key === s.tab ? (t.danger ? "var(--tool-err)" : "var(--tool-accent)") : "transparent",
+        pick: () => this.setState({ tab: t.key, arm: null, typed: "" })
       })),
 
       tab: s.tab,
@@ -349,7 +361,7 @@ class Component extends DCLogic {
       showDanger: s.tab === "danger",
 
       // 基本信息
-      projectName: "Umbra_design",
+      projectName: PROJECT_NAME,
       projectTitle: "Umbra 私人 AI 助手",
       projectDir: "/Users/sam/Documents/SourceTree/Geek/UmbraDesign/projects/Umbra_design",
       fieldBg: "var(--tool-panel)",
@@ -395,11 +407,51 @@ class Component extends DCLogic {
       })),
       onEmptyTrash: () => {},
 
-      // 危险操作
-      onRenameProject: () => {},
-      onMoveProject: () => {},
-      onArchiveProject: () => {},
-      onDeleteProject: () => {}
+      // 危险操作：四行共用一套行内两段式确认（设计侧 §2.2）。
+      // 不可逆的两条（彻底删除性质）要把项目名敲一遍 —— 这是唯一值得多一道的地方。
+      typed: s.typed,
+      onTyped: (e) => this.setState({ typed: e.target.value }),
+      dangerRows: [
+        { key: "rename", title: "重命名项目", btn: "重命名", tone: "n",
+          body: "改目录名和 project.json 的 name。引用该项目的稿会受影响。",
+          confirm: "重命名会同时改目录名和 project.json。引用这个项目名的稿需要手工对一遍。",
+          confirmLabel: "确认重命名" },
+        { key: "move", title: "移动项目", btn: "移动", tone: "n",
+          body: "把项目目录移到别的位置。最近项目列表会自动更新。",
+          confirm: "移动之后最近项目列表自动更新，已打开的窗口会重新指向新路径。",
+          confirmLabel: "确认移动" },
+        { key: "archive", title: "归档项目", btn: "归档", tone: "w",
+          body: "把项目移到 .archived/ 目录。项目目录保留，可随时移回来。",
+          confirm: "归档只是搬目录，随时能移回来 —— 所以这一步不用敲项目名。",
+          confirmLabel: "确认归档" },
+        { key: "delete", title: "删除项目", btn: "删除", tone: "e", needsType: true,
+          body: "先归档，然后手动彻底删除。建议先归档再删。",
+          confirm: "这一步不可逆，历史版本一起没。要继续，把项目名敲一遍。",
+          confirmLabel: "彻底删除" }
+      ].map((d) => {
+        const fg = d.tone === "e" ? "var(--tool-err)" : d.tone === "w" ? "var(--tool-warn)" : "var(--tool-text-2)";
+        const bd = d.tone === "e" ? "var(--tool-err-border)" : d.tone === "w" ? "var(--tool-warn-border)" : "var(--tool-border-strong)";
+        const soft = d.tone === "e" ? "var(--tool-err-soft)" : d.tone === "w" ? "var(--tool-warn-soft)" : "var(--tool-hover)";
+        const solid = d.tone === "e" ? "var(--tool-err)" : d.tone === "w" ? "var(--tool-warn)" : "var(--tool-accent)";
+        const blocked = !!d.needsType && s.typed.trim() !== PROJECT_NAME;
+        return {
+          title: d.title, body: d.body, btn: d.btn,
+          titleFg: d.tone === "e" ? "var(--tool-err)" : "var(--tool-text)",
+          fg: fg, bd: bd, softBg: soft, solidBg: solid,
+          fw: d.tone === "e" ? "560" : "400",
+          arming: s.arm === d.key,
+          confirmText: d.confirm,
+          confirmLabel: d.confirmLabel,
+          needsType: !!d.needsType,
+          typeHint: "敲一遍：" + PROJECT_NAME,
+          blocked: blocked,
+          goCursor: blocked ? "not-allowed" : "pointer",
+          goOpacity: blocked ? "0.45" : "1",
+          ask: () => this.setState({ arm: d.key, typed: "" }),
+          cancel: () => this.setState({ arm: null, typed: "" }),
+          go: () => { if (!blocked) this.setState({ arm: null, typed: "" }); }
+        };
+      })
     };
   }
 }

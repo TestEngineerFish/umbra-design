@@ -21,7 +21,7 @@
  * 盖上去，在这个临时叠加目录里校验 —— 这才是「真放进去之后」的判据。
  */
 import { existsSync } from "node:fs";
-import { readFile, readdir, cp, mkdtemp, rm } from "node:fs/promises";
+import { readFile, readdir, cp, mkdtemp, rm, writeFile, unlink } from "node:fs/promises";
 import { join, sep } from "node:path";
 import { tmpdir } from "node:os";
 import { TOOL_ROOT, loadProject, listProjectDirs, buildProject, type Project } from "./project.js";
@@ -85,7 +85,10 @@ async function main(): Promise<void> {
   if (!files.length) { console.log("ui/_incoming/ 是空的。"); return; }
 
   const p = await anyProject();
+  const apply = process.argv.includes("--apply");
   let blocking = 0;
+  /** 过关后可直接并入的稿：baseline 正确（或新文件）、零 error、接线齐全 */
+  const ready: Array<{ f: string; body: string }> = [];
 
   // 落盘后的样子：ui/ 铺底，_incoming/ 盖上去。只为校验用，跑完就删。
   const stage = await mkdtemp(join(tmpdir(), "ud-incoming-"));
@@ -104,8 +107,10 @@ async function main(): Promise<void> {
 
     if (f.endsWith(".css")) {
       console.log(dim(`     ${incoming.length} 字节${isNew ? "" : `（现有 ${(await readFile(curPath, "utf8")).length} 字节）`}`));
+      ready.push({ f, body: incoming });
       continue;
     }
+    let fileOk = true;
 
     /* ⓪ 底稿对不对 —— 这是其余所有检查的前提（doc/00 §三十二）。
        设计侧在云端，只拥有我们上传过的东西。它若在自己那份旧底稿上改，
@@ -116,12 +121,12 @@ async function main(): Promise<void> {
       const base = readBaseline(incoming);
       const cur = await readFile(curPath, "utf8");
       if (!base) {
-        blocking++;
+        blocking++; fileOk = false;
         console.log(`     ${red("底稿不明 —— 没有 baseline 标记")}`);
         console.log(dim("       这份不是在我们用 `npm run outgoing` 发出去的底稿上改的，多半是它自己的旧版本。"));
         console.log(dim("       做法：先 outgoing 打包发过去，请设计侧在那个包的底稿上重做，别在这份上移植"));
       } else if (base.sha !== shaOf(cur)) {
-        blocking++;
+        blocking++; fileOk = false;
         console.log(`     ${ylw(`底稿过时 —— 它基于 ${base.sent ?? "?"} 发出的版本（${base.sha}），我们这边之后又改过（现在 ${shaOf(cur)}）`)}`);
         console.log(dim(`       做法：三方合并 —— 共同祖先是 outgoing/UmbraDesign-ui-${base.sent ?? "<那次>"}.zip 里的同名文件`));
       } else {
@@ -139,14 +144,14 @@ async function main(): Promise<void> {
       console.log(`       ${red("✗")} ${d.code} ${d.locator?.name ?? ""} — ${d.message}`);
       if (d.fix) console.log(dim(`         改法：${d.fix}`));
     }
-    if (errs.length) blocking++;
+    if (errs.length) { blocking++; fileOk = false; }
 
     // ② 接线还在吗
     const need = WIRING[f];
     if (need && !isNew) {
       const lost = need.filter((x) => !incoming.includes(x.mark));
       if (lost.length) {
-        blocking++;
+        blocking++; fileOk = false;
         console.log(`     ${red(`接线丢了 ${lost.length}/${need.length} 处 —— 不要直接覆盖`)}`);
         for (const x of lost) console.log(`       ${red("✗")} ${x.what}（找不到 ${x.mark}）`);
         console.log(dim("       做法：拿它的**形制**、保我们的接线，逐块移植；别整文件替换"));
@@ -166,12 +171,33 @@ async function main(): Promise<void> {
       const goneKeys = a.union.filter((k) => !b.union.includes(k));
       if (goneKeys.length) console.log(`     ${ylw(`少了 ${goneKeys.length} 个键`)}：${goneKeys.slice(0, 12).join(" · ")}${goneKeys.length > 12 ? " …" : ""}`);
     }
+    if (fileOk) ready.push({ f, body: stripBaseline(incoming) });
   }
 
   await rm(stage, { recursive: true, force: true });
 
   console.log(`\n${blocking ? red(`⚠️ ${blocking} 处要先处理，别急着覆盖`) : grn("✓ 没有拦路的问题")}`);
-  console.log(dim("   新文件可以直接 mv 进 ui/；会覆盖的那些按上面的提示逐块移植。"));
+
+  /* ④ 并入（--apply）。底稿正确 + 零 error + 接线齐全的稿，整文件就是「我们的现版 + 它的改动」，
+     不需要逐块移植 —— 逐块移植是底稿不对时的补救，不是常规路径（doc/00 §三十二）。
+     并入时剥掉 baseline 行：正本里永远不能有它（outgoing 会拒绝打包）。 */
+  if (!apply) {
+    console.log(dim(blocking
+      ? "   处理完再跑一次；全部过关后加 --apply 并入 ui/。"
+      : "   加 --apply 把这些稿并入 ui/（剥掉 baseline 行，原件从 _incoming/ 移除）。"));
+    return;
+  }
+  if (blocking) {
+    console.log(red("   有拦路问题，--apply 不执行。"));
+    process.exitCode = 1;
+    return;
+  }
+  for (const { f, body } of ready) {
+    await writeFile(join(TOOL_ROOT, "ui", f), body);
+    await unlink(join(inDir, f));
+    console.log(`   ${grn("并入")} ui/${f}`);
+  }
+  console.log(dim("   接着跑 selftest + rendertest，再真开浏览器看一次。"));
 }
 
 void main().catch((e) => { console.error(e); process.exitCode = 1; });

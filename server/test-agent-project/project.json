@@ -1,8 +1,0 @@
-{
-  "name": "test-agent",
-  "title": "Agent 测试项目",
-  "limits": {
-    "elementsWarn": 1200,
-    "elementsHard": 1500
-  }
-}

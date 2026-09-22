@@ -34,21 +34,24 @@ async function importModules() {
 
 // ── 测试稿的模板 ──
 
-const TEST_DRAFT_CONTENT = `<x-dc>
-<body style="margin:0; background:#f5f5f5; font-family:system-ui; display:flex; align-items:center; justify-content:center; min-height:100vh;">
-  <div style="padding:40px; text-align:center;">
-    <h1 style="color:#1a1a2e; font-size:32px; margin-bottom:16px;">欢迎使用 UmbraDesign</h1>
-    <p style="color:#666; font-size:16px; margin-bottom:24px;">这是一个测试稿</p>
-    <button style="padding:12px 32px; background:#0066ff; color:#fff; border:none; border-radius:8px; font-size:16px; cursor:pointer;">点击按钮</button>
-  </div>
+const TEST_DRAFT_CONTENT = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet><style>html,body{margin:0;padding:0}</style></helmet>
+<div style="padding:40px; text-align:center; font-family:system-ui; background:#f5f5f5; min-height:100vh;">
+  <h1 style="color:#1a1a2e; font-size:32px; margin-bottom:16px;">欢迎使用 UmbraDesign</h1>
+  <p style="color:#666; font-size:16px; margin-bottom:24px;">这是一个测试稿</p>
+  <button style="padding:12px 32px; background:#0066ff; color:#fff; border:none; border-radius:8px; font-size:16px; cursor:pointer;">点击按钮</button>
+</div>
+</x-dc>
 </body>
-<script type="module">
-import * as React from "../runtime/react.production.min.js";
-import * as ReactDOM from "../runtime/react-dom.production.min.js";
-import { run } from "../runtime/support.js";
-run(document.body, {}, {});
-</script>
-</x-dc>`;
+</html>
+`;
 
 // ── 主流程 ──
 

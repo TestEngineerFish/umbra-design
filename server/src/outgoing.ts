@@ -59,10 +59,15 @@ if (leaked.length) {
 for (const dir of ["_ds-tool", "_demo"]) {
   if (existsSync(join(UI, dir))) await cp(join(UI, dir), join(pack, dir), { recursive: true });
 }
+/* 运行时三件套也放进包：稿里的 umbradesign:resources 映射指向同层的 ./react*.min.js，
+   设计侧的项目在云端且拿不到外网，没有它们稿一打开就白屏（设计侧回复 2026-09-21 §五）。 */
+for (const f of ["support.js", "react.production.min.js", "react-dom.production.min.js"]) {
+  await copyFile(join(TOOL_ROOT, "runtime", f), join(pack, f));
+}
 
 await writeFile(join(stage, "README-给设计侧.md"), `# UmbraDesign 界面稿 · ${stamp}
 
-这个包里是我们这边 \`ui/\` 的**完整现版**，共 ${drafts.length} 份稿。配套的交办单是 \`doc/14\`。
+这个包里是我们这边 \`ui/\` 的**完整现版**，共 ${drafts.length} 份稿，外加运行时三件套（support.js + 两个 React UMD，和稿同层放）。配套的交办单是 \`doc/14\`。
 
 ## 三条规矩
 

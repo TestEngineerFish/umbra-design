@@ -25,7 +25,9 @@ body { background: var(--tool-bg); font-family: 'DC', sans-serif; font-size: 13p
 </style>
 </helmet>
 
-<div data-tool-theme="{{ theme }}" style="min-height: 100vh; display: flex; flex-direction: column;">
+<!-- 壳宽度（设计侧 §2.3）：默认 380px，可拖 320–520。这里单独打开时锁在上限 520px
+     并靠左 —— 它是预览壳旁边的侧栏，不是一页，按整屏宽度评审会得出错结论。 -->
+<div data-tool-theme="{{ theme }}" style="min-height: 100vh; width: 100%; max-width: 520px; border-right: 1px solid var(--tool-border); background: var(--tool-panel); display: flex; flex-direction: column;">
 
   <!-- ═══ 顶栏 ═══ -->
   <div style="display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--tool-border); background: var(--tool-panel);">
@@ -36,12 +38,8 @@ body { background: var(--tool-bg); font-family: 'DC', sans-serif; font-size: 13p
       <div style="font-size: 14px; font-weight: 560;">AI 会话</div>
       <div style="font-size: 11px; color: var(--tool-muted);">{{ sessionInfo }}</div>
     </div>
-    <!-- 中断按钮 -->
-    <sc-if value="{{ isRunning }}" hint-placeholder-val="{{ true }}">
-      <button onClick="{{ onInterrupt }}" style="padding: 4px 12px; font-size: 11px; border: 1px solid var(--tool-err-border); border-radius: 4px; background: var(--tool-err-soft); color: var(--tool-err); cursor: pointer; font-weight: 500;" style-hover="opacity: .85;">
-        ⏹ 中断
-      </button>
-    </sc-if>
+    <!-- 中断钮不在顶栏（设计侧 §2.3）：它已经换到下面的「发送」位上 ——
+         一个控件位、两种状态。跑着的时候手就在输入框旁边，不该让人往回跑到顶栏去停。 -->
     <!-- 通道选择 -->
     <div style="display: flex; border: 1px solid var(--tool-border); border-radius: 6px; overflow: hidden;">
       <button onClick="{{ onChannelA }}" style="padding: 4px 10px; font-size: 11px; border: none; cursor: pointer; background: {{ chanABg }}; color: {{ chanAFg }}; font-weight: {{ chanAFw }};" style-hover="opacity: .85;">通道 A</button>
@@ -78,35 +76,38 @@ body { background: var(--tool-bg); font-family: 'DC', sans-serif; font-size: 13p
         </div>
       </sc-if>
 
-      <!-- AI 消息 -->
+      <!-- AI 消息（设计侧 §2.3）。头像换成一根贯通整个回合的左栏：
+           工具调用是上面那句话的证据，得看得出它们属于同一个回合。
+           原来只有一颗 24px 圆头像，工具卡看起来像直接长在页面上。 -->
       <sc-if value="{{ m.isAi }}" hint-placeholder-val="{{ true }}">
-        <div style="display: flex; gap: 8px; align-items: flex-start;">
-          <div style="width: 24px; height: 24px; flex: none; border-radius: 50%; background: var(--tool-panel-2); border: 1px solid var(--tool-border); display: flex; align-items: center; justify-content: center;">
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="var(--tool-accent)"><circle cx="6" cy="6" r="4"/></svg>
+        <div style="display: grid; grid-template-columns: 14px minmax(0, 1fr); gap: 10px;">
+          <div style="display: flex; flex-direction: column; align-items: center;">
+            <span style="width: 7px; height: 7px; flex: none; margin-top: 5px; border-radius: 999px; background: var(--tool-accent);"></span>
+            <span style="flex: 1; width: 2px; margin-top: 4px; border-radius: 1px; background: var(--tool-accent-soft);"></span>
           </div>
-          <div style="flex: 1 1 0; min-width: 0;">
-            <div style="font-size: 13px; line-height: 1.6; color: var(--tool-text);">{{ m.content }}</div>
-            <!-- 工具调用 -->
+          <div style="min-width: 0;">
+            <div style="font-size: 13px; line-height: 1.6; color: var(--tool-text); white-space: pre-wrap;">{{ m.content }}</div>
+            <!-- 工具调用：一条一行。名字 + 参数 + 结果摘要同行，
+                 连续调六个工具时不会把对话流撑成一屏卡片。 -->
             <sc-if value="{{ m.hasTools }}" hint-placeholder-val="{{ true }}">
-              <sc-for list="{{ m.tools }}" as="t">
-                <div style="margin-top: 6px; padding: 6px 10px; border: 1px solid var(--tool-border); border-radius: 6px; background: var(--tool-bg); font-size: 11px;">
-                  <div style="display: flex; align-items: center; gap: 6px;">
+              <div style="margin-top: 7px; display: grid; gap: 3px;">
+                <sc-for list="{{ m.tools }}" as="t" hint-placeholder-count="2">
+                  <div title="{{ t.tip }}" style="display: flex; align-items: center; gap: 7px; min-width: 0; height: 24px; padding: 0 9px; border: 1px solid {{ t.bd }}; border-radius: var(--tool-radius-sm); background: {{ t.bg }}; font-size: 11px;">
                     <sc-if value="{{ t.running }}" hint-placeholder-val="{{ true }}">
-                      <svg width="12" height="12" viewBox="0 0 12 12" style="animation: spin 1s linear infinite;">
-                        <circle cx="6" cy="6" r="5" fill="none" stroke="var(--tool-accent)" stroke-width="1.5" stroke-dasharray="20 12"/>
+                      <svg width="11" height="11" viewBox="0 0 12 12" style="flex: none; animation: spin 1s linear infinite;" aria-hidden="true">
+                        <circle cx="6" cy="6" r="4.6" fill="none" stroke="var(--tool-accent)" stroke-width="1.5" stroke-dasharray="20 12"></circle>
                       </svg>
                     </sc-if>
                     <sc-if value="{{ t.done }}" hint-placeholder-val="{{ true }}">
-                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="var(--tool-ok)" stroke-width="1.5"><path d="M2 6l3 3 5-5"/></svg>
+                      <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="var(--tool-ok)" stroke-width="1.6" style="flex: none;" aria-hidden="true"><path d="M2 6l3 3 5-5"></path></svg>
                     </sc-if>
-                    <span style="font-weight: 500; font-family: ui-monospace, 'SF Mono', monospace;">{{ t.name }}</span>
-                    <span style="color: var(--tool-muted);">({{ t.args }})</span>
+                    <span style="flex: none; font-weight: 560; font-family: var(--tool-mono);">{{ t.name }}</span>
+                    <span style="color: var(--tool-muted); font-family: var(--tool-mono); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ t.args }}</span>
+                    <span style="flex: 1;"></span>
+                    <span style="flex: none; font-family: var(--tool-mono); color: {{ t.resultFg }}; max-width: 46%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ t.resultLabel }}</span>
                   </div>
-                  <sc-if value="{{ t.result }}" hint-placeholder-val="{{ true }}">
-                    <div style="margin-top: 4px; padding: 4px 6px; background: var(--tool-panel); border-radius: 4px; font-size: 10px; color: var(--tool-muted); font-family: ui-monospace, 'SF Mono', monospace; max-height: 60px; overflow: auto;">{{ t.result }}</div>
-                  </sc-if>
-                </div>
-              </sc-for>
+                </sc-for>
+              </div>
             </sc-if>
           </div>
         </div>
@@ -121,17 +122,19 @@ body { background: var(--tool-bg); font-family: 'DC', sans-serif; font-size: 13p
 
     </sc-for>
 
-    <!-- 流式输出中 -->
+    <!-- 流式输出中（设计侧 §2.3）：同一根左栏，顶部的点换成转圈。
+         不用闪烁的打字机光标 —— 闪烁的东西在会话流里一直在抢注意力；
+         正在写的那一段底下给一条 2px 的 accent 横线，安静且同样看得见。 -->
     <sc-if value="{{ streaming }}" hint-placeholder-val="{{ true }}">
-      <div style="display: flex; gap: 8px; align-items: flex-start;">
-        <div style="width: 24px; height: 24px; flex: none; border-radius: 50%; background: var(--tool-panel-2); border: 1px solid var(--tool-border); display: flex; align-items: center; justify-content: center;">
-          <svg width="12" height="12" viewBox="0 0 12 12" style="animation: spin 1s linear infinite;">
-            <circle cx="6" cy="6" r="5" fill="none" stroke="var(--tool-accent)" stroke-width="1.5" stroke-dasharray="20 12"/>
+      <div style="display: grid; grid-template-columns: 14px minmax(0, 1fr); gap: 10px;">
+        <div style="display: flex; flex-direction: column; align-items: center;">
+          <svg width="12" height="12" viewBox="0 0 12 12" style="flex: none; margin-top: 3px; animation: spin 1s linear infinite;" aria-hidden="true">
+            <circle cx="6" cy="6" r="4.6" fill="none" stroke="var(--tool-accent)" stroke-width="1.5" stroke-dasharray="20 12"></circle>
           </svg>
+          <span style="flex: 1; width: 2px; margin-top: 4px; border-radius: 1px; background: var(--tool-accent-soft);"></span>
         </div>
-        <div style="flex: 1 1 0; min-width: 0;">
-          <div style="font-size: 13px; line-height: 1.6; color: var(--tool-text);">{{ streamContent }}</div>
-          <div style="display: inline-block; width: 2px; height: 14px; background: var(--tool-text); animation: blink 1s steps(1) infinite; margin-left: 1px;"></div>
+        <div style="min-width: 0;">
+          <div style="font-size: 13px; line-height: 1.6; color: var(--tool-text); white-space: pre-wrap; padding-bottom: 5px; border-bottom: 2px solid var(--tool-accent);">{{ streamContent }}</div>
         </div>
       </div>
     </sc-if>
@@ -141,14 +144,24 @@ body { background: var(--tool-bg); font-family: 'DC', sans-serif; font-size: 13p
   <!-- ═══ 输入区 ═══ -->
   <div style="padding: 12px 16px; border-top: 1px solid var(--tool-border); background: var(--tool-panel);">
     <div style="display: flex; gap: 8px; align-items: flex-end;">
-      <textarea ref="{{ inputRef }}" onInput="{{ onInput }}" onKeyDown="{{ onKey }}" rows="1" style="flex: 1 1 0; padding: 8px 12px; font-size: 13px; border: 1px solid var(--tool-border); border-radius: 8px; background: var(--tool-bg); color: var(--tool-text); resize: none; font-family: inherit; line-height: 1.5; max-height: 120px; box-sizing: border-box;" style-focus="border-color: var(--tool-accent); outline: none; box-shadow: 0 0 0 2px var(--tool-accent-soft);" placeholder="输入消息… ⏎ 发送"></textarea>
-      <button onClick="{{ onSend }}" style="padding: 8px 16px; font-size: 13px; border: none; border-radius: 8px; background: {{ sendBg }}; color: {{ sendFg }}; cursor: pointer; font-weight: 500;" style-hover="opacity: .85;">发送</button>
+      <textarea ref="{{ inputRef }}" onInput="{{ onInput }}" onKeyDown="{{ onKey }}" rows="1" style="flex: 1 1 0; padding: 8px 12px; font-size: 13px; border: 1px solid var(--tool-border-strong); border-radius: var(--tool-radius); background: var(--tool-panel); color: var(--tool-text); resize: none; font-family: inherit; line-height: 1.5; max-height: 120px; box-sizing: border-box;" style-focus="border-color: var(--tool-accent); outline: none; box-shadow: 0 0 0 2px var(--tool-accent-soft);" placeholder="输入消息… ⏎ 发送"></textarea>
+      <!-- 一个控件位，两种状态：跑着就是「中断」，否则是「发送」。 -->
+      <sc-if value="{{ isRunning }}" hint-placeholder-val="{{ false }}">
+        <button onClick="{{ onInterrupt }}" style="flex: none; display: inline-flex; align-items: center; gap: 7px; height: 36px; padding: 0 14px; font-size: 13px; border: 1px solid var(--tool-err-border); border-radius: var(--tool-radius); background: var(--tool-err-soft); color: var(--tool-err); cursor: pointer; font-weight: 560;" style-hover="background: var(--tool-panel);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">
+          <span style="width: 8px; height: 8px; border-radius: 1px; background: currentColor;"></span>
+          中断
+          <kbd style="font-family: var(--tool-mono); font-size: 10px; padding: 0 4px; border-radius: 3px; border: 1px solid var(--tool-err-border);">Esc</kbd>
+        </button>
+      </sc-if>
+      <sc-if value="{{ notRunning }}" hint-placeholder-val="{{ true }}">
+        <button onClick="{{ onSend }}" style="flex: none; height: 36px; padding: 0 18px; font-size: 13px; border: none; border-radius: var(--tool-radius); background: {{ sendBg }}; color: {{ sendFg }}; cursor: pointer; font-weight: 560;" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">发送</button>
+      </sc-if>
     </div>
   </div>
 
   <!-- ═══ 底部状态栏 ═══ -->
   <div style="padding: 4px 12px; font-size: 10px; color: var(--tool-muted); border-top: 1px solid var(--tool-border); background: var(--tool-panel); display: flex; align-items: center; gap: 12px;">
-    <span>{{ usageLabel }}</span>
+    <span title="{{ usageTip }}">{{ usageLabel }}</span>
     <span style="flex: 1 1 0;"></span>
     <span>{{ footerLabel }}</span>
   </div>
@@ -182,20 +195,38 @@ class Component extends DCLogic {
     const s = this.state;
     const demo = DEMOS[s.demo - 1];
 
-    const messages = this.demoMessages(s.demo);
+    const messages = this.demoMessages(s.demo).map((m) => {
+      if (!m.tools) return m;
+      return Object.assign({}, m, {
+        tools: m.tools.map((t) => {
+          const failed = /error|失败|被拒/.test(t.result || "") && !/0 errors/.test(t.result || "");
+          return Object.assign({}, t, {
+            tip: t.name + "(" + t.args + ")" + (t.result ? "  →  " + t.result : ""),
+            resultLabel: t.running ? "运行中…" : (t.result || ""),
+            resultFg: failed ? "var(--tool-err)" : t.running ? "var(--tool-accent)" : "var(--tool-muted)",
+            bd: t.running ? "var(--tool-accent-border)" : "var(--tool-border)",
+            bg: t.running ? "var(--tool-accent-soft)" : "var(--tool-panel-2)"
+          });
+        })
+      });
+    });
     const isRunning = s.demo === 2 || s.demo === 3 || s.demo === 4;
     const streaming = s.demo === 2;
     const streamContent = "好的，我来把这里的字号调大一点，然后更新一下行高——";
 
-    const sendBg = s.input || isRunning ? "var(--tool-accent)" : "var(--tool-muted)";
-    const sendFg = "white";
+    const sendBg = s.input ? "var(--tool-accent)" : "var(--tool-border-strong)";
+    const sendFg = "var(--tool-on-accent)";
 
-    // 用量显示
+    /* 用量（设计侧 §2.3）：底栏只留一个人会拿来停手的数字 —— 花费（或调用次数）。
+       token 数是诊断用的，收进 title 里，不占常驻位置。 */
     let usageLabel = "";
+    let usageTip = "";
     if (s.channel === "a") {
-      usageLabel = "通道 A · 1,284 tokens · ¥0.13";
+      usageLabel = "通道 A · ¥0.13";
+      usageTip = "1,284 tokens · 4 次工具调用 · 模型 deepseek-chat";
     } else {
-      usageLabel = "通道 B · 第 3 次调用（订阅制）";
+      usageLabel = "通道 B · 第 3 次调用";
+      usageTip = "订阅制，不按 token 计费 · Claude Code headless";
     }
 
     return {
@@ -206,6 +237,7 @@ class Component extends DCLogic {
       theme: this.props.theme === "dark" ? "dark" : null,
       sessionInfo: s.channel === "a" ? "通道 A（DeepSeek）· 2 条消息" : "通道 B（Claude Code headless）· 2 条消息",
       isRunning: isRunning,
+      notRunning: !isRunning,
       streaming: streaming,
       streamContent: streamContent,
       sendBg: sendBg,
@@ -228,6 +260,7 @@ class Component extends DCLogic {
       // 消息
       messages: messages,
       usageLabel: usageLabel,
+      usageTip: usageTip,
       footerLabel: "当前演示态 " + (demo ? demo.name : ""),
 
       // 演示态

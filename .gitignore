@@ -63,3 +63,6 @@ Thumbs.db
 *.bak[0-9]
 *.orig
 src-tauri/target/
+
+# agenttest 的临时项目：每次跑都会建再删，不进仓库
+server/test-agent-project/

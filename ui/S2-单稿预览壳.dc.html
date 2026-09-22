@@ -38,7 +38,66 @@
       <div style="display: flex; align-items: baseline; gap: 9px; min-width: 0; flex: 1 1 220px;">
         <span style="font-size: 15px; font-weight: 620; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="{{ title }}">{{ title }}</span>
         <span style="flex: none; font-size: 11px; padding: 1px 7px; border-radius: var(--tool-radius-sm); border: 1px solid var(--tool-border); background: var(--tool-panel-2); color: var(--tool-text-2);">{{ kindLabel }}</span>
-        <span style="flex: none; font-family: var(--tool-mono); font-size: 11px; color: var(--tool-muted); white-space: nowrap;">{{ version }} · {{ elementsLabel }}</span>
+        <!-- 版本号可点 → 版本历史弹层（设计侧 §3.2 定稿）。
+             不用底栏胶囊：三颗胶囊只能显示版本号，而「要不要退回去」这个判断
+             需要知道那一版是什么 —— 所以每行带来源与一句摘要。 -->
+        <div style="position: relative; flex: none;">
+          <button type="button" onClick="{{ toggleVer }}" aria-expanded="{{ verOpen }}" title="版本历史与回退" style="display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 6px 0 8px; border: 1px solid; border-radius: var(--tool-radius-sm); cursor: pointer; font-family: var(--tool-mono); font-size: 11px; white-space: nowrap; transition: background .13s ease, border-color .13s ease; background: {{ verBtnBg }}; border-color: {{ verBtnBd }}; color: {{ verBtnFg }};" style-hover="background: var(--tool-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">
+            {{ version }}
+            <svg width="9" height="9" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4.2 6.4L8 10.2l3.8-3.8" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+          </button>
+          <sc-if value="{{ verOpen }}" hint-placeholder-val="{{ false }}">
+            <div onClick="{{ closeVer }}" style="position: fixed; inset: 0; z-index: 30;"></div>
+            <div style="position: absolute; top: 27px; left: 0; z-index: 31; width: 352px; max-height: 420px; display: flex; flex-direction: column; background: var(--tool-panel); border: 1px solid var(--tool-border-strong); border-radius: var(--tool-radius-lg); box-shadow: var(--tool-shadow-2); overflow: hidden; text-align: left; font-family: var(--tool-sans);">
+              <div style="flex: none; display: flex; align-items: baseline; gap: 8px; padding: 9px 13px; border-bottom: 1px solid var(--tool-border);">
+                <span style="font-size: 13px; font-weight: 600;">版本历史</span>
+                <span style="font-size: 11px; color: var(--tool-muted);">{{ verCountLabel }}</span>
+              </div>
+              <div style="flex: 1; min-height: 0; overflow: auto;">
+                <sc-for list="{{ versions }}" as="v" hint-placeholder-count="4">
+                  <div style="display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 9px; padding: 9px 13px; border-bottom: 1px solid var(--tool-border); background: {{ v.bg }};">
+                    <div style="display: flex; flex-direction: column; align-items: center; padding-top: 4px;">
+                      <span style="width: 7px; height: 7px; border-radius: 999px; flex: none; background: {{ v.dot }}; box-shadow: 0 0 0 3px {{ v.ring }};"></span>
+                      <span style="flex: 1; width: 1px; min-height: 12px; margin-top: 4px; background: var(--tool-border);"></span>
+                    </div>
+                    <div style="min-width: 0;">
+                      <div style="display: flex; align-items: center; gap: 7px; min-width: 0;">
+                        <span style="font-family: var(--tool-mono); font-size: 12px; font-weight: {{ v.fw }};">{{ v.label }}</span>
+                        <sc-if value="{{ v.hasSrc }}" hint-placeholder-val="{{ true }}">
+                          <span style="font-size: 11px; padding: 0 6px; border-radius: var(--tool-radius-sm); border: 1px solid; background: {{ v.srcBg }}; border-color: {{ v.srcBd }}; color: {{ v.srcFg }}; flex: none;">{{ v.src }}</span>
+                        </sc-if>
+                        <span style="font-size: 11px; color: var(--tool-muted); white-space: nowrap;">{{ v.time }}</span>
+                        <span style="flex: 1;"></span>
+                        <sc-if value="{{ v.isCurrent }}" hint-placeholder-val="{{ true }}">
+                          <span style="font-size: 11px; font-weight: 560; color: var(--tool-accent); flex: none;">当前</span>
+                        </sc-if>
+                        <sc-if value="{{ v.canRevert }}" hint-placeholder-val="{{ false }}">
+                          <button type="button" onClick="{{ v.ask }}" style="flex: none; height: 22px; padding: 0 8px; border-radius: var(--tool-radius-sm); border: 1px solid var(--tool-border-strong); background: var(--tool-panel); color: var(--tool-text-2); font-size: 11px; cursor: pointer; transition: background .13s ease, color .13s ease;" style-hover="background: var(--tool-hover); color: var(--tool-text);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">回到这一版</button>
+                        </sc-if>
+                      </div>
+                      <sc-if value="{{ v.hasSummary }}" hint-placeholder-val="{{ true }}">
+                        <div style="margin-top: 3px; font-size: 12px; color: var(--tool-text-2); line-height: 1.5;">{{ v.summary }}</div>
+                      </sc-if>
+                      <!-- 二次确认在行内，不开模态框 —— 回退本身可逆，
+                           用模态框拦一个可逆操作是夸大后果。 -->
+                      <sc-if value="{{ v.confirming }}" hint-placeholder-val="{{ false }}">
+                        <div style="margin-top: 8px; padding: 9px 10px; border-radius: var(--tool-radius); background: var(--tool-warn-soft); border: 1px solid var(--tool-warn-border);">
+                          <div style="font-size: 12px; color: var(--tool-warn); line-height: 1.55;">{{ v.confirmText }}</div>
+                          <div style="display: flex; gap: 6px; margin-top: 8px;">
+                            <button type="button" onClick="{{ v.go }}" style="height: 26px; padding: 0 11px; border: 0; border-radius: var(--tool-radius-sm); background: var(--tool-accent); color: var(--tool-on-accent); font-size: 12px; font-weight: 560; cursor: pointer; transition: background .13s ease;" style-hover="background: var(--tool-accent-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">{{ v.confirmLabel }}</button>
+                            <button type="button" onClick="{{ v.cancel }}" style="height: 26px; padding: 0 11px; border-radius: var(--tool-radius-sm); border: 1px solid var(--tool-warn-border); background: transparent; color: var(--tool-warn); font-size: 12px; cursor: pointer;" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">取消</button>
+                          </div>
+                        </div>
+                      </sc-if>
+                    </div>
+                  </div>
+                </sc-for>
+                <div style="padding: 10px 13px; font-size: 11px; color: var(--tool-muted); line-height: 1.55;">{{ verOlderLabel }}</div>
+              </div>
+            </div>
+          </sc-if>
+        </div>
+        <span style="flex: none; font-family: var(--tool-mono); font-size: 11px; color: var(--tool-muted); white-space: nowrap;">{{ elementsLabel }}</span>
       </div>
 
       <div style="display: flex; align-items: center; gap: 8px; flex: none;">
@@ -129,6 +188,34 @@
       <span style="color: var(--tool-border-strong); flex: none;">·</span>
       <span style="color: var(--tool-muted); min-width: 0;">{{ demoNote }}</span>
     </div>
+    </sc-if>
+
+    <!-- 未落盘横条（设计侧 §3.3① 定稿）。齐边、紧贴顶栏下沿 ——
+         和 S1 的「索引已过期」同一形制：齐边横条 = 这一屏的读数是暂时的。
+         药丸里写**真实的节点地址与属性名**，不写「有未保存的改动」——
+         人改完一个数值去拿咖啡，回来要能从这一条看出改的是哪个节点的哪个属性。
+         和属性面板里的行级橙边不重复：行内回答「哪一行没存」，
+         横条回答「整屏有没有未存的东西」—— 面板滚走了也看得到。 -->
+    <sc-if value="{{ hasUnsaved }}" hint-placeholder-val="{{ false }}">
+      <div style="display: flex; align-items: center; gap: 10px; padding: 9px 16px; background: var(--tool-warn-soft); border-top: 1px solid var(--tool-warn-border); flex-wrap: wrap; color: var(--tool-warn);">
+        <span style="display: inline-flex; align-items: center; gap: 6px; font-weight: 560; flex: none;">
+          <span style="width: 7px; height: 7px; border-radius: 999px; background: currentColor; flex: none;"></span>
+          预览中 · 未落盘
+        </span>
+        <span style="font-family: var(--tool-mono); font-size: 12px; padding: 2px 8px; border-radius: var(--tool-radius-sm); background: var(--tool-panel); border: 1px solid var(--tool-warn-border); color: var(--tool-text); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ unsavedEdit }}</span>
+        <span style="color: var(--tool-text-2); min-width: 0;">{{ unsavedNote }}</span>
+        <span style="flex: 1;"></span>
+        <div style="display: flex; align-items: center; gap: 6px; flex: none;">
+          <button type="button" onClick="{{ onCommit }}" style="display: inline-flex; align-items: center; gap: 7px; height: 26px; padding: 0 10px; border: 0; border-radius: var(--tool-radius-sm); background: var(--tool-accent); color: var(--tool-on-accent); font-size: 12px; font-weight: 560; cursor: pointer; transition: background .13s ease;" style-hover="background: var(--tool-accent-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">
+            落盘
+            <kbd style="font-family: var(--tool-mono); font-size: 10px; padding: 0 4px; border-radius: 3px; background: rgba(255,255,255,0.22);">Enter</kbd>
+          </button>
+          <button type="button" onClick="{{ onDiscard }}" style="display: inline-flex; align-items: center; gap: 7px; height: 26px; padding: 0 10px; border-radius: var(--tool-radius-sm); border: 1px solid var(--tool-warn-border); background: transparent; color: var(--tool-warn); font-size: 12px; cursor: pointer;" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">
+            放弃
+            <kbd style="font-family: var(--tool-mono); font-size: 10px; padding: 0 4px; border-radius: 3px; border: 1px solid var(--tool-warn-border);">Esc</kbd>
+          </button>
+        </div>
+      </div>
     </sc-if>
   </div>
 
@@ -524,25 +611,11 @@
       <span style="color: var(--tool-border-strong);">·</span>
       <span style="color: {{ busyFg }};">{{ slotBusyNote }}</span>
     </sc-if>
-    <sc-if value="{{ canRevert }}" hint-placeholder-val="{{ false }}">
-      <span style="color: var(--tool-border-strong);">·</span>
-      <!-- 回退。形制已定稿（设计侧 §五 第 8 项）：最近三版做胶囊、第四版起收进「更多」、
-           「执行」两段式。胶囊**留在底栏不进面板** —— 进了面板就要先选中一个节点
-           才能回退，那是 §23.3 那个坑的同一形状（这条偏差记在 doc/00 §27.3）。
-           ⚠️ **不能用 select + sc-for** —— foster-parenting 会把 sc-for 搬出去，
-           选项一个都渲染不出来（doc/00 §14.4、doc/06 §2.7）。这条规则我自己写的，
-           然后自己踩了一次，是校验器抓出来的。 -->
-      <span style="color: var(--tool-muted); font-size: 11px; flex: none;">退回</span>
-      <sc-for list="{{ versionOpts }}" as="v" hint-placeholder-count="3">
-        <button type="button" onClick="{{ v.pick }}" title="{{ v.title }}" aria-pressed="{{ v.active }}" style="height: 21px; padding: 0 8px; border-radius: var(--tool-radius-sm); border: 1px solid; cursor: pointer; font-family: var(--tool-mono); font-size: 11px; background: {{ v.bg }}; border-color: {{ v.bd }}; color: {{ v.fg }};" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">{{ v.label }}</button>
-      </sc-for>
-      <sc-if value="{{ hasMore }}" hint-placeholder-val="{{ false }}">
-        <button type="button" onClick="{{ onExec }}" title="{{ moreTitle }}" disabled="disabled" style="height: 21px; padding: 0 7px; border-radius: var(--tool-radius-sm); border: 1px dashed var(--tool-border-strong); background: transparent; color: var(--tool-muted); font-size: 11px; cursor: default; flex: none;">{{ moreLabel }}</button>
-      </sc-if>
-      <!-- 两段式：点一下变「确认回退到 vN」，再点才执行，点别处就撤销（设计侧 §五 第 8 项）。
-           不弹二次确认 —— 弹窗会被肌肉记忆点掉，危险留在原地更拦得住人。 -->
-      <button type="button" onClick="{{ onExec }}" title="把选中那一版的内容落成新的一版 —— 历史只增不改（doc/00 §18.3）" style="height: 21px; padding: 0 9px; border-radius: var(--tool-radius-sm); border: 1px solid {{ execBd }}; background: {{ execBg }}; color: {{ execFg }}; cursor: pointer; font-size: 11px; font-weight: 560;" style-hover="background: var(--tool-accent-soft);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">{{ revertLabel }}</button>
-    </sc-if>
+    <!-- 回退的入口已按设计侧 §3.2 移到顶栏版本号上（弹层时间轴）。
+         底栏不再放胶囊 —— 回退是「关于整份稿」的动作，和稿名、版本号同居顶栏更顺；
+         底栏留给「此刻正在发生的事」（落盘中 / 体检完成）。
+         「不进属性面板」这一条依旧且更强 —— 面板要先选中节点，
+         而回退不应该需要选中任何东西。 -->
     <span style="flex: 1;"></span>
     <span style="display: flex; align-items: center; gap: 5px;"><kbd style="font-family: var(--tool-mono); background: var(--tool-panel-2); border: 1px solid var(--tool-border); border-radius: var(--tool-radius-sm); padding: 1px 5px;">R</kbd> 重跑体检</span>
     <span style="display: flex; align-items: center; gap: 5px;"><kbd style="font-family: var(--tool-mono); background: var(--tool-panel-2); border: 1px solid var(--tool-border); border-radius: var(--tool-radius-sm); padding: 1px 5px;">D</kbd> 诊断栏</span>
@@ -582,7 +655,19 @@ const DEMOS = [
   { n: 7, short: "文件没了", name: "稿文件不存在", note: "索引里有记录，磁盘上没了" },
   { n: 8, short: "窄窗", name: "窄窗口", note: "壳压到 720px，诊断退化成底部抽屉" },
   { n: 9, short: "自适应", name: "自适应视口", note: "宽度跟着画布走，不做自动撑高" },
-  { n: 10, short: "稿深色", name: "稿的深色主题", note: "M4-4：壳保持浅色，iframe 里的稿切深色" }
+  { n: 10, short: "稿深色", name: "稿的深色主题", note: "M4-4：壳保持浅色，iframe 里的稿切深色" },
+  { n: 11, short: "未落盘", name: "样式预览 · 未落盘", note: "改了一个 style 还没写文件，顶栏下挂一条齐边横条" },
+  { n: 12, short: "版本回退", name: "版本历史展开", note: "从顶栏版本号点开，回退在行内二次确认" }
+];
+
+/* 版本历史的演示数据。接真数据时读 s.chg.versions（版本号数组），
+   来源 / 时间 / 摘要读 s.chg.versionMeta[版本号]（现在还没有，缺了就只显版本号）。 */
+const DEMO_VERSIONS = [
+  { v: "v217", src: "人手改", time: "今天 08:47", summary: "属性面板改 style.font-size：40px → 64px" },
+  { v: "v216", src: "AI", time: "今天 08:31", summary: "会话里让模型补了空态的引导文案" },
+  { v: "v215", src: "人手改", time: "今天 02:14", summary: "顶栏吸顶高度 56 → 52，顺带删了一个空 div" },
+  { v: "v214", src: "AI", time: "昨天 23:50", summary: "日志行的时间列改成等宽数字" },
+  { v: "v213", src: "新建", time: "昨天 21:06", summary: "从 S1 新建，第一次落盘" }
 ];
 
 const HEALTH = {
@@ -635,7 +720,7 @@ class Component extends DCLogic {
             selectOn: false, picked: null, bridgeReady: false,
             live: null, chg: null, slots: null, apiErr: null, drafts: {}, busy: null,
             draftTheme: "light",
-            revertPick: "", checkNote: null, previewing: null,
+            revertPick: "", checkNote: null, previewing: null, verOpen: null,
             /* 属性面板的形制状态（设计侧 §五）：组折叠 / ? 展开 / 色板展开 /
                行级失败 / 已落盘条 / sc-for 改完那条 / 回退两段式 */
             gOpen: {}, hintOpen: {}, colorOpen: null, tokenHits: [], tokenQ: "",
@@ -651,7 +736,7 @@ class Component extends DCLogic {
       if (k === "r") { e.preventDefault(); this.recheck(); }
       if (k === "d") { e.preventDefault(); this.setState((s) => ({ rail: !s.rail, sheet: !s.sheet, tab: "diag" })); }
       if (k === "s" && LIVE) { e.preventDefault(); this.setState((s) => ({ selectOn: !s.selectOn, picked: null }), () => this.pushMode()); }
-      if (e.key === "Escape") this.setState({ rail: false, sheet: false });
+      if (e.key === "Escape") this.setState({ rail: false, sheet: false, verOpen: false, revertArmed: false });
     };
     document.addEventListener("keydown", this.onKey);
     /* 回退是两段式：点一下变「确认回退到 vN」，点别处就撤销（设计侧 §五 第 8 项）。
@@ -1171,8 +1256,7 @@ class Component extends DCLogic {
   renderVals() {
     const s = this.state;
     const mode = this.mode();
-    const demo = DEMOS[s.demo - 1];
-    const narrow = s.demo === 8;
+    const demo = DEMOS[s.demo - 1];    const narrow = s.demo === 8;
     const responsive = s.demo === 9 || s.preset === 3;
     const p = PRESETS[s.preset];
     const h = HEALTH[mode];
@@ -1193,6 +1277,50 @@ class Component extends DCLogic {
 
     const diagPill = unchecked ? "—" : dead ? "!" : errCount ? String(errCount + warnCount) : warnCount ? String(warnCount) : "0";
 
+    /* ── 版本历史弹层（设计侧 §3.2） ──
+       真数据里 s.chg.versions 只是一串版本号，没有时间 / 来源 / 摘要，
+       所以行里那三项读 s.chg.versionMeta[v]，缺了就不渲染（hasSrc / hasSummary）。
+       这样接线分两步走也不会出空药丸。 */
+    const liveVers = (s.chg && s.chg.versions) || [];
+    const curVer = LIVE ? (liveVers.slice(-1)[0] || "—") : "v217";
+    const verRows = LIVE
+      ? liveVers.slice().reverse().map((v) => {
+          const m = (s.chg && s.chg.versionMeta && s.chg.versionMeta[v]) || {};
+          return { v: v, src: m.src || "", time: m.time || "", summary: m.summary || "" };
+        })
+      : DEMO_VERSIONS;
+    const verOpen = s.verOpen === null ? (s.demo === 12 && !LIVE) : s.verOpen;
+    const versions = verRows.map((r) => {
+      const cur = r.v === curVer;
+      const ai = r.src === "AI";
+      return {
+        label: r.v,
+        src: r.src, hasSrc: !!r.src,
+        time: r.time,
+        summary: r.summary, hasSummary: !!r.summary,
+        fw: cur ? "700" : "500",
+        bg: cur ? "var(--tool-accent-soft)" : "transparent",
+        dot: cur ? "var(--tool-accent)" : "var(--tool-border-strong)",
+        ring: cur ? "var(--tool-accent-soft)" : "transparent",
+        srcBg: ai ? "var(--tool-accent-soft)" : "var(--tool-panel-2)",
+        srcBd: ai ? "var(--tool-accent-border)" : "var(--tool-border)",
+        srcFg: ai ? "var(--tool-accent)" : "var(--tool-text-2)",
+        isCurrent: cur,
+        canRevert: !cur && s.revertArmed !== r.v,
+        confirming: s.revertArmed === r.v,
+        confirmLabel: "回到 " + r.v,
+        confirmText: "现在的 " + curVer + " 会作为新的一版写下来，历史不删 —— 回退本身也能再回退。",
+        // armGuard：让这一次点击不被 document 监听立刻灭掉（原注释见 componentDidMount）
+        ask: () => { this.armGuard = true; this.setState({ revertArmed: r.v }); },
+        cancel: () => { this.armGuard = true; this.setState({ revertArmed: false }); },
+        go: () => {
+          this.armGuard = true;
+          if (LIVE) this.doRevert(r.v);
+          else this.setState({ revertArmed: false, verOpen: false });
+        }
+      };
+    });
+
     return {
       theme: this.props.theme === "dark" ? "dark" : null,
       /* LIVE 时顶栏必须说真话。只接了 previewSrc 却让顶栏继续显示演示数字，
@@ -1202,7 +1330,32 @@ class Component extends DCLogic {
       title: LIVE ? LIVE.replace(/^.*\//, "").replace(/\.dc\.html$/, "") : "日志",
       file: LIVE ? LIVE : (missing ? "日志.dc.html（缺失）" : "日志.dc.html"),
       kindLabel: LIVE ? "稿" : "页稿",
-      version: LIVE ? "—" : "v217",
+      version: LIVE ? (curVer || "—") : "v217",
+      verOpen: verOpen,
+      verBtnBg: verOpen ? "var(--tool-accent-soft)" : "var(--tool-panel-2)",
+      verBtnBd: verOpen ? "var(--tool-accent-border)" : "var(--tool-border)",
+      verBtnFg: verOpen ? "var(--tool-accent)" : "var(--tool-text-2)",
+      toggleVer: () => { this.armGuard = true; this.setState({ verOpen: !verOpen, revertArmed: false }); },
+      closeVer: () => this.setState({ verOpen: false, revertArmed: false }),
+      versions: versions,
+      verCountLabel: versions.length + " 版在手边",
+      // 超过三版不分页：列表自滚（最高 420px）。版本历史是「往回翻一点」，
+      // 不是「浏览全部」，分页控件在这里是多余的。
+      verOlderLabel: "更早的版本走 MCP 的 draft_history / revert_draft。列表可滚，不分页。",
+
+      /* 未落盘横条（§3.3①）。LIVE 时读 s.previewing（形如 "style.font-size → 64px"）
+         加上选中节点的地址 —— 药丸里必须是真地址，不是「有未保存的改动」。 */
+      hasUnsaved: LIVE ? !!s.previewing : s.demo === 11,
+      unsavedEdit: LIVE
+        ? ((s.picked && s.picked.node ? '[data-ud-node="' + s.picked.node + '"] · ' : "") + (s.previewing || ""))
+        : '[data-ud-node="hdr.title"] · style.font-size → 64px',
+      unsavedNote: LIVE
+        ? ("只活在预览里，文件还是 " + curVer + "。回车或失焦写下一版。")
+        : "只活在预览里，文件还是 v217。回车或失焦写 v218。",
+      // 落盘：接线时把这里接到 applyProp（和字段上回车走同一条路）。
+      // 失焦依旧落盘（§3.3②）—— 这两颗钮是多一个入口，不是必经之路。
+      onCommit: () => { if (!LIVE) this.setState({ demo: 1 }); },
+      onDiscard: () => { if (LIVE) this.clearPreview(); else this.setState({ demo: 1 }); },
       elementsLabel: LIVE
         ? (s.apiErr ? "接口读不到" : L ? L.stats.elements + " 元素" : "正在读…")
         : (unchecked ? "元素数未知" : "812 元素"),
@@ -1324,7 +1477,7 @@ class Component extends DCLogic {
         bg: d.n === s.demo ? "var(--tool-accent)" : "var(--tool-panel)",
         bd: d.n === s.demo ? "var(--tool-accent)" : "var(--tool-border-strong)",
         fg: d.n === s.demo ? "var(--tool-on-accent)" : "var(--tool-text-2)",
-        pick: () => this.setState({ demo: d.n, spin: false, zoom: 1, preset: d.n === 9 ? 3 : 0, rail: d.n !== 8, sheet: true, draftTheme: d.n === 10 ? "dark" : "light" })
+        pick: () => this.setState({ demo: d.n, spin: false, zoom: 1, preset: d.n === 9 ? 3 : 0, rail: d.n !== 8, sheet: true, draftTheme: d.n === 10 ? "dark" : "light", verOpen: null, revertArmed: false })
       })),
 
       statCells: LIVE
@@ -1447,39 +1600,6 @@ class Component extends DCLogic {
         : s.busy ? "正在落盘：" + s.busy
         : s.checkNote || "",
 
-      /* 回退：胶囊留在底栏，不进面板 —— 进了面板就要先选中一个节点才能回退，
-         那是 §23.3 那个坑的同一形状（这条偏差是我定的，记在 doc/00 §二十七）。
-         形制照 §五 第 8 项：最近三版做胶囊，第四版起收进「更多」，
-         「执行」两段式 —— 点一下变「确认回退到 vN」，再点才真退。 */
-      canRevert: !!(LIVE && s.chg && s.chg.versions && s.chg.versions.length > 1),
-      // ⚠️ 这里必须是箭头 IIFE。写成 function(){} 的话里面的 this 不是组件，
-      // pick 回调里的 this.setState 就是 undefined —— 胶囊点不动，而且不报错。
-      versionOpts: ((vs, picked) => {
-        // 当前版本不能"退回"到自己，所以去掉最后一个
-        const list = vs.slice(0, -1).reverse().slice(0, 3);
-        const cur = picked || (list[0] || "");
-        return list.map((v) => ({
-          label: v, title: "退回到 " + v, active: v === cur,
-          bg: v === cur ? "var(--tool-accent)" : "var(--tool-panel)",
-          bd: v === cur ? "var(--tool-accent)" : "var(--tool-border-strong)",
-          fg: v === cur ? "var(--tool-on-accent)" : "var(--tool-text-2)",
-          pick: () => this.setState({ revertPick: v, revertArmed: false })
-        }));
-      })(((s.chg && s.chg.versions) || []), s.revertPick),
-      hasMore: (((s.chg && s.chg.versions) || []).length - 1) > 3,
-      moreLabel: "更多 " + Math.max(0, ((s.chg && s.chg.versions) || []).length - 1 - 3) + " 版",
-      moreTitle: "更早的版本走 MCP 的 draft_history / revert_draft —— 界面只放最近三版",
-      onExec: () => {
-        this.armGuard = true;                       // 这一次点击不被 document 监听灭掉
-        if (!s.revertArmed) { this.setState({ revertArmed: true }); return; }
-        this.doRevert();
-      },
-      revertLabel: s.revertArmed
-        ? "确认回退到 " + (s.revertPick || (((s.chg && s.chg.versions) || []).slice(0, -1).reverse()[0] || ""))
-        : "执行",
-      execBg: s.revertArmed ? "var(--tool-err)" : "var(--tool-panel)",
-      execBd: s.revertArmed ? "var(--tool-err)" : "var(--tool-accent)",
-      execFg: s.revertArmed ? "var(--tool-on-accent)" : "var(--tool-accent)",
       selNote: !s.bridgeReady ? "桥还没就位"
         : s.picked
           ? s.picked.file + "#" + s.picked.node + " <" + s.picked.tag + ">"

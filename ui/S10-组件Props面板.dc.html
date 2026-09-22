@@ -49,7 +49,7 @@ body { background: var(--tool-bg); font-family: 'DC', sans-serif; font-size: 13p
   <div style="flex: 1 1 0; display: flex; overflow: hidden;">
 
     <!-- 左侧：组件预览 -->
-    <div style="flex: 1 1 0; display: flex; align-items: center; justify-content: center; background: var(--tool-bg-2); padding: 24px;">
+    <div style="flex: 1 1 0; display: flex; align-items: center; justify-content: center; background: var(--tool-canvas); padding: 24px;">
       <div style="text-align: center;">
         <!-- 组件预览占位 -->
         <div style="padding: 20px 32px; background: var(--tool-panel); border: 1px solid var(--tool-border); border-radius: 8px; margin-bottom: 12px;">
@@ -71,65 +71,79 @@ body { background: var(--tool-bg); font-family: 'DC', sans-serif; font-size: 13p
         组件 Props
       </div>
 
-      <!-- Props 列表 -->
-      <sc-for list="{{ propsList }}" as="p">
-        <div style="padding: 8px 12px; border-bottom: 1px solid var(--tool-border);">
-          <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
-            <span style="font-size: 12px; font-weight: 500; flex: 1 1 0;">{{ p.name }}</span>
-            <span style="font-size: 10px; color: var(--tool-muted); font-family: ui-monospace, 'SF Mono', monospace;">{{ p.type }}</span>
+      <!-- Props 列表（设计侧 §2.4）。行法和 S7 属性面板完全共用：
+           左标题 92px + 右控件，一行 30px。说明与类型收进 ? 里 ——
+           原来每行四行（名/类型/说明/控件/默认值）约 100px，20+ 个 props 就没法看了。
+           类型签也是水平溢出的根因：它 nowrap 且没有 min-width: 0。 -->
+      <sc-for list="{{ propsList }}" as="p" hint-placeholder-count="5">
+        <sc-if value="{{ p.startsLocked }}" hint-placeholder-val="{{ false }}">
+          <div style="padding: 9px 12px 5px; font-size: 10px; font-weight: 650; letter-spacing: 0.05em; color: var(--tool-muted); background: var(--tool-panel-2); border-top: 1px solid var(--tool-border); border-bottom: 1px solid var(--tool-border);">不可调（回调 / 对象）</div>
+        </sc-if>
+        <div style="display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 10px; align-items: center; min-height: 30px; padding: 3px 12px; border-bottom: 1px solid var(--tool-border); opacity: {{ p.op }};">
+          <div style="min-width: 0; display: flex; align-items: center; gap: 4px;">
+            <span title="{{ p.tip }}" style="font-size: 12px; font-weight: 560; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ p.name }}</span>
+            <button onClick="{{ p.toggleHint }}" aria-expanded="{{ p.hintOpen }}" title="说明与类型" style="flex: none; width: 14px; height: 14px; display: grid; place-items: center; border: 1px solid var(--tool-border); border-radius: 999px; background: {{ p.hintBg }}; color: {{ p.hintFg }}; font-size: 9px; line-height: 1; cursor: pointer; padding: 0;" style-hover="background: var(--tool-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">?</button>
           </div>
-          <div style="font-size: 10px; color: var(--tool-muted); margin-bottom: 6px;">{{ p.desc }}</div>
+          <div style="min-width: 0;">
 
           <!-- text editor -->
           <sc-if value="{{ p.showText }}" hint-placeholder-val="{{ true }}">
-            <input type="text" value="{{ p.value }}" onChange="{{ p.onChange }}" style="width: 100%; padding: 5px 8px; font-size: 12px; border: 1px solid var(--tool-border); border-radius: 4px; background: var(--tool-bg); color: var(--tool-text); box-sizing: border-box;" style-hover="border-color: var(--tool-border-strong);" style-focus="border-color: var(--tool-accent); outline: none; box-shadow: 0 0 0 2px var(--tool-accent-soft);">
+            <input type="text" value="{{ p.value }}" onChange="{{ p.onChange }}" style="width: 100%; box-sizing: border-box; height: 24px; padding: 0 8px; font-size: 12px; border: 1px solid var(--tool-border-strong); border-radius: var(--tool-radius-sm); background: var(--tool-panel); color: var(--tool-text);" style-hover="border-color: var(--tool-border-strong);" style-focus="border-color: var(--tool-accent); outline: none; box-shadow: 0 0 0 2px var(--tool-accent-soft);">
           </sc-if>
 
           <!-- enum editor -->
           <sc-if value="{{ p.showEnum }}" hint-placeholder-val="{{ true }}">
-            <div style="display: flex; gap: 4px; flex-wrap: wrap;">
-              <sc-for list="{{ p.options }}" as="o">
-                <button onClick="{{ o.pick }}" style="padding: 3px 10px; font-size: 11px; border: 1px solid {{ o.bd }}; border-radius: 4px; background: {{ o.bg }}; color: {{ o.fg }}; cursor: pointer; font-weight: {{ o.fw }};" style-hover="opacity: .85;">{{ o.label }}</button>
+            <div style="display: flex; gap: 3px; flex-wrap: wrap;">
+              <sc-for list="{{ p.options }}" as="o" hint-placeholder-count="3">
+                <button onClick="{{ o.pick }}" aria-pressed="{{ o.on }}" style="height: 22px; padding: 0 9px; font-size: 11px; border: 1px solid {{ o.bd }}; border-radius: var(--tool-radius-sm); background: {{ o.bg }}; color: {{ o.fg }}; cursor: pointer; font-weight: {{ o.fw }};" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">{{ o.label }}</button>
               </sc-for>
             </div>
           </sc-if>
 
           <!-- boolean editor -->
           <sc-if value="{{ p.showBool }}" hint-placeholder-val="{{ true }}">
-            <div onClick="{{ p.toggle }}" style="display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 2px 0;">
-              <div style="width: 32px; height: 18px; border-radius: 9px; background: {{ p.switchBg }}; position: relative; transition: background .12s ease;">
-                <div style="width: 14px; height: 14px; border-radius: 50%; background: white; position: absolute; top: 2px; left: {{ p.switchLeft }}; transition: left .12s ease; box-shadow: 0 1px 2px rgba(0,0,0,.15);"></div>
+            <div onClick="{{ p.toggle }}" style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+              <div style="width: 30px; height: 17px; flex: none; border-radius: 9px; background: {{ p.switchBg }}; position: relative; transition: background .12s ease;">
+                <div style="width: 13px; height: 13px; border-radius: 50%; background: #fff; position: absolute; top: 2px; left: {{ p.switchLeft }}; transition: left .12s ease; box-shadow: 0 1px 2px rgba(0,0,0,.18);"></div>
               </div>
-              <span style="font-size: 11px; color: var(--tool-text);">{{ p.switchLabel }}</span>
+              <span style="font-size: 11px; color: var(--tool-text-2);">{{ p.switchLabel }}</span>
             </div>
           </sc-if>
 
           <!-- number editor -->
           <sc-if value="{{ p.showNumber }}" hint-placeholder-val="{{ true }}">
-            <div style="display: flex; align-items: center; gap: 0;">
-              <button onClick="{{ p.down }}" style="width: 24px; height: 24px; border: 1px solid var(--tool-border); border-right: none; border-radius: 4px 0 0 4px; background: var(--tool-bg); color: var(--tool-text); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 12px;" style-hover="background: var(--tool-hover);">−</button>
-              <input type="text" inputmode="decimal" value="{{ p.value }}" onChange="{{ p.onChange }}" style="width: 60px; height: 24px; border: 1px solid var(--tool-border); background: var(--tool-bg); color: var(--tool-text); text-align: center; font-size: 12px; font-family: ui-monospace, 'SF Mono', monospace;" style-hover="border-color: var(--tool-border-strong);" style-focus="border-color: var(--tool-accent); outline: none;">
-              <button onClick="{{ p.up }}" style="width: 24px; height: 24px; border: 1px solid var(--tool-border); border-left: none; border-radius: 0 4px 4px 0; background: var(--tool-bg); color: var(--tool-text); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 12px;" style-hover="background: var(--tool-hover);">+</button>
+            <div style="display: flex; align-items: center;">
+              <button onClick="{{ p.down }}" style="width: 22px; height: 24px; border: 1px solid var(--tool-border-strong); border-right: none; border-radius: var(--tool-radius-sm) 0 0 var(--tool-radius-sm); background: var(--tool-panel); color: var(--tool-text-2); cursor: pointer; display: grid; place-items: center; font-size: 12px;" style-hover="background: var(--tool-hover);">−</button>
+              <input type="text" inputmode="decimal" value="{{ p.value }}" onChange="{{ p.onChange }}" style="width: 54px; height: 24px; border: 1px solid var(--tool-border-strong); background: var(--tool-panel); color: var(--tool-text); text-align: center; font-size: 12px; font-family: var(--tool-mono);" style-focus="border-color: var(--tool-accent); outline: none;">
+              <button onClick="{{ p.up }}" style="width: 22px; height: 24px; border: 1px solid var(--tool-border-strong); border-left: none; border-radius: 0 var(--tool-radius-sm) var(--tool-radius-sm) 0; background: var(--tool-panel); color: var(--tool-text-2); cursor: pointer; display: grid; place-items: center; font-size: 12px;" style-hover="background: var(--tool-hover);">+</button>
             </div>
           </sc-if>
 
-          <!-- null editor (no controls, just show value) -->
-          <sc-if value="{{ p.showNull }}" hint-placeholder-val="{{ true }}">
-            <div style="font-size: 11px; color: var(--tool-muted); font-family: ui-monospace, 'SF Mono', monospace; padding: 4px 6px; background: var(--tool-bg); border-radius: 4px;">{{ p.value }}</div>
-            <div style="font-size: 10px; color: var(--tool-muted); margin-top: 2px;">回调类型，不可编辑</div>
+          <!-- null：没控件。只给值 + 一颗「只读」签，整行压到 0.6 ——
+               它不可编辑，不应该和可改的行抢同一条扫视线。 -->
+          <sc-if value="{{ p.showNull }}" hint-placeholder-val="{{ false }}">
+            <div style="display: flex; align-items: center; gap: 7px; min-width: 0;">
+              <span style="font-size: 11px; font-family: var(--tool-mono); color: var(--tool-text-2); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ p.value }}</span>
+              <span style="flex: none; font-size: 10px; padding: 0 5px; border-radius: var(--tool-radius-sm); background: var(--tool-panel-2); border: 1px solid var(--tool-border); color: var(--tool-muted);">只读</span>
+            </div>
           </sc-if>
 
-          <!-- default badge -->
-          <sc-if value="{{ p.isDefault }}" hint-placeholder-val="{{ true }}">
-            <div style="font-size: 10px; color: var(--tool-muted); margin-top: 4px;">默认值</div>
-          </sc-if>
+          </div>
         </div>
+        <sc-if value="{{ p.hintOpen }}" hint-placeholder-val="{{ false }}">
+          <div style="padding: 7px 12px 9px; border-bottom: 1px solid var(--tool-border); background: var(--tool-panel-2); display: grid; gap: 3px;">
+            <div style="font-size: 12px; color: var(--tool-text-2); line-height: 1.5;">{{ p.desc }}</div>
+            <div style="font-family: var(--tool-mono); font-size: 11px; color: var(--tool-muted); word-break: break-all;">{{ p.typeLine }}</div>
+          </div>
+        </sc-if>
       </sc-for>
 
-      <!-- 空态 -->
-      <sc-if value="{{ noProps }}" hint-placeholder-val="{{ true }}">
-        <div style="padding: 40px 20px; text-align: center; color: var(--tool-muted);">
-          <div style="font-size: 12px;">这份稿没有 props</div>
+      <!-- 空态：说清楚缺的是什么、怎么补 —— 不只是「没有 props」。 -->
+      <sc-if value="{{ noProps }}" hint-placeholder-val="{{ false }}">
+        <div style="padding: 32px 18px; text-align: center;">
+          <div style="font-size: 13px; font-weight: 600; margin-bottom: 6px;">这份组件稿没有声明 props</div>
+          <div style="font-size: 12px; color: var(--tool-text-2); line-height: 1.6; margin-bottom: 12px;">面板读的是 <span style="font-family: var(--tool-mono);">data-props</span> 里 <span style="font-family: var(--tool-mono);">editor</span> 非 null 的项。这份稿的 <span style="font-family: var(--tool-mono);">data-props</span> 是空的，所以没有可调的东西。</div>
+          <div style="text-align: left; font-family: var(--tool-mono); font-size: 11px; line-height: 1.6; color: var(--tool-text-2); background: var(--tool-panel-2); border: 1px solid var(--tool-border); border-radius: var(--tool-radius); padding: 9px 11px;">{{ emptyHint }}</div>
         </div>
       </sc-if>
     </div>
@@ -159,7 +173,7 @@ const DEMOS = [
 ];
 
 class Component extends DCLogic {
-  state = { demo: 1, props: {} };
+  state = { demo: 1, props: {}, hint: {} };
 
   goBack() {}
 
@@ -169,8 +183,12 @@ class Component extends DCLogic {
 
     const rawProps = this.demoProps(s.demo);
     const propState = { ...s.props };
+    /* 不可调的（editor: null）统一沉到底部，并在第一条前面加小标题。
+       原来按声明顺序排，onClick 夹在可改的行中间，扫视线被打断。 */
+    const ordered = rawProps.filter((p) => p.editor != null).concat(rawProps.filter((p) => p.editor == null));
+    const firstLocked = ordered.findIndex((p) => p.editor == null);
 
-    const propsList = rawProps.map((p) => {
+    const propsList = ordered.map((p, i) => {
       const val = propState[p.name] != null ? propState[p.name] : p.default;
 
       // text
@@ -186,6 +204,18 @@ class Component extends DCLogic {
 
       return {
         name: p.name, type: p.tsType || "", desc: p.desc || "",
+        typeLine: (p.tsType || "") + (p.default != null ? "  ·  默认 " + String(p.default) : ""),
+        tip: p.name + "：" + (p.tsType || ""),
+        startsLocked: firstLocked >= 0 && i === firstLocked,
+        op: showNull ? "0.6" : "1",
+        hintOpen: !!s.hint[p.name],
+        hintBg: s.hint[p.name] ? "var(--tool-accent-soft)" : "var(--tool-panel)",
+        hintFg: s.hint[p.name] ? "var(--tool-accent)" : "var(--tool-muted)",
+        toggleHint: () => this.setState((q) => {
+          const h = Object.assign({}, q.hint);
+          if (h[p.name]) delete h[p.name]; else h[p.name] = true;
+          return { hint: h };
+        }),
         editor: p.editor, value: String(val), isDefault: val === p.default,
         showText: showText, showEnum: showEnum, showBool: showBool, showNumber: showNumber, showNull: showNull,
         // text handler
@@ -193,6 +223,7 @@ class Component extends DCLogic {
         // enum options
         options: p.options ? p.options.map((opt) => ({
           label: opt,
+          on: val === opt,
           bg: val === opt ? "var(--tool-accent)" : "transparent",
           bd: val === opt ? "var(--tool-accent)" : "var(--tool-border)",
           fg: val === opt ? "white" : "var(--tool-text)",
@@ -235,6 +266,7 @@ class Component extends DCLogic {
       // ── Props ──
       propsList: propsList,
       noProps: rawProps.length === 0,
+      emptyHint: 'data-props=\'{"tone": {"editor": "enum", "options": ["primary","ghost"], "default": "primary"}}\'',
 
       // ── 演示态 ──
       demoStates: DEMOS.map((d) => ({
@@ -243,7 +275,7 @@ class Component extends DCLogic {
         fg: s.demo === d.n ? "white" : "var(--tool-text)",
         bd: s.demo === d.n ? "var(--tool-accent)" : "var(--tool-border)",
         fw: s.demo === d.n ? "560" : "400",
-        pick: () => this.setState({ demo: d.n, props: {} })
+        pick: () => this.setState({ demo: d.n, props: {}, hint: {} })
       }))
     };
   }
