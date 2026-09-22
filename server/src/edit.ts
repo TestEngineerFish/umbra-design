@@ -31,7 +31,7 @@ import { draftPath, type Project } from "./project.js";
 import { locateNode, resolveDraft } from "./locate.js";
 import { normalizeStyle } from "./snapshot.js";
 import { writeDraft, type WriteOutcome } from "./write.js";
-import { listVersions, snapDir } from "./history.js";
+import { listVersions, snapDir , type VersionOrigin } from "./history.js";
 
 export type SlotKind = "style" | "attr" | "text";
 
@@ -72,7 +72,8 @@ function refuse(code: Parameters<typeof err>[0], file: string, name: string, msg
 }
 
 export async function setProp(
-  p: Project, fileOrName: string, nodeId: string, kind: SlotKind, name: string, value: string
+  p: Project, fileOrName: string, nodeId: string, kind: SlotKind, name: string, value: string,
+  origin?: VersionOrigin,
 ): Promise<SetPropResult> {
   const rel = await resolveDraft(p, fileOrName);
   const abs = draftPath(p, rel);
@@ -165,7 +166,7 @@ export async function setProp(
 
   // ── 要求 3：走同一条落盘路 ──
   const kindOf = Object.keys(d.props ?? {}).some((k) => !k.startsWith("$")) ? "component" : "page";
-  const { outcome } = await writeDraft(p, rel, next, kindOf as "page" | "component");
+  const { outcome } = await writeDraft(p, rel, next, kindOf as "page" | "component", undefined, origin ? { origin } : undefined);
 
   // 改过的节点地址会变 —— 回报新地址，界面才能接着调
   let newNode: string | null = null;
@@ -189,7 +190,7 @@ export async function setProp(
  * 而不是悄悄把历史改掉 —— 悄悄改历史就是 `07` 的变更交付有个洞。
  */
 export async function revertTo(
-  p: Project, fileOrName: string, version: string
+  p: Project, fileOrName: string, version: string, origin?: VersionOrigin,
 ): Promise<{ file: string; from: string; restored: string; write: WriteOutcome }> {
   const rel = await resolveDraft(p, fileOrName);
   const vs = await listVersions(p, rel);
@@ -208,7 +209,8 @@ export async function revertTo(
     ? "component" : "page";
   const latest = vs[vs.length - 1] as string;
   const { outcome } = await writeDraft(p, rel, restored, kindOf as "page" | "component",
-    `这一版是**回退**：把 ${version} 的内容原样落成新的一版（从 ${latest} 退回）。下面列的是相对 ${latest} 的差异。`);
+    `这一版是**回退**：把 ${version} 的内容原样落成新的一版（从 ${latest} 退回）。下面列的是相对 ${latest} 的差异。`,
+    origin ? { origin } : undefined);
   return { file: rel, from: latest, restored: version, write: outcome };
 }
 

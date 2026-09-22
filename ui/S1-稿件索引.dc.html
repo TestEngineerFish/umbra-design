@@ -890,8 +890,18 @@ class Component extends DCLogic {
       staleDetail: (s.stale && s.stale.reason ? s.stale.reason + " " : "") + "这几行的元素数、版本、更新时间和健康都还是改动前的读数，已经灰掉 —— 别按它们下判断。",
       staleFiles: staleList.map((f) => ({ file: f })),
       // 这条横条只有一个出路，所以只给一颗实心主按钮。
-      // 接线时把这里换成 build_index 调用，回来再拉一次 index_status。
-      onRebuild: () => this.setState({ demo: LIVE ? s.demo : 1, stale: null }),
+      /* 真数据：POST rebuild_index → build_index 重写这一页本身，所以回来直接整页重载，
+         不是再拉一次 index_status（那样列表里的读数还是旧的）。演示态只清横条。 */
+      onRebuild: () => {
+        const A = typeof window !== "undefined" ? window.__UD_API : null;
+        if (!LIVE || !A) { this.setState({ demo: LIVE ? s.demo : 1, stale: null }); return; }
+        this.setState({ rebuilding: true });
+        fetch(new URL(A.base + "rebuild_index", location.href).toString(),
+          { method: "POST", headers: { "x-ud-token": A.token, "content-type": "application/json" }, body: "{}" })
+          .then((r) => r.json())
+          .then((j) => { if (j.ok) location.reload(); else this.setState({ rebuilding: false, stale: Object.assign({}, s.stale, { reason: "重建失败：" + ((j.errors && j.errors[0] && j.errors[0].message) || "未知错误") }) }); })
+          .catch((e) => this.setState({ rebuilding: false, stale: Object.assign({}, s.stale, { reason: "重建失败：" + e.message }) }));
+      },
       hasOverLimit: showLimit && over.length > 0,
       overLimitHeadline: hardOver.length ? hardOver.length + " 份稿已超过 " + NUM(LIMIT) + " 个元素的上限" : over.length + " 份稿接近 " + NUM(WARN_AT) + " 个元素的建议上限",
       overLimitDetail: hardOver.length ? "超限的稿落盘会被拒。按顶层 section 或 dc-import 边界拆开。" : "还能落盘，但已经是拆稿的信号了。",

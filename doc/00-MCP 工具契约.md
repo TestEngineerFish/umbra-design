@@ -2513,3 +2513,33 @@ S10 已改 `type="text" inputmode="decimal"`。**S2 的属性面板一直是这�
 
 **往返实测【实测】**：用包里的 S1 原样改一处文案放进 `_incoming` → 底稿正确、接线 4/4、行数 +1；改动 sha → 底稿过时；这一轮设计侧交回的真实 S1 / S2 → 底稿不明（blocking），正是本节要拦的情况。
 
+## 三十三、设计侧第二轮收稿 · M5-8 / M5-9 接线 · 版本元数据（2026-09-23）
+
+**收稿走 MCP 直连**：ClaudeDesign 的 MCP 有 `list_files / read_file / write_files / copy_files / render_preview / get_conversation / list_comments` 等；能上传（`write_files` 内联 data），不能发消息给它（只能同步会话记录进它的面板，单向）。它项目里 `uploads/UmbraDesign-ui-20260921-1456/` 已在，`ui/_incoming/` 里已放了六份稿 + 回复（归档为 `doc/_archive/16`）。
+
+**取文件的坑【实测】**：`render_preview` 的 serve_url 用 curl 拿到的**不是原文件** —— 宿主在 `<head>` 注入一段 `<style>` + 20 KB `<script>`（`data-omelette-injected`），S1 多出 20,369 字节。做法：先拿发件包里已知内容的 S3 校准，剥掉注入块（含其后两个换行）后与 zip 原件**逐字节一致**，再用同一把尺子取六份；六份字节数与它清单里的 size 全部对上。`read_file` 是实体转义过的正文，能用但 300 KB 要过模型上下文，没走。
+
+**`incoming` 读数**：六份底稿正确、接线 4/4 · 8/8；「少了的键」全是它回复里明说删掉的旧键（S1 `indexStale*`、S2 底栏胶囊那 10 个、S6 `left/rightHighlights`、S8 四个空函数）。一条 blocking：S8 `E_TAG_UNBALANCED` —— 它把设置区包进两层容器只补了一个闭合，浏览器自动补齐所以它那边看不出。本地在模板区末尾补一行 `</div>` 后零 blocking（已告知它，见 `doc/14` §零）。
+
+**工具化两处**：`incoming --apply` —— 底稿正确 + 零 error + 接线齐全的稿整文件并入 ui/（剥 baseline 行，原件从 `_incoming/` 移除）；逐块移植只是底稿不对时的补救。`outgoing` 带上运行时三件套（它拿不到外网，没有 React 打开白屏）。
+
+**读数**：selftest 零 error；六屏 `render_check` alive、洞 0、404 0、外部请求 0、控制台 0（S1 1044 节点 / S2 208 / S6 160 / S8 117 / S9 146 / S10 109）；真浏览器逐屏看过，S8 危险操作、S1 过期态、S2 版本弹层与未落盘横条形制与回复一致。
+
+**顺带修掉**：`agenttest` 自 bf6a144 起全挂 —— 测试稿没引 `support.js`，`E_RUNTIME_NOT_LOADED` 拒绝落盘；换成校验器认可的骨架后 4/4。它的临时项目 `server/test-agent-project` 曾被提交进仓库，每跑一次就删一次，已取消跟踪并进 `.gitignore`。
+
+### 33.1 M5-8 · S1 索引过期
+
+本地 API 新增 `POST rebuild_index`（调 `buildIndex`，serveUrl 用本服务地址）。S1 `onRebuild` LIVE 下 POST 完**整页重载** —— build_index 重写的就是这一页，再拉一次 `index_status` 只会清横条、列表读数还是旧的。
+【实测】touch 一份稿 → `index_status` stale → S1 齐边横条（时钟 + 结论 + 文件名药丸）+ 行级「文件已改」+ 三列灰、健康不灰 → 点「重建索引」→ 横条消失、版本列 v4 → v5、底栏「索引生成于 刚刚」。
+
+### 33.2 M5-9 · S2 版本弹层 + 未落盘横条
+
+- **版本元数据** `.umbradesign/snapshots/<稿>/meta.json`：`{ v: { origin, capturedAt, summary } }`，在 `write_draft` 末尾记 —— 唯一写入口，所以每一版都有；快照本身可能几 MB，弹层只要三个字段，单独一张小表。
+  `origin` 只有三个取值（设计侧 §3.2）：v1 一律「新建」；默认「AI」（走 MCP 的调用方都是模型）；本地 API 的 `set_prop` / `revert` 显式标「人手改」。`summary` = 最重的一条变更的 message（L1 > L2 > L3 > L4，多于一条带「另有 N 处」）；回退版用回退备注那句。
+- `changes` 路由带 `versionMeta[v] = { src, time, summary }`，`time` 走 `humanTime`（今天 HH:MM / 昨天 / MM-DD）。**S2 一个字没改**就显示出来了 —— 它读的正是这个键名。
+- 未落盘横条的「落盘」钮：`previewStyle` 时记 `previewSlot`，`onCommit` 调 `applyProp`（和字段上回车同一条路）。
+  【实测】改 padding 不回车 → 横条 `[data-ud-node="fec4d9c9"] · style.padding → 4px 8px · 文件还是 v5` → 点落盘 → v5 → v6，撤销可用。
+- **抓到一条真缺陷**：第一次点「落盘」时，输入框先失焦已经在落盘，钮又发了一次；两次并发写共用 `<稿>.umbradesign.tmp`，第二次 `rename` 报 ENOENT（画面上是属性行一条红字）。修两处：`writeAtomic` 临时文件名唯一（pid + 时间 + 随机，失败时清掉）；`onCommit` 在 `s.busy` 时不再发。修后复测 v5 → v6 干净。
+
+**通道 B 顺手核过**：`claude --help` 里 `--print / --output-format / --model / --brief / --mcp-config / --allowed-tools / --system-prompt` 都在（2.1.278）。但 `chat_send` 的通道 B **复用通道 A 的 baseUrl / apiKey / model** —— GLM 的 Anthropic 端点和 DeepSeek 的 OpenAI 端点不是一个地址，真跑通道 B 之前 `ai_config.json` 要拆出 `channelB`（登记在 `doc/11` §四）。
+

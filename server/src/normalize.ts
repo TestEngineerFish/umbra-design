@@ -112,10 +112,13 @@ export function missingRuntime(draftAbs: string): string[] {
 /** 原子写：先写临时文件再 rename，避免半截文件被浏览器读到。 */
 export async function writeAtomic(abs: string, content: string): Promise<void> {
   await mkdir(dirname(abs), { recursive: true });
-  const tmp = abs + ".umbradesign.tmp";
+  /* 临时文件名要唯一：同一份稿两次写入并发时（实测：属性面板失焦落盘 + 横条「落盘」钮同时触发），
+     共用一个 .tmp 会让第二次 rename 报 ENOENT。各写各的临时文件，rename 是原子的，后到的赢。 */
+  const tmp = `${abs}.${process.pid}.${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}.umbradesign.tmp`;
   await writeFile(tmp, content, "utf8");
-  const { rename } = await import("node:fs/promises");
-  await rename(tmp, abs);
+  const { rename, rm } = await import("node:fs/promises");
+  try { await rename(tmp, abs); }
+  catch (e) { await rm(tmp, { force: true }); throw e; }
 }
 
 export async function readIfExists(abs: string): Promise<string | null> {

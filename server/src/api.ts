@@ -34,13 +34,13 @@ import { validateDraft } from "./validate.js";
 import { listComponents, listIcons, searchTokens } from "./assets.js";
 import { renderCheck } from "./render.js";
 import { get as getJob, start as startJob, view as jobView } from "./jobs.js";
-import { changesSince, listVersions, projectChangesSince, toMarkdown, workspaceState } from "./history.js";
+import { changesSince, humanTime, listVersions, projectChangesSince, readVersionMeta, toMarkdown, workspaceState } from "./history.js";
 import { draftPath, listDrafts, type Project } from "./project.js";
 import { resolveDraft } from "./locate.js";
 import { readFile } from "node:fs/promises";
 import { relative, sep } from "node:path";
 import { ToolError } from "./envelope.js";
-import { indexStatus, isToolPage } from "./indexpage.js";
+import { buildIndex, indexStatus, isToolPage } from "./indexpage.js";
 import { readCheck, sha256 } from "./check.js";
 
 export const API_PREFIX = "/__ud/";
@@ -133,14 +133,20 @@ export async function handleApi(
     if (route === "changes" && req.method === "GET") {
       const rel = await resolveDraft(p, str(url.searchParams.get("file"), "file"));
       const vs = await listVersions(p, rel);
+      // 版本弹层（S2，设计侧 §3.2）每行要「来源 · 时间 · 摘要」—— 形状按它给的：versionMeta[v] = { src, time, summary }
+      const metaRaw = await readVersionMeta(p, rel);
+      const versionMeta: Record<string, { src: string; time: string; summary: string }> = {};
+      for (const [v, m] of Object.entries(metaRaw)) {
+        versionMeta[v] = { src: m.origin, time: humanTime(m.capturedAt), summary: m.summary };
+      }
       if (vs.length < 2) {
-        json(reply, 200, { ok: true, data: { file: rel, versions: vs, diff: null, markdown: null,
+        json(reply, 200, { ok: true, data: { file: rel, versions: vs, versionMeta, diff: null, markdown: null,
           note: vs.length ? "只有一版，没有可比的" : "还没有快照" } });
         return true;
       }
       const since = url.searchParams.get("since") || (vs[0] as string);
       const d = await changesSince(p, rel, since);
-      json(reply, 200, { ok: true, data: { file: rel, versions: vs, diff: d, markdown: toMarkdown(d) } });
+      json(reply, 200, { ok: true, data: { file: rel, versions: vs, versionMeta, diff: d, markdown: toMarkdown(d) } });
       return true;
     }
 
@@ -201,7 +207,8 @@ export async function handleApi(
       const r = await setProp(p,
         str(b.file, "file"), str(b.node, "node"),
         str(b.kind, "kind") as SlotKind, str(b.name, "name"),
-        typeof b.value === "string" ? b.value : "");
+        typeof b.value === "string" ? b.value : "",
+        "人手改");   // 本地 API 只有界面在调 —— 这一版是人落的
       json(reply, 200, { ok: true, data: r });
       return true;
     }
@@ -271,7 +278,19 @@ export async function handleApi(
         return true;
       }
       const b = await readBody(req);
-      json(reply, 200, { ok: true, data: await revertTo(p, str(b.file, "file"), str(b.version, "version")) });
+      json(reply, 200, { ok: true, data: await revertTo(p, str(b.file, "file"), str(b.version, "version"), "人手改") });
+      return true;
+    }
+
+    /* S1「重建索引」（M5-8）。build_index 会重写入口页（S1 自己），所以界面调完要整页重载。
+       serveUrl 用本服务的地址 —— 入口页里的链接都是相对路径，这个值只进 index-data 的 url 字段。 */
+    if (route === "rebuild_index" && req.method === "POST") {
+      if (!originOk(req, ctx.port)) {
+        json(reply, 403, { ok: false, errors: [{ code: "E_API_ORIGIN", message: "Origin 不是本服务" }] });
+        return true;
+      }
+      const built = await buildIndex(p, `http://127.0.0.1:${ctx.port}/`);
+      json(reply, 200, { ok: true, data: built });
       return true;
     }
 

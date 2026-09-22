@@ -15,7 +15,7 @@ import { dirname, join } from "node:path";
 import { execFile } from "node:child_process";
 import { X } from "./codes.js";
 import { err, ToolError, warn, type Diagnostic } from "./envelope.js";
-import { conclusion as conclusionOf } from "./diff.js";
+import { conclusion as conclusionOf, type DiffResult } from "./diff.js";
 import { draftPath, type Project } from "./project.js";
 import { validateDraft } from "./validate.js";
 import {
@@ -23,7 +23,7 @@ import {
 } from "./normalize.js";
 import { gzipSync } from "node:zlib";
 import { buildSnapshot } from "./snapshot.js";
-import { listVersions, recordChange, snapDir } from "./history.js";
+import { listVersions, recordChange, recordVersionMeta, snapDir, type VersionOrigin } from "./history.js";
 
 export interface WriteOutcome {
   path: string;
@@ -39,6 +39,17 @@ export interface WriteOutcome {
   /** 跟上一版比出来的变更清单摘要；第一版为 null */
   change: { counts: Record<string, number>; conclusion: string } | null;
   changelog: { written: boolean; reason?: string; section?: string } | null;
+}
+
+/** 版本弹层的一句摘要：最重的那一条变更（L1 > L2 > L3 > L4），多于一条就带个数。
+ *  设计侧 §3.2：「用 S4 那份变更数据里最重的一条就够」。 */
+function heaviestChange(d: DiffResult): string {
+  const order = { L1: 0, L2: 1, L3: 2, L4: 3 } as Record<string, number>;
+  const cs = [...d.changes].sort((a, b) => (order[a.level] ?? 9) - (order[b.level] ?? 9));
+  const top = cs[0];
+  if (!top) return conclusionOf(d);
+  const rest = cs.length - 1;
+  return `${top.message}${rest ? `，另有 ${rest} 处` : ""}`;
 }
 
 /** 下一个版本号：按稿独立计数，取已有最大值 + 1（doc/07 §五） */
@@ -60,7 +71,7 @@ async function gitHead(p: Project): Promise<string | null> {
 /** 写一份稿。内容相同则不落盘也不新增快照（避免版本号空转）。 */
 export async function writeDraft(
   p: Project, relPath: string, content: string, kind: "page" | "component",
-  note?: string, opts?: { expectedSourceSha256?: string },
+  note?: string, opts?: { expectedSourceSha256?: string; origin?: VersionOrigin },
 ): Promise<{ outcome: WriteOutcome; diags: Diagnostic[]; stats: Record<string, unknown> }> {
   if (!/\.dc\.html$/.test(relPath)) {
     throw new ToolError(
@@ -152,6 +163,15 @@ export async function writeDraft(
 
   // ③ 的后半段：跟上一版比，产变更清单并追加 CHANGELOG-设计侧.md（doc/07 §五）
   const rec = await recordChange(p, relPath, version, note);
+  /* 版本元数据（S2 版本弹层，设计侧 §3.2）：来源 · 时间 · 一句摘要。
+     第一版一律「新建」；摘要取变更结论（最重的那一级），第一版就写元素数。
+     默认来源是 AI —— 走 MCP 的调用方都是模型；人手改的入口（本地 API）自己标「人手改」。 */
+  await recordVersionMeta(p, relPath, version, {
+    origin: version === "v1" ? "新建" : (opts?.origin ?? "AI"),
+    capturedAt: snap.capturedAt,
+    summary: note && /回退/.test(note) ? note.replace(/\*\*/g, "").split("。")[0] ?? ""
+      : rec.diff ? heaviestChange(rec.diff) : `新建，${snap.stats.elements} 个元素`,
+  });
   const steps = [...prep.steps, `快照 ${version}`];
   if (rec.changelog.written) steps.push(`changelog ${rec.changelog.section}`);
   else if (rec.diff) steps.push(`changelog 未写（${rec.changelog.reason}）`);
@@ -176,7 +196,7 @@ export interface PatchEdit { old: string; new: string; count?: number }
 /** 增量改。old 必须唯一命中；命中 0 次或多次返回 E_PATCH_ANCHOR，并把相关片段回给模型。 */
 export async function patchDraft(
   p: Project, relPath: string, edits: PatchEdit[],
-  opts?: { expectedSourceSha256?: string; note?: string },
+  opts?: { expectedSourceSha256?: string; note?: string; origin?: VersionOrigin },
 ) {
   const abs = draftPath(p, relPath);
   const original = (await readIfExists(abs)) ?? "";
@@ -220,7 +240,7 @@ export async function patchDraft(
     cur = cur.split(e.old).join(e.new);
   }
 
-  const r = await writeDraft(p, relPath, cur, "page", opts?.note);
+  const r = await writeDraft(p, relPath, cur, "page", opts?.note, opts?.origin ? { origin: opts.origin } : undefined);
   return { ...r, outcome: { ...r.outcome, steps: [`应用 ${edits.length} 处 edit`, ...r.outcome.steps] } };
 }
 

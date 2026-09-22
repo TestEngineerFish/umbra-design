@@ -720,7 +720,7 @@ class Component extends DCLogic {
             selectOn: false, picked: null, bridgeReady: false,
             live: null, chg: null, slots: null, apiErr: null, drafts: {}, busy: null,
             draftTheme: "light",
-            revertPick: "", checkNote: null, previewing: null, verOpen: null,
+            revertPick: "", checkNote: null, previewing: null, previewSlot: null, verOpen: null,
             /* 属性面板的形制状态（设计侧 §五）：组折叠 / ? 展开 / 色板展开 /
                行级失败 / 已落盘条 / sc-for 改完那条 / 回退两段式 */
             gOpen: {}, hintOpen: {}, colorOpen: null, tokenHits: [], tokenQ: "",
@@ -774,11 +774,11 @@ class Component extends DCLogic {
         if (m.type === "ready") { this.setState({ bridgeReady: true }); this.pushMode(); return; }
         if (m.type === "select") {
           this.clearPreview();          // 换了节点，上一个节点的覆盖层不该留着
-          this.setState({ picked: m.payload, previewing: null });
+          this.setState({ picked: m.payload, previewing: null, previewSlot: null });
           this.pullSlots(m.payload);
           return;
         }
-        if (m.type === "clear") { this.clearPreview(); this.setState({ picked: null, slots: null, previewing: null }); return; }
+        if (m.type === "clear") { this.clearPreview(); this.setState({ picked: null, slots: null, previewing: null, previewSlot: null }); return; }
       };
       window.addEventListener("message", this.onMsg);
       const f = this.frameRef;
@@ -905,7 +905,8 @@ class Component extends DCLogic {
     if (!pick || !f || !f.contentWindow || slot.kind !== "style") return;
     f.contentWindow.postMessage({ source: "umbradesign-shell", type: "preview-style",
       payload: { node: pick.node, prop: slot.name, value: value } }, "*");
-    this.setState({ previewing: slot.kind + "." + slot.name + " → " + value });
+    // previewSlot 留给未落盘横条的「落盘」钮（§3.3①）—— 它和字段上回车走同一条 applyProp
+    this.setState({ previewing: slot.kind + "." + slot.name + " → " + value, previewSlot: { slot: slot, value: value } });
   }
 
   clearPreview() {
@@ -915,7 +916,7 @@ class Component extends DCLogic {
       f.contentWindow.postMessage({ source: "umbradesign-shell", type: "clear-style",
         payload: { node: pick ? pick.node : null } }, "*");
     }
-    if (this.state.previewing) this.setState({ previewing: null });
+    if (this.state.previewing) this.setState({ previewing: null, previewSlot: null });
   }
 
   /** @param key 行标识（kind.name）。失败时要知道是**哪一行**没落下去
@@ -946,7 +947,7 @@ class Component extends DCLogic {
         // 新值，人看到的还是覆盖层那个数（而且地址已经变了，选择器也对不上了）
         this.clearPreview();
         const newVer = (d.write && d.write.version) || null;
-        this.setState({ picked: next, busy: null, drafts: {}, previewing: null, apiErr: null,
+        this.setState({ picked: next, busy: null, drafts: {}, previewing: null, previewSlot: null, apiErr: null,
           saved: newVer ? { from: prevVer, to: newVer } : null,
           listEdited: inList ? { rows: rows } : null });
         /* 绿条停三秒（设计侧 §五 第 4 项）。撤销那颗钮退的是 prevVer —— 不是
@@ -980,7 +981,7 @@ class Component extends DCLogic {
             value: value,
             retriable: !stale
           };
-          return { busy: null, drafts: dr, previewing: null, rowErr: er };
+          return { busy: null, drafts: dr, previewing: null, previewSlot: null, rowErr: er };
         });
       });
   }
@@ -1352,9 +1353,15 @@ class Component extends DCLogic {
       unsavedNote: LIVE
         ? ("只活在预览里，文件还是 " + curVer + "。回车或失焦写下一版。")
         : "只活在预览里，文件还是 v217。回车或失焦写 v218。",
-      // 落盘：接线时把这里接到 applyProp（和字段上回车走同一条路）。
-      // 失焦依旧落盘（§3.3②）—— 这两颗钮是多一个入口，不是必经之路。
-      onCommit: () => { if (!LIVE) this.setState({ demo: 1 }); },
+      // 落盘：和字段上回车走同一条 applyProp。失焦依旧落盘（§3.3②）—— 这两颗钮是多一个入口，不是必经之路。
+      onCommit: () => {
+        if (!LIVE) { this.setState({ demo: 1 }); return; }
+        /* 点这颗钮时输入框先失焦，失焦那条路多半已经在落盘（s.busy）——
+           那就不再发第二次，否则两次并发写同一份稿【实测】会撞临时文件。 */
+        if (s.busy) return;
+        const pv = s.previewSlot;
+        if (pv) this.applyProp(pv.slot, pv.value, pv.slot.kind + "." + pv.slot.name);
+      },
       onDiscard: () => { if (LIVE) this.clearPreview(); else this.setState({ demo: 1 }); },
       elementsLabel: LIVE
         ? (s.apiErr ? "接口读不到" : L ? L.stats.elements + " 元素" : "正在读…")

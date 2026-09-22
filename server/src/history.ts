@@ -15,6 +15,45 @@ import { conclusion, diffSnapshots, mergeDiffs, toMarkdown, type DiffResult } fr
 
 export const CHANGELOG = "CHANGELOG-设计侧.md";
 
+/** 一版是谁落的。设计侧 §3.2 的版本弹层按它区分「我改的还是模型改的」——三个取值，不加第四个 */
+export type VersionOrigin = "AI" | "人手改" | "新建";
+export interface VersionMeta { origin: VersionOrigin; capturedAt: string; summary: string }
+
+function metaFile(p: Project, relPath: string): string {
+  return join(snapDir(p, relPath), "meta.json");
+}
+
+/** 读一份稿全部版本的元数据。快照本身可能几 MB，弹层只要三个字段，所以单独存一份小表 */
+export async function readVersionMeta(p: Project, relPath: string): Promise<Record<string, VersionMeta>> {
+  const f = metaFile(p, relPath);
+  if (!existsSync(f)) return {};
+  try { return JSON.parse(await readFile(f, "utf8")) as Record<string, VersionMeta>; }
+  catch { return {}; }
+}
+
+/** 落盘后记一条。写在 write_draft 的末尾 —— 唯一写入口，所以每一版都有 */
+export async function recordVersionMeta(
+  p: Project, relPath: string, version: string, meta: VersionMeta
+): Promise<void> {
+  const all = await readVersionMeta(p, relPath);
+  all[version] = meta;
+  await mkdir(snapDir(p, relPath), { recursive: true });
+  await writeFile(metaFile(p, relPath), JSON.stringify(all, null, 1) + "\n", "utf8");
+}
+
+/** 给人看的相对时间：今天 08:31 · 昨天 23:50 · 09-20 14:02 */
+export function humanTime(iso: string, now: Date = new Date()): string {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  const p2 = (n: number) => String(n).padStart(2, "0");
+  const hm = `${p2(d.getHours())}:${p2(d.getMinutes())}`;
+  const day = (x: Date) => `${x.getFullYear()}-${x.getMonth()}-${x.getDate()}`;
+  const y = new Date(now); y.setDate(now.getDate() - 1);
+  if (day(d) === day(now)) return `今天 ${hm}`;
+  if (day(d) === day(y)) return `昨天 ${hm}`;
+  return `${p2(d.getMonth() + 1)}-${p2(d.getDate())} ${hm}`;
+}
+
 export function snapDir(p: Project, relPath: string): string {
   return join(p.dir, ".umbradesign", "snapshots", relPath.replace(/[\\/]/g, "__"));
 }
