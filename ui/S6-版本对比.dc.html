@@ -145,7 +145,11 @@ body { background: var(--tool-bg); font-family: var(--tool-sans); font-size: 13p
         </div>
         <div onScroll="{{ onLeftScroll }}" ref="{{ leftRef }}" style="flex: 1 1 0; overflow: auto; position: relative;">
           <div style="position: relative; min-height: 100%;">
-            <!-- iframe 占位（真数据时是 iframe，演示态用模拟内容） -->
+            <!-- 真数据：iframe 装旧版源码（version_html），高度在 onload 时按内容撑开，让外层滚动条对等同步 -->
+            <sc-if value="{{ hasFrames }}" hint-placeholder-val="{{ false }}">
+              <iframe ref="{{ leftFrame }}" src="about:blank" title="旧版" style="display: block; width: 100%; height: calc(100vh - 130px); border: 0; background: #fff;"></iframe>
+            </sc-if>
+            <!-- 演示态：模拟内容 -->
             <div style="padding: 16px; font-size: 12px; line-height: 1.7; color: var(--tool-text);">
               <sc-if value="{{ hasPreview }}" hint-placeholder-val="{{ true }}">
                 <div style="padding: 12px; border: 1px dashed var(--tool-border); border-radius: 8px; margin-bottom: 12px; background: var(--tool-panel);">
@@ -182,7 +186,10 @@ body { background: var(--tool-bg); font-family: var(--tool-sans); font-size: 13p
         </div>
         <div onScroll="{{ onRightScroll }}" ref="{{ rightRef }}" style="flex: 1 1 0; overflow: auto; position: relative;">
           <div style="position: relative; min-height: 100%;">
-            <!-- 模拟内容 -->
+            <sc-if value="{{ hasFrames }}" hint-placeholder-val="{{ false }}">
+              <iframe ref="{{ rightFrame }}" src="about:blank" title="新版" style="display: block; width: 100%; height: calc(100vh - 130px); border: 0; background: #fff;"></iframe>
+            </sc-if>
+            <!-- 演示态：模拟内容 -->
             <div style="padding: 16px; font-size: 12px; line-height: 1.7; color: var(--tool-text);">
               <sc-if value="{{ hasPreview }}" hint-placeholder-val="{{ true }}">
                 <div style="padding: 12px; border: 1px dashed var(--tool-border); border-radius: 8px; margin-bottom: 12px; background: var(--tool-panel);">
@@ -337,17 +344,66 @@ class Component extends DCLogic {
   leftRef = React.createRef();
   rightRef = React.createRef();
   barRef = React.createRef();
+  leftFrame = React.createRef();
+  rightFrame = React.createRef();
 
   state = { demo: 1, view: "visual", fromVer: "v216", toVer: "v217", open: {}, off: {},
-            cursor: 0, sync: true, pick: null };
+            cursor: 0, sync: true, pick: null, chg: null, loading: false, apiErr: null };
+
+  componentDidMount() {
+    if (LIVE) this.pull("prev", null);   // 默认：上一版 → 最新
+  }
+
+  componentDidUpdate() {
+    this.syncFrames();
+  }
+
+  /* 真数据：changes 接口给版本序列 + versionMeta + 两版 diff。不传 since/to 时服务端取「上一版 → 最新」。
+     版本下拉换了一端就重拉 —— 四级分级是服务端算的，前端只做投影（和 S4 同一份数据）。 */
+  pull(from, to) {
+    const A = typeof window !== "undefined" ? window.__UD_API : null;
+    if (!LIVE || !A) { this.setState({ apiErr: "没有本地 API（这份稿要由工具部署进项目目录才有真数据）" }); return; }
+    this.setState({ loading: true, apiErr: null });
+    const q = "changes?file=" + encodeURIComponent(LIVE) + (from ? "&since=" + encodeURIComponent(from) : "") + (to ? "&to=" + encodeURIComponent(to) : "");
+    fetch(new URL(A.base + q, location.href).toString(), { headers: { "x-ud-token": A.token } })
+      .then((r) => r.json())
+      .then((j) => {
+        if (!j.ok && j.errors && j.errors.length) throw new Error(j.errors[0].message);
+        const d = j.data || {};
+        const vs = d.versions || [];
+        const toV = to || (vs.length ? vs[vs.length - 1] : "—");
+        const fromV = (from && from !== "prev") ? from : (vs.length > 1 ? vs[vs.length - 2] : toV);
+        this.setState({ chg: d, fromVer: fromV, toVer: toV, loading: false, cursor: 0, pick: null });
+      })
+      .catch((e) => this.setState({ loading: false, apiErr: e.message }));
+  }
+
+  /* 两栏 iframe 各装一版源码。高度按内容撑开 —— 这样滚动条在外层，两栏才能对等同步。 */
+  syncFrames() {
+    const A = typeof window !== "undefined" ? window.__UD_API : null;
+    if (!LIVE || !A || !this.state.chg) return;
+    const url = (v) => new URL(A.base + "version_html?file=" + encodeURIComponent(LIVE) + "&version=" + encodeURIComponent(v) + "&token=" + encodeURIComponent(A.token), location.href).toString();
+    const set = (ref, v) => {
+      const f = ref && ref.current;
+      if (!f || !/^v\d+$/.test(v)) return;
+      const want = url(v);
+      if (f.getAttribute("data-src") === want) return;
+      f.setAttribute("data-src", want);
+      f.onload = () => {
+        try {
+          const h = f.contentDocument && f.contentDocument.documentElement.scrollHeight;
+          if (h) f.style.height = Math.max(h, 320) + "px";
+        } catch (e) { /* 跨源读不到就保持视口高 */ }
+      };
+      f.src = want;
+    };
+    set(this.leftFrame, this.state.fromVer);
+    set(this.rightFrame, this.state.toVer);
+  }
 
   goBack() {
-    // 回到 S4 变更清单
-    if (LIVE) {
-      const p = new URLSearchParams(window.location.search);
-      p.set("view", "changes");
-      window.location.search = "?" + p.toString();
-    }
+    // 回到 S4 变更清单（同一份数据的清单投影）
+    if (LIVE) location.href = "./S4-变更清单.dc.html?file=" + encodeURIComponent(LIVE);
   }
 
   /* 两栏对等同步，不分主从。guard 防回弹：设对面的 scrollTop 会再触发一次 onScroll。 */
@@ -368,25 +424,29 @@ class Component extends DCLogic {
     const s = this.state;
     const demo = DEMOS[s.demo - 1];
 
-    // ── 顶栏：版本区间 ──
-    const allVersions = ["v217", "v216", "v215", "v214", "v213", "v212"];
+    // ── 顶栏：版本区间（真数据：版本序列倒序，最新在上） ──
+    const allVersions = LIVE
+      ? ((s.chg && s.chg.versions) || []).slice().reverse()
+      : ["v217", "v216", "v215", "v214", "v213", "v212"];
     const fromVersions = allVersions.map((v) => ({
       label: v,
       bg: v === s.fromVer ? "var(--tool-accent-soft)" : "transparent",
       fg: v === s.fromVer ? "var(--tool-accent)" : "var(--tool-text)",
       fw: v === s.fromVer ? "600" : "400",
-      pick: () => this.setState({ fromVer: v, pick: null, cursor: 0 })
+      pick: () => LIVE ? this.pull(v, s.toVer) : this.setState({ fromVer: v, pick: null, cursor: 0 })
     }));
     const toVersions = allVersions.map((v) => ({
       label: v,
       bg: v === s.toVer ? "var(--tool-accent-soft)" : "transparent",
       fg: v === s.toVer ? "var(--tool-accent)" : "var(--tool-text)",
       fw: v === s.toVer ? "600" : "400",
-      pick: () => this.setState({ toVer: v, pick: null, cursor: 0 })
+      pick: () => LIVE ? this.pull(s.fromVer, v) : this.setState({ toVer: v, pick: null, cursor: 0 })
     }));
 
-    // ── 变更数据（off 是被筛掉的等级） ──
-    const all = this.demoChanges(s.demo);
+    // ── 变更数据（off 是被筛掉的等级）。真数据 = changes 接口的 diff.changes，字段和演示数据同名 ──
+    const all = LIVE ? ((s.chg && s.chg.diff && s.chg.diff.changes) || []) : this.demoChanges(s.demo);
+    const liveSpans = LIVE && s.chg && s.chg.diff && s.chg.diff.spans ? s.chg.diff.spans : null;
+    const liveReady = !LIVE || (!!s.chg && !s.loading);
     const counts = { L1: 0, L2: 0, L3: 0, L4: 0 };
     all.forEach((c) => { counts[c.level] = (counts[c.level] || 0) + 1; });
     const changes = all.filter((c) => !s.off[c.level]);
@@ -462,9 +522,14 @@ class Component extends DCLogic {
       showDemoBar: !LIVE,
 
       // ── 顶栏 ──
-      fileName: LIVE && LIVE.file ? LIVE.file.title : "日志.dc.html",
+      fileName: LIVE ? LIVE : "日志.dc.html",
       fromVer: s.fromVer, toVer: s.toVer,
-      spansLabel: s.demo === 5 ? "跨 v214–v217 共 4 版合并对比" : "两版对比",
+      spansLabel: LIVE
+        ? (s.apiErr ? "读不到变更：" + s.apiErr
+          : s.loading ? "正在读取两版差异…"
+          : liveSpans && liveSpans.length > 1 ? "跨 " + s.fromVer + "–" + s.toVer + " 共 " + (liveSpans.length + 1) + " 版合并对比"
+          : (s.chg && (s.chg.versions || []).length < 2) ? "只有一版，没有可比的" : "两版对比")
+        : (s.demo === 5 ? "跨 v214–v217 共 4 版合并对比" : "两版对比"),
       fromVersions: fromVersions, toVersions: toVersions,
       fromOpen: s.pick === "from",
       toOpen: s.pick === "to",
@@ -521,7 +586,10 @@ class Component extends DCLogic {
       // ── 画面视图 ──
       showVisual: s.view === "visual" && total > 0,
       showList: s.view === "list" && total > 0,
-      hasPreview: true,
+      hasPreview: !LIVE,
+      hasFrames: !!LIVE && !!s.chg,
+      leftFrame: this.leftFrame,
+      rightFrame: this.rightFrame,
       onLeftScroll: () => this.syncScroll(this.leftRef, this.rightRef),
       onRightScroll: () => this.syncScroll(this.rightRef, this.leftRef),
 
@@ -529,7 +597,7 @@ class Component extends DCLogic {
       changeGroups: changeGroups,
 
       // ── 无差异态：并排整个收掉，只给结论 ──
-      noChanges: total === 0,
+      noChanges: total === 0 && liveReady,
       noChangesTitle: s.fromVer + " 和 " + s.toVer + " 没有差异",
       noChangesBody: "四级判据一项都没命中：契约、取值、文案、结构都没动。两栏并排已经收起 —— 摆两个一样的画面只会让人去找一个不存在的差异。",
 
@@ -542,7 +610,7 @@ class Component extends DCLogic {
         fw: s.demo === d.n ? "560" : "400",
         pick: () => this.setState({ demo: d.n, view: d.n === 7 ? "list" : "visual", off: {}, cursor: 0, pick: null, open: {} })
       })),
-      footerLabel: "当前演示态 " + (demo ? demo.name : "")
+      footerLabel: LIVE ? (LIVE + " · " + s.fromVer + " → " + s.toVer + (s.loading ? " · 读取中" : "")) : "当前演示态 " + (demo ? demo.name : "")
     };
   }
 

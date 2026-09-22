@@ -34,7 +34,10 @@ import { validateDraft } from "./validate.js";
 import { listComponents, listIcons, searchTokens } from "./assets.js";
 import { renderCheck } from "./render.js";
 import { get as getJob, start as startJob, view as jobView } from "./jobs.js";
-import { changesSince, humanTime, listVersions, projectChangesSince, readVersionMeta, toMarkdown, workspaceState } from "./history.js";
+import { changesSince, diffDrafts, humanTime, listVersions, projectChangesSince, readVersionMeta, snapDir, toMarkdown, workspaceState } from "./history.js";
+import { gunzipSync } from "node:zlib";
+import { existsSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { draftPath, listDrafts, type Project } from "./project.js";
 import { resolveDraft } from "./locate.js";
 import { readFile } from "node:fs/promises";
@@ -102,7 +105,18 @@ export async function handleApi(
       const files = (await listDrafts(p))
         .map((a) => relative(p.dir, a).split(sep).join("/"))
         .filter((r) => !isToolPage(r));
-      json(reply, 200, { ok: true, data: { project: p.name, title: p.title, files } });
+      /* 应用前端的侧栏要类型 / 健康 / 元素数 / 版本（UI-2 / UI-3），这些 build_index 已经算过并存在
+         index-data.json 里 —— 直接读缓存，不在这里重新校验几十份稿。没建过索引就只有文件名。 */
+      let indexed: Record<string, unknown> = {};
+      const dataFile = join(p.dir, ".umbradesign", "index-data.json");
+      if (existsSync(dataFile)) {
+        try {
+          const data = JSON.parse(await readFile(dataFile, "utf8")) as { drafts?: Array<{ file: string }> };
+          for (const d of data.drafts ?? []) indexed[d.file] = d;
+        } catch { indexed = {}; }
+      }
+      const drafts = files.map((f) => ({ file: f, ...(indexed[f] as object | undefined ?? {}) }));
+      json(reply, 200, { ok: true, data: { project: p.name, title: p.title, files, drafts, indexed: Object.keys(indexed).length > 0 } });
       return true;
     }
 
@@ -144,9 +158,33 @@ export async function handleApi(
           note: vs.length ? "只有一版，没有可比的" : "还没有快照" } });
         return true;
       }
-      const since = url.searchParams.get("since") || (vs[0] as string);
-      const d = await changesSince(p, rel, since);
+      // since=prev 是「上一版」的简写（S6 默认比对上一版 → 最新）；不给 since 时从第一版起算（S2 / S4 的用法）
+      const sinceRaw = url.searchParams.get("since");
+      const since = sinceRaw === "prev" ? (vs[vs.length - 2] as string) : (sinceRaw || (vs[0] as string));
+      // to 给 S6 版本对比用：任意两版；不给就是 since → 最新（S2 / S4 的用法）
+      const to = url.searchParams.get("to");
+      const d = to ? await diffDrafts(p, rel, { from: since, to }) : await changesSince(p, rel, since);
       json(reply, 200, { ok: true, data: { file: rel, versions: vs, versionMeta, diff: d, markdown: toMarkdown(d) } });
+      return true;
+    }
+
+    /* 某一版的源码，按 HTML 返回 —— S6 两栏 iframe 各装一版（UI-4）。
+       源码在快照旁的 .src.html.gz 里（revert_to 用的同一份）。它被从 /__ud/ 下发出，
+       稿里的 ./support.js 会解析错位置，所以在 <head> 里塞一个 <base> 指回稿所在目录。 */
+    if (route === "version_html" && req.method === "GET") {
+      const rel = await resolveDraft(p, str(url.searchParams.get("file"), "file"));
+      const version = str(url.searchParams.get("version"), "version");
+      if (!/^v\d+$/.test(version)) throw new Error("version 形如 v12");
+      const gz = join(snapDir(p, rel), `${version}.src.html.gz`);
+      if (!existsSync(gz)) throw new Error(`${rel} 没有 ${version} 的源码快照`);
+      const src = gunzipSync(await readFile(gz)).toString("utf8");
+      const dir = dirname(rel);
+      const base = "/" + (dir === "." ? "" : dir.split("/").map(encodeURIComponent).join("/") + "/");
+      const html = /<head[^>]*>/i.test(src)
+        ? src.replace(/(<head[^>]*>)/i, `$1<base href="${base}">`)
+        : `<base href="${base}">` + src;
+      reply.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
+      reply.end(html);
       return true;
     }
 

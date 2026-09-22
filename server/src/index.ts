@@ -5,7 +5,8 @@
  * 写入类（write_draft / patch_draft）、render_check、语义 diff 在后面几批。
  */
 import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { join, basename } from "node:path";
+import { existsSync } from "node:fs";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
@@ -21,7 +22,7 @@ import { getComponent, getIcon, getToken, listComponents, listIcons, searchToken
 import { validateDraft } from "./validate.js";
 import { patchDraft, writeDraft } from "./write.js";
 import { missingRuntime } from "./normalize.js";
-import { getAiConfig, setAiConfig, getChannelA, type AiConfig } from "./ai_config.js";
+import { getAiConfig, setAiConfig, getChannelA, getChannelB, type AiConfig } from "./ai_config.js";
 import { chat, type ToolDef, type ToolCall, type ChatMessage } from "./provider.js";
 import { createChat, loadChat, saveChat, listChats, deleteChat, addMessage, type ChatSession, type ChatEntry } from "./chat.js";
 import { findBrowser, renderCheck } from "./render.js";
@@ -292,6 +293,35 @@ server.registerTool("create_draft", {
 
   const r = await createDraft(p, path, src);
   return envelope(r, [], {});
+}));
+
+// ─────────────────────── 目录探查（应用前端新建项目面板，UI-7）───────────────────────
+server.registerTool("inspect_dir", {
+  title: "探查一个目录能不能当项目",
+  description: [
+    "新建项目面板选完目录后调它：目录存不存在、是不是已经是项目（有 project.json）、里面有几份 .dc.html。",
+    "面板据此提示「这个目录已是项目，直接打开」或「目录里已有 N 份稿，要不要直接接管」。只读，不写任何东西。",
+  ].join("\n"),
+  inputSchema: { dir: z.string().describe("目录绝对路径") },
+}, async ({ dir }) => run(async () => {
+  const { stat, readdir } = await import("node:fs/promises");
+  let exists = false, isDir = false;
+  try { const st = await stat(dir); exists = true; isDir = st.isDirectory(); } catch { /* 不存在 */ }
+  if (!exists || !isDir) return envelope({ dir, exists, isDir, isProject: false, draftCount: 0, suggestedName: basename(dir) }, [], {});
+  const isProject = existsSync(join(dir, "project.json"));
+  let draftCount = 0;
+  const walk = async (d: string, depth: number): Promise<void> => {
+    if (depth > 6) return;
+    for (const e of await readdir(d, { withFileTypes: true })) {
+      if (e.name.startsWith(".") || e.name === "node_modules") continue;
+      const abs = join(d, e.name);
+      if (e.isDirectory()) await walk(abs, depth + 1);
+      else if (e.name.endsWith(".dc.html")) draftCount++;
+    }
+  };
+  await walk(dir, 0);
+  const suggestedName = basename(dir).replace(/[^A-Za-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "") || "project";
+  return envelope({ dir, exists, isDir, isProject, draftCount, suggestedName }, [], {});
 }));
 
 // ─────────────────────── 稿件改名（M1-4）───────────────────────
@@ -1312,35 +1342,41 @@ server.registerTool("get_ai_config", {
   inputSchema: {},
 }, async () => run(async () => {
   const cfg = await getAiConfig();
-  const masked = cfg.channelA ? {
-    baseUrl: cfg.channelA.baseUrl,
-    apiKeySet: !!cfg.channelA.apiKey,
-    model: cfg.channelA.model,
-  } : null;
-  return envelope({ channelA: masked, defaultChannel: cfg.defaultChannel }, [], {});
+  const mask = (c: { baseUrl: string; apiKey: string; model: string } | null) =>
+    c ? { baseUrl: c.baseUrl, apiKeySet: !!c.apiKey, model: c.model } : null;
+  return envelope({ channelA: mask(cfg.channelA), channelB: mask(cfg.channelB), defaultChannel: cfg.defaultChannel }, [], {});
 }));
 
 server.registerTool("set_ai_config", {
   title: "设置 AI 配置",
-  description: "设置通道 A 的 OpenAI 兼容端点、API 密钥和模型名。密钥只存本地，不进任何日志或项目文件。",
+  description: [
+    "设置某一条通道的端点、API 密钥和模型名。密钥只存本地，不进任何日志或项目文件。",
+    "channel=a：OpenAI 兼容端点（DeepSeek / 智谱通用 API / 其他兼容端点）；",
+    "channel=b：Anthropic 兼容端点（GLM Coding Plan），给 Claude Code 子进程用。两条通道各自一套，不共用。",
+  ].join("\n"),
   inputSchema: {
-    baseUrl: z.string().optional().describe("OpenAI 兼容端点，如 https://api.deepseek.com/v1"),
+    channel: z.enum(["a", "b"]).optional().describe("设哪条通道，默认 a"),
+    baseUrl: z.string().optional().describe("端点：a 如 https://api.deepseek.com/v1；b 如 https://open.bigmodel.cn/api/anthropic"),
     apiKey: z.string().optional().describe("API 密钥（存本地不进日志）"),
     model: z.string().optional().describe("模型名，不硬编码"),
     defaultChannel: z.enum(["a", "b"]).optional().describe("默认通道"),
   },
-}, async ({ baseUrl, apiKey, model, defaultChannel }) => run(async () => {
+}, async ({ channel, baseUrl, apiKey, model, defaultChannel }) => run(async () => {
   const current = await getAiConfig();
+  const ch = channel ?? "a";
+  const prev = ch === "a" ? current.channelA : current.channelB;
+  const next = {
+    baseUrl: baseUrl ?? prev?.baseUrl ?? "",
+    apiKey: apiKey ?? prev?.apiKey ?? "",
+    model: model ?? prev?.model ?? "",
+  };
   const updated: AiConfig = {
-    channelA: {
-      baseUrl: baseUrl ?? current.channelA?.baseUrl ?? "",
-      apiKey: apiKey ?? current.channelA?.apiKey ?? "",
-      model: model ?? current.channelA?.model ?? "",
-    },
+    channelA: ch === "a" ? next : current.channelA,
+    channelB: ch === "b" ? next : current.channelB,
     defaultChannel: defaultChannel ?? current.defaultChannel,
   };
   await setAiConfig(updated);
-  return envelope({ ok: true }, [], {});
+  return envelope({ ok: true, channel: ch }, [], {});
 }));
 
 server.registerTool("chat_send", {
@@ -1529,11 +1565,11 @@ server.registerTool("chat_send", {
     }
   } catch { /* 忽略 */ }
 
-  const providerCfg = await getChannelA();  // 通道 B 复用通道 A 的端点配置
+  const bCfg = await getChannelB();  // 通道 B 自己的端点（Anthropic 兼容），不和 A 共用（doc/11 Q11）
   const ccConfig: ChannelBConfig = {
-    baseUrl: providerCfg.baseUrl,
-    apiKey: providerCfg.apiKey,
-    model: providerCfg.model,
+    baseUrl: bCfg.baseUrl,
+    apiKey: bCfg.apiKey,
+    model: bCfg.model,
     mcpServerPath: join(TOOL_ROOT, "server", "dist", "index.js"),
   };
 

@@ -2543,3 +2543,38 @@ S10 已改 `type="text" inputmode="decimal"`。**S2 的属性面板一直是这�
 
 **通道 B 顺手核过**：`claude --help` 里 `--print / --output-format / --model / --brief / --mcp-config / --allowed-tools / --system-prompt` 都在（2.1.278）。但 `chat_send` 的通道 B **复用通道 A 的 baseUrl / apiKey / model** —— GLM 的 Anthropic 端点和 DeepSeek 的 OpenAI 端点不是一个地址，真跑通道 B 之前 `ai_config.json` 要拆出 `channelB`（登记在 `doc/11` §四）。
 
+## 三十四、M5-10 应用前端 UI-1..UI-8 · S6 接真数据 · 通道 B 独立配置（2026-09-23）
+
+**应用前端**（`server/ui/index.html`，Tauri 壳里的那一页）按设计侧八条裁决（`doc/14` §0.4）重写：
+
+| 项 | 落地 |
+| --- | --- |
+| UI-1 | 底栏两档（220px / 半屏）+ 顶部拖拽把手（120px–80vh，双击切档）；收起留 32px 条，tab 仍在。档位与高度记 localStorage |
+| UI-2 | 稿件图标改 SVG：页稿=文档、组件稿=六边形，path 与 S1 / IconGlyph 同一套；不再用「页」「组」字 |
+| UI-3 | 体检中的那一行：spinner + 上次健康色压到 55%，不进四色。完成后按 `indexpage.judgeHealth` 同一口径就地重算健康（侧栏缓存只在 build_index 时刷） |
+| UI-4 | 底栏「对比上一版」→ S6 独立窗口（Tauri `WebviewWindow`，开不了就交给系统浏览器）；S6 不进底栏 |
+| UI-5 | 搜索范围不动 |
+| UI-6 | 顶栏一颗实心「新建稿件」+ ⋯ 菜单（重建索引 / 在浏览器打开 / 项目设置·外观 / 关闭项目）；顶栏不会长到五颗 |
+| UI-7 | 新建项目换成面板：目录（对话框或手填）→ `inspect_dir` 探查 → 「已是项目，直接打开」/「已有 N 份稿，会接管」；项目名校验；不做模板 / Git 开关 |
+| UI-8 | 主题 浅 / 深 / 跟随系统（默认跟随），挂 `html[data-tool-theme]`；放「项目设置·外观」面板。S8 接线前它是这条设置的落点 |
+
+配套服务端：`drafts` 路由合并 `index-data.json` 的类型 / 健康 / 元素数 / 版本；新增 MCP 工具 `inspect_dir`（只读）。
+
+**顺手修掉一条接手前就有的缺陷**：前端体检轮询按 `job.id` / `status` 读，而作业接口给的是 `jobId` / `running` / `ok`（§二十三），所以「体检」永远转不完。现在对上了，完成 toast 报节点数与耗时。
+
+**浏览器调试模式**：`index.html?url=<服务地址>&token=<令牌>&name=<项目>` 不经 Tauri，只靠本地 API（MCP 类操作会提示「要在应用里做」）。这一轮的读数就是这么量的：把前端拷进测试项目当 `app.html`，同源，所有路由都通。
+
+### 34.1 S6 版本对比接真数据
+
+设计侧交回的 S6 只有 `LIVE` 开关，数据全是演示的。「对比上一版」要有真实落点，所以：
+
+- `changes` 路由加 `to`（任意两版，`diffDrafts`）和 `since=prev`（上一版）；新增 `version_html?file&version` 把 `.src.html.gz` 里的那一版按 HTML 发出，`<head>` 里塞 `<base href="/<稿目录>/">` 让 `./support.js` 解析回稿所在目录
+- S6：`pull(prev, latest)` 拉 `changes`；版本下拉换一端就重拉；两栏各一个 iframe 装 `version_html`，onload 按内容高度撑开，外层滚动条对等同步照旧；变更条 / 筛选 / 清单视图 / 无差异态全部读同一份 `diff.changes`（字段和演示数据同名，设计侧当初就是照真数据形状写的）
+- `SHELLS` 加 S6，build_index 会把它部署进项目
+
+【实测】t.dc.html v5 → v6：左栏 padding 20/40、右栏 4/8，差异条 `L2 <button>「点我」 的 padding 从 8px 16px 改到 4px 8px`；render_check alive、160 节点、洞 0、404 0。
+
+### 34.2 通道 B 独立配置（Q11 落地）
+
+`ai_config.json` 加 `channelB: { baseUrl, apiKey, model }`；`set_ai_config` 加 `channel: a|b`；`chat_send` 通道 B 改读 `getChannelB()`，不再回落到通道 A（端点不同，回落只会打到错的地址）。两条通道仍都没真跑过 —— 等 key。
+

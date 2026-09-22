@@ -444,6 +444,8 @@ const SHELLS = [
   "S3-诊断面板.dc.html",
   "S4-变更清单.dc.html",
   "S5-设计系统浏览器.dc.html",
+  // 版本对比：独立整页，应用底栏「对比上一版」跳过来（设计侧 UI-4）；两栏 iframe 读 version_html
+  "S6-版本对比.dc.html",
   // 形制稿。不接数据，但要能在项目目录下打开 —— 它是属性面板的判据来源（doc/10 §五）。
   "S7-属性面板.dc.html",
   // S7 靠 dc-import 引它。不跟着落盘，S7 在项目目录下就解析不到（E_IMPORT_MISSING）。
