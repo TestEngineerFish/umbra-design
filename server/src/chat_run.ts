@@ -53,6 +53,8 @@ export interface ChatSendArgs {
   selectedNodeAddress?: string;
   /** 应用前端里当前正在看的稿（没选中节点时的弱上下文）：进系统提示，不进用户那句 */
   contextFile?: string;
+  /** 作业化调用时的中断信号（本地 API chat_interrupt 触发）：通道 A 的 agent 循环在下一步前停下 */
+  abortSignal?: AbortSignal;
 }
 
 /** agent 循环中真正执行一个工具调用。返回 JSON 字符串给模型。 */
@@ -275,7 +277,7 @@ function sanitizeHistory(msgs: ChatMessage[]): ChatMessage[] {
 
 /** chat_send：加载/新建会话 → 选中节点上下文 → 通道 A agent 循环或通道 B 子进程 → 审计变更。返回信封。 */
 export async function runChatSend(p: Project, a: ChatSendArgs): Promise<Envelope<any>> {
-  const { message, sessionId, channel, selectedNodeFile, selectedNodeAddress, contextFile } = a;
+  const { message, sessionId, channel, selectedNodeFile, selectedNodeAddress, contextFile, abortSignal } = a;
   const ch = channel ?? "a";
 
   // 加载或新建会话
@@ -382,21 +384,22 @@ export async function runChatSend(p: Project, a: ChatSendArgs): Promise<Envelope
       messages: history,
       tools,
       maxSteps: 10,
+      abortSignal,
+      /* 逐步落盘（doc/00 §四十）：模型每回一条、每个工具一出结果就写进会话文件 ——
+         界面轮询 chat_get 才能边跑边看到工具行长出来；中断时已跑的步骤也都留在会话里。 */
+      onReply: async (reply) => {
+        await addMessage(p.dir, session!.id, {
+          role: "assistant", content: reply.content ?? "",
+          ...(reply.tool_calls ? { toolCalls: reply.tool_calls } : {}),
+        });
+      },
       onToolCall: async (tc: ToolCall) => {
-        return executeToolCall(p, tc);
+        const out = await executeToolCall(p, tc);
+        // 工具结果要带 tool_call_id 落盘，否则续接会话时 provider 直接 422「missing field tool_call_id」【实测 DeepSeek 2026-09-23】
+        await addMessage(p.dir, session!.id, { role: "tool", content: out, toolCallId: tc.id, toolName: tc.function.name });
+        return out;
       },
     });
-
-    // 模型回复存入会话
-    for (const m of result.messages.slice(history.length)) {
-      await addMessage(p.dir, session.id, {
-        role: m.role as ChatEntry["role"],
-        content: m.content ?? "",
-        ...(m.tool_calls ? { toolCalls: m.tool_calls } : {}),
-        // 工具结果要带 tool_call_id 落盘，否则续接会话时 provider 直接 422「missing field tool_call_id」【实测 DeepSeek 2026-09-23】
-        ...(m.tool_call_id ? { toolCallId: m.tool_call_id, toolName: m.name } : {}),
-      });
-    }
 
     const diags = result.error ? [err(X.IO, p.rel, { kind: "key", name: "ai" }, result.error)] : [];
     session = (await loadChat(p.dir, session.id)) ?? session;   // 回包里的消息要含模型回复与工具调用，重新读盘

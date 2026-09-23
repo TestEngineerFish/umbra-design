@@ -55,6 +55,8 @@ export interface ProviderOpts {
   tools?: ToolDef[];         // 可用工具定义
   maxSteps?: number;         // agent 循环最大步数（默认 10）
   onToolCall?: (toolCall: ToolCall) => Promise<string>;  // 工具调用回调
+  /** 模型每回一条就通知（含 tool_calls 的那条）—— 上层据此逐步落盘，界面轮询才能边跑边看到 */
+  onReply?: (reply: ChatMessage) => Promise<void>;
   abortSignal?: AbortSignal;
 }
 
@@ -76,8 +78,16 @@ export async function chat(
       return { ok: true, messages: allMessages, usage: totalUsage, error: null, interrupted: true };
     }
 
-    const res = await singleRequest(cfg, allMessages, opts.tools, opts.abortSignal);
+    let res: SingleResult;
+    try {
+      res = await singleRequest(cfg, allMessages, opts.tools, opts.abortSignal);
+    } catch (e) {
+      // 中断信号让 fetch / 读 body 抛 AbortError —— 那不是出错，是「已中断」
+      if (opts.abortSignal?.aborted) return { ok: true, messages: allMessages, usage: totalUsage, error: null, interrupted: true };
+      return { ok: false, messages: allMessages, usage: totalUsage, error: `请求失败：${(e as Error)?.message ?? String(e)}`, interrupted: false };
+    }
     if (!res.ok) {
+      if (opts.abortSignal?.aborted) return { ok: true, messages: allMessages, usage: totalUsage, error: null, interrupted: true };
       return { ok: false, messages: allMessages, usage: totalUsage, error: res.error, interrupted: false };
     }
 
@@ -92,6 +102,7 @@ export async function chat(
     // 追加模型回复
     const reply = res.message;
     allMessages.push(reply);
+    if (opts.onReply) await opts.onReply(reply);
 
     // 如果没有 tool_calls，对话结束
     if (!reply.tool_calls || reply.tool_calls.length === 0) {
@@ -109,7 +120,12 @@ export async function chat(
       if (opts.abortSignal?.aborted) {
         return { ok: true, messages: allMessages, usage: totalUsage, error: null, interrupted: true };
       }
-      const result = await opts.onToolCall(tc);
+      let result: string;
+      try { result = await opts.onToolCall(tc); }
+      catch (e) {
+        if (opts.abortSignal?.aborted) return { ok: true, messages: allMessages, usage: totalUsage, error: null, interrupted: true };
+        result = JSON.stringify({ ok: false, error: (e as Error)?.message ?? String(e) });
+      }
       toolResults.push({
         role: "tool",
         content: result,
@@ -159,15 +175,20 @@ async function singleRequest(
     const { writeFile } = await import("node:fs/promises");
     await writeFile(process.env.UMBRADESIGN_AI_DEBUG, JSON.stringify({ endpoint, body }, null, 1)).catch(() => {});
   }
-  const resp = await fetch(endpoint, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${cfg.apiKey}`,
-    },
-    body: JSON.stringify(body),
-    signal,
-  });
+  let resp: Response;
+  try {
+    resp = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${cfg.apiKey}`,
+      },
+      body: JSON.stringify(body),
+      signal,
+    });
+  } catch (e) {
+    return { ok: false, message: { role: "assistant", content: null }, usage: null, error: (e as Error)?.name === "AbortError" ? "已中断" : `请求失败：${(e as Error)?.message ?? String(e)}` };
+  }
 
   if (!resp.ok) {
     const text = await resp.text().catch(() => "");

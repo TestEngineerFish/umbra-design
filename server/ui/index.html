@@ -364,7 +364,7 @@ const state = {
     usage: null,
     unread: false,
     sessions: [],
-    abort: null,
+    job: null,
   },
 };
 
@@ -649,40 +649,57 @@ async function chatSend() {
   const c = state.chat;
   const text = (c.input || '').trim();
   if (!text || c.running || !state.project) return;
-  c.input = ''; c.running = true;
+  c.input = ''; c.running = true; c.job = null;
   c.messages = c.messages.concat([{ role: 'user', content: text, timestamp: new Date().toISOString() }]);
   render();
-  const abort = new AbortController(); c.abort = abort;
   try {
-    const body = { message: text, channel: c.channel };
+    const body = { message: text, channel: c.channel, async: true };
     if (c.sessionId) body.sessionId = c.sessionId;
     // 方式 ②（选中节点）要等 S2 壳和前端打通；现在先把当前正在看的稿名当弱上下文送进系统提示（不进用户那句）
     if (state.selectedDraft) body.contextFile = state.selectedDraft;
     // 方式 ②：带上 S2 壳里选中的节点，服务端用 locateNode 解析成上下文塞进系统提示（M2-8）
     if (state.picked && state.picked.node) { body.selectedNodeFile = state.picked.file; body.selectedNodeAddress = state.picked.node; }
-    const res = await apiFetch('chat_send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: abort.signal });
+    // 作业化：立刻拿到 jobId + sessionId；之后每 1.2s 拉一次会话（工具行边跑边长出来）和作业状态
+    const started = await apiFetch('chat_send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    if (!started.ok || !started.data) throw new Error(started.errors?.[0]?.message || '起作业失败');
+    c.job = started.data.jobId; c.sessionId = started.data.sessionId || c.sessionId;
+    let done = null;
+    for (let i = 0; i < 600 && !done; i++) {
+      await sleep(1200);
+      try {
+        const g = await apiFetch('chat_get?session=' + encodeURIComponent(c.sessionId));
+        if (g.data && g.data.messages) { c.messages = g.data.messages; render(); }
+        const st = await apiFetch('chat_status?job=' + encodeURIComponent(c.job));
+        if (st.data && st.data.running === false) done = st.data;
+      } catch (_) { /* 网络抖一下不算失败，下一轮再拉 */ }
+    }
+    if (!done) throw new Error('等了 12 分钟还没结束');
+    const res = done.result || {};
     const d = res.data || {};
-    if (d.sessionId) c.sessionId = d.sessionId;
+    if (done.error) c.notes.push({ kind: 'err', text: '出错：' + (done.error.message || done.error.code) });
     if (res.errors && res.errors.length) c.notes.push({ kind: 'err', text: '出错：' + (res.errors[0].message || res.errors[0].code) });
     if (d.usage) c.usage = d.usage;
-    if (d.interrupted) c.notes.push({ kind: 'err', text: '已中断' });
+    if (d.interrupted) c.notes.push({ kind: 'err', text: '已中断（这一步之前落盘的改动照常可审可回退）' });
     for (const ch of d.changes || []) c.notes.push({ kind: 'change', idx: c.notes.length, path: ch.path, from: ch.from, to: ch.to, summary: ch.summary, reverted: false });
-    if (c.sessionId) {
-      const g = await apiFetch('chat_get?session=' + encodeURIComponent(c.sessionId));
-      if (g.data) c.messages = g.data.messages || c.messages;
-    }
+    const g2 = await apiFetch('chat_get?session=' + encodeURIComponent(c.sessionId)).catch(() => null);
+    if (g2 && g2.data) c.messages = g2.data.messages || c.messages;
     if ((d.changes || []).length) { reloadPreview(); fetchDrafts(); if (state.selectedDraft) fetchDiagnostics(state.selectedDraft); }
     if (!c.open) c.unread = true;
   } catch (e) {
-    if (e.name === 'AbortError') c.notes.push({ kind: 'err', text: '已停止等待（服务端这一轮仍会跑完，落盘照常可审可回退）' });
-    else c.notes.push({ kind: 'err', text: '发送失败：' + e.message });
+    c.notes.push({ kind: 'err', text: '发送失败：' + e.message });
   } finally {
-    c.running = false; c.abort = null;
+    c.running = false; c.job = null;
     render();
   }
 }
 
-function chatInterrupt() { const c = state.chat; if (c.abort) c.abort.abort(); }
+/* 中断：告诉服务端停（通道 A 在当前这一步结束后停下）。轮询循环会在作业结束时自然退出。 */
+async function chatInterrupt() {
+  const c = state.chat;
+  if (!c.job) return;
+  try { await apiFetch('chat_interrupt', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job: c.job }) }); toast('已发中断，等这一步结束', 'success'); }
+  catch (e) { toast('中断失败：' + e.message, 'error'); }
+}
 
 async function chatRevert(idx) {
   const n = state.chat.notes[idx];

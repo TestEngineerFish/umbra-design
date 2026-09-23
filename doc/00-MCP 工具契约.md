@@ -2683,3 +2683,16 @@ UMBRADESIGN_AUTOTEST_DIR=<项目目录> UMBRADESIGN_AUTOTEST_LOG=<读数文件> 
 
 【实测】Playwright：设置面板里 S8 读到真配置（`meta-test · 1 份稿`、路径）；curl `project_update` 改标题与 warn 阈值，`project.json` 立刻变；先删一份稿进回收站 → S8 回收站 tab 列出 → 点「恢复」→ 稿件列表 1 → 2。S8 render_check（演示态）alive、117 节点、洞 0。
 
+## 四十、会话作业化：边跑边看、真正能中断（2026-09-23）
+
+`doc/12` M2-5 标的「流式 / 可中断」原来不成立：`chat_send` 同步一次返回，「中断」只停前端等待，服务端那一轮照跑；模型的消息也是循环结束才一次性落盘。现在：
+
+- **作业化**：本地 API `chat_send` 传 `async: true` 时走 §二十三 的作业登记（键 `<项目>::chat::<会话>`，同会话不起第二个）：先建好会话再起作业，立刻回 `jobId + sessionId`；`chat_status?job=` 轮询；`chat_interrupt {job}` 触发该作业的 `AbortController`。MCP 的 `chat_send` 与 API 不带 `async` 的调用照旧同步。
+- **逐步落盘**：`provider.chat` 加 `onReply` 钩子；`runChatSend` 在每条模型回复到达、每个工具出结果时立刻 `addMessage`（不再在循环末尾批量写）。界面每 1.2 s 拉一次 `chat_get`，工具行边跑边长出来；中断时已跑的步骤也在会话里。
+- **中断收口**：`abortSignal` 传到 agent 循环；fetch / 读 body / 工具执行任一处因中断抛错都按 `interrupted: true` 返回，不当成错误。通道 B 的子进程暂不支持中断（只有超时）。
+- 应用前端：发送 → 起作业 → 轮询（会话 + 作业状态）→ 结束时读 `changes / usage / interrupted`；「中断 Esc」发 `chat_interrupt`。
+
+【实测】Playwright：发「改背景、文案、padding」→ 4.5 s 时 `running=true`、已见 4 条工具行 → 结束 8 条工具行，v11 → v14，L2 ×2 · L3 ×1；再发一句「整份重写成仪表盘」→ 1.5 s 后点中断 → 0.94 s 停下，注记「已中断」。
+
+**没做的**：token 级流式（SSE 逐字出字）。现在是步级流式；要逐字得把 provider 改 `stream: true` 再往界面推，收益是「看见模型在打字」，先不排。
+

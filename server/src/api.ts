@@ -47,7 +47,8 @@ import { buildIndex, indexStatus, isToolPage } from "./indexpage.js";
 import { runChatSend } from "./chat_run.js";
 import { updateProject, archiveProject, deleteProject } from "./project.js";
 import { listTrash, restoreDraft, purgeTrash, emptyTrash } from "./refs.js";
-import { listChats, loadChat } from "./chat.js";
+import { listChats, loadChat, createChat } from "./chat.js";
+import { getAiConfig } from "./ai_config.js";
 import { readCheck, sha256 } from "./check.js";
 
 export const API_PREFIX = "/__ud/";
@@ -91,6 +92,9 @@ function originOk(req: IncomingMessage, port: number): boolean {
 }
 
 export interface ApiCtx { project: Project; token: string; port: number }
+
+/** 作业化会话的中断句柄：jobId → AbortController（作业活在进程里，这张表也是） */
+const chatAborts = new Map<string, AbortController>();
 
 /** 归档 / 删除后停掉本项目的静态服务。serve.ts 引了本文件，所以这里延迟 import 避免循环。 */
 function serveStopByName(name: string): void {
@@ -350,15 +354,44 @@ export async function handleApi(
         return true;
       }
       const b = await readBody(req);
-      const env = await runChatSend(p, {
+      const args = {
         message: str(b.message, "message"),
         sessionId: typeof b.sessionId === "string" ? b.sessionId : undefined,
-        channel: b.channel === "b" ? "b" : "a",
+        channel: (b.channel === "b" ? "b" : "a") as "a" | "b",
         selectedNodeFile: typeof b.selectedNodeFile === "string" ? b.selectedNodeFile : undefined,
         selectedNodeAddress: typeof b.selectedNodeAddress === "string" ? b.selectedNodeAddress : undefined,
         contextFile: typeof b.contextFile === "string" ? b.contextFile : undefined,
-      });
-      json(reply, 200, env);
+      };
+      if (b.async !== true) { json(reply, 200, await runChatSend(p, args)); return true; }
+      /* 作业化（doc/00 §四十）：立刻回 jobId + sessionId，界面边轮询 chat_get 看工具行长出来、边可中断。
+         会话先建好再起作业 —— 否则界面在跑完之前不知道该轮询哪个会话。 */
+      if (!args.sessionId) {
+        const cfg = await getAiConfig();
+        const s = await createChat(p.dir, { projectId: p.name, channel: args.channel, model: (args.channel === "b" ? cfg.channelB?.model : cfg.channelA?.model) ?? "unknown" });
+        args.sessionId = s.id;
+      }
+      const ctl = new AbortController();
+      const j = startJob("chat", `${p.name}::chat::${args.sessionId}`,
+        () => runChatSend(p, { ...args, abortSignal: ctl.signal }),
+        (e) => ({ code: "E_JOB", message: (e as Error)?.message ?? String(e) }));
+      chatAborts.set(j.id, ctl);
+      json(reply, 200, { ok: true, data: { ...jobView(j), sessionId: args.sessionId } });
+      return true;
+    }
+    if (route === "chat_status" && req.method === "GET") {
+      const j = getJob(str(url.searchParams.get("job"), "job"));
+      if (!j) throw new Error("没有这个作业");
+      if (!j.running) chatAborts.delete(j.id);
+      json(reply, 200, { ok: true, data: jobView(j) });
+      return true;
+    }
+    if (route === "chat_interrupt" && req.method === "POST") {
+      if (!originOk(req, ctx.port)) { json(reply, 403, { ok: false, errors: [{ code: "E_API_ORIGIN", message: "Origin 不是本服务" }] }); return true; }
+      const b = await readBody(req);
+      const ctl = chatAborts.get(str(b.job, "job"));
+      if (!ctl) { json(reply, 200, { ok: true, data: { interrupted: false, note: "作业不在跑或已结束" } }); return true; }
+      ctl.abort();
+      json(reply, 200, { ok: true, data: { interrupted: true, note: "已发中断：通道 A 在当前这一步结束后停下；已落盘的改动照常可审可回退" } });
       return true;
     }
 
