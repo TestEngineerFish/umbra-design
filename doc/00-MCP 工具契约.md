@@ -2705,3 +2705,13 @@ UMBRADESIGN_AUTOTEST_DIR=<项目目录> UMBRADESIGN_AUTOTEST_LOG=<读数文件> 
 - **转录不保证字节精确**：S2（120 KB）子代理转录后远端 120129 vs 本地 120130。它回来时不影响底稿判定 —— `incoming` 比的是 baseline 注释里记的 sha 与我们正本的 sha，不 hash 它交回的文件 —— 但小文件也要核 size。`support.js` 的 33 字节差用 `copy_files` 从它项目里的原件服务端复制修正（同名原件在就优先走这条）。
 - 第一个子代理把 S2 + react-dom 合成一批写，撞上限被终止；改成一文件一代理、一次调用才稳。
 
+## 四十二、M6-1 / M6-3 / M6-4：会话栏在左、源码视图、演示全屏（2026-09-23）
+
+用户拍板 Q13–Q15 后的第一批（`doc/16` 的三条便宜项）：
+
+- **M6-1 布局**：`state.layout = chat-left | chat-right`（默认 chat-left，跟 ClaudeDesign 一样会话在左），设置面板里切；工作区按布局拼列 `[会话][把手][稿件列表][把手][预览]` 或反过来，会话栏拖拽把手的方向随布局翻转。稿件列表可收成 36px 窄条（显示稿数，点展开）。
+- **M6-3 源码视图**：预览三档变四档「编辑壳 / 稿本身 / 源码」；新路由 `source?file=` 给盘上原文；表格行号，选中节点所在行（含 `data-ud-node="…"`）高亮并滚到。只读 —— 改源码是 AI 或 S2 的活，不在这里开口子。
+- **M6-4 演示**：预览工具栏「演示」→ 覆盖层装稿本身的 iframe + `requestFullscreen`；Esc / 退出钮 / 系统退出全屏都收掉。
+
+【实测】Playwright：默认列序 `chat-rail · chat-resize · sidebar · resize-handle · preview`，切 chat-right 后反过来；列表收起 36px；源码 19 行带行号；演示覆盖层装 `/t.dc.html`，Esc 收掉。
+

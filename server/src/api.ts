@@ -154,6 +154,14 @@ export async function handleApi(
       return true;
     }
 
+    // M6-3 源码只读视图：当前盘上那一版的原文（应用里看，不是给模型的 read_draft）
+    if (route === "source" && req.method === "GET") {
+      const rel = await resolveDraft(p, str(url.searchParams.get("file"), "file"));
+      const src = await readFile(draftPath(p, rel), "utf8");
+      json(reply, 200, { ok: true, data: { file: rel, bytes: Buffer.byteLength(src, "utf8"), lines: src.split("\n").length, source: src } });
+      return true;
+    }
+
     if (route === "locate" && req.method === "GET") {
       const file = str(url.searchParams.get("file"), "file");
       const node = str(url.searchParams.get("node"), "node");
