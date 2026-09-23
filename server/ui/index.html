@@ -238,6 +238,11 @@
   .msg-sys { text-align: center; font-size: 11px; color: var(--muted); padding: 2px 0; }
   .msg-change { border: 1px solid var(--warn-border); background: var(--warn-soft); color: var(--warn); border-radius: var(--radius); padding: 7px 10px; font-size: 12px; display: flex; gap: 8px; align-items: center; }
   .msg-change .grow { flex: 1; min-width: 0; }
+  .picked-pill { display: flex; align-items: center; gap: 8px; margin: 0 12px; padding: 5px 8px; border: 1px solid var(--accent); background: var(--accent-soft); color: var(--accent); border-radius: var(--radius); font-size: 11px; }
+  .picked-pill .nm { font-weight: 600; flex: none; }
+  .picked-pill .mono { font-family: var(--mono); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .picked-pill .grow { flex: 1; }
+  .draft-item:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
   .chat-compose { padding: 10px 12px; border-top: 1px solid var(--border); display: flex; gap: 8px; align-items: flex-end; }
   .chat-compose textarea { flex: 1; min-height: 36px; max-height: 140px; padding: 8px 12px; font-size: 13px; line-height: 1.45; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg); color: var(--text); resize: none; outline: none; }
   .chat-compose textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
@@ -342,6 +347,8 @@ const state = {
   menuOpen: false,
   sheet: null,            // null | 'newProject' | 'newDraft' | 'settings'
   form: {},
+  previewMode: load('ud.previewMode', 'shell'),   // shell = 经 S2 预览壳（可点选、可改属性）；raw = 稿本身
+  picked: null,           // 方式 ②：S2 壳 postMessage 上来的选中节点 { file, node, tag }
   chat: {                 // M2-12：AI 会话侧栏
     open: load('ud.chatOpen', '1') === '1',
     width: Number(load('ud.chatWidth', 380)),
@@ -477,7 +484,7 @@ function renderWorkspace() {
           ${filterPill('all', '全部')}${filterPill('page', '页稿')}${filterPill('component', '组件稿')}
           ${filterPill('error', '有错误')}${filterPill('warn', '有提醒')}${filterPill('unchecked', '未体检')}
         </div>
-        <div class="draft-list">
+        <div class="draft-list" role="listbox" aria-label="稿件列表">
           ${filtered.length === 0 ? '<div class="empty">没有匹配的稿</div>' : filtered.map(d => draftItemHtml(d)).join('')}
         </div>
       </div>
@@ -486,10 +493,14 @@ function renderWorkspace() {
         ${state.selectedDraft ? `
           <div class="preview-toolbar">
             <span class="preview-url" title="${escHtml(p.url + state.selectedDraft)}">${escHtml(state.selectedDraft)}</span>
+            <div class="radio-row" title="编辑壳：能点选节点、改属性（方式 ①）、把选中节点带给 AI（方式 ②）；稿本身：原样预览">
+              <button class="${state.previewMode === 'shell' ? 'on' : ''}" style="height:24px;padding:0 8px;font-size:11px;" onclick="setPreviewMode('shell')">编辑壳</button>
+              <button class="${state.previewMode === 'raw' ? 'on' : ''}" style="height:24px;padding:0 8px;font-size:11px;" onclick="setPreviewMode('raw')">稿本身</button>
+            </div>
             <button class="btn sm" onclick="handleValidate()" ${state.validating ? 'disabled' : ''}>${ICON.check} ${state.validating ? '体检中…' : '体检'}</button>
             <button class="btn sm" onclick="handleOpenInBrowser()" title="在浏览器中打开">${ICON.ext} 浏览器</button>
           </div>
-          <iframe src="${p.url}${encodeURIComponent(state.selectedDraft).replace(/%2F/g, '/')}" id="previewFrame" sandbox="allow-scripts allow-same-origin"></iframe>
+          <iframe src="${previewSrc()}" id="previewFrame" sandbox="allow-scripts allow-same-origin allow-forms allow-popups"></iframe>
         ` : `
           <div class="preview-placeholder">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
@@ -583,8 +594,9 @@ function renderChatRail() {
       <button class="btn ghost sm" onclick="toggleChatRail()" title="收起">${ICON.close}</button>
     </div>
     <div class="chat-body" id="chatBody">${rows.length ? rows.join('') : `<div class="chat-empty"><b>直接说要改什么</b><br>比如「把这个按钮改成 danger 态」。<br>AI 走唯一写入口落盘，改动可审、可回退。${state.selectedDraft ? '' : '<br>先在左侧选一份稿，AI 会优先看它。'}</div>`}</div>
+    ${state.picked ? `<div class="picked-pill"><span class="nm">已选中</span><span class="mono">${escHtml(state.picked.tag ? '<' + state.picked.tag + '> ' : '')}${escHtml(state.picked.file)} · ${escHtml(state.picked.node)}</span><span class="grow"></span><button class="btn ghost sm" onclick="clearPicked()" title="不带这个节点">${ICON.close}</button></div>` : ''}
     <div class="chat-compose">
-      <textarea id="chatInput" rows="1" placeholder="${state.selectedDraft ? '对 ' + escHtml(state.selectedDraft) + ' 说…' : '输入消息… ⏎ 发送'}" oninput="state.chat.input=this.value" onkeydown="chatKey(event)">${escHtml(c.input)}</textarea>
+      <textarea id="chatInput" rows="1" placeholder="${state.picked ? '对这个节点说…（「这里字号大一点」）' : state.selectedDraft ? '对 ' + escHtml(state.selectedDraft) + ' 说…' : '输入消息… ⏎ 发送'}" oninput="state.chat.input=this.value" onkeydown="chatKey(event)">${escHtml(c.input)}</textarea>
       ${c.running ? `<button class="btn stop" onclick="chatInterrupt()"><span class="sq"></span> 中断 <kbd style="font-size:10px">Esc</kbd></button>` : `<button class="btn primary" onclick="chatSend()">发送</button>`}
     </div>
     <div class="chat-foot"><span>${usage}</span><span class="grow"></span><span>${c.running ? '运行中' : c.sessions.length ? c.sessions.length + ' 个会话' : ''}</span></div>
@@ -643,6 +655,8 @@ async function chatSend() {
     if (c.sessionId) body.sessionId = c.sessionId;
     // 方式 ②（选中节点）要等 S2 壳和前端打通；现在先把当前正在看的稿名当弱上下文送进系统提示（不进用户那句）
     if (state.selectedDraft) body.contextFile = state.selectedDraft;
+    // 方式 ②：带上 S2 壳里选中的节点，服务端用 locateNode 解析成上下文塞进系统提示（M2-8）
+    if (state.picked && state.picked.node) { body.selectedNodeFile = state.picked.file; body.selectedNodeAddress = state.picked.node; }
     const res = await apiFetch('chat_send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: abort.signal });
     const d = res.data || {};
     if (d.sessionId) c.sessionId = d.sessionId;
@@ -679,6 +693,23 @@ async function chatRevert(idx) {
 }
 
 function reloadPreview() { const f = document.getElementById('previewFrame'); if (f) f.src = f.src; }
+
+/* 预览走 S2 预览壳（build_index 部署在项目根），它注入点选桥、带属性面板；?embed=1 让它收起「索引」链接并把选中节点 postMessage 上来。 */
+function previewSrc() {
+  const p = state.project;
+  const raw = p.url + encodeURIComponent(state.selectedDraft).replace(/%2F/g, '/');
+  if (state.previewMode !== 'shell') return raw;
+  return p.url + encodeURIComponent('S2-单稿预览壳.dc.html') + '?file=' + encodeURIComponent(state.selectedDraft) + '&embed=1';
+}
+function setPreviewMode(m) { state.previewMode = m; save('ud.previewMode', m); state.picked = null; render(); }
+// 方式 ②：S2 壳上报的选中 / 清除
+window.addEventListener('message', (e) => {
+  const m = e.data;
+  if (!m || m.source !== 'umbradesign-s2') return;
+  if (m.type === 'picked' && m.payload) { state.picked = { file: m.payload.file || state.selectedDraft, node: m.payload.node, tag: m.payload.tag || '' }; renderSheet(); render(); }
+  if (m.type === 'cleared') { state.picked = null; render(); }
+});
+function clearPicked() { state.picked = null; render(); }
 
 function wireSidebarResize() {
   const handle = document.getElementById('resizeHandle');
@@ -733,7 +764,7 @@ function draftItemHtml(d) {
   const checking = state.checkingFile === d.file;
   const kind = d.kind === 'component' ? 'component' : 'page';
   return `
-    <div class="draft-item${selected}" onclick="selectDraft('${escHtml(d.file)}')" title="${escHtml(d.healthWhy || '')}">
+    <div class="draft-item${selected}" role="option" aria-selected="${selected ? 'true' : 'false'}" tabindex="0" data-file="${escHtml(d.file)}" onclick="selectDraft('${escHtml(d.file)}')" onkeydown="draftKey(event, '${escHtml(d.file)}')" title="${escHtml(d.healthWhy || '')}">
       <div class="draft-icon ${kind}">${ICON[kind]}</div>
       <div class="draft-info">
         <div class="draft-title">${escHtml(d.title || baseName(d.file).replace(/\.dc\.html$/, ''))}</div>
@@ -984,6 +1015,24 @@ function filterDrafts() {
 
 // ── 事件处理 ──────────────────────────────────────────
 function onSearch(v) { state.search = v; render(); }
+/* M5-6 键盘：列表里 ↑↓ 移动焦点、Enter / 空格选中、Home / End 到头尾；全局 / 聚焦搜索，Cmd/Ctrl+J 聚焦会话输入 */
+function draftKey(e, file) {
+  const items = Array.from(document.querySelectorAll('.draft-item'));
+  const i = items.indexOf(e.currentTarget);
+  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectDraft(file); return; }
+  let j = null;
+  if (e.key === 'ArrowDown') j = Math.min(items.length - 1, i + 1);
+  if (e.key === 'ArrowUp') j = Math.max(0, i - 1);
+  if (e.key === 'Home') j = 0;
+  if (e.key === 'End') j = items.length - 1;
+  if (j !== null) { e.preventDefault(); items[j].focus(); }
+}
+document.addEventListener('keydown', (e) => {
+  const tag = (document.activeElement && document.activeElement.tagName) || '';
+  const typing = tag === 'INPUT' || tag === 'TEXTAREA' || state.sheet;
+  if (e.key === '/' && !typing) { const s = document.querySelector('.sidebar-search input'); if (s) { e.preventDefault(); s.focus(); } }
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'j' && state.project) { e.preventDefault(); if (!state.chat.open) toggleChatRail(); const t = document.getElementById('chatInput'); if (t) t.focus(); }
+});
 function setFilter(f) { state.filter = f; render(); }
 function setBottomTab(t) {
   state.bottomTab = t;

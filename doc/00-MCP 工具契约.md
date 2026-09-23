@@ -2628,3 +2628,21 @@ DeepSeek 端点没跑（没 key），同一适配器，M2-1 验收里「分别�
 
 修后：**3.3 s、11.7k tokens**，`read_draft → set_prop(node=df30a937) → validate_draft → read_draft` 四步，v1 → v2（`#d92d20`），L2 ×1，回退成功。M2-1 验收「分别对 DeepSeek 与智谱跑通」两半都有读数了。
 
+## 三十七、方式 ② 进应用 · 键盘可达性 · 仓库上远端（2026-09-23 晚）
+
+### 37.1 方式 ②：应用前端的预览改走 S2 壳，选中节点带给 AI
+
+应用壳（Tauri：`tauri://localhost`）和本地服务跨源，前端**注不进**点选桥（桥靠同源 `contentDocument`）。所以不在前端重做一套：预览 iframe 默认装 **S2 预览壳**（`S2-…?file=<稿>&embed=1`），S2 本来就注桥、有属性面板（方式 ①）；`embed=1` 让它不画「索引」链接，并把 `select` / `clear` 用 `postMessage({source:"umbradesign-s2"})` 转给父窗口。前端记 `state.picked`，会话输入区上方出药丸「已选中 <button> t.dc.html · 4a009e85」，发送时带 `selectedNodeFile / selectedNodeAddress`，服务端照 M2-8 的路 `locateNode` 解析成系统提示。预览还留一档「稿本身」。
+
+【实测】Playwright：选中按钮 → 说「这里字号大一点」→ DeepSeek 只改那一处：diff `L2 <button>「点我」 font-size null → 20px`，别的零变更。`01` §7.6 第 22 条在应用里闭环。
+
+顺带抓到一条真缺陷：**工具结果落盘没带 `tool_call_id`**，续接会话时历史里的 tool 条目对不上 assistant 的 tool_calls，DeepSeek 直接 422。修：`addMessage` 时存 `toolCallId / toolName`；组历史时 `sanitizeHistory` —— 没 id 的 tool 条目丢掉、配不齐结果的 `tool_calls` 从 assistant 里剥掉（留文本），旧会话也能续。
+
+### 37.2 M5-6 键盘可达性（第一遍）
+
+稿件列表 `role=listbox` / 行 `tabindex=0`：↑↓ 移焦点、Enter / 空格选中、Home / End；全局 `/` 聚焦搜索、`Cmd/Ctrl+J` 聚焦会话输入（收起时先展开）；面板 Esc 关、首个输入框自动聚焦、`:focus-visible` 描边。没做：面板内焦点圈死、底栏 tab 的方向键。
+
+### 37.3 仓库第一次推上 GitHub
+
+`git@github.com:TestEngineerFish/umbra-design.git`。第一次推被 GH001 拒：M3-5 把 106 MB 的 `src-tauri/binaries/node-aarch64-apple-darwin` 提交进了历史。处理：打备份标签 `backup/pre-purge-node-binary` → `filter-branch` 从 master 全史剥掉它 → `.gitignore` 加 `src-tauri/binaries/node-*` → `src-tauri/binaries/README.md` 写本地生成办法（`cp $(which node) …`）。推上去 75 个提交，master 里已无 >50 MB 的对象。
+

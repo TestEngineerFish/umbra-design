@@ -252,6 +252,27 @@ export async function executeToolCall(p: Project, tc: ToolCall): Promise<string>
   }
 }
 
+/** 续接会话时历史必须配得上对：每个 assistant.tool_calls 后面要跟齐全部 tool 结果（带 tool_call_id），
+ *  否则 OpenAI 形状的端点会 4xx。修 toolCallId 落盘之前的旧会话里 tool 条目没有 id ——
+ *  对这种条目：丢掉没 id 的 tool 消息，并把对不上结果的 tool_calls 从 assistant 里剥掉（保留文本）。 */
+function sanitizeHistory(msgs: ChatMessage[]): ChatMessage[] {
+  const out: ChatMessage[] = [];
+  for (let i = 0; i < msgs.length; i++) {
+    const m = msgs[i] as ChatMessage;
+    if (m.role === "tool") { if (m.tool_call_id) out.push(m); continue; }
+    if (m.role === "assistant" && m.tool_calls && m.tool_calls.length) {
+      const ids = new Set<string>();
+      for (let j = i + 1; j < msgs.length && (msgs[j] as ChatMessage).role === "tool"; j++) {
+        const id = (msgs[j] as ChatMessage).tool_call_id; if (id) ids.add(id);
+      }
+      const complete = m.tool_calls.every((tc) => ids.has(tc.id));
+      if (!complete) { const { tool_calls: _drop, ...rest } = m; if (rest.content) out.push(rest as ChatMessage); continue; }
+    }
+    out.push(m);
+  }
+  return out;
+}
+
 /** chat_send：加载/新建会话 → 选中节点上下文 → 通道 A agent 循环或通道 B 子进程 → 审计变更。返回信封。 */
 export async function runChatSend(p: Project, a: ChatSendArgs): Promise<Envelope<any>> {
   const { message, sessionId, channel, selectedNodeFile, selectedNodeAddress, contextFile } = a;
@@ -309,12 +330,12 @@ export async function runChatSend(p: Project, a: ChatSendArgs): Promise<Envelope
       }
     } catch { /* 忽略，不影响主流程 */ }
 
-    const history: ChatMessage[] = session.messages.map((m) => ({
+    const history: ChatMessage[] = sanitizeHistory(session.messages.map((m) => ({
       role: m.role as ChatMessage["role"],
       content: m.content,
       ...(m.toolCalls ? { tool_calls: m.toolCalls } : {}),
       ...(m.toolCallId ? { tool_call_id: m.toolCallId, name: m.toolName } : {}),
-    }));
+    })));
 
     // 工具定义：把我们现有的 MCP 工具暴露给模型
     const tools: ToolDef[] = [
@@ -372,6 +393,8 @@ export async function runChatSend(p: Project, a: ChatSendArgs): Promise<Envelope
         role: m.role as ChatEntry["role"],
         content: m.content ?? "",
         ...(m.tool_calls ? { toolCalls: m.tool_calls } : {}),
+        // 工具结果要带 tool_call_id 落盘，否则续接会话时 provider 直接 422「missing field tool_call_id」【实测 DeepSeek 2026-09-23】
+        ...(m.tool_call_id ? { toolCallId: m.tool_call_id, toolName: m.name } : {}),
       });
     }
 

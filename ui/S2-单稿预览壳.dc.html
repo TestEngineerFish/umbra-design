@@ -30,10 +30,12 @@
 
   <div style="flex: none; background: var(--tool-panel); border-bottom: 1px solid var(--tool-border);">
     <div style="display: flex; align-items: center; gap: 12px; padding: 10px 16px; flex-wrap: wrap;">
+      <sc-if value="{{ showIndexLink }}" hint-placeholder-val="{{ true }}">
       <a href="./S1-稿件索引.dc.html" style="display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px 0 8px; border-radius: var(--tool-radius); border: 1px solid var(--tool-border-strong); background: var(--tool-panel); color: var(--tool-text); font-size: 12px; text-decoration: none; flex: none; transition: background .13s ease, border-color .13s ease;" style-hover="background: var(--tool-hover); text-decoration: none;" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">
         <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M9.6 3.6L5.2 8l4.4 4.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
         索引
       </a>
+      </sc-if>
 
       <div style="display: flex; align-items: baseline; gap: 9px; min-width: 0; flex: 1 1 220px;">
         <span style="font-size: 15px; font-weight: 620; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="{{ title }}">{{ title }}</span>
@@ -637,6 +639,8 @@ const LIVE = (function () {
   } catch (e) { return null; }
 })();
 const BRIDGE = "./.umbradesign/select-bridge.js";
+/* ?embed=1：被应用前端装在 iframe 里。顶栏不再画「索引」链接（应用自己有导航），选中节点会 postMessage 给父窗口。 */
+const EMBED = (function () { try { return new URLSearchParams(location.search).get("embed") === "1"; } catch (e) { return false; } })();
 
 const PRESETS = [
   { name: "PC", w: 1440, h: 900 },
@@ -768,6 +772,12 @@ class Component extends DCLogic {
         } catch (e) { /* 跨源就算了，同源才有点选 */ }
       };
       this.onFrameLoad = () => { this.injectBridge(); this.pushDraftTheme(); };
+      /* 方式 ②（doc/12 M2-8）：应用壳把这份预览壳装在 iframe 里，它和我们跨源，
+         选中的节点只能用 postMessage 送上去，应用的会话面板据此带 selectedNodeFile / Address。 */
+      this.tellParent = (type, payload) => {
+        try { if (window.parent && window.parent !== window) window.parent.postMessage({ source: "umbradesign-s2", type: type, payload: payload }, "*"); }
+        catch (e) { /* 没有父窗口就算了 */ }
+      };
       this.onMsg = (e) => {
         const m = e.data;
         if (!m || m.source !== "umbradesign") return;
@@ -776,9 +786,10 @@ class Component extends DCLogic {
           this.clearPreview();          // 换了节点，上一个节点的覆盖层不该留着
           this.setState({ picked: m.payload, previewing: null, previewSlot: null });
           this.pullSlots(m.payload);
+          this.tellParent("picked", m.payload);
           return;
         }
-        if (m.type === "clear") { this.clearPreview(); this.setState({ picked: null, slots: null, previewing: null, previewSlot: null }); return; }
+        if (m.type === "clear") { this.clearPreview(); this.setState({ picked: null, slots: null, previewing: null, previewSlot: null }); this.tellParent("cleared", null); return; }
       };
       window.addEventListener("message", this.onMsg);
       const f = this.frameRef;
@@ -1333,6 +1344,7 @@ class Component extends DCLogic {
       kindLabel: LIVE ? "稿" : "页稿",
       version: LIVE ? (curVer || "—") : "v217",
       verOpen: verOpen,
+      showIndexLink: !EMBED,
       verBtnBg: verOpen ? "var(--tool-accent-soft)" : "var(--tool-panel-2)",
       verBtnBd: verOpen ? "var(--tool-accent-border)" : "var(--tool-border)",
       verBtnFg: verOpen ? "var(--tool-accent)" : "var(--tool-text-2)",
