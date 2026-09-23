@@ -46,7 +46,7 @@ import { ToolError } from "./envelope.js";
 import { buildIndex, indexStatus, isToolPage } from "./indexpage.js";
 import { runChatSend } from "./chat_run.js";
 import { updateProject, archiveProject, deleteProject } from "./project.js";
-import { listTrash, restoreDraft, purgeTrash, emptyTrash } from "./refs.js";
+import { listTrash, restoreDraft, purgeTrash, emptyTrash, deleteDraft } from "./refs.js";
 import { listChats, loadChat, createChat } from "./chat.js";
 import { listComments, addComment, updateComment, deleteComment } from "./comments.js";
 import { getAiConfig } from "./ai_config.js";
@@ -426,6 +426,26 @@ export async function handleApi(
       if (!ctl) { json(reply, 200, { ok: true, data: { interrupted: false, note: "作业不在跑或已结束" } }); return true; }
       ctl.abort();
       json(reply, 200, { ok: true, data: { interrupted: true, note: "已发中断：通道 A 在当前这一步结束后停下；已落盘的改动照常可审可回退" } });
+      return true;
+    }
+
+    /* ── S1 行内撤销（设计侧第三轮 §1.1）：删除到回收站 / 按稿名从回收站恢复最近那份 ── */
+    if (route === "delete_draft" && req.method === "POST") {
+      if (!originOk(req, ctx.port)) { json(reply, 403, { ok: false, errors: [{ code: "E_API_ORIGIN", message: "Origin 不是本服务" }] }); return true; }
+      const b = await readBody(req);
+      const rel = await resolveDraft(p, str(b.file, "file"));
+      json(reply, 200, { ok: true, data: await deleteDraft(p, rel) });
+      return true;
+    }
+    if (route === "restore_draft" && req.method === "POST") {
+      if (!originOk(req, ctx.port)) { json(reply, 403, { ok: false, errors: [{ code: "E_API_ORIGIN", message: "Origin 不是本服务" }] }); return true; }
+      const b = await readBody(req);
+      const file = str(b.file, "file");
+      const base = file.split("/").pop() as string;
+      // S1 只知道稿名不知道回收站路径：取同名里最近删的那份（listTrash 已按时间倒序）
+      const hit = (await listTrash(p)).find((t) => t.originalName === base);
+      if (!hit) throw new Error(`回收站里没有 ${base}`);
+      json(reply, 200, { ok: true, data: await restoreDraft(p, hit.trashPath) });
       return true;
     }
 

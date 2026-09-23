@@ -353,6 +353,22 @@
               <span>健康</span>
             </div>
             <sc-for list="{{ rows }}" as="r" hint-placeholder-count="8">
+              <!-- 行内撤销（设计侧第三轮 §1.1）。删除不弹确认：那一行原地塌成一行
+                   「已移到回收站 · 撤销」，5 秒后消失。和 S2 / S7 的撤销条同一套语法：
+                   齐边细条 + currentColor 描边小钮。中性灰而不是红 —— 已经发生、可逆的事不报警。 -->
+              <sc-if value="{{ r.gone }}" hint-placeholder-val="{{ false }}">
+                <div role="status" aria-live="polite" style="display: flex; align-items: center; gap: 8px; padding: 6px 14px; min-height: 32px; border-bottom: 1px solid var(--tool-border); background: var(--tool-panel-2); color: var(--tool-text-2); font-size: 12px;">
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" style="flex: none; color: var(--tool-muted);" aria-hidden="true"><path d="M3.6 4.4h8.8M5.2 4.4V3.2c0-.7.5-1.2 1.2-1.2h3.2c.7 0 1.2.5 1.2 1.2v1.2M4.4 4.4l.6 8.4c0 .7.6 1.2 1.2 1.2h5.6c.6 0 1.2-.5 1.2-1.2L13.6 4.4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                  <span style="flex: none;">{{ r.goneText }}</span>
+                  <span style="color: var(--tool-border-strong); flex: none;">·</span>
+                  <span style="min-width: 0; font-family: var(--tool-mono); font-size: 11px; color: var(--tool-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="{{ r.file }}">{{ r.file }}</span>
+                  <span style="flex: 1;"></span>
+                  <sc-if value="{{ r.goneUndo }}" hint-placeholder-val="{{ true }}">
+                    <button type="button" onClick="{{ r.undoDelete }}" style="flex: none; height: 19px; padding: 0 7px; border-radius: var(--tool-radius-sm); border: 1px solid currentColor; background: transparent; color: inherit; font-size: 11px; cursor: pointer;" style-hover="background: var(--tool-panel);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">撤销</button>
+                  </sc-if>
+                </div>
+              </sc-if>
+              <sc-if value="{{ r.live }}" hint-placeholder-val="{{ true }}">
               <div onClick="{{ r.open }}" onMouseEnter="{{ r.hover }}" role="button" tabindex="0" aria-label="{{ r.aria }}" style="display: grid; grid-template-columns: minmax(0, 1fr) 76px 108px 62px 104px 134px; gap: 12px; align-items: center; padding: 9px 14px; border-bottom: 1px solid var(--tool-border); cursor: pointer; transition: background .13s ease; background: {{ r.bg }}; box-shadow: {{ r.sel }};" style-hover="background: var(--tool-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: -2px;">
                 <div style="min-width: 0; display: flex; align-items: center; gap: 9px;">
                   <span style="width: 22px; height: 22px; flex: none; display: grid; place-items: center; border-radius: var(--tool-radius-sm); background: {{ r.iconBg }}; color: {{ r.iconFg }};">
@@ -396,7 +412,7 @@
                   <span style="font-family: var(--tool-mono); font-size: 11px; color: var(--tool-muted); white-space: nowrap;">{{ r.diagLabel }}</span>
 
                   <!-- 行操作菜单按钮 -->
-                  <div style="position: relative; flex: none;">
+                  <div onClick="{{ r.stop }}" style="position: relative; flex: none;">
                     <!-- 行内操作：常驻但压到 0.45（设计侧 §2.5）。
                          hover 才出现对键盘和触控都失效，而且列宽会跳；
                          常驻但发暗可以保住布局稳定。只给一颗 ⋯ 触发器，
@@ -416,6 +432,7 @@
                   </div>
                 </div>
               </div>
+              </sc-if>
             </sc-for>
           </div>
         </div>
@@ -424,6 +441,18 @@
       <sc-if value="{{ showWall }}" hint-placeholder-val="{{ false }}">
         <div style="padding: 14px 20px 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(232px, 1fr)); gap: 14px;">
           <sc-for list="{{ rows }}" as="r" hint-placeholder-count="6">
+            <!-- 墙视图同一条：卡片塌成占位，保住格子不跳。 -->
+            <sc-if value="{{ r.gone }}" hint-placeholder-val="{{ false }}">
+              <div role="status" aria-live="polite" style="display: grid; place-items: center; gap: 8px; min-height: 120px; padding: 14px; border: 1px dashed var(--tool-border-strong); border-radius: var(--tool-radius-lg); background: var(--tool-panel-2); color: var(--tool-text-2); font-size: 12px; text-align: center;">
+                <div style="display: grid; gap: 8px; justify-items: center;">
+                  <span>{{ r.goneText }}</span>
+                  <sc-if value="{{ r.goneUndo }}" hint-placeholder-val="{{ true }}">
+                    <button type="button" onClick="{{ r.undoDelete }}" style="height: 19px; padding: 0 7px; border-radius: var(--tool-radius-sm); border: 1px solid currentColor; background: transparent; color: inherit; font-size: 11px; cursor: pointer;" style-hover="background: var(--tool-panel);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">撤销</button>
+                  </sc-if>
+                </div>
+              </div>
+            </sc-if>
+            <sc-if value="{{ r.live }}" hint-placeholder-val="{{ true }}">
             <div onClick="{{ r.open }}" role="button" tabindex="0" aria-label="{{ r.aria }}" style="background: var(--tool-panel); border: 1px solid var(--tool-border); border-radius: var(--tool-radius-lg); overflow: hidden; cursor: pointer; box-shadow: var(--tool-shadow-1); transition: border-color .13s ease, box-shadow .13s ease; border-color: {{ r.cardBd }};" style-hover="border-color: var(--tool-border-strong); box-shadow: var(--tool-shadow-2);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">
               <div style="aspect-ratio: 16 / 10; background: var(--tool-panel-2); border-bottom: 1px solid var(--tool-border); display: grid; place-items: center; position: relative; overflow: hidden;">
                 <sc-if value="{{ r.hasThumb }}" hint-placeholder-val="{{ true }}">
@@ -461,6 +490,7 @@
                 </div>
               </div>
             </div>
+            </sc-if>
           </sc-for>
         </div>
       </sc-if>
@@ -566,8 +596,13 @@ const DEMOS = [
   { n: 11, short: "行操作", name: "行操作菜单展开", note: "点行末「…」弹出重命名/复制/移动/删除" },
   { n: 12, short: "新建稿件", name: "新建稿件弹窗", note: "选来源（空白/组件/模板/复制）、填稿名" },
   { n: 13, short: "回收站", name: "回收站有稿件", note: "3 份被删的稿，显示删除时间和引用数" },
-  { n: 14, short: "索引过期", name: "索引过期横幅", note: "M4-6：build_index 之后又有文件被改过，至少 3 份过期" }
+  { n: 14, short: "索引过期", name: "索引过期横幅", note: "M4-6：build_index 之后又有文件被改过，至少 3 份过期" },
+  { n: 15, short: "行内撤销", name: "删除后行内撤销", note: "删除不弹确认：那一行塌成「已移到回收站 · 撤销」，5 秒后消失（演示态里停住不走）" }
 ];
+
+/* 行内撤销的停留时长。和 S2 / S7 的撤销条对齐口径：它们是 3 秒（改一个值），
+   这里给 5 秒 —— 删的是整份稿，读那一行字要多一眼。 */
+const UNDO_MS = 5000;
 
 const HEALTH = {
   ok: { label: "通过", bg: "var(--tool-ok-soft)", bd: "var(--tool-ok-border)", fg: "var(--tool-ok)" },
@@ -591,7 +626,14 @@ class Component extends DCLogic {
      那行不出现（43px），窄窗里顶栏还会折行，写死的 76px 两种情况都会把下面的
      卡片头盖掉。所以量出来用。 */
   state = { demo: 1, view: null, query: "", kind: "all", health: "all", sort: "updated", cursor: 0, barH: 76,
-            stale: null, projDrop: false, showNewDraft: false, showTrashView: false, draftSource: "blank", newDraftName: "" };
+            stale: null, projDrop: false,
+            /* 行内撤销（设计侧第三轮 §1.1）。
+               justDeleted: null | { file, title, at, error? } —— 当前塌着的那一行。同一时刻只塌一行：
+                 再删第二份时，第一份立即定稿（进 trashed），不叠两条撤销。
+               trashed: 本页会话里已定稿删除的文件名，从 pool 里滤掉（真数据下 index 是静态注入的，
+                 不重载就得靠它把行藏起来）。
+               actionsFor: 哪一行的 ⋯ 菜单开着（file）。 */
+            justDeleted: null, trashed: [], actionsFor: null, showNewDraft: false, showTrashView: false, draftSource: "blank", newDraftName: "" };
 
   measure() {
     const el = this.barRef && this.barRef.current;
@@ -645,12 +687,70 @@ class Component extends DCLogic {
     this.forceUpdate();
   }
 
+  /* ── 行内撤销 ──
+     接线：LIVE 下 POST delete_draft / restore_draft，body 都是 { file }。
+     删除是乐观的：先塌行，请求失败再把行放回来并在塌行里说清楚（不给撤销钮）。
+     撤销也是乐观的：先把行放回，restore 失败再塌回去报错。 */
+  api(name, body) {
+    const A = typeof window !== "undefined" ? window.__UD_API : null;
+    if (!LIVE || !A) return Promise.resolve({ ok: true });
+    return fetch(new URL(A.base + name, location.href).toString(),
+      { method: "POST", headers: { "x-ud-token": A.token, "content-type": "application/json" }, body: JSON.stringify(body) })
+      .then((r) => r.json())
+      .catch((e) => ({ ok: false, errors: [{ message: e.message }] }));
+  }
+
+  settleDeleted() {
+    if (this.undoT) { clearTimeout(this.undoT); this.undoT = null; }
+    const jd = this.state.justDeleted;
+    if (!jd) return;
+    this.setState((s) => ({ justDeleted: null, trashed: jd.error ? s.trashed : s.trashed.concat([{ file: jd.file, title: jd.title, at: jd.at }]) }));
+  }
+
+  deleteDraft(r) {
+    this.settleDeleted();
+    const at = Date.now();
+    this.setState({ justDeleted: { file: r.file, title: r.title, at: at }, actionsFor: null });
+    this.undoT = setTimeout(() => this.settleDeleted(), UNDO_MS);
+    this.api("delete_draft", { file: r.file }).then((j) => {
+      if (j.ok) return;
+      const cur = this.state.justDeleted;
+      if (!cur || cur.file !== r.file) return;
+      if (this.undoT) clearTimeout(this.undoT);
+      const msg = (j.errors && j.errors[0] && j.errors[0].message) || "未知错误";
+      this.setState({ justDeleted: Object.assign({}, cur, { error: "没删成：" + msg }) });
+      this.undoT = setTimeout(() => this.settleDeleted(), UNDO_MS);
+    });
+  }
+
+  undoDelete(file) {
+    if (this.undoT) { clearTimeout(this.undoT); this.undoT = null; }
+    const jd = this.state.justDeleted;
+    this.setState({ justDeleted: null, demo: this.state.demo === 15 ? 1 : this.state.demo });
+    this.api("restore_draft", { file: file }).then((j) => {
+      if (j.ok || !jd) return;
+      const msg = (j.errors && j.errors[0] && j.errors[0].message) || "未知错误";
+      this.setState({ justDeleted: Object.assign({}, jd, { error: "没恢复成：" + msg + "。去回收站里找" }) });
+      this.undoT = setTimeout(() => this.settleDeleted(), UNDO_MS);
+    });
+  }
+
+  /* 演示态 15：把排第一的那份停在塌行状态，不走计时器。 */
+  goneFile() {
+    if (this.state.justDeleted) return this.state.justDeleted;
+    if (!LIVE && this.state.demo === 15) return { file: BASE[0].file, title: BASE[0].title, demo: true };
+    return null;
+  }
+
   componentWillUnmount() {
+    if (this.undoT) clearTimeout(this.undoT);
     document.removeEventListener("keydown", this.onKey);
     window.removeEventListener("resize", this.onResize);
   }
 
   go(r) {
+    const g = this.goneFile();
+    if (g && g.file === r.file) return;   // 塌着的行不可打开
     // S2 已经接上真实数据（doc/00 §二十一），两条路统一走它
     window.location.href = "./S2-单稿预览壳.dc.html?file=" + encodeURIComponent(r.file);
   }
@@ -660,6 +760,11 @@ class Component extends DCLogic {
   }
 
   pool() {
+    const gone = new Set(this.state.trashed.map((t) => t.file));
+    return this.rawPool().filter((r) => !gone.has(r.file));
+  }
+
+  rawPool() {
     if (LIVE) return (LIVE.drafts || []).slice();   // 真实数据，演示态一律不参与
     const d = this.state.demo;
     if (d === 3) return [];
@@ -764,6 +869,7 @@ class Component extends DCLogic {
     const staleList = this.staleFileList();
     const staleSet = new Set(staleList);
     const scanAt = LIVE && LIVE.project ? this.ago(LIVE.project.generatedAt) : "08:52";
+    const goneRow = this.goneFile();
 
     const rows = rowsData.map((r, i) => {
       const h = HEALTH[r.health];
@@ -771,7 +877,15 @@ class Component extends DCLogic {
       const hard = r.elements >= LIMIT;
       const sel = i === s.cursor;
       const stale = staleSet.has(r.file);
+      const gone = !!goneRow && goneRow.file === r.file;
       return {
+        gone: gone,
+        live: !gone,
+        goneText: gone && goneRow.error ? goneRow.error : "已移到回收站",
+        goneUndo: gone && !goneRow.error,
+        undoDelete: () => this.undoDelete(r.file),
+        stop: (e) => e.stopPropagation(),
+        openActions: () => this.setState({ actionsFor: s.actionsFor === r.file ? null : r.file }),
         stale: stale,
         staleTitle: "这份稿在扫目录之后被改过，左边这几列都是改动前的读数",
         metaFg: stale ? "var(--tool-muted)" : "var(--tool-text-2)",
@@ -815,13 +929,14 @@ class Component extends DCLogic {
         open: () => this.go(r),
         hover: () => this.setState({ cursor: i }),
         // ── 行操作菜单 ──
-        actionsOpen: s.rowActionsDemo && i === 0,
+        actionsOpen: (s.rowActionsDemo && i === 0) || s.actionsFor === r.file,
         // 常驻但压到 0.45；选中行 / 菜单展开时回到 1
-        actionsOpacity: (s.rowActionsDemo && i === 0) || sel ? "1" : "0.45",
-        rename: () => {},
-        duplicate: () => {},
-        move: () => {},
-        deleteDraft: () => {}
+        actionsOpacity: (s.rowActionsDemo && i === 0) || s.actionsFor === r.file || sel ? "1" : "0.45",
+        rename: () => this.setState({ actionsFor: null }),
+        duplicate: () => this.setState({ actionsFor: null }),
+        move: () => this.setState({ actionsFor: null }),
+        // 不弹确认，直接删 + 行内撤销（设计侧第三轮 §1.1）
+        deleteDraft: () => this.deleteDraft(r)
       };
     });
 
@@ -949,16 +1064,16 @@ class Component extends DCLogic {
 
       // ── 回收站视图 ──
       showTrashView: s.demo === 13,
-      trashCount: "3",
+      trashCount: String(3 + s.trashed.length),
       trashViewEmpty: s.demo !== 13,
       trashViewNotEmpty: s.demo === 13,
       onOpenTrash: () => this.setState({ showTrashView: true, demo: 13 }),
       onCloseTrashView: () => this.setState({ showTrashView: false, demo: 1 }),
-      trashViewItems: [
+      trashViewItems: s.trashed.slice().reverse().map((t) => ({ name: t.title, deletedAt: new Date(t.at).toLocaleString("zh-CN", { hour12: false }), size: "—", imports: "本次会话删除", restore: () => { this.api("restore_draft", { file: t.file }); this.setState((st) => ({ trashed: st.trashed.filter((x) => x.file !== t.file) })); } })).concat([
         { name: "旧版首页", deletedAt: "2026-09-18 14:32", size: "703 元素", imports: "被 2 份引用", restore: () => {} },
         { name: "PC 按钮 v1", deletedAt: "2026-09-17 09:15", size: "14 元素", imports: "被 1 份引用", restore: () => {} },
         { name: "临时测试稿", deletedAt: "2026-09-16 22:08", size: "86 元素", imports: "孤立稿", restore: () => {} }
-      ],
+      ]),
 
       // ── 行操作菜单 ──
       rowActionsDemo: s.demo === 11,

@@ -2735,3 +2735,13 @@ UMBRADESIGN_AUTOTEST_DIR=<项目目录> UMBRADESIGN_AUTOTEST_LOG=<读数文件> 
 
 【实测】Playwright：点选按钮 → 面板留言「这个按钮再大一号，字号 28px」→ 「1 条未处理」、稿上钉子 1 → 应用「评论」tab 列出 → 「发给 AI」→ DeepSeek 只改那一处 `font-size 24px → 28px`（v16 → v17）→ 标已处理 → 钉子 0。
 
+## 四十五、设计侧第三轮收稿：S1 行内撤销接线（2026-09-23）
+
+设计侧在 `UmbraDesign-ui-20260923-0255` 的 S1 上交回（`ui/_incoming/S1` + `19-设计侧回复（第三轮）.md`，归档 `doc/_archive/19`）。`incoming`：底稿正确、零 error、接线 4/4，`--apply` 并入。它同时裁决了会话栏放左（同意，理由「先说后看」+ 迁移肌肉记忆）—— 与 M6-1 已做的一致。
+
+它给的键 `justDeleted / trashed / actionsFor`、方法 `deleteDraft / undoDelete / settleDeleted`、请求 `POST delete_draft { file }` / `POST restore_draft { file }` 全部照接：本地 API 补这两条路由 —— `delete_draft` 走 `refs.deleteDraft`（回收站语义）；`restore_draft` 只拿到稿名，取回收站里同名最近删的那份 `restoreDraft`。乐观更新由它的稿自己做（先塌行再请求，失败把行放回并说清）。
+
+【实测】Playwright 在部署后的 S1（`index.dc.html`）：行末 ⋯ → 删除 → 该行塌成「已移到回收站 · 撤销」、磁盘上稿进 `.umbradesign/trash/` → 点撤销 → 文件回到原位、行回来。S1 render_check alive、洞 0。
+
+这一轮设计侧没有欠项；下次发包前照旧 `npm run outgoing`。
+
