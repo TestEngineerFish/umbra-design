@@ -79,15 +79,17 @@ claude mcp add umbrastudio -- node <仓库绝对路径>/server/dist/index.js
 
 ## 4. 下一步做什么
 
-**2026-09-23 转向 Umbra Studio**，依据 `doc/18`，决策 `doc/11` Q18–Q29（全部拍板），条目 `doc/12` M7–M10。顺序：
+转向 Umbra Studio 的依据 `doc/18`，决策 `doc/11` Q18–Q29，条目 `doc/12` M7–M10。**2026-09-24 起顺序以 `doc/12` §〇.2 为准**，
+要点：M7-1 / M9-1 / M7-9 已完成，Q26 定了换 Electron，所以**新前端直接在 Electron 壳里平移，不在 Tauri 上做两遍**：
 
-1. **M7-1 改名**（GitHub 仓库改名由用户做，其余你做）→ **M7-2 / M7-3** 新前端 `app/`（Vite + React + TS + Tailwind，与 UmbraPC 同栈）+ host adapter → **M7-5 / M7-6 平移**现有能力，不加新功能，`selftest` + `rendertest` + 壳内自测全过 → M7-7 布局引擎 R1–R5 → M7-8 旧前端退役
-2. ~~**M9-1 壳 spike**~~ ✅ 2026-09-24 两条都过（`00` §五十）→ **M9-2 Electron 壳**（主进程起核心、host adapter `desktop`、菜单、单实例、未落盘提示），M9-3 随之成立
-3. **M7-9 设计侧第四轮**：✅ 已发（2026-09-24，`00` §五十一）；它交回后取到 `ui/_incoming/`，跑 `incoming`（新屏 S11–S15 没底稿，baseline 行由我们收稿时补）
-4. **M8** 按「目录 → `.md` → 图片」加类型，每种预览器 + 选中桥 + 写入路径三件套一起交
-5. 通道 B（M2-3）仍等 GLM Coding Plan 续订
+1. M7-2 新前端骨架 + M7-3 host adapter（`browser` 实现）+ M7-4 核心侧 HTTP / WS
+2. M9-2 Electron 壳（含 `desktop` adapter；Tauri 与 sidecar 退役；M9-3 随之成立）
+3. M7-5 / M7-6 平移现有能力，两个宿主都跑；不加新功能
+4. M7-7 布局引擎 → M7-8 旧前端退役 → M8 加类型
 
-**纪律**：旧 vanilla 前端 `server/ui/index.html` **不再加任何功能**，只修阻塞性 bug；新功能全进 `app/`。
+每做完一条更新 `doc/12` 的状态与进度表，读数写进 `doc/00`。设计侧第四轮已发（`00` §五十一），交回后走 `incoming`。
+
+**纪律**：旧 vanilla 前端 `server/ui/index.html` **不再加任何功能**；新功能全进 `app/`。
 key 只放 `.umbrastudio/ai_config.json`，**不进仓库、不写进任何文档**。
 
 ---
