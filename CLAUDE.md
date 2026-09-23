@@ -75,7 +75,7 @@ claude mcp add umbradesign -- node <仓库绝对路径>/server/dist/index.js
 
 两条线，**互不阻塞，可以并行**：
 
-**线 A · AI 通道**：通道 A **2026-09-23 已真跑通**（智谱通用 API，`doc/00` §35.1，两条缺陷已修）；
+**线 A · AI 通道**：通道 A **2026-09-23 已真跑通**（智谱 + DeepSeek 两家，`doc/00` §35.1 / §35.4，缺陷已修，agent 加了 `read_draft`）；
 通道 B 卡在「GLM Coding Plan 套餐已到期」（429），链路未被证伪，预检已加，**等用户续订后再跑一次**（§35.2）。
 M2-12 会话面板已进前端并实测闭环（§三十六）。剩：通道 B 等续订、M5-6 键盘可达性、方式 ② 点选桥打通。
 key 只放 `.umbradesign/ai_config.json`（已有，含 channelA / channelB），**不进仓库、不写进任何文档**。

@@ -100,6 +100,18 @@ export async function executeToolCall(p: Project, tc: ToolCall): Promise<string>
         const r = await getComponent(p, args.name as string, (args.mode as "contract" | "full") ?? "contract");
         return JSON.stringify({ ok: true, ...r });
       }
+      case "read_draft": {
+        /* 模型要改稿，先得看见稿。2026-09-23 实测：DeepSeek 找不到 get_component(mode=full) 这条路，
+           猜了三轮节点地址后放弃；给一个名字就叫「读稿」的工具，源码里自带 data-ud-node 地址，set_prop 直接用。 */
+        const rel = args.path as string;
+        const abs = draftPath(p, rel);
+        const src = await readFile(abs, "utf8");
+        const max = 60000;
+        const nodes = (src.match(/data-ud-node="([^"]+)"/g) ?? []).length;
+        return JSON.stringify({ ok: true, path: rel, bytes: src.length, nodeAddresses: nodes,
+          note: "source 里每个元素的 data-ud-node 就是 set_prop / locate_node 要的 node 地址",
+          truncated: src.length > max, source: src.slice(0, max) });
+      }
       case "list_icons": {
         const r = await listIcons(p, args.query as string | undefined, (args.limit as number) ?? 60);
         return JSON.stringify({ ok: true, viewBox: r.viewBox, icons: r.icons, total: r.total });
@@ -312,6 +324,7 @@ export async function runChatSend(p: Project, a: ChatSendArgs): Promise<Envelope
       { type: "function", function: { name: "get_token", description: "取单个 token 全文", parameters: { type: "object", properties: { project: { type: "string" }, path: { type: "string" } }, required: ["project", "path"] } } },
       { type: "function", function: { name: "list_components", description: "列出所有组件与页稿", parameters: { type: "object", properties: { project: { type: "string" } }, required: ["project"] } } },
       { type: "function", function: { name: "get_component", description: "取组件契约或全文", parameters: { type: "object", properties: { project: { type: "string" }, name: { type: "string" }, mode: { type: "string", enum: ["contract", "full"] } }, required: ["project", "name"] } } },
+      { type: "function", function: { name: "read_draft", description: "读一份稿的源码（改稿前先读它）。返回的 HTML 里每个元素带 data-ud-node 地址，set_prop 就用这个地址", parameters: { type: "object", properties: { project: { type: "string" }, path: { type: "string", description: "稿相对项目根的路径，如 测试.dc.html" } }, required: ["project", "path"] } } },
       { type: "function", function: { name: "list_icons", description: "检索图标", parameters: { type: "object", properties: { project: { type: "string" }, query: { type: "string" }, limit: { type: "number" } }, required: ["project"] } } },
       { type: "function", function: { name: "get_icon", description: "取图标 SVG", parameters: { type: "object", properties: { project: { type: "string" }, name: { type: "string" } }, required: ["project", "name"] } } },
       { type: "function", function: { name: "get_syntax_guide", description: "取模板语义与写稿规则", parameters: { type: "object", properties: { topic: { type: "string", enum: ["template", "logic", "interaction", "checklist", "tokens"] } }, required: ["topic"] } } },
@@ -332,6 +345,7 @@ export async function runChatSend(p: Project, a: ChatSendArgs): Promise<Envelope
     // 系统提示：设计助手角色 + 选中节点上下文
     const systemParts: string[] = [
       "你是 UmbraDesign 设计助手。你可以通过工具调用读取和修改设计稿。",
+      "改稿前先用 read_draft 读源码：里面每个元素都有 data-ud-node 地址，改一处样式/属性/文案就用 set_prop(node=那个地址)；不要猜地址。",
       "修改稿必须用 write_draft 或 patch_draft 落盘，不要口头说改了什么。",
       "修改前先 validate_draft 确认当前状态，修改后再次 validate 确认无 error。",
       "⚠️ set_prop 只能改一处（一条样式/一个属性），用户说改多处时先改当前选中的。",

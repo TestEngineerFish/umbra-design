@@ -2620,3 +2620,11 @@ DeepSeek 端点没跑（没 key），同一适配器，M2-1 验收里「分别�
 
 【实测】Playwright 驱动 Chrome 打开前端（浏览器调试模式）→ 发「把这份稿里的按钮改成 danger 态」→ 智谱 21,271 tokens，回合里列出 get_component / set_prop / validate_draft 等工具行，稿 v6 → v7（`#ff4d4f`），变更卡 L2 ×1 → 点「回退到 v6」→ v8 是回退版，按钮回到 `#0066ff`。`01` §7.6 第 23 条**在应用里闭环**（浏览器调试模式；Tauri 壳里同一份代码，差 Origin 那条已放行）。
 
+### 35.4 DeepSeek 也跑通了 · agent 多了一个 `read_draft`（2026-09-23 晚）
+
+用户给了 DeepSeek key，通道 A 切到 `https://api.deepseek.com` / `deepseek-chat`。第一跑 **ok 但没改稿**：模型说「I don't have a way to read the raw draft content directly」，猜了三轮 `locate_node` 的地址后转去 `render_check`，15.6 s、41k tokens、零改动。智谱之前是碰巧走到了 `get_component(mode=full)` 才拿到源码。
+
+工具集里缺一个名字就叫「读稿」的工具 —— 模型要改稿先得看见稿。加 `read_draft(project, path)`：返回源码（60 KB 截断，带截断标记），里面每个元素自带 `data-ud-node`，`set_prop` 直接用；系统提示里点名「改稿前先 read_draft，不要猜地址」。
+
+修后：**3.3 s、11.7k tokens**，`read_draft → set_prop(node=df30a937) → validate_draft → read_draft` 四步，v1 → v2（`#d92d20`），L2 ×1，回退成功。M2-1 验收「分别对 DeepSeek 与智谱跑通」两半都有读数了。
+
