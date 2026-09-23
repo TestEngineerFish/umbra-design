@@ -2696,3 +2696,12 @@ UMBRADESIGN_AUTOTEST_DIR=<项目目录> UMBRADESIGN_AUTOTEST_LOG=<读数文件> 
 
 **没做的**：token 级流式（SSE 逐字出字）。现在是步级流式；要逐字得把 provider 改 `stream: true` 再往界面推，收益是「看见模型在打字」，先不排。
 
+## 四十一、往 ClaudeDesign 发包的实况与边界（2026-09-23）
+
+包 `UmbraDesign-ui-20260923-0255`（17 个文件、718 KB）经 MCP 直接放进它的 `uploads/`：
+
+- `write_files` 只能内联 `data`（`local_path` 服务端未实现），子代理逐文件 `cat` → 转录 → 写入。16/17 落地，字节数逐个核过。
+- **上限**：单次调用输出约 64k token。`react-dom.production.min.js`（132 KB ≈ 7.6 万 token）放不进一次调用，写不上去；base64 更大，也不行；`write_files` 无追加语义，分片拼不出单文件。→ **≥ 100 KB 的文件走 MCP 传不了，请用户拖进它的 `uploads/`。**
+- **转录不保证字节精确**：S2（120 KB）子代理转录后远端 120129 vs 本地 120130。它回来时不影响底稿判定 —— `incoming` 比的是 baseline 注释里记的 sha 与我们正本的 sha，不 hash 它交回的文件 —— 但小文件也要核 size。`support.js` 的 33 字节差用 `copy_files` 从它项目里的原件服务端复制修正（同名原件在就优先走这条）。
+- 第一个子代理把 S2 + react-dom 合成一批写，撞上限被终止；改成一文件一代理、一次调用才稳。
+
