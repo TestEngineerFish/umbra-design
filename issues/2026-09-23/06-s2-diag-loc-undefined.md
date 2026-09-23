@@ -5,7 +5,7 @@ labels: [type:bug, from:radar, p2]
 <!-- fp: review/umbra-design/ui/S2-单稿预览壳.dc.html#diag-loc-null-check -->
 来源：扫测 ｜ 证据：ui/S2-单稿预览壳.dc.html:1627-1629（`d.line !== null`）；doc/00 信封约定「line/col 定位不到就省略」（server/src/envelope.ts:5）
 发现方式：Playwright 读 S2 面板文字：`W_DEAD_KEY Lundefined:undefined renderVals() 返回的 "chevStyle" 在模板里零命中`。【确证】
-状态：已修 · commit 1692889
+状态：已修 · commit b41379b
 
 ### 位置
 信封约定定位不到就**省略** `line`（字段不存在 = `undefined`），S2 用 `!== null` 判断，`undefined` 漏过去拼进字符串。

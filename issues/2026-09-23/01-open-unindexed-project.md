@@ -5,7 +5,7 @@ labels: [type:bug, from:user, p0]
 <!-- fp: review/umbra-design/server/src/index.ts#serve-start-index-error -->
 来源：用户 ｜ 证据：server/src/index.ts `serve_start` 工具（改前对 `indexExists=false` 返回 error 级诊断）；server/src/api.ts `open_project` 路由（改前不建索引）
 发现方式：用户在首页点 57 份稿的「umbra」项目复现；Playwright 用项目副本复现（`pwsweep.mjs`：S2 / S6 / S8 壳全 404）。【确证】
-状态：已修 · commit 1692889
+状态：已修 · commit b41379b
 
 ### 位置
 Tauri 壳：`openProjectDir` → `serve_start`，工具对没有 `index.dc.html` 的项目返回 **error**，前端当失败弹「打开项目失败」。浏览器：`open_project` 只起服务不建索引，进去后编辑壳 `S2-…?embed=1`、S6、S8、点选桥全部 404，侧栏也没有元素数 / 健康色。

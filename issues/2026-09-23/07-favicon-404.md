@@ -5,7 +5,7 @@ labels: [type:bug, from:radar, p2]
 <!-- fp: review/umbra-design/server/ui/index.html#favicon -->
 来源：扫测 ｜ 证据：Playwright 响应日志 `HTTP404 /favicon.ico`
 发现方式：Playwright 扫测。【确证】
-状态：已修 · commit 1692889
+状态：已修 · commit b41379b
 
 ### 位置
 `server/ui/index.html` 没有 `<link rel=icon>`，浏览器默认去项目根拿 favicon。

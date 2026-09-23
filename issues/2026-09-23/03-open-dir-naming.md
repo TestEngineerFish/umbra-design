@@ -5,7 +5,7 @@ labels: [type:chore, from:user, p2]
 <!-- fp: review/umbra-design/server/ui/index.html#open-dir-button-name -->
 来源：用户 ｜ 证据：server/ui/index.html 首页顶栏按钮 `handleOpenProject`
 发现方式：用户提问。【确证】
-状态：已修 · commit 1692889
+状态：已修 · commit b41379b
 
 ### 位置
 首页顶栏按钮叫「打开目录」，点了只弹目录选择框；选到不是项目的目录会报错，选到项目才打开。

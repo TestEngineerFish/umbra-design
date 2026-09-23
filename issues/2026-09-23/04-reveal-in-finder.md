@@ -5,7 +5,7 @@ labels: [type:idea, from:user, p2]
 <!-- fp: review/umbra-design/server/ui/index.html#reveal-dir -->
 来源：用户 ｜ 证据：server/ui/index.html `renderHome` 行内工具、`menuHtml`
 发现方式：用户提需求。
-状态：已修 · commit 1692889
+状态：已修 · commit b41379b
 
 ### 位置
 首页项目行只有星标；项目内「⋯」菜单没有打开目录的入口。

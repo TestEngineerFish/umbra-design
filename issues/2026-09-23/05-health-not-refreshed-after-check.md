@@ -5,7 +5,7 @@ labels: [type:bug, from:radar, p1]
 <!-- fp: review/umbra-design/server/ui/index.html#validate-then-rebuild-index -->
 来源：扫测 ｜ 证据：server/ui/index.html `handleValidate` finally 段；server/src/api.ts `drafts` 路由只读索引数据文件；`curl` 对比 rebuild_index 前后 `health`
 发现方式：Playwright 对 6323 元素的稿点「体检」→ toast「体检完成：6320 节点 · 1438 ms」→ `state.drafts[].health` 仍是 `unchecked`；手动 `rebuild_index` 后变 `warn`「渲染后还留着 40 个未解析的洞」。【确证】
-状态：已修 · commit 1692889
+状态：已修 · commit b41379b
 
 ### 位置
 `health / healthWhy / 缩略图` 是 `build_index` 从 `.umbradesign/checks/` 算出来写进索引数据的；`check` 作业只落体检记录不动索引，`fetchDrafts` 读到的还是旧索引。
