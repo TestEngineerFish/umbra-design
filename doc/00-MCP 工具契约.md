@@ -2838,3 +2838,24 @@ UMBRASTUDIO_AUTOTEST_DIR=<项目目录> UMBRASTUDIO_AUTOTEST_LOG=<读数文件> 
 - Electron 的 CDP 只有一个上下文一页，`render_check` 并发时会抢同一页 —— 壳里给体检专开一个隐藏窗口，作业本来就串行（`jobs.ts`），够用；要并发就多开几个窗口做池。
 - `npm install electron` 的二进制下载在这台机器上直连 GitHub 失败（`fetch failed`），走 `ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/` 才下来 —— M9-4 打包脚本要把镜像写进 `.npmrc`。
 - 主进程里跑核心时 `process.stdin` 就是 MCP 的入口，壳自己不能再用 stdin；壳与前端的通道走 HTTP + WS（M7-4），不冲突。
+
+## 五十一、设计侧第四轮发包实况（2026-09-24）
+
+包 `outgoing/UmbraStudio-ui-20260923-1431.zip`（改名后第一包）。和 0255 包比，去掉 baseline 行后只有 4 个文件变了：S1（并入第三轮行内撤销）、S2（嵌入模式 + 诊断行号判空）、`tokens.css`（产品名注释）、README。
+
+做法（省 token，也省它那边的 etag 冲突）：`copy_files` 把它项目里的 `uploads/UmbraDesign-ui-20260923-0255/` 整目录服务端复制成 `uploads/UmbraStudio-ui-20260923-1431/`（17 个文件，含上轮手动拖入的 react-dom），再只覆盖变了的四个 + 两份文档 + 交办单：
+
+| 文件 | 途径 | 云端 / 本地字节 |
+| --- | --- | --- |
+| `…/ui/S1-稿件索引.dc.html` | 子代理 `write_files` 内联 | 87846 / 87846 ✓ |
+| `…/ui/S2-单稿预览壳.dc.html` | **传不上去**（131837 字节，超单次输出上限；`local_path` 参数服务端未实现） | 云端仍是 0255 版 120129 |
+| `…/ui/_ds-tool/tokens.css`、`…/README-给设计侧.md` | `write_files` 内联 | ✓ |
+| `uploads/14-给 ClaudeDesign 的交办单（2026-09-23 第四轮）.md` | 子代理内联 | 29604 / 29604 ✓ |
+| `uploads/08-工具界面设计需求（2026-09-23 第四轮）.md` | 子代理内联 | 40711 / 40711 ✓ |
+| `uploads/21-交办单（2026-09-23 第四轮）.md` | 内联；写明 S2 待手动拖入、本轮不改 S2 | ✓ |
+
+S2 放在 `outgoing/手动拖入/S2-单稿预览壳.dc.html`，请用户拖进它项目的 `uploads/UmbraStudio-ui-20260923-1431/ui/` 覆盖（与上轮 react-dom 同样处理）。本轮委托不碰 S2，所以没拖之前设计侧也能开工；若它真改了 S2，`incoming` 会报「底稿过时」，按三方合并处理。
+
+**边界再确认一次**：单个文件 > ~100 KB 经 MCP 内联传不动（上轮 react-dom 132 KB，这轮 S2 132 KB）。S2 已经到这个尺寸，后面若还长，要么拆成子组件（`dc-import`），要么发包时改走用户拖入。
+
+触发句：「读 uploads/21-交办单（2026-09-23 第四轮）.md 照做」。
