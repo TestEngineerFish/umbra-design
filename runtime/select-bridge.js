@@ -218,6 +218,7 @@
     }
     if (m.type === "clear-style") { clearPreview((m.payload || {}).node); return; }
     if (m.type === "edit-start") { editStart((m.payload || {}).node); return; }
+    if (m.type === "set-pins") { PINS = (m.payload && m.payload.nodes) || []; renderPins(); return; }
     if (m.type === "edit-abort") { editEnd(false); return; }
     if (m.type === "ping") send("ready", {
       nodes: document.querySelectorAll("[data-ud-node]").length,
@@ -225,6 +226,33 @@
       previewRules: Object.keys(overrides).length
     });
   });
+
+  /* ── 评论钉子（M6-2）：壳给一份 { node, n } 列表，每个节点右上角画一颗小圆点，数字是该节点未处理的评论数。
+   * 不进稿、不改稿；节点地址找不到（内容改过）就不画，由壳在列表里标「节点已变」。 */
+  var PINS = [], PIN_LAYER = null;
+  function pinLayer() {
+    if (PIN_LAYER) return PIN_LAYER;
+    PIN_LAYER = document.createElement("div");
+    PIN_LAYER.setAttribute("data-ud-pins", "");
+    PIN_LAYER.style.cssText = "position:fixed;inset:0;pointer-events:none;z-index:2147483646";
+    document.body.appendChild(PIN_LAYER);
+    return PIN_LAYER;
+  }
+  function renderPins() {
+    var layer = pinLayer();
+    layer.textContent = "";
+    for (var i = 0; i < PINS.length; i++) {
+      var el = document.querySelector('[data-ud-node="' + cssEscape(PINS[i].node) + '"]');
+      if (!el) continue;
+      var r = el.getBoundingClientRect();
+      var d = document.createElement("div");
+      d.textContent = String(PINS[i].n || "");
+      d.style.cssText = "position:absolute;left:" + Math.round(r.right - 9) + "px;top:" + Math.round(r.top - 9) + "px;min-width:18px;height:18px;padding:0 5px;box-sizing:border-box;border-radius:999px;background:#8c5a00;color:#fff;font:600 11px/18px system-ui,sans-serif;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.25)";
+      layer.appendChild(d);
+    }
+  }
+  window.addEventListener("scroll", renderPins, true);
+  window.addEventListener("resize", renderPins);
 
   send("ready", { nodes: document.querySelectorAll("[data-ud-node]").length, mode: on() });
 })();

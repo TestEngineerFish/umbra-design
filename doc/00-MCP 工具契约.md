@@ -2723,3 +2723,15 @@ UMBRADESIGN_AUTOTEST_DIR=<项目目录> UMBRADESIGN_AUTOTEST_LOG=<读数文件> 
 
 【实测】Playwright：点选开 → 双击按钮 → 编辑态、底栏提示 → 改成「保存草稿」回车 → v14 → v15，diff 仅 `L3 text_changed 提交 → 保存草稿`，文件里按钮文案已变。
 
+## 四十四、M6-2 钉在节点上的评论（2026-09-23）
+
+决策 `11` Q14。评论是**项目的**东西（`.umbradesign/comments.json`），不进稿：`{ id, file, node, tag, text, createdAt, resolved, resolvedAt }`。
+
+- 后端 `comments.ts`：`listComments / addComment / updateComment / deleteComment`；本地 API `comments`（GET，可按稿）、`comment_add / comment_update / comment_delete`（POST）；MCP 工具 `list_comments`（模型改稿前能看设计侧留的话）。
+- S2：属性面板底部加「评论」区 —— 只列选中节点的，textarea ⌘⏎ 添加，每条可「已处理 / 恢复」「删除」；`pullComments` 后把未处理计数按节点推给 iframe。
+- 点选桥：`set-pins` 消息在节点右上角画琥珀色小圆点（数字 = 未处理数），滚动 / 缩放跟随；地址找不到（内容改过）就不画，不静默丢评论。
+- 应用：底栏第四个 tab「评论」，待处理数做角标；每条「发给 AI」= 设 `state.picked` 为那个节点 + 把评论文字填进会话发送（走方式 ②）；「已处理」「删除」；S2 那边增删后 `comments-changed` 上报刷新。
+- 不做画框（Q14 明说）。ClaudeDesign 的评论是给队友的；我们是单机，评论的去处是 AI。
+
+【实测】Playwright：点选按钮 → 面板留言「这个按钮再大一号，字号 28px」→ 「1 条未处理」、稿上钉子 1 → 应用「评论」tab 列出 → 「发给 AI」→ DeepSeek 只改那一处 `font-size 24px → 28px`（v16 → v17）→ 标已处理 → 钉子 0。
+

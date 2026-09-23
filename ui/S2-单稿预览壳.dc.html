@@ -434,6 +434,30 @@
                 </div>
               </sc-for>
 
+              <!-- 钉在节点上的评论（M6-2，决策 Q14）：只对选中的节点；未处理的在稿上画钉子。发给 AI 在应用的「评论」tab 里。 -->
+              <div style="padding: 9px 11px 11px; border-top: 1px solid var(--tool-border);">
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                  <span style="font-weight: 650; font-size: 12px;">评论</span>
+                  <span style="font-family: var(--tool-mono); font-size: 11px; color: var(--tool-muted);">{{ commentCount }}</span>
+                </div>
+                <sc-for list="{{ commentRows }}" as="c" hint-placeholder-count="1">
+                  <div style="display: flex; gap: 8px; align-items: flex-start; padding: 6px 8px; margin-bottom: 4px; border-radius: var(--tool-radius-sm); border: 1px solid {{ c.bd }}; background: {{ c.bg }}; opacity: {{ c.opacity }};">
+                    <div style="min-width: 0; flex: 1;">
+                      <div style="font-size: 12px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; text-decoration: {{ c.deco }};">{{ c.text }}</div>
+                      <div style="font-size: 10px; color: var(--tool-muted); margin-top: 2px;">{{ c.when }}</div>
+                    </div>
+                    <button type="button" onClick="{{ c.toggle }}" title="{{ c.toggleTitle }}" style="flex: none; height: 20px; padding: 0 7px; border-radius: var(--tool-radius-sm); border: 1px solid var(--tool-border-strong); background: var(--tool-panel); font-size: 11px; cursor: pointer;" style-hover="background: var(--tool-hover);">{{ c.toggleLabel }}</button>
+                    <button type="button" onClick="{{ c.del }}" title="删除这条评论" style="flex: none; width: 20px; height: 20px; display: grid; place-items: center; border-radius: var(--tool-radius-sm); border: 1px solid var(--tool-border); background: var(--tool-panel); color: var(--tool-muted); cursor: pointer;" style-hover="color: var(--tool-err); border-color: var(--tool-err-border);">
+                      <svg width="10" height="10" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4.4 4.4l7.2 7.2M11.6 4.4l-7.2 7.2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path></svg>
+                    </button>
+                  </div>
+                </sc-for>
+                <div style="display: flex; gap: 6px; align-items: flex-end;">
+                  <textarea value="{{ commentText }}" onChange="{{ onCommentInput }}" onKeyDown="{{ onCommentKey }}" rows="2" placeholder="给这个节点留一句话… ⌘⏎ 添加" style="flex: 1 1 0; min-width: 0; padding: 6px 8px; font-size: 12px; line-height: 1.45; border: 1px solid var(--tool-border); border-radius: var(--tool-radius-sm); background: var(--tool-bg); color: var(--tool-text); resize: none;" style-focus="border-color: var(--tool-accent); outline: none;"></textarea>
+                  <button type="button" onClick="{{ onCommentAdd }}" style="flex: none; height: 28px; padding: 0 10px; border: 0; border-radius: var(--tool-radius-sm); background: var(--tool-accent); color: var(--tool-on-accent); font-size: 12px; font-weight: 560; cursor: pointer;" style-hover="background: var(--tool-accent-hover);">添加</button>
+                </div>
+              </div>
+
               <!-- 面板底沿：预览中 / 已落盘 / 落盘中。这三条都只在选中节点时才可能出现，
                    所以放在面板里不会被 hasSlots 关住（§23.3 说的是「没选中也会有的反馈」，
                    那几条仍然在底栏）。 -->
@@ -726,13 +750,40 @@ class Component extends DCLogic {
             selectOn: false, picked: null, bridgeReady: false,
             live: null, chg: null, slots: null, apiErr: null, drafts: {}, busy: null,
             draftTheme: "light",
-            revertPick: "", checkNote: null, previewing: null, previewSlot: null, editHint: null, verOpen: null,
+            revertPick: "", checkNote: null, previewing: null, previewSlot: null, editHint: null, comments: [], commentText: "", verOpen: null,
             /* 属性面板的形制状态（设计侧 §五）：组折叠 / ? 展开 / 色板展开 /
                行级失败 / 已落盘条 / sc-for 改完那条 / 回退两段式 */
             gOpen: {}, hintOpen: {}, colorOpen: null, tokenHits: [], tokenQ: "",
             rowErr: {}, saved: null, listEdited: null, revertArmed: false };
 
+  /* ── 评论（M6-2）：读一份稿的评论、钉子推给 iframe、增删改后重拉。POST 走 post()，GET 走 api() ── */
+  post(route, body) {
+    const A = window.__UD_API;
+    if (!A) return Promise.reject(new Error("本地 API 没起来"));
+    return fetch(new URL(A.base + route, location.href).toString(), { method: "POST", headers: { "x-ud-token": A.token, "content-type": "application/json" }, body: JSON.stringify(body || {}) })
+      .then((r) => r.json())
+      .then((j) => { if (j.errors && j.errors.length) throw new Error(j.errors[0].message); return j.data; });
+  }
+  pullComments() {
+    if (!LIVE || !window.__UD_API) return;
+    this.api("comments", { file: LIVE }).then((d) => { this.setState({ comments: d.comments || [] }); this.pushPins(d.comments || []); this.tellParent("comments-changed", null); })
+      .catch(() => { /* 没有评论也正常 */ });
+  }
+  pushPins(list) {
+    const by = {};
+    for (const c of (list || this.state.comments || [])) { if (!c.resolved) by[c.node] = (by[c.node] || 0) + 1; }
+    this.postFrame("set-pins", { nodes: Object.keys(by).map((n) => ({ node: n, n: by[n] })) });
+  }
+  addComment() {
+    const t = (this.state.commentText || "").trim(), pick = this.state.picked;
+    if (!t || !pick || !LIVE) return;
+    this.post("comment_add", { file: LIVE, node: pick.node, tag: pick.tag, text: t })
+      .then(() => { this.setState({ commentText: "" }); this.pullComments(); })
+      .catch((e) => this.setState({ editHint: "评论没存上：" + e.message }));
+  }
+
   componentDidMount() {
+    if (LIVE) setTimeout(() => this.pullComments(), 0);
     this.onKey = (e) => {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       const t = e.target || {};
@@ -773,7 +824,7 @@ class Component extends DCLogic {
           d.head.appendChild(sc);
         } catch (e) { /* 跨源就算了，同源才有点选 */ }
       };
-      this.onFrameLoad = () => { this.injectBridge(); this.pushDraftTheme(); };
+      this.onFrameLoad = () => { this.injectBridge(); this.pushDraftTheme(); setTimeout(() => this.pushPins(), 500); };
       /* 方式 ②（doc/12 M2-8）：应用壳把这份预览壳装在 iframe 里，它和我们跨源，
          选中的节点只能用 postMessage 送上去，应用的会话面板据此带 selectedNodeFile / Address。 */
       this.postFrame = (type, payload) => {
@@ -1420,6 +1471,24 @@ class Component extends DCLogic {
       onPresent: () => { const f = this.frameRef && this.frameRef.current; if (f && f.requestFullscreen) f.requestFullscreen().catch(() => {}); },
       hasEditHint: !!s.editHint,
       editHint: s.editHint || "",
+      // 评论（M6-2）—— 只列选中节点的
+      commentRows: ((s.comments || []).filter((c) => s.picked && c.node === s.picked.node)).map((c) => ({
+        text: c.text,
+        when: (c.resolved ? "已处理 · " : "") + String(c.createdAt).slice(5, 16).replace("T", " "),
+        bd: c.resolved ? "var(--tool-border)" : "var(--tool-warn-border)",
+        bg: c.resolved ? "var(--tool-panel)" : "var(--tool-warn-soft)",
+        opacity: c.resolved ? "0.6" : "1",
+        deco: c.resolved ? "line-through" : "none",
+        toggleLabel: c.resolved ? "恢复" : "已处理",
+        toggleTitle: c.resolved ? "重新标为未处理" : "标为已处理（钉子消失，评论留着）",
+        toggle: () => this.post("comment_update", { id: c.id, resolved: !c.resolved }).then(() => this.pullComments()),
+        del: () => this.post("comment_delete", { id: c.id }).then(() => this.pullComments())
+      })),
+      commentCount: s.picked ? String((s.comments || []).filter((c) => c.node === s.picked.node && !c.resolved).length) + " 条未处理" : "",
+      commentText: s.commentText || "",
+      onCommentInput: (e) => this.setState({ commentText: e.target.value }),
+      onCommentKey: (e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); this.addComment(); } },
+      onCommentAdd: () => this.addComment(),
       recheckLabel: checking ? (s.checkNote || "体检中") : "重跑体检",
       recheckOpacity: checking ? "0.55" : "1",
       onRescan: () => this.setState({ demo: 1 }),

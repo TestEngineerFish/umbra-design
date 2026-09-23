@@ -375,6 +375,7 @@ const state = {
   sidebarCollapsed: load('ud.sidebarCollapsed', '0') === '1',
   present: false,                                  // M6-4：演示全屏
   source: null,                                    // 源码视图缓存 { file, source }
+  comments: [],                                    // M6-2：当前稿的评论
   picked: null,           // 方式 ②：S2 壳 postMessage 上来的选中节点 { file, node, tag }
   chat: {                 // M2-12：AI 会话侧栏
     open: load('ud.chatOpen', '1') === '1',
@@ -553,6 +554,7 @@ function bottomHtml() {
       <div class="bottom-tabs">
         <button class="bottom-tab ${state.bottomTab === 'diags' ? 'active' : ''}" onclick="setBottomTab('diags')">诊断${diagBadge('error')}</button>
         <button class="bottom-tab ${state.bottomTab === 'changes' ? 'active' : ''}" onclick="setBottomTab('changes')">变更</button>
+        <button class="bottom-tab ${state.bottomTab === 'comments' ? 'active' : ''}" onclick="setBottomTab('comments')">评论${(() => { const n = state.comments.filter(c => !c.resolved).length; return n ? `<span class="badge" style="background:var(--warn)">${n}</span>` : ''; })()}</button>
         <button class="bottom-tab ${state.bottomTab === 'info' ? 'active' : ''}" onclick="setBottomTab('info')">稿件信息</button>
         <div class="bottom-tools">
           <!-- UI-4：S6 独立整页，不进底栏；这里只给一颗跳过去 -->
@@ -846,6 +848,7 @@ window.addEventListener('message', (e) => {
   if (!m || m.source !== 'umbradesign-s2') return;
   if (m.type === 'picked' && m.payload) { state.picked = { file: m.payload.file || state.selectedDraft, node: m.payload.node, tag: m.payload.tag || '' }; renderSheet(); render(); }
   if (m.type === 'cleared') { state.picked = null; render(); }
+  if (m.type === 'comments-changed') fetchComments();
 });
 window.addEventListener('message', (e) => {
   const m = e.data;
@@ -946,6 +949,20 @@ function renderBottomContent() {
         <span class="diag-level info">${escHtml(c.level || '变更')}</span>
         <span class="diag-code">${escHtml(c.at || '')}</span>
         <span class="diag-msg">${escHtml(c.message)}</span>
+      </div>`).join('');
+  }
+  if (state.bottomTab === 'comments') {
+    if (!state.comments.length) return '<div class="empty-note">这份稿还没有评论 · 在编辑壳里选中一个节点，属性面板底部可以留一句话</div>';
+    return state.comments.map(c => `
+      <div class="diag-row" style="${c.resolved ? 'opacity:0.55' : ''}">
+        <span class="diag-level ${c.resolved ? '' : 'warning'}">${c.resolved ? '已处理' : '待处理'}</span>
+        <span class="diag-code" title="${escHtml(c.node)}">${escHtml(c.tag ? '<' + c.tag + '>' : '')} ${escHtml(c.node)}</span>
+        <span class="diag-msg" style="${c.resolved ? 'text-decoration:line-through' : ''}">${escHtml(c.text)}</span>
+        <span style="display:flex;gap:4px;flex:none">
+          ${c.resolved ? '' : `<button class="btn sm" onclick="sendCommentToAI('${escHtml(c.id)}')" title="把这句话连同节点地址发给 AI（方式 ②）">发给 AI</button>`}
+          <button class="btn ghost sm" onclick="toggleCommentResolved('${escHtml(c.id)}', ${c.resolved ? 'false' : 'true'})">${c.resolved ? '恢复' : '已处理'}</button>
+          <button class="btn ghost sm" onclick="deleteComment('${escHtml(c.id)}')" title="删除">${ICON.close}</button>
+        </span>
       </div>`).join('');
   }
   if (state.bottomTab === 'info') {
@@ -1201,9 +1218,10 @@ function setBottomTab(t) {
 
 function selectDraft(file) {
   state.selectedDraft = file;
-  state.diags = []; state.changes = []; state.source = null;
+  state.diags = []; state.changes = []; state.source = null; state.comments = [];
   render();
   if (state.previewMode === 'code') loadSource();
+  fetchComments();
   fetchDiagnostics(file);
   if (state.bottomTab === 'changes') fetchChanges(file);
 }
@@ -1275,6 +1293,30 @@ async function fetchDiagnostics(file) {
   } catch (e) {
     toast('获取诊断失败: ' + e.message, 'error');
   }
+}
+
+// ── M6-2 评论：列表 + 发给 AI + 已处理 / 删除（S2 壳里加评论后会 postMessage comments-changed 过来） ──
+async function fetchComments() {
+  if (!state.project || !state.selectedDraft) return;
+  try { const r = await apiFetch('comments?file=' + encodeURIComponent(state.selectedDraft)); state.comments = (r.data && r.data.comments) || []; render(); }
+  catch (e) { /* 没有评论也正常 */ }
+}
+async function sendCommentToAI(id) {
+  const c = state.comments.find(x => x.id === id);
+  if (!c) return;
+  state.picked = { file: c.file, node: c.node, tag: c.tag || '' };
+  if (!state.chat.open) { state.chat.open = true; save('ud.chatOpen', '1'); }
+  state.chat.input = c.text;
+  render();
+  chatSend();
+}
+async function toggleCommentResolved(id, resolved) {
+  try { await apiFetch('comment_update', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, resolved }) }); fetchComments(); }
+  catch (e) { toast('更新评论失败：' + e.message, 'error'); }
+}
+async function deleteComment(id) {
+  try { await apiFetch('comment_delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) }); fetchComments(); }
+  catch (e) { toast('删除评论失败：' + e.message, 'error'); }
 }
 
 async function fetchChanges(file) {

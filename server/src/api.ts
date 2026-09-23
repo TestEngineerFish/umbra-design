@@ -48,6 +48,7 @@ import { runChatSend } from "./chat_run.js";
 import { updateProject, archiveProject, deleteProject } from "./project.js";
 import { listTrash, restoreDraft, purgeTrash, emptyTrash } from "./refs.js";
 import { listChats, loadChat, createChat } from "./chat.js";
+import { listComments, addComment, updateComment, deleteComment } from "./comments.js";
 import { getAiConfig } from "./ai_config.js";
 import { readCheck, sha256 } from "./check.js";
 
@@ -346,6 +347,31 @@ export async function handleApi(
     }
 
     /* AI 会话（M2-12：应用前端的会话面板走本地 API，和 MCP 的 chat_send 同一份逻辑） */
+    /* ── 钉在节点上的评论（M6-2） ── */
+    if (route === "comments" && req.method === "GET") {
+      const f = url.searchParams.get("file");
+      json(reply, 200, { ok: true, data: { comments: await listComments(p.dir, f ? await resolveDraft(p, f) : undefined) } });
+      return true;
+    }
+    if (route === "comment_add" && req.method === "POST") {
+      if (!originOk(req, ctx.port)) { json(reply, 403, { ok: false, errors: [{ code: "E_API_ORIGIN", message: "Origin 不是本服务" }] }); return true; }
+      const b = await readBody(req);
+      json(reply, 200, { ok: true, data: await addComment(p.dir, { file: await resolveDraft(p, str(b.file, "file")), node: str(b.node, "node"), tag: typeof b.tag === "string" ? b.tag : undefined, text: str(b.text, "text") }) });
+      return true;
+    }
+    if (route === "comment_update" && req.method === "POST") {
+      if (!originOk(req, ctx.port)) { json(reply, 403, { ok: false, errors: [{ code: "E_API_ORIGIN", message: "Origin 不是本服务" }] }); return true; }
+      const b = await readBody(req);
+      json(reply, 200, { ok: true, data: await updateComment(p.dir, str(b.id, "id"), { text: typeof b.text === "string" ? b.text : undefined, resolved: typeof b.resolved === "boolean" ? b.resolved : undefined }) });
+      return true;
+    }
+    if (route === "comment_delete" && req.method === "POST") {
+      if (!originOk(req, ctx.port)) { json(reply, 403, { ok: false, errors: [{ code: "E_API_ORIGIN", message: "Origin 不是本服务" }] }); return true; }
+      const b = await readBody(req);
+      json(reply, 200, { ok: true, data: await deleteComment(p.dir, str(b.id, "id")) });
+      return true;
+    }
+
     if (route === "chat_list" && req.method === "GET") {
       json(reply, 200, { ok: true, data: await listChats(p.dir) });
       return true;

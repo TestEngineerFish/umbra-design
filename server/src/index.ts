@@ -28,6 +28,7 @@ import { createChat, loadChat, saveChat, listChats, deleteChat, addMessage, type
 import { findBrowser, renderCheck } from "./render.js";
 import { channelBRun, type ChannelBConfig } from "./channel_b.js";
 import { runChatSend } from "./chat_run.js";
+import { listComments } from "./comments.js";
 import {
   changesSince, diffDrafts, listVersions, projectChangesSince, readSnapshot,
   resolveSnapshot, toMarkdown,
@@ -1193,6 +1194,17 @@ server.registerTool("set_ai_config", {
   };
   await setAiConfig(updated);
   return envelope({ ok: true, channel: ch }, [], {});
+}));
+
+server.registerTool("list_comments", {
+  title: "列出钉在节点上的评论",
+  description: "评论存 .umbradesign/comments.json（M6-2）：稿 + 节点地址（data-ud-node）+ 一句话 + 是否已处理。模型改稿前可以看看设计侧留了什么话。",
+  inputSchema: { project: z.string().describe("项目名或绝对目录"), file: z.string().optional().describe("只看这一份稿"), unresolvedOnly: z.boolean().optional().describe("只看没处理的") },
+}, async ({ project, file, unresolvedOnly }) => run(async () => {
+  const p = await loadProject(project);
+  let list = await listComments(p.dir, file);
+  if (unresolvedOnly) list = list.filter((c) => !c.resolved);
+  return envelope({ comments: list }, [], { count: list.length });
 }));
 
 server.registerTool("chat_list", {
