@@ -2656,6 +2656,7 @@ macOS 上 `tauri-driver` 不支持，没法从外面驱动 WKWebView，只能让
 `build_index`（MCP）→ `inspect_dir`（MCP）→ S6 新窗口 → 主题。只读、只建索引，不改稿。
 
 ```bash
+pkill -f target/debug/app   # 先杀旧实例：single-instance 会让新进程静默退出，读数文件根本不会生成（2026-09-23 栽过两轮）
 UMBRADESIGN_AUTOTEST_DIR=<项目目录> UMBRADESIGN_AUTOTEST_LOG=<读数文件> npx tauri dev --no-watch
 # 看到 {"step":"done"} 就可以杀掉进程；每行一步 JSON
 ```
@@ -2757,3 +2758,21 @@ UMBRADESIGN_AUTOTEST_DIR=<项目目录> UMBRADESIGN_AUTOTEST_LOG=<读数文件> 
 
 【实测】Playwright 用真项目 `Umbra_design`（29 份稿）：`/__app/` 打开即左会话 + 右预览（自动开 PC 吐司），列序 `chat-rail · sidebar.collapsed · preview`；文件页签下拉 29 行；Logo 回首页列出 3 个真实项目（临时目录已滤掉）；列表 / 网格可切；点另一个项目 → 起它的服务并跳过去，自动开了它上次看的稿。
 
+
+## 四十七、第一轮扫测：自动建索引 · 浏览器模式建稿建项目 · 导入目录 · 在访达中显示 · 体检后刷新（2026-09-23）
+
+用户在首页点 57 份稿的「umbra」项目报「打开项目失败：项目根还没有 index.dc.html，打开根路径会 404」，并提了两条需求（首页快速打开目录、「打开目录」名字歧义）。这一轮用 Playwright（`/__app/` 浏览器模式，项目副本 `umbra_copy`）+ 壳内自测（Tauri，副本 `umbra_copy3`）做了一次探索性扫测，12 条发现按 `17` 的规范写成 issue 草稿（`issues/2026-09-23/`），状态表在 `12` §九。修掉的 7 条：
+
+- **自动建索引**（根因）：`serve_start` 对没索引的项目原来返回 error 级诊断，壳里直接当失败；`open_project` 路由起了服务却不建索引，进去后 S2 / S6 / S8 / 点选桥全 404。改成两处都顺手 `buildIndex`，`serve_start` 返回 `note`「第一次打开，已自动建索引并部署界面壳」；前端 `fetchDrafts` 见 `indexed:false` 再兜底重建一次。
+- **浏览器模式建稿 / 建项目**：新路由 `create_draft`（blank / copy / component）、`create_project`、`inspect_dir`（GET）；前端 `!T` 时走它们。
+- **「打开目录」→「导入目录」**：选目录后 `inspect_dir`，是项目直接开，不是就进新建面板接管（预填路径与建议名）。浏览器模式直接进面板。
+- **在访达中显示**：首页每行 + 项目「⋯」菜单；Tauri 走新 Rust 命令 `reveal_dir_command`（shell 插件 `open` 的默认作用域只放行 http / mailto / tel，本地路径过不去，所以不用它），浏览器走路由 `reveal_dir`。
+- **体检后健康读数不刷新**：`health` 是 `build_index` 从体检记录算的，`check` 作业不动索引 → 前端体检结束后先 `rebuild_index` 再拉列表。
+- S2 诊断无行号显示 `Lundefined:undefined`（信封约定省略 `line`，S2 用 `!== null` 判）→ `!= null`，本地补的一行，随下次发包。
+- favicon 404 → 内联 SVG。
+
+**没修、要拍板的两条**（`11` Q16 / Q17）：导入的稿没有节点地址所以点选不到（方式 ① ② 对用户自己的稿全失效，这条最重）；缩略图只有体检过的稿才有。**待修**：应用本体没有稿件改名 / 复制 / 移动 / 删除入口（只在 S1）；壳内自测被 single-instance 吞掉；首页同名项目网格分不清。
+
+**GitHub**：token（`~/Documents/SourceTree/Geek/.secrets/gh-token`）对仓库是 admin，但建标签、建 issue 都 403「Resource not accessible by personal access token」—— 细粒度 PAT 没勾 Issues 读写。草稿与 `issues/post.sh` 已就绪，权限补上后一条命令提交（查重 fp、建标签、已修的顺手关）。
+
+【实测】浏览器模式（`pwfix.mjs`）：从未建索引的副本 `open_project` → 索引与 S2 壳文件生成 → 进应用 57 份稿全部带元素数、S2 内层 7 节点可选；新建「扫测新稿」落盘并选中；`/tmp/ud-sweep-proj` 建成并跳入；`reveal_dir` 对不存在目录报「目录不存在」；首页「导入目录」钮与 3 个访达钮在。壳内自测（`umbra_copy3`）：sidecar running → open_project 57 ✓ → select_draft 走 S2 壳 ✓ → validate / check / changes / chat_list ✓ → build_index 57 ✓ → `reveal_dir_command` 对坏目录 rejected ✓ → inspect_dir ✓ → S6 ✓ → 主题 ✓。第二轮扫测（`pwmore.mjs`）：6323 元素大稿 S2 壳 1429 ms 画完、源码视图 17937 行 413 ms、体检 1438 ms；删除 → 恢复 ✓；1024 宽无横向溢出；空项目进去能建第一稿。回归：selftest / lifecycletest / agenttest 4/4 / rendertest 15 条全绿，`cargo check` 过。

@@ -570,6 +570,23 @@ fn autotest_log(line: String) -> Result<(), String> {
     Ok(())
 }
 
+/// 在访达 / 资源管理器里打开一个目录（首页项目行、项目菜单用）。
+/// 不走 shell 插件的 open：它的默认作用域只放行 http/mailto/tel，本地路径过不去。
+#[tauri::command]
+fn reveal_dir_command(dir: String) -> Result<(), String> {
+    if !std::path::Path::new(&dir).is_dir() {
+        return Err(format!("目录不存在：{dir}"));
+    }
+    #[cfg(target_os = "macos")]
+    let cmd = "open";
+    #[cfg(target_os = "windows")]
+    let cmd = "explorer";
+    #[cfg(all(not(target_os = "macos"), not(target_os = "windows")))]
+    let cmd = "xdg-open";
+    std::process::Command::new(cmd).arg(&dir).spawn().map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 /// 获取最近打开的项目列表
 #[tauri::command]
 fn get_recent_projects_command(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
@@ -616,6 +633,7 @@ pub fn run() {
             create_project_command,
             list_projects_command,
             get_recent_projects_command,
+            reveal_dir_command,
             open_project_command,
             close_project_command,
             invoke_mcp_command,

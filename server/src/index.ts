@@ -998,11 +998,16 @@ server.registerTool("serve_start", {
   inputSchema: { project: z.string(), port: z.number().int().min(1024).max(65535).optional() },
 }, async ({ project, port }) => run(async () => {
   const p = await loadProject(project);
-  const s = await serveStart(p, port);
-  const diags = s.indexExists ? [] : [err(X.IO, p.rel, { kind: "file", name: "index.dc.html" },
-    "项目根还没有 index.dc.html，打开根路径会 404",
-    { fix: "先调 build_index 生成入口页（它同时会把本地 API 的令牌注进壳页面）" })];
-  return envelope(s, diags);
+  let s = await serveStart(p, port);
+  /* 没索引就顺手建：壳页面（S2 / S6 / S8）、点选桥、令牌都靠 build_index 部署进项目。
+     原来这里报一条 error，应用从首页打开一个从没建过索引的项目会直接「打开项目失败」【实测 2026-09-23，umbra 57 份稿】。 */
+  let built: string | null = null;
+  if (!s.indexExists) {
+    await buildIndex(p, s.url);
+    s = { ...s, indexExists: true };
+    built = "第一次打开，已自动建索引并部署界面壳";
+  }
+  return envelope({ ...s, note: built }, []);
 }));
 
 server.registerTool("serve_stop", {

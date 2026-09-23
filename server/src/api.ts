@@ -45,7 +45,7 @@ import { relative, sep } from "node:path";
 import { ToolError } from "./envelope.js";
 import { buildIndex, indexStatus, isToolPage } from "./indexpage.js";
 import { runChatSend } from "./chat_run.js";
-import { updateProject, archiveProject, deleteProject, listProjectDirs, buildProject } from "./project.js";
+import { updateProject, archiveProject, deleteProject, listProjectDirs, buildProject, createProject, createDraft } from "./project.js";
 import { listRecentProjects, touchProject } from "./workspace.js";
 import { listTrash, restoreDraft, purgeTrash, emptyTrash, deleteDraft } from "./refs.js";
 import { listChats, loadChat, createChat } from "./chat.js";
@@ -477,8 +477,60 @@ export async function handleApi(
       const target = await buildProject(dir);
       const { serveStart } = await import("./serve.js");
       const s = await serveStart(target);
+      if (!s.indexExists) await buildIndex(target, s.url);   // 第一次打开：部署壳与令牌，否则 S2 / S6 / S8 全 404
       await touchProject(target.dir, target.name, target.title);
       json(reply, 200, { ok: true, data: { url: s.url, token: s.token, name: target.name, title: target.title, dir: target.dir, app: s.url + "__app/" } });
+      return true;
+    }
+
+    /* ── 浏览器模式的建稿 / 建项目 / 打开目录（Tauri 里走 MCP，浏览器里没有 MCP 通道，走这里；同一份实现） ── */
+    if (route === "create_draft" && req.method === "POST") {
+      if (!originOk(req, ctx.port)) { json(reply, 403, { ok: false, errors: [{ code: "E_API_ORIGIN", message: "Origin 不是本服务" }] }); return true; }
+      const b = await readBody(req);
+      const path = str(b.path, "path");
+      const source = b.source === "copy" ? { kind: "copy" as const, sourceFile: str(b.sourceFile, "sourceFile") }
+        : b.source === "component" ? { kind: "component" as const, componentName: str(b.componentName, "componentName"), title: typeof b.title === "string" ? b.title : undefined }
+        : { kind: "blank" as const, title: typeof b.title === "string" ? b.title : undefined };
+      json(reply, 200, { ok: true, data: await createDraft(p, path, source) });
+      return true;
+    }
+    if (route === "create_project" && req.method === "POST") {
+      if (!originOk(req, ctx.port)) { json(reply, 403, { ok: false, errors: [{ code: "E_API_ORIGIN", message: "Origin 不是本服务" }] }); return true; }
+      const b = await readBody(req);
+      const r = await createProject(str(b.name, "name"), { dir: typeof b.dir === "string" && b.dir ? b.dir : undefined, title: typeof b.title === "string" && b.title ? b.title : undefined });
+      await touchProject(r.dir, r.name, r.title);
+      json(reply, 200, { ok: true, data: r });
+      return true;
+    }
+    if (route === "reveal_dir" && req.method === "POST") {
+      if (!originOk(req, ctx.port)) { json(reply, 403, { ok: false, errors: [{ code: "E_API_ORIGIN", message: "Origin 不是本服务" }] }); return true; }
+      const b = await readBody(req);
+      const dir = str(b.dir, "dir");
+      if (!existsSync(dir)) throw new Error(`目录不存在：${dir}`);
+      const { spawn } = await import("node:child_process");
+      const cmd = process.platform === "darwin" ? "open" : process.platform === "win32" ? "explorer" : "xdg-open";
+      spawn(cmd, [dir], { stdio: "ignore", detached: true }).unref();
+      json(reply, 200, { ok: true, data: { revealed: dir } });
+      return true;
+    }
+    if (route === "inspect_dir" && req.method === "GET") {
+      const dir = str(url.searchParams.get("dir"), "dir");
+      const { stat, readdir } = await import("node:fs/promises");
+      let exists = false, isDir = false;
+      try { const st = await stat(dir); exists = true; isDir = st.isDirectory(); } catch { /* 不存在 */ }
+      let draftCount = 0;
+      if (exists && isDir) {
+        const walk = async (d: string, depth: number): Promise<void> => {
+          if (depth > 6) return;
+          for (const e of await readdir(d, { withFileTypes: true })) {
+            if (e.name.startsWith(".") || e.name === "node_modules") continue;
+            if (e.isDirectory()) await walk(join(d, e.name), depth + 1);
+            else if (e.name.endsWith(".dc.html") && !isToolPage(e.name)) draftCount++;
+          }
+        };
+        await walk(dir, 0);
+      }
+      json(reply, 200, { ok: true, data: { dir, exists, isDir, isProject: exists && existsSync(join(dir, "project.json")), draftCount, suggestedName: (dir.split("/").pop() || "project").replace(/[^A-Za-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "") || "project" } });
       return true;
     }
 

@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>UmbraDesign</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none'%3E%3Crect x='1.5' y='1.5' width='13' height='13' rx='3.2' stroke='%233a49cf' stroke-width='1.4'/%3E%3Cpath d='M5 8.2h6M5 5.4h6M5 11h3.2' stroke='%233a49cf' stroke-width='1.4' stroke-linecap='round'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="./_ds-tool/tokens.css">
 <style>
   /* ── 应用前端（M3-8）。八条形制决策 UI-1..UI-8 已由设计侧裁决（doc/14 §0.4），本文件照着落地（doc/12 M5-10）。
@@ -501,7 +502,7 @@ function renderHome() {
             <div><div class="home-name">${escHtml(p.name)}${p.title && p.title !== p.name ? ` <span style="font-weight:400;color:var(--muted)">· ${escHtml(p.title)}</span>` : ''}</div><div class="home-sub">${escHtml(p.dir)}</div></div>
             <span class="home-meta">${p.lastOpened ? timeAgo(p.lastOpened) : '—'}</span>
             <span class="home-meta">${p.missing ? '<span style="color:var(--err)">找不到</span>' : (p.drafts ?? '—') + ' 份'}</span>
-            <div class="home-tools">${starBtn(p)}</div>
+            <div class="home-tools"><button class="star" onclick="event.stopPropagation(); revealDir('${escHtml(p.dir)}')" title="在访达 / 文件管理器里打开这个目录">${ICON.folder}</button>${starBtn(p)}</div>
           </div>`).join('')}
         </div>`;
   appEl.innerHTML = `
@@ -509,7 +510,7 @@ function renderHome() {
       <div class="topbar-logo">${ICON.logo} UmbraDesign</div>
       <div class="topbar-spacer"></div>
       <button class="btn ghost sm" onclick="openSheet('settings')" title="外观">${ICON.gear} 外观</button>
-      ${T ? `<button class="btn" onclick="handleOpenProject()">${ICON.folder} 打开目录</button>` : ''}
+      <button class="btn" onclick="handleImportDir()" title="选一个目录：已是项目就直接打开；只是一堆 .dc.html 就接管成新项目">${ICON.folder} 导入目录</button>
       <button class="btn primary" onclick="openSheet('newProject')">${ICON.plus} 新建项目</button>
     </div>
     <div class="home"><div class="home-inner">
@@ -544,6 +545,13 @@ async function loadProjects() {
   if (!state.project) render();
 }
 function setHomeView(v) { state.home.view = v; save('ud.homeView', v); render(); }
+async function revealDir(dir) {
+  try {
+    if (T) { await invoke('reveal_dir_command', { dir }); return; }
+    const r = await fetch(state.hub.url.replace(/\/$/, '') + '/__ud/reveal_dir?token=' + encodeURIComponent(state.hub.token), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dir }) }).then(r => r.json());
+    if (!r.ok) throw new Error(r.errors?.[0]?.message || '打不开');
+  } catch (e) { toast('打开目录失败：' + e.message, 'error'); }
+}
 function toggleStar(dir) { const st = state.home.stars; const i = st.indexOf(dir); if (i >= 0) st.splice(i, 1); else st.push(dir); save('ud.stars', JSON.stringify(st)); render(); }
 async function openFromHome(dir) {
   const p = state.home.projects.find(x => x.dir === dir);
@@ -561,7 +569,7 @@ function goHome() { state.project = null; state.selectedDraft = null; state.pick
 
 /* 进项目：读稿件列表 → 自动打开上次看的稿（没有就第一份）→ 会话。和 ClaudeDesign 一样，进来就是左会话右预览。 */
 async function enterProject() {
-  state.selectedDraft = null; state.diags = []; state.changes = []; state.comments = []; state.source = null;
+  state.selectedDraft = null; state.diags = []; state.changes = []; state.comments = []; state.source = null; state._autoIndexed = false;
   await fetchDrafts();
   const last = load('ud.lastDraft.' + state.project.dir, '');
   const pick = state.drafts.find(d => d.file === last) || state.drafts[0];
@@ -595,6 +603,7 @@ function topbarHtml() {
         <div class="menu" id="menu">
           <button class="menu-item" onclick="closeMenu(); handleBuildIndex()">${ICON.refresh} 重建索引</button>
           <button class="menu-item" onclick="closeMenu(); handleOpenInBrowser()" ${state.selectedDraft ? '' : 'disabled'}>${ICON.ext} 在浏览器打开当前稿</button>
+          <button class="menu-item" onclick="closeMenu(); revealDir(state.project.dir)">${ICON.folder} 在访达中显示项目目录</button>
           <button class="menu-item" onclick="closeMenu(); openSheet('settings')">${ICON.gear} 项目设置 · 外观</button>
           <div class="menu-sep"></div>
           <button class="menu-item danger" onclick="closeMenu(); handleCloseProject()">${ICON.close} 关闭项目</button>
@@ -1231,9 +1240,9 @@ async function pickDir() {
 
 async function inspectDir() {
   const dir = (state.form.dir || '').trim();
-  if (!dir || !T) return;
+  if (!dir) return;
   try {
-    const r = await mcp('inspect_dir', { dir });
+    const r = T ? await mcp('inspect_dir', { dir }) : await fetch(state.hub.url.replace(/\/$/, '') + '/__ud/inspect_dir?dir=' + encodeURIComponent(dir) + '&token=' + encodeURIComponent(state.hub.token)).then(r => r.json());
     if (r?.ok) {
       state.form.info = r.data;
       if (!state.form.name && r.data.suggestedName) state.form.name = r.data.suggestedName;
@@ -1246,11 +1255,13 @@ async function submitNewProject() {
   const f = state.form;
   f.busy = true; renderSheet();
   try {
-    const result = parseMcpResult(await invoke('create_project_command', { name: f.name.trim(), dir: f.dir.trim(), title: f.title.trim() || undefined }));
+    const result = T
+      ? parseMcpResult(await invoke('create_project_command', { name: f.name.trim(), dir: f.dir.trim(), title: f.title.trim() || undefined }))
+      : await fetch(state.hub.url.replace(/\/$/, '') + '/__ud/create_project?token=' + encodeURIComponent(state.hub.token), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: f.name.trim(), dir: f.dir.trim(), title: f.title.trim() || undefined }) }).then(r => r.json());
     if (result?.ok && result.data) {
       toast('项目创建成功: ' + (result.data.name || f.name), 'success');
       state.sheet = null;
-      await openProjectDir(result.data.dir || f.dir.trim());
+      if (T) await openProjectDir(result.data.dir || f.dir.trim()); else await openFromHome(result.data.dir || f.dir.trim());
     } else {
       throw new Error(result?.errors?.[0]?.message || '未知错误');
     }
@@ -1269,7 +1280,7 @@ async function submitNewDraft() {
     const args = { project: projectRef(), path, source: f.source };
     if (f.source === 'blank') args.title = f.title.trim() || undefined;
     if (f.source === 'copy') args.sourceFile = state.selectedDraft;
-    const r = await mcp('create_draft', args);
+    const r = T ? await mcp('create_draft', args) : await apiFetch('create_draft', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(args) });
     if (!r?.ok) throw new Error(r?.errors?.[0]?.message || '未知错误');
     toast('已新建 ' + path, 'success');
     state.sheet = null;
@@ -1355,6 +1366,11 @@ async function fetchDrafts() {
     if (res.ok && res.data) {
       // drafts 路由把 build_index 算好的类型 / 健康 / 元素数 / 版本一起给了（没建过索引就只有文件名）
       const prev = new Map(state.drafts.map(d => [d.file, d]));
+      if (res.data.indexed === false && !state._autoIndexed) {
+        // 从没建过索引的项目：壳页面、点选桥、健康读数都靠索引，先建一次再来（只试一次，免得循环）
+        state._autoIndexed = true;
+        try { await apiFetch('rebuild_index', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }); return fetchDrafts(); } catch (e) { /* 建不了就先用文件名 */ }
+      }
       state.drafts = (res.data.drafts || (res.data.files || []).map(f => ({ file: f }))).map(d => ({
         file: d.file,
         title: d.title || baseName(d.file).replace(/\.dc\.html$/, ''),
@@ -1443,12 +1459,18 @@ async function fetchChanges(file) {
 }
 
 // ── 操作 ──────────────────────────────────────────────
-async function handleOpenProject() {
-  if (!T) { toast('浏览器调试模式请用 ?url=&token= 打开', 'error'); return; }
+/* 导入目录：选一个目录 —— 已是项目（有 project.json）就直接打开；只是一堆稿就进新建面板接管它；空目录也进新建面板 */
+async function handleImportDir() {
+  if (!T) { openSheet('newProject'); toast('浏览器里没有目录对话框：在面板里填路径即可', 'success'); return; }
   try {
-    const selected = await T.dialog.open({ title: '选择项目目录', directory: true });
+    const selected = await T.dialog.open({ title: '导入目录：已是项目就直接打开，否则接管为新项目', directory: true });
     if (!selected) return;
-    await openProjectDir(selected);
+    const r = await mcp('inspect_dir', { dir: selected });
+    if (r?.ok && r.data && r.data.isProject) { await openProjectDir(selected); return; }
+    openSheet('newProject');
+    state.form.dir = selected; state.form.info = r && r.data || null;
+    if (r?.data?.suggestedName) state.form.name = r.data.suggestedName;
+    renderSheet();
   } catch (e) {
     /* openProjectDir 自己已 toast；这里只兜对话框的错 */
     if (!/打开项目失败/.test(String(e && e.message))) toast('打开项目失败: ' + e.message, 'error');
@@ -1509,6 +1531,8 @@ async function handleValidate() {
     toast('体检失败: ' + e.message, 'error');
   } finally {
     state.validating = false; state.checkingFile = null;
+    // 健康读数（health / healthWhy / 缩略图）是索引在算的，体检记录落了盘索引不会自己动；不重建一次，列表上还是「还没跑过 render_check」【实测 2026-09-23】
+    try { await apiFetch('rebuild_index', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }); } catch (_) { /* 重建不了就用旧读数 */ }
     await fetchDrafts();
     if (state.selectedDraft) fetchDiagnostics(state.selectedDraft);
   }
@@ -1626,6 +1650,7 @@ async function autotest() {
   await tryStep('changes_get', async () => { const r = await apiFetch('changes?file=' + encodeURIComponent(first)); return { versions: (r.data && r.data.versions || []).length, versionMeta: Object.keys(r.data && r.data.versionMeta || {}).length }; });
   await tryStep('chat_list', async () => { const r = await apiFetch('chat_list'); return { sessions: (r.data && r.data.sessions || []).length }; });
   await tryStep('rebuild_index_mcp', async () => { const r = await mcp('build_index', { project: projectRef() }); if (!r || !r.ok) throw new Error(JSON.stringify(r && r.errors)); return { drafts: r.data && r.data.drafts }; });
+  await tryStep('reveal_bad_dir', async () => { try { await invoke('reveal_dir_command', { dir: '/tmp/ud-no-such-dir-zz' }); throw new Error('不存在的目录居然没报错'); } catch (e) { if (!/目录不存在/.test(String(e))) throw e; return { rejected: true }; } });
   await tryStep('inspect_dir_mcp', async () => { const r = await mcp('inspect_dir', { dir: cfg.dir }); if (!r || !r.ok) throw new Error(JSON.stringify(r && r.errors)); return r.data; });
   await tryStep('s6_window', async () => { handleCompare(); await sleep(2500); return { opened: true }; });
   await tryStep('theme', async () => { setTheme('dark'); const t = document.documentElement.getAttribute('data-tool-theme'); setTheme('system'); return { applied: t }; });
