@@ -2610,3 +2610,13 @@ DeepSeek 端点没跑（没 key），同一适配器，M2-1 验收里「分别�
 
 `chat_list` / `chat_get` 两个 MCP 工具（应用前端会话面板要列会话、读历史）。
 
+## 三十六、M2-12 · S9 会话面板接进应用前端（2026-09-23）
+
+- `executeToolCall` + `chat_send` 主体抽成 `server/src/chat_run.ts`（`runChatSend`），MCP 工具与本地 API 共用一份逻辑；本地 API 新增 `chat_list` / `chat_get`（GET）、`chat_send`（POST）。`changes[]` 带 `from` / `to`，面板据此一键回退。
+- `originOk` 放行 `tauri://localhost` / `http(s)://tauri.localhost` —— 接手前 Tauri 壳里所有 POST 路由（体检、set_prop、回退）都会被 403，这次才发现（令牌照样要带）。
+- 前端右侧栏按 S9 形制：默认 380px 可拖 320–520，收起成 36px 竖条（通道字母 + 未读点 / 转圈）；一个 AI 回合一根左栏，工具调用单行（名 + 参数 + 结果，完整内容在 title）；运行中转圈 + 底部 2px accent 线，「中断 Esc」占发送位；底栏只留用量（通道 A 没有价格表，先显示 tokens）；变更卡「改了 x · L2 ×1（v6 → v7）」+「回退到 v6」；会话与项目绑定，打开项目自动接最近一条。
+- 「中断」只中止前端等待（fetch abort）：服务端这一轮仍会跑完，落盘照常可审可回退；真正的中断要等流式 / 作业化（M2-5 那条的「可中断」目前就是这个口径）。
+- 方式 ②（选中节点）没接：前端预览的是稿本身，不是 S2 壳，点选桥不在这一层。先把当前选中的稿名带进消息。
+
+【实测】Playwright 驱动 Chrome 打开前端（浏览器调试模式）→ 发「把这份稿里的按钮改成 danger 态」→ 智谱 21,271 tokens，回合里列出 get_component / set_prop / validate_draft 等工具行，稿 v6 → v7（`#ff4d4f`），变更卡 L2 ×1 → 点「回退到 v6」→ v8 是回退版，按钮回到 `#0066ff`。`01` §7.6 第 23 条**在应用里闭环**（浏览器调试模式；Tauri 壳里同一份代码，差 Origin 那条已放行）。
+

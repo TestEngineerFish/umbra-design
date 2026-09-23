@@ -44,6 +44,8 @@ import { readFile } from "node:fs/promises";
 import { relative, sep } from "node:path";
 import { ToolError } from "./envelope.js";
 import { buildIndex, indexStatus, isToolPage } from "./indexpage.js";
+import { runChatSend } from "./chat_run.js";
+import { listChats, loadChat } from "./chat.js";
 import { readCheck, sha256 } from "./check.js";
 
 export const API_PREFIX = "/__ud/";
@@ -79,6 +81,8 @@ const str = (v: unknown, name: string): string => {
 function originOk(req: IncomingMessage, port: number): boolean {
   const o = req.headers.origin;
   if (!o) return true;
+  // Tauri 壳里的前端从 tauri://localhost（macOS）或 http://tauri.localhost（Windows）发请求；令牌照样要带
+  if (o === "tauri://localhost" || o === "http://tauri.localhost" || o === "https://tauri.localhost") return true;
   return o === `http://127.0.0.1:${port}` || o === `http://localhost:${port}`;
 }
 
@@ -317,6 +321,35 @@ export async function handleApi(
       }
       const b = await readBody(req);
       json(reply, 200, { ok: true, data: await revertTo(p, str(b.file, "file"), str(b.version, "version"), "人手改") });
+      return true;
+    }
+
+    /* AI 会话（M2-12：应用前端的会话面板走本地 API，和 MCP 的 chat_send 同一份逻辑） */
+    if (route === "chat_list" && req.method === "GET") {
+      json(reply, 200, { ok: true, data: await listChats(p.dir) });
+      return true;
+    }
+    if (route === "chat_get" && req.method === "GET") {
+      const s = await loadChat(p.dir, str(url.searchParams.get("session"), "session"));
+      if (!s) throw new Error("没有这个会话");
+      json(reply, 200, { ok: true, data: s });
+      return true;
+    }
+    if (route === "chat_send" && req.method === "POST") {
+      if (!originOk(req, ctx.port)) {
+        json(reply, 403, { ok: false, errors: [{ code: "E_API_ORIGIN", message: "Origin 不是本服务" }] });
+        return true;
+      }
+      const b = await readBody(req);
+      const env = await runChatSend(p, {
+        message: str(b.message, "message"),
+        sessionId: typeof b.sessionId === "string" ? b.sessionId : undefined,
+        channel: b.channel === "b" ? "b" : "a",
+        selectedNodeFile: typeof b.selectedNodeFile === "string" ? b.selectedNodeFile : undefined,
+        selectedNodeAddress: typeof b.selectedNodeAddress === "string" ? b.selectedNodeAddress : undefined,
+        contextFile: typeof b.contextFile === "string" ? b.contextFile : undefined,
+      });
+      json(reply, 200, env);
       return true;
     }
 

@@ -202,6 +202,52 @@
   .kv { display: grid; grid-template-columns: 100px 1fr; gap: 6px 12px; }
   .kv span:nth-child(odd) { color: var(--muted); }
 
+  /* ── AI 会话侧栏（M2-12，形制照 S9 / 设计侧 §2.3）：默认 380px 可拖 320–520；收起成 36px 竖条，条上留通道字母 + 未读点 ── */
+  .chat-resize { width: 4px; cursor: col-resize; background: transparent; transition: background 0.1s; flex-shrink: 0; }
+  .chat-resize:hover { background: var(--accent); }
+  .chat-rail { width: 380px; flex-shrink: 0; border-left: 1px solid var(--border); background: var(--panel);
+               display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+  .chat-rail.collapsed { width: 36px; }
+  .chat-head { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--border); min-height: 42px; }
+  .chat-head .title { font-size: 13px; font-weight: 560; }
+  .chat-head .sub { font-size: 11px; color: var(--muted); font-family: var(--mono); }
+  .chat-strip { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 10px 0; height: 100%; cursor: pointer; }
+  .chat-strip .ch { width: 22px; height: 22px; border-radius: var(--radius-sm); display: grid; place-items: center; font-family: var(--mono); font-size: 11px; font-weight: 600; background: var(--accent-soft); color: var(--accent); }
+  .chat-strip .dot { width: 7px; height: 7px; border-radius: 999px; background: var(--accent); }
+  .chat-strip .dot.spin { width: 11px; height: 11px; border: 1.5px solid var(--accent); border-right-color: transparent; background: transparent; animation: spin 0.9s linear infinite; }
+  .chat-strip .vt { writing-mode: vertical-rl; font-size: 11px; color: var(--muted); letter-spacing: 0.1em; }
+  .chat-body { flex: 1; overflow-y: auto; padding: 14px 14px 8px; display: flex; flex-direction: column; gap: 12px; }
+  .chat-body::-webkit-scrollbar { width: 6px; }
+  .chat-body::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
+  .msg-user { display: flex; justify-content: flex-end; }
+  .msg-user > div { max-width: 82%; padding: 9px 13px; border-radius: 12px 12px 4px 12px; background: var(--accent); color: var(--on-accent); font-size: 13px; line-height: 1.55; white-space: pre-wrap; word-break: break-word; }
+  .turn { display: grid; grid-template-columns: 14px minmax(0, 1fr); gap: 10px; }
+  .turn-rail { display: flex; flex-direction: column; align-items: center; }
+  .turn-rail .dot { width: 7px; height: 7px; flex: none; margin-top: 5px; border-radius: 999px; background: var(--accent); }
+  .turn-rail .dot.spin { width: 11px; height: 11px; margin-top: 3px; border: 1.5px solid var(--accent); border-right-color: transparent; background: transparent; animation: spin 0.9s linear infinite; }
+  .turn-rail .line { flex: 1; width: 2px; margin-top: 4px; border-radius: 1px; background: var(--accent-soft); }
+  .turn-text { font-size: 13px; line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
+  .turn-text.streaming { padding-bottom: 5px; border-bottom: 2px solid var(--accent); }
+  .tool-rows { margin-top: 7px; display: grid; gap: 3px; }
+  .tool-row { display: flex; align-items: center; gap: 7px; min-width: 0; height: 24px; padding: 0 9px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--panel2); font-size: 11px; }
+  .tool-row.err { border-color: var(--err); }
+  .tool-row .nm { flex: none; font-weight: 560; font-family: var(--mono); }
+  .tool-row .args { color: var(--muted); font-family: var(--mono); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tool-row .res { margin-left: auto; flex: none; font-family: var(--mono); max-width: 46%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ok); }
+  .tool-row.err .res { color: var(--err); }
+  .msg-sys { text-align: center; font-size: 11px; color: var(--muted); padding: 2px 0; }
+  .msg-change { border: 1px solid var(--warn-border); background: var(--warn-soft); color: var(--warn); border-radius: var(--radius); padding: 7px 10px; font-size: 12px; display: flex; gap: 8px; align-items: center; }
+  .msg-change .grow { flex: 1; min-width: 0; }
+  .chat-compose { padding: 10px 12px; border-top: 1px solid var(--border); display: flex; gap: 8px; align-items: flex-end; }
+  .chat-compose textarea { flex: 1; min-height: 36px; max-height: 140px; padding: 8px 12px; font-size: 13px; line-height: 1.45; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg); color: var(--text); resize: none; outline: none; }
+  .chat-compose textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+  .btn.stop { border-color: var(--err); color: var(--err); background: var(--err-soft); }
+  .btn.stop .sq { width: 8px; height: 8px; border-radius: 1px; background: currentColor; }
+  .chat-foot { padding: 4px 12px; font-size: 10px; color: var(--muted); border-top: 1px solid var(--border); display: flex; align-items: center; gap: 8px; }
+  .chat-foot .grow { flex: 1; }
+  .chat-empty { margin: auto; text-align: center; color: var(--muted); font-size: 12px; line-height: 1.7; padding: 20px; }
+  .chat-empty b { color: var(--text); }
+
   /* ── Welcome ── */
   .welcome { flex: 1; display: flex; align-items: center; justify-content: center; }
   .welcome-inner { text-align: center; max-width: 520px; padding: 40px; }
@@ -296,6 +342,20 @@ const state = {
   menuOpen: false,
   sheet: null,            // null | 'newProject' | 'newDraft' | 'settings'
   form: {},
+  chat: {                 // M2-12：AI 会话侧栏
+    open: load('ud.chatOpen', '1') === '1',
+    width: Number(load('ud.chatWidth', 380)),
+    channel: load('ud.chatChannel', 'a'),
+    sessionId: null,
+    messages: [],         // 会话文件里的条目（user / assistant / tool / system）
+    notes: [],            // 本地追加的说明条（变更摘要、错误），不落盘
+    running: false,
+    input: '',
+    usage: null,
+    unread: false,
+    sessions: [],
+    abort: null,
+  },
 };
 
 function load(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : v; } catch (e) { return d; } }
@@ -437,6 +497,8 @@ function renderWorkspace() {
           </div>
         `}
       </div>
+      <div class="chat-resize" id="chatResize" style="${state.chat.open ? '' : 'display:none'}"></div>
+      ${renderChatRail()}
     </div>
 
     <!-- UI-1：底栏两档 + 拖拽把手；收起留 32px 条（tab 仍在，随时展开） -->
@@ -459,7 +521,164 @@ function renderWorkspace() {
 
   wireSidebarResize();
   wireBottomGrip();
+  wireChatRail();
 }
+
+// ── AI 会话侧栏（M2-12） ─────────────────────────────
+function renderChatRail() {
+  const c = state.chat;
+  if (!c.open) {
+    return `<div class="chat-rail collapsed"><div class="chat-strip" onclick="toggleChatRail()" title="展开 AI 会话">
+      <span class="ch">${c.channel.toUpperCase()}</span>
+      ${c.running ? '<span class="dot spin" title="AI 还在跑"></span>' : c.unread ? '<span class="dot" title="有新回复"></span>' : ''}
+      <span class="vt">AI 会话</span>
+    </div></div>`;
+  }
+  const rows = [];
+  const toolResults = new Map();
+  for (const m of c.messages) if (m.role === 'tool' && m.toolCallId) toolResults.set(m.toolCallId, m.content);
+  // 一个 AI 回合 = 从用户那句之后到下一句用户之前的全部 assistant / tool 条目，共用一根左栏（S9 §2.3：工具调用是上面那句话的证据）
+  const toolRow = (tc) => {
+    const name = tc.function?.name || '?';
+    let args = tc.function?.arguments || '';
+    try { const o = JSON.parse(args); delete o.project; args = Object.entries(o).map(([k, v]) => `${k}=${typeof v === 'string' ? v : JSON.stringify(v)}`).join(', '); } catch (e) { /* 原样 */ }
+    const raw = toolResults.get(tc.id);
+    let ok = true, res = '…';
+    if (raw !== undefined) {
+      try { const r = JSON.parse(raw); ok = r.ok !== false; res = ok ? (r.version ? r.version : r.written === false ? '未落盘' : 'ok') : (r.error || 'error'); }
+      catch (e) { res = String(raw).slice(0, 40); }
+    }
+    return `<div class="tool-row ${ok ? '' : 'err'}" title="${escHtml(args)}\n→ ${escHtml(String(raw || '').slice(0, 400))}"><span class="nm">${escHtml(name)}</span><span class="args">${escHtml(args)}</span><span class="res">${escHtml(res)}</span></div>`;
+  };
+  let turn = null;   // { parts: [] } —— 文本与工具行按出现顺序排
+  const flush = () => {
+    if (!turn || !turn.parts.length) { turn = null; return; }
+    rows.push(`<div class="turn"><div class="turn-rail"><span class="dot"></span><span class="line"></span></div><div>${turn.parts.join('')}</div></div>`);
+    turn = null;
+  };
+  for (const m of c.messages) {
+    if (m.role === 'user') { flush(); rows.push(`<div class="msg-user"><div>${escHtml(m.content)}</div></div>`); }
+    else if (m.role === 'assistant') {
+      if (!turn) turn = { parts: [] };
+      if (m.content) turn.parts.push(`<div class="turn-text" style="${turn.parts.length ? 'margin-top:7px' : ''}">${escHtml(m.content)}</div>`);
+      if (m.toolCalls && m.toolCalls.length) turn.parts.push(`<div class="tool-rows" style="${turn.parts.length ? '' : 'margin-top:0'}">${m.toolCalls.map(toolRow).join('')}</div>`);
+    } else if (m.role === 'system') { flush(); rows.push(`<div class="msg-sys">${escHtml(m.content)}</div>`); }
+  }
+  flush();
+  for (const n of c.notes) {
+    if (n.kind === 'change') rows.push(`<div class="msg-change"><span class="grow">改了 <b>${escHtml(n.path)}</b> · ${escHtml(n.summary)}（${escHtml(n.from)} → ${escHtml(n.to)}）</span>
+      ${n.reverted ? '<span>已回退</span>' : `<button class="btn sm" onclick="chatRevert(${n.idx})">回退到 ${escHtml(n.from)}</button>`}</div>`);
+    else rows.push(`<div class="msg-sys">${escHtml(n.text)}</div>`);
+  }
+  if (c.running) rows.push(`<div class="turn"><div class="turn-rail"><span class="dot spin"></span><span class="line"></span></div><div><div class="turn-text streaming">正在读稿、调工具、落盘…</div></div></div>`);
+  const usage = c.usage ? (c.usage.totalCostUSD != null ? `通道 B · $${Number(c.usage.totalCostUSD).toFixed(3)}` : `通道 ${c.channel.toUpperCase()} · ${(c.usage.totalTokens || 0).toLocaleString()} tokens`) : `通道 ${c.channel.toUpperCase()}`;
+  return `<div class="chat-rail" id="chatRail" style="width:${c.width}px">
+    <div class="chat-head">
+      <div style="flex:1;min-width:0"><div class="title">AI 会话</div><div class="sub">${c.sessionId ? c.sessionId.slice(0, 8) + ' · ' + c.messages.filter(m => m.role === 'user').length + ' 条' : '新会话'}</div></div>
+      <div class="radio-row">
+        <button class="${c.channel === 'a' ? 'on' : ''}" onclick="setChatChannel('a')" title="直连 OpenAI 兼容端点" style="height:24px;padding:0 8px;font-size:11px;">A</button>
+        <button class="${c.channel === 'b' ? 'on' : ''}" onclick="setChatChannel('b')" title="Claude Code 子进程" style="height:24px;padding:0 8px;font-size:11px;">B</button>
+      </div>
+      <button class="btn ghost sm" onclick="chatNewSession()" title="新会话">${ICON.plus}</button>
+      <button class="btn ghost sm" onclick="toggleChatRail()" title="收起">${ICON.close}</button>
+    </div>
+    <div class="chat-body" id="chatBody">${rows.length ? rows.join('') : `<div class="chat-empty"><b>直接说要改什么</b><br>比如「把这个按钮改成 danger 态」。<br>AI 走唯一写入口落盘，改动可审、可回退。${state.selectedDraft ? '' : '<br>先在左侧选一份稿，AI 会优先看它。'}</div>`}</div>
+    <div class="chat-compose">
+      <textarea id="chatInput" rows="1" placeholder="${state.selectedDraft ? '对 ' + escHtml(state.selectedDraft) + ' 说…' : '输入消息… ⏎ 发送'}" oninput="state.chat.input=this.value" onkeydown="chatKey(event)">${escHtml(c.input)}</textarea>
+      ${c.running ? `<button class="btn stop" onclick="chatInterrupt()"><span class="sq"></span> 中断 <kbd style="font-size:10px">Esc</kbd></button>` : `<button class="btn primary" onclick="chatSend()">发送</button>`}
+    </div>
+    <div class="chat-foot"><span>${usage}</span><span class="grow"></span><span>${c.running ? '运行中' : c.sessions.length ? c.sessions.length + ' 个会话' : ''}</span></div>
+  </div>`;
+}
+
+function wireChatRail() {
+  const h = document.getElementById('chatResize'), rail = document.getElementById('chatRail');
+  if (!h || !rail) return;
+  h.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    const startX = e.clientX, startW = rail.offsetWidth;
+    const onMove = (ev) => { const w = Math.max(320, Math.min(520, startW - (ev.clientX - startX))); rail.style.width = w + 'px'; state.chat.width = w; };
+    const onUp = () => { save('ud.chatWidth', state.chat.width); document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
+    document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onUp);
+  });
+  const body = document.getElementById('chatBody');
+  if (body) body.scrollTop = body.scrollHeight;
+}
+
+function toggleChatRail() { state.chat.open = !state.chat.open; if (state.chat.open) state.chat.unread = false; save('ud.chatOpen', state.chat.open ? '1' : '0'); render(); }
+function setChatChannel(ch) { state.chat.channel = ch; save('ud.chatChannel', ch); render(); }
+function chatKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); chatSend(); }
+  if (e.key === 'Escape' && state.chat.running) chatInterrupt();
+}
+
+async function chatLoad() {
+  const c = state.chat;
+  c.sessionId = null; c.messages = []; c.notes = []; c.usage = null; c.sessions = [];
+  if (!state.project) return;
+  try {
+    const r = await apiFetch('chat_list');
+    c.sessions = (r.data && r.data.sessions) || [];
+    if (c.sessions.length) {
+      const latest = c.sessions.slice().sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''))[0];
+      const g = await apiFetch('chat_get?session=' + encodeURIComponent(latest.id));
+      if (g.data) { c.sessionId = g.data.id; c.messages = g.data.messages || []; c.channel = g.data.channel || c.channel; }
+    }
+  } catch (e) { /* 没有会话也正常 */ }
+  render();
+}
+
+function chatNewSession() { const c = state.chat; c.sessionId = null; c.messages = []; c.notes = []; c.usage = null; render(); }
+
+async function chatSend() {
+  const c = state.chat;
+  const text = (c.input || '').trim();
+  if (!text || c.running || !state.project) return;
+  c.input = ''; c.running = true;
+  c.messages = c.messages.concat([{ role: 'user', content: text, timestamp: new Date().toISOString() }]);
+  render();
+  const abort = new AbortController(); c.abort = abort;
+  try {
+    const body = { message: text, channel: c.channel };
+    if (c.sessionId) body.sessionId = c.sessionId;
+    // 方式 ②（选中节点）要等 S2 壳和前端打通；现在先把当前正在看的稿名当弱上下文送进系统提示（不进用户那句）
+    if (state.selectedDraft) body.contextFile = state.selectedDraft;
+    const res = await apiFetch('chat_send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: abort.signal });
+    const d = res.data || {};
+    if (d.sessionId) c.sessionId = d.sessionId;
+    if (res.errors && res.errors.length) c.notes.push({ kind: 'err', text: '出错：' + (res.errors[0].message || res.errors[0].code) });
+    if (d.usage) c.usage = d.usage;
+    if (d.interrupted) c.notes.push({ kind: 'err', text: '已中断' });
+    for (const ch of d.changes || []) c.notes.push({ kind: 'change', idx: c.notes.length, path: ch.path, from: ch.from, to: ch.to, summary: ch.summary, reverted: false });
+    if (c.sessionId) {
+      const g = await apiFetch('chat_get?session=' + encodeURIComponent(c.sessionId));
+      if (g.data) c.messages = g.data.messages || c.messages;
+    }
+    if ((d.changes || []).length) { reloadPreview(); fetchDrafts(); if (state.selectedDraft) fetchDiagnostics(state.selectedDraft); }
+    if (!c.open) c.unread = true;
+  } catch (e) {
+    if (e.name === 'AbortError') c.notes.push({ kind: 'err', text: '已停止等待（服务端这一轮仍会跑完，落盘照常可审可回退）' });
+    else c.notes.push({ kind: 'err', text: '发送失败：' + e.message });
+  } finally {
+    c.running = false; c.abort = null;
+    render();
+  }
+}
+
+function chatInterrupt() { const c = state.chat; if (c.abort) c.abort.abort(); }
+
+async function chatRevert(idx) {
+  const n = state.chat.notes[idx];
+  if (!n || n.reverted) return;
+  try {
+    const r = await apiFetch('revert', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ file: n.path, version: n.from }) });
+    if (r.ok) { n.reverted = true; toast('已退回 ' + n.from + '（历史不删，' + (r.data?.write?.version || '新一版') + ' 是回退版）', 'success'); reloadPreview(); fetchDrafts(); if (state.selectedDraft) fetchDiagnostics(state.selectedDraft); }
+    else toast('回退失败：' + (r.errors?.[0]?.message || '未知错误'), 'error');
+  } catch (e) { toast('回退失败：' + e.message, 'error'); }
+  render();
+}
+
+function reloadPreview() { const f = document.getElementById('previewFrame'); if (f) f.src = f.src; }
 
 function wireSidebarResize() {
   const handle = document.getElementById('resizeHandle');
@@ -501,7 +720,7 @@ function setBottomMode(m) { state.bottomMode = m; save('ud.bottomMode', m); rend
 function toggleMenu(e) { e.stopPropagation(); state.menuOpen = !state.menuOpen; render(); }
 function closeMenu() { state.menuOpen = false; }
 document.addEventListener('click', (e) => { if (state.menuOpen && !e.target.closest('#menu')) { state.menuOpen = false; render(); } });
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { if (state.sheet) closeSheet(); else if (state.menuOpen) { state.menuOpen = false; render(); } } });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { if (state.sheet) closeSheet(); else if (state.menuOpen) { state.menuOpen = false; render(); } else if (state.chat.running) chatInterrupt(); } });
 
 function filterPill(key, label) {
   return `<button class="filter-pill ${state.filter === key ? 'active' : ''}" onclick="setFilter('${key}')">${label}</button>`;
@@ -886,6 +1105,7 @@ async function openProjectDir(dir) {
     state.selectedDraft = null; state.diags = []; state.changes = [];
     await fetchDrafts();
     render();
+    chatLoad();
   } catch (e) {
     toast('打开项目失败: ' + e.message, 'error');
   }
@@ -1009,6 +1229,7 @@ async function boot() {
     state.sidecar = 'running';
     render();
     await fetchDrafts();
+    chatLoad();
     return;
   }
   try {
