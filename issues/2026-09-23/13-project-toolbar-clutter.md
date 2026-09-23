@@ -5,7 +5,7 @@ labels: [type:chore, from:user, p1]
 <!-- fp: review/umbra-design/server/ui/index.html#canvas-toolbar-duplicates-s2-chrome -->
 来源：用户（截图） ｜ 证据：server/ui/index.html `previewToolbarHtml`（改前 6 颗）+ ui/S2-单稿预览壳.dc.html 顶栏两行 + 状态栏两行 + 右侧诊断面板，全部同时显示
 发现方式：用户运行后看一眼。【确证】
-状态：已修 · commit __SHA__
+状态：已修 · commit 58e00c3
 
 ### 位置
 进项目后的画布区：应用自己的工具栏（稿名 / 编辑壳·稿本身·源码 / 体检 / 演示 / 浏览器）之下，嵌进来的 S2 壳又画了一整套顶栏（标题 / 版本 / 健康 / 演示 / 重跑体检 / 外链 / 诊断·变更页签 / 面板开关 + 设备 / 尺寸 / 缩放 / 浅深）、右侧诊断面板、底部两行状态栏；再往下是应用的底栏（诊断 / 变更 / 评论 / 稿件信息）。
