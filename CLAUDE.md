@@ -44,6 +44,7 @@
 ```bash
 npm --prefix server install
 npm --prefix server run build
+npm --prefix app install && npm --prefix app run build    # 新前端（M7-2）；没 build 过 /__app/ 会退回旧前端
 
 npm --prefix server run selftest     # 静态回归：基准 + 界面稿 + 语料
 npm --prefix server run rendertest   # 渲染回归：真开浏览器（没 Chrome 会整块跳过）
@@ -63,9 +64,9 @@ npm --prefix server run rendertest   # 渲染回归：真开浏览器（没 Chro
 npm --prefix server run ui -- Umbra_design
 ```
 
-起本地 http、建索引、打开浏览器里的**应用页面**（`/__app/`，和 Tauri 壳里同一份前端：首页是项目列表，
-进项目是左会话 / 右预览、顶部文件页签），然后停在前台（回车重跑索引，Ctrl-C 退出）。
-S1 稿件索引那一页仍在 `index.dc.html`，只是不再当入口。Tauri 壳：`npx tauri dev`。
+起本地 http、建索引、打开浏览器里的**应用页面**（`/__app/` = `app/dist` 新前端骨架，功能平移中；
+旧前端在 `/__legacy/`，功能齐全，M7-8 退役），然后停在前台（回车重跑索引，Ctrl-C 退出）。
+S1 稿件索引那一页仍在 `index.dc.html`，只是不再当入口。
 
 当 MCP 用（给别的模型客户端）：
 
@@ -182,7 +183,8 @@ ClaudeDesign 的项目在云端，**只拥有被上传过的东西**。之前只
 | 目录 | 是什么 | 进仓库 |
 | --- | --- | --- |
 | `doc/` | 需求、契约、规则、实测、路线图、待办 | ✅ |
-| `server/` | MCP server + 本地 API + CLI（Node + TS） | ✅（`dist/` 除外） |
+| `server/` | MCP server + 本地 API + WS + CLI（Node + TS） | ✅（`dist/` 除外） |
+| `app/` | 新前端（Vite + React + TS + Tailwind）；`src/host/` 是唯一碰壳的目录 | ✅（`dist/`、`node_modules/` 除外） |
 | `runtime/` | `support.js` + 两个 React UMD，**刻意 vendor** | ✅ |
 | `ui/` | 工具自己的界面稿（S1–S10、IconGlyph）；`ui/_incoming/` 是收设计侧稿的暂存处，不进仓库 | ✅ |
 | `outgoing/` | 给设计侧的发件包 | ❌ |
@@ -192,7 +194,8 @@ ClaudeDesign 的项目在云端，**只拥有被上传过的东西**。之前只
 
 | 命令 | 干什么 |
 | --- | --- |
-| `npm --prefix server run build` | 编译 |
+| `npm --prefix server run build` | 编译核心 |
+| `npm --prefix app run build` | 编译新前端到 `app/dist`（`/__app/` 托管它） |
 | `npm --prefix server run selftest` | 静态回归（三层判据） |
 | `npm --prefix server run lifecycletest` | 生命周期回归（建/改/删/恢复全流程） |
 | `npm --prefix server run rendertest` | 渲染回归（要浏览器） |
@@ -222,7 +225,7 @@ ClaudeDesign 的项目在云端，**只拥有被上传过的东西**。之前只
 
 ## 9. 当前状态一句话（2026-09-23）
 
-**2026-09-24：M7-1 改名已执行（`00` §四十九，仓库 GitHub 侧已是 `umbra-studio`）；M9-1 壳 spike 两条都过（`00` §五十，Q26 回填：换 Electron，下一步 M9-2）；M7-9 第四轮已发给设计侧（`00` §五十一），等它交回。** **2026-09-23 夜：转向 Umbra Studio 目录工作台。** `01` 整篇重写、`12` 新立 M7–M10 共 31 条（78 / 113）、`11` Q18–Q29 拍板、`08` §三之三 + `14` 第四轮给设计侧的委托已写好。代码一行未动，下一步从 M7-1 改名开始。以下是转向前的状态，仍然有效：
+**2026-09-24：M7-1 改名已执行（`00` §四十九，仓库 GitHub 侧已是 `umbra-studio`）；M9-1 壳 spike 两条都过（`00` §五十，Q26 回填：换 Electron，下一步 M9-2）；M7-9 第四轮已发给设计侧（`00` §五十一），等它交回；**M7-2 / M7-3 / M7-4 完成**（`00` §五十二：`app/` 骨架、host adapter browser 实现、事件总线 + WS）。** **2026-09-23 夜：转向 Umbra Studio 目录工作台。** `01` 整篇重写、`12` 新立 M7–M10 共 31 条（78 / 113）、`11` Q18–Q29 拍板、`08` §三之三 + `14` 第四轮给设计侧的委托已写好。代码一行未动，下一步从 M7-1 改名开始。以下是转向前的状态，仍然有效：
 
 M0 / M1 已验收；M3 外壳能跑，**应用前端 UI-1..UI-8 已按设计侧裁决落地**；界面十屏全部可渲染、演示态可切，
 S1 索引过期 / S2 版本弹层 / S6 版本对比**接真数据并实测**；**通道 A 已真跑通**，通道 B 等套餐续订。

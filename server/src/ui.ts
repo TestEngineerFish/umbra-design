@@ -73,7 +73,7 @@ console.log(`  界面    ${built.shells.length} 屏 · 本地 API ${built.api ? 
 console.log("");
 console.log(`  ${b("打开 " + entry)}`);
 console.log("");
-console.log(dim("  这是和 Tauri 壳里一样的应用界面：左会话、右预览，首页是项目列表。"));
+console.log(dim("  /__app/ 是新前端（app/dist；没 build 过会退回旧前端）；旧前端在 " + serve.url + "__legacy/"));
 console.log(dim(`  只看稿件索引页：${serve.url}index.dc.html`));
 console.log("");
 console.log(dim("  回车 = 改完稿之后重跑索引 · Ctrl-C = 退出"));
