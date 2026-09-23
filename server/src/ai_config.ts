@@ -1,7 +1,7 @@
 /** AI 配置（M2-2）
  *
  * 存本地，不进任何日志、不进 changelog、不随项目走。密钥属于机器，不属于项目。
- * 存于 TOOL_ROOT/.umbradesign/ai_config.json。
+ * 存于 TOOL_ROOT/.umbrastudio/ai_config.json。
  */
 
 import { readFile, mkdir } from "node:fs/promises";
@@ -10,7 +10,7 @@ import { join } from "node:path";
 import { TOOL_ROOT } from "./project.js";
 import { writeAtomic } from "./normalize.js";
 
-const CONFIG_FILE = join(TOOL_ROOT, ".umbradesign", "ai_config.json");
+const CONFIG_FILE = join(TOOL_ROOT, ".umbrastudio", "ai_config.json");
 
 export interface ChannelAConfig {
   baseUrl: string;    // OpenAI 兼容端点
@@ -49,7 +49,7 @@ export async function getAiConfig(): Promise<AiConfig> {
 }
 
 export async function setAiConfig(cfg: AiConfig): Promise<void> {
-  await mkdir(join(TOOL_ROOT, ".umbradesign"), { recursive: true });
+  await mkdir(join(TOOL_ROOT, ".umbrastudio"), { recursive: true });
   await writeAtomic(CONFIG_FILE, JSON.stringify(cfg, null, 2) + "\n");
 }
 

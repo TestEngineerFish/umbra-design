@@ -1,0 +1,20 @@
+{
+ "file": "S10-组件Props面板.dc.html",
+ "checkedAt": "2026-09-22T16:01:11.023Z",
+ "srcSha256": "8bbb6c31f9a60ace2237d38900704597a77d5c1245862ced835bb8e72968222c",
+ "alive": true,
+ "nodeCount": 109,
+ "renderMs": 1423,
+ "viewport": {
+  "width": 1440,
+  "height": 900
+ },
+ "offline": true,
+ "screenshot": null,
+ "counts": {
+  "unresolvedHoles": 0,
+  "missingResources": 0,
+  "externalRequests": 0,
+  "consoleWarnings": 0
+ }
+}

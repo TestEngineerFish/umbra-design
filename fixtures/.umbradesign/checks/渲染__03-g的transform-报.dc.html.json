@@ -1,0 +1,20 @@
+{
+ "file": "渲染/03-g的transform-报.dc.html",
+ "checkedAt": "2026-09-23T09:24:24.429Z",
+ "srcSha256": "f68d4f9d770d4d9d31e7af57aad6305ce44afb3ebf39a19b505b2ec1aba0df18",
+ "alive": true,
+ "nodeCount": 19,
+ "renderMs": 1420,
+ "viewport": {
+  "width": 1440,
+  "height": 900
+ },
+ "offline": true,
+ "screenshot": null,
+ "counts": {
+  "unresolvedHoles": 0,
+  "missingResources": 0,
+  "externalRequests": 0,
+  "consoleWarnings": 1
+ }
+}

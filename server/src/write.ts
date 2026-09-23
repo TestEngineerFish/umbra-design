@@ -3,7 +3,7 @@
  * 三条保证：
  *   ① 归一化落盘（含 @ds 展开与 __resources 注入）—— normalize.ts
  *   ② 落盘即校验：有 error 级诊断则【拒绝落盘】，原样返回诊断
- *   ③ 落盘即留痕：写快照到 .umbradesign/snapshots/
+ *   ③ 落盘即留痕：写快照到 .umbrastudio/snapshots/
  *
  * ⚠️ 当前 ③ 只写快照，还不产 CHANGELOG —— changelog 的内容要靠语义 diff，
  * diff 在下一批。快照从第一次落盘就开始攒，所以不会丢历史。
@@ -145,7 +145,7 @@ export async function writeDraft(
   if (!existsSync(join(dirname(abs), "support.js"))) {
     rtDiags.push(warn(X.IO, relPath, { kind: "file", name: "support.js" },
       "稿所在目录没有 support.js，直接打开会白屏",
-      { fix: "把 UmbraDesign/runtime/ 的三个文件放到这个目录（write_draft 会自动分发，除非 runtime/ 本身缺文件）" }));
+      { fix: "把 Umbra Studio/runtime/ 的三个文件放到这个目录（write_draft 会自动分发，除非 runtime/ 本身缺文件）" }));
   }
 
   // ③ 落盘即留痕
@@ -157,7 +157,7 @@ export async function writeDraft(
   await writeFile(snapFile, JSON.stringify(snap, null, 1) + "\n", "utf8");
 
   // 语义快照存不了源码（它只有 sourceSha256），所以 revert_to 需要真正的源码。
-  // 每版存一份 gzip：3.78MB 的全量语料压下来一版几百 KB，.umbradesign/ 本来就不进
+  // 每版存一份 gzip：3.78MB 的全量语料压下来一版几百 KB，.umbrastudio/ 本来就不进
   // 仓库，本地磁盘换「能撤销」很值 —— L1 拖滑块没有撤销不能给人用（doc/09 决策 4）。
   await writeFile(join(dir, `${version}.src.html.gz`), gzipSync(Buffer.from(prep.content, "utf8")));
 

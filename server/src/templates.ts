@@ -1,6 +1,6 @@
 /** 稿件模板管理：把稿存为模板，新建时能选。
  *
- * 模板存在项目的 .umbradesign/templates/ 目录下。
+ * 模板存在项目的 .umbrastudio/templates/ 目录下。
  */
 
 import { mkdir, readdir, readFile, writeFile, rm } from "node:fs/promises";
@@ -8,7 +8,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { Project } from "./project.js";
 
-const TEMPLATES_DIR = ".umbradesign/templates";
+const TEMPLATES_DIR = ".umbrastudio/templates";
 
 export interface TemplateInfo {
   /** 模板名 */

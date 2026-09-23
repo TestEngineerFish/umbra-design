@@ -1,6 +1,6 @@
-# UmbraDesign · 00 MCP 工具契约
+# Umbra Studio · 00 MCP 工具契约
 
-> **这一份是实现 UmbraDesign 的主文档。** 它定义本地 MCP server 对外暴露什么、
+> **这一份是实现 Umbra Studio 的主文档。** 它定义本地 MCP server 对外暴露什么、
 > 入参出参长什么样、错误怎么回。
 > 需求见 `01`，运行时架构见 `02`，模板语义见 `03`，缺陷与验收见 `04`，
 > 实测依据见 `05`，写稿规则见 `06`，变更交付见 `07`。
@@ -10,7 +10,7 @@
 ## 一、这一层解决什么
 
 `.dc.html` 格式和 `support.js` 运行时已经有了（见 `05` §一）。
-UmbraDesign 要做的**不是重写引擎**，是补上引擎外面那一层：
+Umbra Studio 要做的**不是重写引擎**，是补上引擎外面那一层：
 
 | 缺的东西 | 谁需要它 |
 | --- | --- |
@@ -56,7 +56,7 @@ MCP server 可以有 `package.json`、可以装依赖；它产出的 `.dc.html` 
 ⚠️ **两件东西要分清：工具 与 用户的设计项目。**
 
 ```
-UmbraDesign/                    ← 工具本身。这是一个 git 仓库，只追踪工具
+Umbra Studio/                    ← 工具本身。这是一个 git 仓库，只追踪工具
   doc/                          本套文档
   runtime/                      所有租户共用（第三方副本不进仓库）
     support.js                  运行时（vendor，见 05 §一）
@@ -71,7 +71,7 @@ UmbraDesign/                    ← 工具本身。这是一个 git 仓库，只
 ```
 
 ```
-<用户指定的项目根>/              ← 默认 UmbraDesign/projects，可配置
+<用户指定的项目根>/              ← 默认 Umbra Studio/projects，可配置
   Umbra_design_next/            ← 一个设计项目 = 一个租户 = 一个独立 git 仓库
     .git/                       ← 它自己的
     .gitignore
@@ -84,15 +84,15 @@ UmbraDesign/                    ← 工具本身。这是一个 git 仓库，只
     react-dom.production.min.js
     *.dc.html                   ← 页稿与组件稿
     index.dc.html               ← build_index 生成的入口页
-    .umbradesign/               ← 工具产物（快照 / 缩略图 / 索引缓存）
+    .umbrastudio/               ← 工具产物（快照 / 缩略图 / 索引缓存）
     CHANGELOG-设计侧.md         ← 给实现侧的变更清单（见 07）
   某客户/                        ← 另一个租户，同样形状，自己的 _ds 和自己的 git
 ```
 
-**为什么工具不追踪用户的项目**：UmbraDesign 将来要打包分发，用户安装时会
+**为什么工具不追踪用户的项目**：Umbra Studio 将来要打包分发，用户安装时会
 指定自己的项目存储地址。让工具的仓库去追踪用户的项目，等于让用户追踪工具自身——
 方向是反的。项目根的位置通过启动参数或环境变量给（`--projects-root`
-/ `UMBRADESIGN_PROJECTS_ROOT`），默认 `./projects`。
+/ `UMBRASTUDIO_PROJECTS_ROOT`），默认 `./projects`。
 
 ⚠️ **因此租户目录必须自包含。** 项目根可能在任何地方，稿子不能用
 `../../runtime/…` 这种跨出项目根的相对路径去找运行时。
@@ -107,7 +107,7 @@ UmbraDesign/                    ← 工具本身。这是一个 git 仓库，只
 > 每份稿的 `<script src>` 都要改写，而全部 32 份存量稿写的都是同层的 `./support.js`——
 > 为一个子目录去改 32 份稿，零收益。
 
-这也让整个租户目录可以直接打包交给实现侧——**打开就能跑，不依赖 UmbraDesign 在不在**。
+这也让整个租户目录可以直接打包交给实现侧——**打开就能跑，不依赖 Umbra Studio 在不在**。
 
 ### 3.1 `project.json`
 
@@ -116,7 +116,7 @@ UmbraDesign/                    ← 工具本身。这是一个 git 仓库，只
   "name": "umbra",
   "title": "Umbra 私人 AI 助手",
   "designSystem": {
-    "dir": "_ds/umbra-design-system-ec7cf6a5-891a-4152-8562-120f755dfe2d",
+    "dir": "_ds/umbra-studio-system-ec7cf6a5-891a-4152-8562-120f755dfe2d",
     "alias": "@ds"
   },
   "tokens": "umbra-tokens.json",
@@ -137,7 +137,7 @@ UmbraDesign/                    ← 工具本身。这是一个 git 仓库，只
 `write_draft` 落盘时按 `project.json` 的 `designSystem.dir` 把它翻译成**普通相对路径**。
 
 > **落盘后的文件里没有任何别名。** `support.js` 不认识 `@ds`，也不需要认识。
-> 稿子拿出 UmbraDesign 照样能开。填路径这件事由 MCP 在落盘那一刻完成。
+> 稿子拿出 Umbra Studio 照样能开。填路径这件事由 MCP 在落盘那一刻完成。
 
 `validate_draft` 反向检查：落盘后的 ds 引用必须能解析到真实文件，否则报 `E_DS_PATH`。
 
@@ -147,14 +147,14 @@ UmbraDesign/                    ← 工具本身。这是一个 git 仓库，只
 
 | 路 | 出处 | 地位 |
 | --- | --- | --- |
-| **主路径** | `.umbradesign/snapshots/<稿名>/v<N>.json` 的快照序列 + `CHANGELOG-设计侧.md` | 工具自己产的，不依赖任何版本控制 |
+| **主路径** | `.umbrastudio/snapshots/<稿名>/v<N>.json` 的快照序列 + `CHANGELOG-设计侧.md` | 工具自己产的，不依赖任何版本控制 |
 | **兜底** | `git show <ref>:<path>`，现算快照 | 只在要按任意 git ref 取版本时用 |
 
 约定：
 
 - **每个设计项目各自一个 git 仓库**，仓库根就是租户目录。
   MCP 在租户目录里执行 git 命令，不跨出去。
-- **UmbraDesign 自身的仓库不追踪任何租户**（`.gitignore` 里 `projects/`）。
+- **Umbra Studio 自身的仓库不追踪任何租户**（`.gitignore` 里 `projects/`）。
 - 租户没有 git 也能用：`git.enabled` 自动探测租户目录下有没有 `.git`，
   没有就只走主路径。按 ref 取版本的请求返回 `E_GIT_DISABLED`。
 - **实现侧永远不碰 git。** 它读 `CHANGELOG-设计侧.md`，或让自己的 Agent 调
@@ -246,7 +246,7 @@ UmbraDesign/                    ← 工具本身。这是一个 git 仓库，只
 
    | 改写 | 源头写 | 落盘后 |
    | --- | --- | --- |
-   | 设计系统路径 | `href="@ds/tokens/colors.css"` | `href="_ds/umbra-design-system-<uuid>/tokens/colors.css"` |
+   | 设计系统路径 | `href="@ds/tokens/colors.css"` | `href="_ds/umbra-studio-system-<uuid>/tokens/colors.css"` |
    | 离线资源映射 | 什么都不写 | `support.js` 之前插入 `window.__resources` 块，把 React 的 CDN URL 指向同层本地副本 |
 
    ⚠️ **第二条必须由工具做，不许写进设计稿。** 理由三条：
@@ -257,7 +257,7 @@ UmbraDesign/                    ← 工具本身。这是一个 git 仓库，只
    重复落盘不叠加，先删旧块再写新块。
 2. **落盘即校验** —— 内部先跑 `validate_draft`。有 `error` 级诊断则**拒绝落盘**并原样返回诊断；
    只有 `warning` 则落盘并把 warning 一并返回。
-3. **落盘即留痕** —— 写快照到 `.umbradesign/snapshots/`，追加一条 `CHANGELOG-设计侧.md`（见 `07`）。
+3. **落盘即留痕** —— 写快照到 `.umbrastudio/snapshots/`，追加一条 `CHANGELOG-设计侧.md`（见 `07`）。
 
 `patch_draft` 存在的理由是成本：改一行不该重传 175 KB。
 `old` 命中 0 次或多次时返回 `E_PATCH_ANCHOR`，**并把当前文件的相关片段回给模型**，让它一轮内改对。
@@ -367,7 +367,7 @@ UmbraDesign/                    ← 工具本身。这是一个 git 仓库，只
   "consoleWarnings": [{"level": "warn", "text": "…"}],
   "styleSheets": [{"href": "colors.css", "rules": 2}],
   "missingResources": ["_ds/…/tokens/ios.css"],
-  "screenshot": ".umbradesign/shots/日志@1440x900.png"
+  "screenshot": ".umbrastudio/shots/日志@1440x900.png"
 }
 ```
 
@@ -487,7 +487,7 @@ MCP 握手实测通过（stdio，protocolVersion 2024-11-05）。
 | --- | --- | --- |
 | ① 归一化落盘 | `normalize.ts` —— UTF-8 无 BOM / LF / 末尾单换行 → `@ds` 展开 → `__resources` 注入（幂等），顺序固定 | 传 BOM + CRLF + 三个尾换行进去，盘上是干净的 LF 单换行 |
 | ② 落盘即校验 | 校验的是**改写后**的内容，也就是真正会落盘的那份。有 error 则拒绝落盘 | 塞一个 `{{ title + 1 }}` → 返回 `E_HOLE_EXPRESSION`，**文件根本没创建** |
-| ③ 落盘即留痕 | 写语义快照到 `.umbradesign/snapshots/<稿名>/v<N>.json`，版本号按稿独立计数 | v1 / v2 依次生成；内容与盘上一致时**不落盘也不升版本**，避免版本号空转 |
+| ③ 落盘即留痕 | 写语义快照到 `.umbrastudio/snapshots/<稿名>/v<N>.json`，版本号按稿独立计数 | v1 / v2 依次生成；内容与盘上一致时**不落盘也不升版本**，避免版本号空转 |
 
 另加一条：**运行时副本与稿同层**。`write_draft` 把 `runtime/` 的三件套分发到稿所在目录
 （大小不一致时刷新），所以写完就能直接打开。`check_runtime` 只报告不改盘。
@@ -541,7 +541,7 @@ MCP 握手实测通过（stdio，protocolVersion 2024-11-05）。
 ### 12.1 依赖 `playwright-core`，**不自动下载浏览器**
 
 用 `playwright-core`（+13 MB，不带浏览器），可执行文件按这个顺序找：
-环境变量 `UMBRADESIGN_CHROMIUM` → 常见安装路径（macOS 的 Chrome / Chromium / Edge / Brave、
+环境变量 `UMBRASTUDIO_CHROMIUM` → 常见安装路径（macOS 的 Chrome / Chromium / Edge / Brave、
 Linux 的几个、Windows 的两个）。
 
 找不到就返回结构化诊断，说清怎么配 —— **不猜、不下载**。
@@ -706,10 +706,10 @@ Linux 的几个、Windows 的两个）。
 
 | 产物 | 用途 |
 | --- | --- |
-| `.umbradesign/index-data.json` | `08` S1 的数据契约，原样；给设计侧那份页面读 |
+| `.umbrastudio/index-data.json` | `08` S1 的数据契约，原样；给设计侧那份页面读 |
 | `index-data.js` | 同一份数据挂成 `window.__UD_INDEX` |
 | `index.dc.html` | 入口页本身，用 `.dc.html` 写（自举：工具产的页要能过自己的校验） |
-| `.umbradesign/tool-tokens.css` | 从 `ui/_ds-tool/tokens.css` 拷来的工具皮肤 |
+| `.umbrastudio/tool-tokens.css` | 从 `ui/_ds-tool/tokens.css` 拷来的工具皮肤 |
 
 数据里带一张 import 图，所以 `importedBy` 是算出来的，不是猜的。
 
@@ -769,7 +769,7 @@ ClaudeDesign 的 `ui/S1-稿件索引.dc.html` 全篇**零个 `<table>`**（全�
 | 生成页落盘路径 | `steps: 归一化 · 注入 __resources 离线映射` ✓ |
 | **断网真渲染** | `alive=ALIVE` · `nodes=118` · 被拦的外部请求**无** · 控制台 error **无** ✓ |
 
-首屏文字：`UmbraDesign | 入口页验证 | · 3 份稿 | 索引生成于 3 分钟前 | 全部 | 页稿 |
+首屏文字：`Umbra Studio | 入口页验证 | · 3 份稿 | 索引生成于 3 分钟前 | 全部 | 页稿 |
 组件稿 | 有错误 | 有提醒 | 未体检 | 稿件`。
 
 ### 14.6 第一批到此为止
@@ -799,7 +799,7 @@ ClaudeDesign 的 `ui/S1-稿件索引.dc.html` 全篇**零个 `<table>`**（全�
 `render_check` 每次都带噪声（`04` §二）。注入零额外请求，两种用法都干净。
 实测连跑两次 `build_index`，文件长度 46,785 → 46,785，不涨。
 
-同理，工具皮肤从 `.umbradesign/tool-tokens.css` 改拷到 **`_ds-tool/tokens.css`**
+同理，工具皮肤从 `.umbrastudio/tool-tokens.css` 改拷到 **`_ds-tool/tokens.css`**
 —— 和设计稿里 `href` 相同的相对路径，两种用法同一个 href，不改写也不 404。
 
 ### 14.8 数据契约补两个字段
@@ -897,13 +897,13 @@ props 上挂的其实是演示态（`kind` 枚举），跟是不是组件无关�
 
 ### 15.2 做法：一份稿一个体检记录，带源码 sha256
 
-`.umbradesign/checks/<扁平路径>.json`：
+`.umbrastudio/checks/<扁平路径>.json`：
 
 ```json
 { "file": "日志.dc.html", "checkedAt": "…", "srcSha256": "…",
   "alive": true, "nodeCount": 2307, "renderMs": 1840,
   "viewport": { "width": 1440, "height": 900 }, "offline": true,
-  "screenshot": ".umbradesign/shots/…png",
+  "screenshot": ".umbrastudio/shots/…png",
   "counts": { "unresolvedHoles": 0, "missingResources": 0,
               "externalRequests": 0, "consoleWarnings": 0 } }
 ```
@@ -970,7 +970,7 @@ props 上挂的其实是演示态（`kind` 枚举），跟是不是组件无关�
 `06` §6.1 补：**改完稿要重新体检。** 读数带源码 sha256，稿动一个字就回到
 「未体检」—— 工具不会拿旧读数替新文件背书。
 
-租户 `.gitignore` 模板里 `.umbradesign/` 已经涵盖 `checks/`，换机器重跑一次就有，
+租户 `.gitignore` 模板里 `.umbrastudio/` 已经涵盖 `checks/`，换机器重跑一次就有，
 不必进仓库。
 
 ---
@@ -1269,7 +1269,7 @@ ClaudeDesign 的 props 面板就是用它做实时预览的。所以分工是：
 
 语义快照存不了源码（它只有 `sourceSha256`），所以每次落盘多存一份
 `v<N>.src.html.gz`。实测一版 **577 字节**（那份探针稿），
-`.umbradesign/` 本来就不进仓库 —— 本地磁盘换「能撤销」很值。
+`.umbrastudio/` 本来就不进仓库 —— 本地磁盘换「能撤销」很值。
 
 **撤销是向前的操作**：把 `v<K>` 的内容作为**新的一版**落盘，历史只增不改。
 实测 `v6 → 退回 v1 → 落成 v7`，文件内容与 v1 逐字节相同。
@@ -1321,7 +1321,7 @@ ClaudeDesign 的 props 面板就是用它做实时预览的。所以分工是：
 
 点选桥跑在**被预览的那份稿**里，但**由预览壳在 iframe 载入之后注入**，不写进稿。
 稿是设计事实，点选是工具行为，不混在一个文件里。壳和稿由同一个本地静态服务发出，
-同源，所以塞得进去。`build_index` 把桥拷到 `.umbradesign/select-bridge.js`。
+同源，所以塞得进去。`build_index` 把桥拷到 `.umbrastudio/select-bridge.js`。
 
 地址就是 §17.3 那两行，两个属性都已经在 DOM 里：
 
@@ -1719,7 +1719,7 @@ S2 的「重跑体检」从演示态变成真的。工具数仍是 27（`render_
 ### 23.2 作业不持久化，这是有意的
 
 作业记录活在 MCP server 进程里，进程没了就没了。**读数本身已经落盘**在
-`.umbradesign/checks/`（§十五），所以作业记录不必持久化 ——
+`.umbrastudio/checks/`（§十五），所以作业记录不必持久化 ——
 查不到作业时接口直接说「读数在 checks/ 里，可以 GET validate」。
 
 作业表超过 200 条时清掉最老的已完成作业。界面轮到了就不需要它了。
@@ -2272,7 +2272,7 @@ if (/attribute .*Expected/.test(text)) return;
 - 三种客户端的注册写法：`claude mcp add` / 桌面端 `claude_desktop_config.json` /
   Codex `~/.codex/config.toml`。
 - 项目根：默认 `<仓库>/projects/`，可用 `--projects-root` 或
-  `UMBRADESIGN_PROJECTS_ROOT` 改。
+  `UMBRASTUDIO_PROJECTS_ROOT` 改。
 - 自检三条命令与各自的判据（`selftest` / `rendertest` / `incoming`）。
 - 五条常见故障与处置。
 
@@ -2505,7 +2505,7 @@ S10 已改 `type="text" inputmode="decimal"`。**S2 的属性面板一直是这�
 
 | 环节 | 做什么 |
 | --- | --- |
-| `npm run outgoing` | 拷 `ui/*.dc.html` + `_ds-tool` + `_demo`，每份稿 `<head>` 后插一行 `<!-- umbradesign:baseline file sha sent -->`（sha = 正本内容 sha256 前 16 位），写 `README-给设计侧.md`，打成 `outgoing/UmbraDesign-ui-<时间>.zip`；发件记录写 `.umbradesign/outgoing/<时间>.json`。正本里若已有 baseline 行则拒绝打包 |
+| `npm run outgoing` | 拷 `ui/*.dc.html` + `_ds-tool` + `_demo`，每份稿 `<head>` 后插一行 `<!-- umbradesign:baseline file sha sent -->`（sha = 正本内容 sha256 前 16 位），写 `README-给设计侧.md`，打成 `outgoing/UmbraStudio-ui-<时间>.zip`；发件记录写 `.umbrastudio/outgoing/<时间>.json`。正本里若已有 baseline 行则拒绝打包 |
 | 设计侧 | 整体替换它项目里的同名文件；**保留 baseline 行**；交回放 `ui/_incoming/` |
 | `npm run incoming` | ⓪ 底稿检查（覆盖现有文件的稿）：无标记 → **底稿不明**（blocking）；sha ≠ 当前正本 → **底稿过时**，提示三方合并，共同祖先 = 对应 zip 里的同名文件；一致 → **底稿正确**。之后剥掉 baseline 行，照旧在叠加目录里做合法性 + 接线标记检查 |
 
@@ -2534,12 +2534,12 @@ S10 已改 `type="text" inputmode="decimal"`。**S2 的属性面板一直是这�
 
 ### 33.2 M5-9 · S2 版本弹层 + 未落盘横条
 
-- **版本元数据** `.umbradesign/snapshots/<稿>/meta.json`：`{ v: { origin, capturedAt, summary } }`，在 `write_draft` 末尾记 —— 唯一写入口，所以每一版都有；快照本身可能几 MB，弹层只要三个字段，单独一张小表。
+- **版本元数据** `.umbrastudio/snapshots/<稿>/meta.json`：`{ v: { origin, capturedAt, summary } }`，在 `write_draft` 末尾记 —— 唯一写入口，所以每一版都有；快照本身可能几 MB，弹层只要三个字段，单独一张小表。
   `origin` 只有三个取值（设计侧 §3.2）：v1 一律「新建」；默认「AI」（走 MCP 的调用方都是模型）；本地 API 的 `set_prop` / `revert` 显式标「人手改」。`summary` = 最重的一条变更的 message（L1 > L2 > L3 > L4，多于一条带「另有 N 处」）；回退版用回退备注那句。
 - `changes` 路由带 `versionMeta[v] = { src, time, summary }`，`time` 走 `humanTime`（今天 HH:MM / 昨天 / MM-DD）。**S2 一个字没改**就显示出来了 —— 它读的正是这个键名。
 - 未落盘横条的「落盘」钮：`previewStyle` 时记 `previewSlot`，`onCommit` 调 `applyProp`（和字段上回车同一条路）。
   【实测】改 padding 不回车 → 横条 `[data-ud-node="fec4d9c9"] · style.padding → 4px 8px · 文件还是 v5` → 点落盘 → v5 → v6，撤销可用。
-- **抓到一条真缺陷**：第一次点「落盘」时，输入框先失焦已经在落盘，钮又发了一次；两次并发写共用 `<稿>.umbradesign.tmp`，第二次 `rename` 报 ENOENT（画面上是属性行一条红字）。修两处：`writeAtomic` 临时文件名唯一（pid + 时间 + 随机，失败时清掉）；`onCommit` 在 `s.busy` 时不再发。修后复测 v5 → v6 干净。
+- **抓到一条真缺陷**：第一次点「落盘」时，输入框先失焦已经在落盘，钮又发了一次；两次并发写共用 `<稿>.umbrastudio.tmp`，第二次 `rename` 报 ENOENT（画面上是属性行一条红字）。修两处：`writeAtomic` 临时文件名唯一（pid + 时间 + 随机，失败时清掉）；`onCommit` 在 `s.busy` 时不再发。修后复测 v5 → v6 干净。
 
 **通道 B 顺手核过**：`claude --help` 里 `--print / --output-format / --model / --brief / --mcp-config / --allowed-tools / --system-prompt` 都在（2.1.278）。但 `chat_send` 的通道 B **复用通道 A 的 baseUrl / apiKey / model** —— GLM 的 Anthropic 端点和 DeepSeek 的 OpenAI 端点不是一个地址，真跑通道 B 之前 `ai_config.json` 要拆出 `channelB`（登记在 `doc/11` §四）。
 
@@ -2580,7 +2580,7 @@ S10 已改 `type="text" inputmode="decimal"`。**S2 的属性面板一直是这�
 
 ## 三十五、两条 AI 通道第一次真跑（2026-09-23）
 
-用户给了一个智谱 key。key 只在 `.umbradesign/ai_config.json`（`chmod 600`，`.gitignore` 内），不进仓库、不进本文。
+用户给了一个智谱 key。key 只在 `.umbrastudio/ai_config.json`（`chmod 600`，`.gitignore` 内），不进仓库、不进本文。
 实测脚本走 MCP stdio 真调 `chat_send`（不是 agenttest 那种模拟），判据 `01` §7.6 第 23 条。
 
 ### 35.1 通道 A（智谱通用 API，OpenAI 兼容）—— ✅ 跑通
@@ -2588,7 +2588,7 @@ S10 已改 `type="text" inputmode="decimal"`。**S2 的属性面板一直是这�
 两条真缺陷，都是代码写完从没跑过才留下的：
 
 1. **端点拼接丢路径**：`new URL("/chat/completions", baseUrl)` 会把 `https://open.bigmodel.cn/api/paas/v4` 的路径整段丢掉，POST 到根 → nginx 405。改成字符串拼接。DeepSeek 的 base 没路径所以从没暴露。
-2. **发给模型的 messages 里没有用户那句**：`chat_send` 把用户消息 `addMessage` 进会话后没拿回更新后的对象，history 从旧对象取，只剩 system 一条 → 智谱 400「messages 参数非法」。用一个 `UMBRADESIGN_AI_DEBUG=<路径>` 开关把请求体落盘才看出来（provider.ts，留着）。回包的 messages 同样要重新读盘。
+2. **发给模型的 messages 里没有用户那句**：`chat_send` 把用户消息 `addMessage` 进会话后没拿回更新后的对象，history 从旧对象取，只剩 system 一条 → 智谱 400「messages 参数非法」。用一个 `UMBRASTUDIO_AI_DEBUG=<路径>` 开关把请求体落盘才看出来（provider.ts，留着）。回包的 messages 同样要重新读盘。
 
 修后读数：`把「测试.dc.html」里的那个按钮改成 danger 态` → 23.6 s，12,555 tokens，模型调了我们的工具把稿从 v1 写到 v2（`background: #ff4d4f`），`changes` = L2 ×1，`revert_to v1` 后 `#0066ff` 回来。**判据三件全中。**
 DeepSeek 端点没跑（没 key），同一适配器，M2-1 验收里「分别对 DeepSeek 与智谱跑通」只有后一半。
@@ -2644,20 +2644,20 @@ DeepSeek 端点没跑（没 key），同一适配器，M2-1 验收里「分别�
 
 ### 37.3 仓库第一次推上 GitHub
 
-`git@github.com:TestEngineerFish/umbra-design.git`。第一次推被 GH001 拒：M3-5 把 106 MB 的 `src-tauri/binaries/node-aarch64-apple-darwin` 提交进了历史。处理：打备份标签 `backup/pre-purge-node-binary` → `filter-branch` 从 master 全史剥掉它 → `.gitignore` 加 `src-tauri/binaries/node-*` → `src-tauri/binaries/README.md` 写本地生成办法（`cp $(which node) …`）。推上去 75 个提交，master 里已无 >50 MB 的对象。
+`git@github.com:TestEngineerFish/umbra-studio.git`。第一次推被 GH001 拒：M3-5 把 106 MB 的 `src-tauri/binaries/node-aarch64-apple-darwin` 提交进了历史。处理：打备份标签 `backup/pre-purge-node-binary` → `filter-branch` 从 master 全史剥掉它 → `.gitignore` 加 `src-tauri/binaries/node-*` → `src-tauri/binaries/README.md` 写本地生成办法（`cp $(which node) …`）。推上去 75 个提交，master 里已无 >50 MB 的对象。
 
 ## 三十八、壳内自测：Tauri 壳里第一次真走主流程（2026-09-23）
 
 **为什么要有它**：前端这几轮的实测都在浏览器调试模式（同源）里做；Tauri 壳是另一个环境（跨源、`invoke` 参数走 Rust）。
 macOS 上 `tauri-driver` 不支持，没法从外面驱动 WKWebView，只能让前端**自己在壳里跑一遍**，每步把读数写进文件。
 
-**做法**：Rust 加两条命令 `get_autotest`（读环境变量 `UMBRADESIGN_AUTOTEST_DIR` / `_LOG`）、`autotest_log(line)`（追加写）。
+**做法**：Rust 加两条命令 `get_autotest`（读环境变量 `UMBRASTUDIO_AUTOTEST_DIR` / `_LOG`）、`autotest_log(line)`（追加写）。
 前端 `boot()` 末尾若拿到 dir，就依次：sidecar 状态 → 打开项目 → 选第一份稿 → `validate`（GET）→ `check`（POST）→ `changes` → `chat_list` →
 `build_index`（MCP）→ `inspect_dir`（MCP）→ S6 新窗口 → 主题。只读、只建索引，不改稿。
 
 ```bash
 pkill -f target/debug/app   # 先杀旧实例：single-instance 会让新进程静默退出，读数文件根本不会生成（2026-09-23 栽过两轮）
-UMBRADESIGN_AUTOTEST_DIR=<项目目录> UMBRADESIGN_AUTOTEST_LOG=<读数文件> npx tauri dev --no-watch
+UMBRASTUDIO_AUTOTEST_DIR=<项目目录> UMBRASTUDIO_AUTOTEST_LOG=<读数文件> npx tauri dev --no-watch
 # 看到 {"step":"done"} 就可以杀掉进程；每行一步 JSON
 ```
 
@@ -2677,7 +2677,7 @@ UMBRADESIGN_AUTOTEST_DIR=<项目目录> UMBRADESIGN_AUTOTEST_LOG=<读数文件> 
 
 应用的「项目设置」面板原来只有主题一档；设计系统、限额、回收站、危险操作这些 M1 后端能力只在 S8 设计稿里。现在：
 
-- 本地 API 七条：`project_settings`（GET，一次给全：基本信息 · 设计系统含 token/图标/组件计数 · 限额 · 回收站清单）、`project_update`（POST，改完立刻 `buildProject` 换掉服务里的 Project 对象，下一次校验就用新限额）、`trash_restore` / `trash_purge` / `trash_empty`、`project_archive` / `project_delete`（后者要把项目名敲一遍；两者现在都是移到 `.archived/`，成功后 300ms 停掉本项目的服务）。`refs.ts` 加 `purgeTrash`（只认 `.umbradesign/trash/` 下的路径）与 `emptyTrash`。
+- 本地 API 七条：`project_settings`（GET，一次给全：基本信息 · 设计系统含 token/图标/组件计数 · 限额 · 回收站清单）、`project_update`（POST，改完立刻 `buildProject` 换掉服务里的 Project 对象，下一次校验就用新限额）、`trash_restore` / `trash_purge` / `trash_empty`、`project_archive` / `project_delete`（后者要把项目名敲一遍；两者现在都是移到 `.archived/`，成功后 300ms 停掉本项目的服务）。`refs.ts` 加 `purgeTrash`（只认 `.umbrastudio/trash/` 下的路径）与 `emptyTrash`。
 - S8：判据同 S5（`window.__UD_API`）；`liveVals()` 键名与演示态一模一样，模板不分叉；字段改完即存（600ms 防抖，和 S2 属性面板一个口径，没有「应用」钮）；`?embed=1` 收起索引链接；归档 / 删除成功、回收站恢复后 `postMessage` 给父窗口（`umbradesign-s8`）。重命名 / 移动两行标「未接」—— 后端没有这两个操作，不装有。
 - 应用：设置面板变宽，嵌 S8 iframe；收到 `project-gone` 关项目、`drafts-changed` 刷新列表。**面板打开时整页重绘不再重建它** —— 否则稿件列表一刷新 S8 就整个重载（第一跑就撞上）。
 - `SHELLS` 加 S8，build_index 部署进项目。
@@ -2726,7 +2726,7 @@ UMBRADESIGN_AUTOTEST_DIR=<项目目录> UMBRADESIGN_AUTOTEST_LOG=<读数文件> 
 
 ## 四十四、M6-2 钉在节点上的评论（2026-09-23）
 
-决策 `11` Q14。评论是**项目的**东西（`.umbradesign/comments.json`），不进稿：`{ id, file, node, tag, text, createdAt, resolved, resolvedAt }`。
+决策 `11` Q14。评论是**项目的**东西（`.umbrastudio/comments.json`），不进稿：`{ id, file, node, tag, text, createdAt, resolved, resolvedAt }`。
 
 - 后端 `comments.ts`：`listComments / addComment / updateComment / deleteComment`；本地 API `comments`（GET，可按稿）、`comment_add / comment_update / comment_delete`（POST）；MCP 工具 `list_comments`（模型改稿前能看设计侧留的话）。
 - S2：属性面板底部加「评论」区 —— 只列选中节点的，textarea ⌘⏎ 添加，每条可「已处理 / 恢复」「删除」；`pullComments` 后把未处理计数按节点推给 iframe。
@@ -2742,7 +2742,7 @@ UMBRADESIGN_AUTOTEST_DIR=<项目目录> UMBRADESIGN_AUTOTEST_LOG=<读数文件> 
 
 它给的键 `justDeleted / trashed / actionsFor`、方法 `deleteDraft / undoDelete / settleDeleted`、请求 `POST delete_draft { file }` / `POST restore_draft { file }` 全部照接：本地 API 补这两条路由 —— `delete_draft` 走 `refs.deleteDraft`（回收站语义）；`restore_draft` 只拿到稿名，取回收站里同名最近删的那份 `restoreDraft`。乐观更新由它的稿自己做（先塌行再请求，失败把行放回并说清）。
 
-【实测】Playwright 在部署后的 S1（`index.dc.html`）：行末 ⋯ → 删除 → 该行塌成「已移到回收站 · 撤销」、磁盘上稿进 `.umbradesign/trash/` → 点撤销 → 文件回到原位、行回来。S1 render_check alive、洞 0。
+【实测】Playwright 在部署后的 S1（`index.dc.html`）：行末 ⋯ → 删除 → 该行塌成「已移到回收站 · 撤销」、磁盘上稿进 `.umbrastudio/trash/` → 点撤销 → 文件回到原位、行回来。S1 render_check alive、洞 0。
 
 这一轮设计侧没有欠项；下次发包前照旧 `npm run outgoing`。
 
@@ -2788,3 +2788,13 @@ UMBRADESIGN_AUTOTEST_DIR=<项目目录> UMBRADESIGN_AUTOTEST_LOG=<读数文件> 
 - 名字：「编辑壳 / 稿本身」改叫「编辑 / 预览」，对齐 ClaudeDesign 的 Edit。
 
 【实测】Playwright（`pwtb.mjs` / `pwtb2.mjs`）：工具栏 11 项、嵌入的 S2 可见文字为空；`pick` → 桥 `select` → 属性面板出现（12 个 style + 2 attr + 1 text）→ `clear` 收起；`preset 2 / zoom 0.8 / theme dark` 各自生效并回报；fit 70%；「预览」档只剩 8 项；独立 S2 顶栏照旧。selftest 零 error。
+
+## 四十九、M7-1 改名 Umbra Studio（2026-09-24）
+
+依据 `11` Q25 / Q28：仓库改名（GitHub 侧用户操作）、本地目录 `Geek/UmbraStudio`、`server` 包名 `umbrastudio-server`、MCP server 名 `umbrastudio`（`channel_b` 的白名单 `mcp__umbrastudio__*` 同步）、配置目录 `.umbradesign/` → `.umbrastudio/`、环境变量 `UMBRADESIGN_*` → `UMBRASTUDIO_*`（`PROJECTS_ROOT / CHROMIUM / AI_DEBUG / AUTOTEST_DIR / AUTOTEST_LOG`，无旧名兜底）、Tauri `productName` / `identifier` / 菜单名、发件包名 `UmbraStudio-ui-<时间>.zip`、文档全文（`_archive/` 与 `18` 不动，历史发件包名按原样留）。
+
+**不改的（格式与协议级，`.dc.html` 格式名不改的精神）**：`<!-- umbradesign:resources -->`、`umbradesign:baseline`、`umbradesign:index-data`、`<umbradesign:generated>` 四组注释标记，postMessage 的 `source`（`umbradesign` / `umbradesign-shell` / `umbradesign-s2` / `umbradesign-app` / `umbradesign-s8`），`data-ud-node`、`x-ud-token`、localStorage `ud.*`。改这些会让现有用户稿、`fixtures/` 基准和设计侧手上的底稿全部失配，换不来任何东西。所以 M7-1 验收里「`grep -ri umbradesign` 只剩 git 历史 / `_archive` / `18`」**做不到也不该做**：剩下的命中 = 这几组标记 + `.gitignore` 里刻意保留的旧目录名一行。
+
+**迁移**：`project.ts` 新增 `UD_DIRNAME` / `migrateUdDir(dir)` —— 项目目录下有 `.umbradesign/` 且没有 `.umbrastudio/` 时整目录拷一份（`fs.cp recursive`），旧目录不删；`buildProject`（`loadProject` 两条路都经它）和模块加载时的 `TOOL_ROOT` 各调一次。部署清单与租户 `.gitignore` 模板两个目录名都忽略。
+
+【实测】旧项目副本（`.umbradesign/` 2 个文件）`loadProject` 一次后 `.umbrastudio/` 出现、文件数一致、旧目录仍在；工具根同样迁出 `.umbrastudio/`（`ai_config.json` 在，AI 通道不用重配）。`selftest` 零 error · `lifecycletest` 全通 · `rendertest` 15/15 · `cargo check` 过。

@@ -10,7 +10,7 @@
  * 同一份稿已经在跑就**返回那个作业**，不起第二个（按 file 上锁）。
  *
  * 作业活在 MCP server 进程里，和静态服务同一条命 —— 进程没了作业也没了，
- * 这是对的：读数已经落盘在 `.umbradesign/checks/`（§十五），作业记录本身不必持久化。
+ * 这是对的：读数已经落盘在 `.umbrastudio/checks/`（§十五），作业记录本身不必持久化。
  */
 import { randomBytes } from "node:crypto";
 

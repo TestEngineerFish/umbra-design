@@ -128,7 +128,7 @@ async function main(): Promise<void> {
       } else if (base.sha !== shaOf(cur)) {
         blocking++; fileOk = false;
         console.log(`     ${ylw(`底稿过时 —— 它基于 ${base.sent ?? "?"} 发出的版本（${base.sha}），我们这边之后又改过（现在 ${shaOf(cur)}）`)}`);
-        console.log(dim(`       做法：三方合并 —— 共同祖先是 outgoing/UmbraDesign-ui-${base.sent ?? "<那次>"}.zip 里的同名文件`));
+        console.log(dim(`       做法：三方合并 —— 共同祖先是 outgoing/UmbraStudio-ui-${base.sent ?? "<那次>"}.zip 里的同名文件`));
       } else {
         console.log(`     ${grn(`底稿正确 —— 基于 ${base.sent ?? "?"} 发出的现版`)}`);
       }

@@ -1,6 +1,6 @@
 /** 钉在节点上的评论（doc/12 M6-2，决策 doc/11 Q14）。
  *
- * 存 <项目>/.umbradesign/comments.json —— 和会话一样属于项目，不进稿。
+ * 存 <项目>/.umbrastudio/comments.json —— 和会话一样属于项目，不进稿。
  * 一条评论 = 稿 + 节点地址 + 一句话；可标「已处理」；会话面板能把它一键发给 AI（走方式 ②）。
  * 节点地址会随内容变（doc/09 §二）：改过的节点旧地址找不到时，评论仍保留，只是钉子画不出来 ——
  * 界面上标「节点已变」，不静默丢。
@@ -22,7 +22,7 @@ export interface Comment {
   resolvedAt: string | null;
 }
 
-function file(projectDir: string): string { return join(projectDir, ".umbradesign", "comments.json"); }
+function file(projectDir: string): string { return join(projectDir, ".umbrastudio", "comments.json"); }
 
 export async function listComments(projectDir: string, draft?: string): Promise<Comment[]> {
   const f = file(projectDir);
@@ -34,7 +34,7 @@ export async function listComments(projectDir: string, draft?: string): Promise<
 }
 
 async function save(projectDir: string, all: Comment[]): Promise<void> {
-  await mkdir(join(projectDir, ".umbradesign"), { recursive: true });
+  await mkdir(join(projectDir, ".umbrastudio"), { recursive: true });
   await writeAtomic(file(projectDir), JSON.stringify(all, null, 1) + "\n");
 }
 

@@ -37,7 +37,7 @@ export async function exportProject(
   const projectName = basename(projectDir);
 
   const drafts = readdirSync(projectDir).filter((f) => f.endsWith(".dc.html"));
-  const snapDir = join(projectDir, ".umbradesign/snapshots");
+  const snapDir = join(projectDir, ".umbrastudio/snapshots");
   let versionCount = 0;
   if (existsSync(snapDir)) {
     for (const sub of readdirSync(snapDir)) {

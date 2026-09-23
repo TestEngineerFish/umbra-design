@@ -176,7 +176,7 @@ fn build_menu(app: &tauri::AppHandle) -> Result<tauri::menu::Menu<tauri::Wry>, t
     let about = PredefinedMenuItem::about(app, None, None)?;
     let _separator = PredefinedMenuItem::separator(app)?;
 
-    let app_submenu = SubmenuBuilder::new(app, "UmbraDesign")
+    let app_submenu = SubmenuBuilder::new(app, "Umbra Studio")
         .item(&about)
         .separator()
         .item(&quit)
@@ -551,20 +551,20 @@ fn invoke_mcp_command(
 }
 
 /// 壳内自测（doc/00 §三十八）：macOS 上没有 WebDriver 驱动 WKWebView，只能让前端自己在壳里跑一遍主流程，
-/// 每步把读数经这条命令写进文件。两个环境变量：UMBRADESIGN_AUTOTEST_DIR（要打开的项目目录）、
-/// UMBRADESIGN_AUTOTEST_LOG（读数文件）。都没设时前端什么也不做。
+/// 每步把读数经这条命令写进文件。两个环境变量：UMBRASTUDIO_AUTOTEST_DIR（要打开的项目目录）、
+/// UMBRASTUDIO_AUTOTEST_LOG（读数文件）。都没设时前端什么也不做。
 #[tauri::command]
 fn get_autotest() -> Result<serde_json::Value, String> {
     Ok(serde_json::json!({
-        "dir": std::env::var("UMBRADESIGN_AUTOTEST_DIR").ok(),
-        "log": std::env::var("UMBRADESIGN_AUTOTEST_LOG").ok(),
+        "dir": std::env::var("UMBRASTUDIO_AUTOTEST_DIR").ok(),
+        "log": std::env::var("UMBRASTUDIO_AUTOTEST_LOG").ok(),
     }))
 }
 
 #[tauri::command]
 fn autotest_log(line: String) -> Result<(), String> {
     use std::io::Write;
-    let path = std::env::var("UMBRADESIGN_AUTOTEST_LOG").map_err(|_| "未设 UMBRADESIGN_AUTOTEST_LOG".to_string())?;
+    let path = std::env::var("UMBRASTUDIO_AUTOTEST_LOG").map_err(|_| "未设 UMBRASTUDIO_AUTOTEST_LOG".to_string())?;
     let mut f = std::fs::OpenOptions::new().create(true).append(true).open(&path).map_err(|e| e.to_string())?;
     writeln!(f, "{}", line).map_err(|e| e.to_string())?;
     Ok(())

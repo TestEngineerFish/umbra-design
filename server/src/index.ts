@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/** UmbraDesign MCP server · 入口。契约见 doc/00-MCP 工具契约.md
+/** Umbra Studio MCP server · 入口。契约见 doc/00-MCP 工具契约.md
  *
  * 第一批：检索类 + validate_draft。
  * 写入类（write_draft / patch_draft）、render_check、语义 diff 在后面几批。
@@ -65,7 +65,7 @@ const server = new McpServer(
   { name: "umbradesign", version: VERSION },
   {
     instructions: [
-      "UmbraDesign —— 本地设计稿工具（.dc.html 格式）。",
+      "Umbra Studio —— 本地设计稿工具（.dc.html 格式）。",
       "",
       "调用顺序（doc/00 §八）：",
       "1. get_project        拿到项目路径与限额",
@@ -89,7 +89,7 @@ const server = new McpServer(
 
 server.registerTool("list_projects", {
   title: "列出设计项目",
-  description: "列出项目根下的所有设计项目（租户）。项目根默认 UmbraDesign/projects，可用 --projects-root 或 UMBRADESIGN_PROJECTS_ROOT 指定。",
+  description: "列出项目根下的所有设计项目（租户）。项目根默认 Umbra Studio/projects，可用 --projects-root 或 UMBRASTUDIO_PROJECTS_ROOT 指定。",
   inputSchema: {},
 }, async () => run(async () => {
   const dirs = await listProjectDirs();
@@ -219,7 +219,7 @@ server.registerTool("create_project", {
     name: z.string().describe("项目名（也是目录名，除非另外传 dir）"),
     dir: z.string().optional().describe("项目目录绝对路径。不给时默认 projects/<name>"),
     title: z.string().optional().describe("项目显示标题，不给时等于 name"),
-    designSystemDir: z.string().optional().describe("设计系统目录相对路径，如 _ds/umbra-design-system-xxx"),
+    designSystemDir: z.string().optional().describe("设计系统目录相对路径，如 _ds/umbra-studio-system-xxx"),
     designSystemAlias: z.string().optional().describe("设计系统别名，默认 @ds"),
     tokens: z.string().optional().describe("tokens 文件相对路径，如 umbra-tokens.json"),
     icons: z.string().optional().describe("icons 文件相对路径，如 umbra-icons.json"),
@@ -285,7 +285,7 @@ server.registerTool("create_draft", {
       let tPath = templatePath;
       if (templateName && !tPath) {
         // 从模板目录解析
-        tPath = join(p.dir, ".umbradesign/templates", `${templateName}.dc.html`);
+        tPath = join(p.dir, ".umbrastudio/templates", `${templateName}.dc.html`);
       }
       if (!tPath) throw new Error("source=template 时必须传 templatePath 或 templateName");
       src = { kind: "template", templatePath: tPath };
@@ -407,7 +407,7 @@ server.registerTool("get_delete_impact", {
 server.registerTool("delete_draft", {
   title: "删除稿到回收站",
   description: [
-    "删除稿到 `.umbradesign/trash/<时间戳>/` 目录下（回收站语义，doc/11 Q4）。",
+    "删除稿到 `.umbrastudio/trash/<时间戳>/` 目录下（回收站语义，doc/11 Q4）。",
     "不彻底删除，随时可以恢复。删除前建议先调 get_delete_impact 看影响面。",
     "如果稿被其他稿引用，删除后那些稿会报 E_IMPORT_MISSING。",
   ].join("\n"),
@@ -423,7 +423,7 @@ server.registerTool("delete_draft", {
 
 server.registerTool("list_trash", {
   title: "列出回收站中的稿件",
-  description: "列出回收站（`.umbradesign/trash/`）中的所有已删除稿。",
+  description: "列出回收站（`.umbrastudio/trash/`）中的所有已删除稿。",
   inputSchema: { project: z.string() },
 }, async ({ project }) => run(async () => {
   const p = await loadProject(project);
@@ -439,7 +439,7 @@ server.registerTool("restore_draft", {
   ].join("\n"),
   inputSchema: {
     project: z.string(),
-    trashPath: z.string().describe("回收站路径，如 .umbradesign/trash/2026-09-20T12-00-00-000Z/组件.dc.html"),
+    trashPath: z.string().describe("回收站路径，如 .umbrastudio/trash/2026-09-20T12-00-00-000Z/组件.dc.html"),
   },
 }, async ({ project, trashPath }) => run(async () => {
   const p = await loadProject(project);
@@ -638,7 +638,7 @@ server.registerTool("save_as_template", {
   title: "保存稿为模板",
   description: [
     "把项目中的一份稿保存为模板，之后新建稿时可以基于此模板创建。",
-    "模板存在项目的 .umbradesign/templates/ 目录下。",
+    "模板存在项目的 .umbrastudio/templates/ 目录下。",
   ].join("\n"),
   inputSchema: {
     project: z.string(),
@@ -672,7 +672,7 @@ server.registerTool("delete_template", {
 server.registerTool("export_project", {
   title: "导出项目",
   description: [
-    "把整个项目目录打包成 .tar.gz，含所有稿、快照、changelog 与 .umbradesign/ 下的全部数据。",
+    "把整个项目目录打包成 .tar.gz，含所有稿、快照、changelog 与 .umbrastudio/ 下的全部数据。",
     "导出的文件可以在另一台机器上用 import_project 导入。",
     "outputPath 指定导出文件的绝对路径。",
   ].join("\n"),
@@ -883,7 +883,7 @@ server.registerTool("check_browser", {
   const f = findBrowser();
   const diags = f ? [] : [err(X.IO, "(server)", { kind: "file", name: "chromium" },
     "找不到可用的 Chromium / Chrome",
-    { fix: "装一个 Chrome，或把可执行文件路径写进环境变量 UMBRADESIGN_CHROMIUM" })];
+    { fix: "装一个 Chrome，或把可执行文件路径写进环境变量 UMBRASTUDIO_CHROMIUM" })];
   return envelope({ browser: f, autoDownload: false }, diags);
 }));
 
@@ -1124,8 +1124,8 @@ server.registerTool("build_index", {
     "扫项目目录，把工具界面部署进项目并注入数据：",
     "  index.dc.html                 —— 入口页（设计侧 ui/S1 那份）",
     "  S2…S5-*.dc.html               —— 其余壳页面，必须与稿同源才能点选/调 API",
-    "  .umbradesign/index-data.json  —— 数据（doc/08 S1 的形状）",
-    "  .umbradesign/select-bridge.js —— 预览点选桥，由壳注入 iframe",
+    "  .umbrastudio/index-data.json  —— 数据（doc/08 S1 的形状）",
+    "  .umbrastudio/select-bridge.js —— 预览点选桥，由壳注入 iframe",
     "  _ds-tool/tokens.css           —— 工具皮肤",
     "",
     "⚠️ **先 serve_start 再 build_index**：本地 API 的令牌在这一步注入壳页面。",
@@ -1203,7 +1203,7 @@ server.registerTool("set_ai_config", {
 
 server.registerTool("list_comments", {
   title: "列出钉在节点上的评论",
-  description: "评论存 .umbradesign/comments.json（M6-2）：稿 + 节点地址（data-ud-node）+ 一句话 + 是否已处理。模型改稿前可以看看设计侧留了什么话。",
+  description: "评论存 .umbrastudio/comments.json（M6-2）：稿 + 节点地址（data-ud-node）+ 一句话 + 是否已处理。模型改稿前可以看看设计侧留了什么话。",
   inputSchema: { project: z.string().describe("项目名或绝对目录"), file: z.string().optional().describe("只看这一份稿"), unresolvedOnly: z.boolean().optional().describe("只看没处理的") },
 }, async ({ project, file, unresolvedOnly }) => run(async () => {
   const p = await loadProject(project);
@@ -1214,7 +1214,7 @@ server.registerTool("list_comments", {
 
 server.registerTool("chat_list", {
   title: "列出项目的 AI 会话",
-  description: "会话存 .umbradesign/chats/，与项目绑定。返回 id / 通道 / 模型 / 更新时间 / 条数，按更新时间倒序。",
+  description: "会话存 .umbrastudio/chats/，与项目绑定。返回 id / 通道 / 模型 / 更新时间 / 条数，按更新时间倒序。",
   inputSchema: { project: z.string().describe("项目名") },
 }, async ({ project }) => run(async () => {
   const p = await loadProject(project);
@@ -1280,4 +1280,4 @@ server.registerTool("delete_chat", {
 
 const transport = new StdioServerTransport();
 await server.connect(transport);
-process.stderr.write(`[umbradesign] v${VERSION} 已启动 · 项目根 ${projectsRoot()}\n`);
+process.stderr.write(`[umbrastudio] v${VERSION} 已启动 · 项目根 ${projectsRoot()}\n`);

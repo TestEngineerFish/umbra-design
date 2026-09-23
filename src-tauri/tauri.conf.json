@@ -1,8 +1,8 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "UmbraDesign",
+  "productName": "Umbra Studio",
   "version": "0.1.0",
-  "identifier": "com.umbradesign.app",
+  "identifier": "com.umbrastudio.app",
   "build": {
     "frontendDist": "../server/ui",
     "beforeDevCommand": "npm --prefix server run build",
@@ -12,7 +12,7 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "UmbraDesign",
+        "title": "Umbra Studio",
         "width": 1200,
         "height": 800,
         "resizable": true,

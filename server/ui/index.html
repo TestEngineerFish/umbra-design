@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>UmbraDesign</title>
+<title>Umbra Studio</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none'%3E%3Crect x='1.5' y='1.5' width='13' height='13' rx='3.2' stroke='%233a49cf' stroke-width='1.4'/%3E%3Cpath d='M5 8.2h6M5 5.4h6M5 11h3.2' stroke='%233a49cf' stroke-width='1.4' stroke-linecap='round'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="./_ds-tool/tokens.css">
 <style>
@@ -533,14 +533,14 @@ function renderHome() {
         </div>`;
   appEl.innerHTML = `
     <div class="topbar">
-      <div class="topbar-logo">${ICON.logo} UmbraDesign</div>
+      <div class="topbar-logo">${ICON.logo} Umbra Studio</div>
       <div class="topbar-spacer"></div>
       <button class="btn ghost sm" onclick="openSheet('settings')" title="外观">${ICON.gear} 外观</button>
       <button class="btn" onclick="handleImportDir()" title="选一个目录：已是项目就直接打开；只是一堆 .dc.html 就接管成新项目">${ICON.folder} 导入目录</button>
       <button class="btn primary" onclick="openSheet('newProject')">${ICON.plus} 新建项目</button>
     </div>
     <div class="home"><div class="home-inner">
-      <div class="home-brand"><h1>UmbraDesign</h1><span class="beta">本地 · 设计稿存在自己电脑上</span></div>
+      <div class="home-brand"><h1>Umbra Studio</h1><span class="beta">本地 · 设计稿存在自己电脑上</span></div>
       <div class="home-bar">
         <div class="home-tabs"><button class="home-tab on">项目</button><button class="home-tab" disabled title="设计系统在项目设置里绑定">设计系统</button><button class="home-tab" disabled title="模板库：新建稿件时可选">模板</button></div>
         <div class="topbar-spacer"></div>
@@ -614,7 +614,7 @@ function workspaceKey() { return [state.project && state.project.dir, state.layo
 function topbarHtml() {
   const p = state.project;
   return `<div class="topbar">
-      <div class="topbar-logo" onclick="goHome()" style="cursor:pointer" title="回到项目列表">${ICON.logo} UmbraDesign</div>
+      <div class="topbar-logo" onclick="goHome()" style="cursor:pointer" title="回到项目列表">${ICON.logo} Umbra Studio</div>
       <div class="topbar-sep"></div>
       <div class="topbar-project">
         <span class="topbar-project-name" title="${escHtml(p.dir)}">${escHtml(p.name)}</span>
@@ -1625,7 +1625,7 @@ function openExternal(url, label) {
   // UI-4：S6 是独立整页。应用里开一个新窗口；开不了（没权限 / 浏览器模式）就交给系统浏览器
   if (T && T.webviewWindow && T.webviewWindow.WebviewWindow) {
     try {
-      const w = new T.webviewWindow.WebviewWindow(label || ('w' + Date.now()), { url, title: 'UmbraDesign · 版本对比', width: 1280, height: 800 });
+      const w = new T.webviewWindow.WebviewWindow(label || ('w' + Date.now()), { url, title: 'Umbra Studio · 版本对比', width: 1280, height: 800 });
       w.once('tauri://error', () => { if (T.shell) T.shell.open(url); });
       return;
     } catch (e) { /* 走下面 */ }
@@ -1695,9 +1695,9 @@ async function boot() {
   autotest();
 }
 
-/* ── 壳内自测（doc/00 §三十八）。只在 Tauri 里、且设了 UMBRADESIGN_AUTOTEST_DIR 时跑：
+/* ── 壳内自测（doc/00 §三十八）。只在 Tauri 里、且设了 UMBRASTUDIO_AUTOTEST_DIR 时跑：
    打开项目 → 选第一份稿 → 体检（POST，验 Origin 放行）→ 变更 → 会话列表 → 重建索引 → S6 新窗口，
-   每步一行 JSON 写进 UMBRADESIGN_AUTOTEST_LOG。它只读、只建索引，不改稿。 */
+   每步一行 JSON 写进 UMBRASTUDIO_AUTOTEST_LOG。它只读、只建索引，不改稿。 */
 async function autotest() {
   if (!T) return;
   let cfg = null;

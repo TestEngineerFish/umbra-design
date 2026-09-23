@@ -1,6 +1,6 @@
 /** 工作区：最近项目列表。M1-2
  *
- * 存在工具自己的目录下（TOOL_ROOT/.umbradesign/workspace.json），
+ * 存在工具自己的目录下（TOOL_ROOT/.umbrastudio/workspace.json），
  * 不属于任何设计项目 —— 这是工具行为，不是设计事实。
  *
  * 每条记录：目录绝对路径 + 名称 + 最后打开时间 + 打开次数。
@@ -13,7 +13,7 @@ import { fileURLToPath } from "node:url";
 import { TOOL_ROOT } from "./project.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const UD_DIR = join(TOOL_ROOT, ".umbradesign");
+const UD_DIR = join(TOOL_ROOT, ".umbrastudio");
 const WORKSPACE_FILE = join(UD_DIR, "workspace.json");
 
 const MAX_RECENT = 20;

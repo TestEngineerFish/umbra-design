@@ -1,4 +1,4 @@
-# UmbraDesign
+# Umbra Studio
 
 **一个跑在自己电脑上的设计软件。** 创建和管理设计项目、编辑设计稿 ——
 而设计稿就是 `.dc.html`，一份文件同时是设计稿、规范出处和可运行原型。
@@ -26,7 +26,7 @@
 
 - **Node ≥ 20**（开发用的是 22）
 - **一个 Chrome / Chromium** —— 只有 `render_check` 用它。macOS 上装了
-  Google Chrome 就行，工具自己会找；找不到时用 `UMBRADESIGN_CHROMIUM`
+  Google Chrome 就行，工具自己会找；找不到时用 `UMBRASTUDIO_CHROMIUM`
   指到可执行文件。
 - 不需要联网。React 与 `support.js` 都在 `runtime/` 里 vendor 好了，
   落盘时自动注入离线映射。
@@ -66,7 +66,7 @@ npm --prefix server run ui -- <项目名> --port 4173 --no-open
 应用页面和 Tauri 壳里是同一份前端：首页是项目列表（列表 / 网格、搜索、星标），
 进项目是左会话、右预览，顶部文件页签切稿。预览默认走编辑壳：点选节点、改属性（数字框 /
 拖标签 / token 色板）、双击改文案、留评论、看诊断、看变更、回退版本 —— 这些**不需要模型在场**。
-配了 AI 通道（`.umbradesign/ai_config.json`）后左栏会话可以直接说要改什么。
+配了 AI 通道（`.umbrastudio/ai_config.json`）后左栏会话可以直接说要改什么。
 只看稿件索引页：`http://127.0.0.1:<端口>/index.dc.html`。
 
 要模型参与的是另一件事：让它按需求写稿、改逻辑类、解释变更 —— 那走下面的 MCP。
@@ -79,7 +79,7 @@ npm --prefix server run ui -- <项目名> --port 4173 --no-open
 **Claude Code**
 
 ```bash
-claude mcp add umbradesign -- node /Users/sam/Documents/SourceTree/Geek/UmbraDesign/server/dist/index.js
+claude mcp add umbrastudio -- node /Users/sam/Documents/SourceTree/Geek/UmbraStudio/server/dist/index.js
 ```
 
 **Claude 桌面端** —— 编辑
@@ -90,7 +90,7 @@ claude mcp add umbradesign -- node /Users/sam/Documents/SourceTree/Geek/UmbraDes
   "mcpServers": {
     "umbradesign": {
       "command": "node",
-      "args": ["/Users/sam/Documents/SourceTree/Geek/UmbraDesign/server/dist/index.js"]
+      "args": ["/Users/sam/Documents/SourceTree/Geek/UmbraStudio/server/dist/index.js"]
     }
   }
 }
@@ -99,13 +99,13 @@ claude mcp add umbradesign -- node /Users/sam/Documents/SourceTree/Geek/UmbraDes
 **Codex** —— 编辑 `~/.codex/config.toml`：
 
 ```toml
-[mcp_servers.umbradesign]
+[mcp_servers.umbrastudio]
 command = "node"
-args = ["/Users/sam/Documents/SourceTree/Geek/UmbraDesign/server/dist/index.js"]
+args = ["/Users/sam/Documents/SourceTree/Geek/UmbraStudio/server/dist/index.js"]
 ```
 
 起来之后 stderr 会打一行
-`[umbradesign] v0.1.0 已启动 · 项目根 …`，客户端里能看到 **27 个工具**。
+`[umbrastudio] v0.1.0 已启动 · 项目根 …`，客户端里能看到 **27 个工具**。
 
 ### 6. 设计项目放哪
 
@@ -113,7 +113,7 @@ args = ["/Users/sam/Documents/SourceTree/Geek/UmbraDesign/server/dist/index.js"]
 
 ```bash
 node server/dist/index.js --projects-root /path/to/projects
-UMBRADESIGN_PROJECTS_ROOT=/path/to/projects node server/dist/index.js
+UMBRASTUDIO_PROJECTS_ROOT=/path/to/projects node server/dist/index.js
 ```
 
 > `projects/` **不进这个仓库**。那是用户自己的设计项目，各自独立 git；
@@ -169,7 +169,7 @@ UMBRADESIGN_PROJECTS_ROOT=/path/to/projects node server/dist/index.js
 | 症状 | 原因与处置 |
 | --- | --- |
 | 稿白屏，控制台 `[dc] failed to load React or boot` | 这份稿没走 `write_draft` 落盘，缺 `__resources` 离线映射。用 `write_draft` 重写一次 |
-| `render_check` 报「找不到可用的 Chromium / Chrome」 | 装一个，或设 `UMBRADESIGN_CHROMIUM` |
+| `render_check` 报「找不到可用的 Chromium / Chrome」 | 装一个，或设 `UMBRASTUDIO_CHROMIUM` |
 | 界面上写「✗ 本地 API 没起来」 | 先 `serve_start` 再 `build_index` —— 令牌是 `build_index` 注进页面的 |
 | 双击稿卡死不出东西 | 稿里有 `dc-import`，必须走 `serve_start` |
 | 属性面板说「这个地址失效了」 | 稿在工具之外被改过，地址是内容哈希。回预览里重新点一下那个元素 |

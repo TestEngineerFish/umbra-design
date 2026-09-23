@@ -1,4 +1,4 @@
-# UmbraDesign · 08 工具界面设计需求
+# Umbra Studio · 08 工具界面设计需求
 
 > **这一份是交给 Claude Design 的设计委托单。**
 > 它定**要画哪些屏、每屏有哪些数据和状态、有哪些技术约束**；
@@ -10,7 +10,7 @@
 
 ## 一、背景
 
-UmbraDesign 是一个**本地 MCP server**，功能与 Claude Design 基本重合：
+Umbra Studio 是一个**本地 MCP server**，功能与 Claude Design 基本重合：
 让大模型写 `.dc.html` 设计稿、校验、渲染体检、把变更讲清楚给实现侧。
 格式与运行时沿用现有的那一套（`x-dc` 模板 + `{{ 洞 }}` + 逻辑类 + `support.js`）。
 
@@ -125,7 +125,7 @@ UmbraDesign 是一个**本地 MCP server**，功能与 Claude Design 基本重�
       "elements": 812,
       "version": "v217",
       "updatedAt": "2026-09-17T08:40:12+08:00",
-      "thumb": ".umbradesign/shots/日志@1440x900.png",
+      "thumb": ".umbrastudio/shots/日志@1440x900.png",
       "health": "ok",
       "diagnostics": { "errors": 0, "warnings": 2 },
       "renderMs": 1840,
@@ -419,7 +419,7 @@ UmbraDesign 是一个**本地 MCP server**，功能与 Claude Design 基本重�
 
 ## 三之三、第三批：Umbra Studio 工作台屏（2026-09-23）
 
-> **背景先读 30 秒。** 产品从「PC 端设计软件 UmbraDesign」转成 **Umbra Studio 目录工作台**：
+> **背景先读 30 秒。** 产品从「PC 端设计软件 Umbra Studio」转成 **Umbra Studio 目录工作台**：
 > 打开一个目录，左边和 AI 对话，右边看选中的文件，**按文件类型给不同的预览与编辑方式**；
 > `.dc.html` 仍是最深的一种类型，S1–S10 的能力全部保留。依据 `doc/18`，需求 `doc/01` §4.1 / §4.2。
 >
@@ -582,7 +582,7 @@ UmbraDesign 是一个**本地 MCP server**，功能与 Claude Design 基本重�
 
 | 项 | 要求 |
 | --- | --- |
-| 放哪 | `UmbraDesign/ui/`，工具的一部分 |
+| 放哪 | `Umbra Studio/ui/`，工具的一部分 |
 | 一份稿一屏 | `ui/S1-稿件索引.dc.html` 这样命名 |
 | 共用件 | 拆到 `ui/Components/`，用 `dc-import` 引 |
 | token | `ui/_ds-tool/tokens.css`，`--tool-` 前缀，浅色 + 深色两份 |
@@ -692,7 +692,7 @@ using React and Tailwind CSS"）看着对味，但对这个项目**三处致命*
 | React 组件 + JSX | 稿是 `x-dc` 模板 + `{{ 洞 }}` + 逻辑类，不是 JSX（§2.1、§2.2） |
 | Tailwind utility class | 样式一律写在 `style` 属性上，**明确不要 CSS 类与外部样式表**；Tailwind 还要构建或引 CDN，违反 C1 |
 | 暖米白 + 燃橙色板（`#FBF9F6` / `#D97706`） | 那是 Umbra 那套暖灰 + 橙（`#DEDBD5` / `#E8590C`）的同族 —— §2.4 整条理由就是工具皮肤不能长成某个租户的样子 |
-| 左历史 / 中对话 / 右 Preview-Code 的布局 | 那是「和大模型对话生成 artifact」的产品布局。UmbraDesign 第一阶段**没有对话面板**，调用方是模型；人看的是 S1–S4 |
+| 左历史 / 中对话 / 右 Preview-Code 的布局 | 那是「和大模型对话生成 artifact」的产品布局。Umbra Studio 第一阶段**没有对话面板**，调用方是模型；人看的是 S1–S4 |
 | 预览区放一个占位 dashboard | 预览区是 iframe 装**真稿子**（§2.3） |
 
 那类提示词里**唯一可迁移的**是克制的观感取向：薄边框、不用重投影、
@@ -772,7 +772,7 @@ using React and Tailwind CSS"）看着对味，但对这个项目**三处致命*
 
 - `ui/` 里有 `表单色板与布局方案.zip` 与 `.DS_Store`，清掉
 - `ui/support.js` 与租户目录那份 md5 一致（`951ae391`）。权威副本已收进
-  `UmbraDesign/runtime/`，`ui/` 下那份是它的分发拷贝（与稿同层，见 `00` §三）
+  `Umbra Studio/runtime/`，`ui/` 下那份是它的分发拷贝（与稿同层，见 `00` §三）
 
 > **结论：形态通过，可以出 S3–S5。** 三条改动都不影响形态，并到下一批一起交。
 
@@ -801,8 +801,8 @@ using React and Tailwind CSS"）看着对味，但对这个项目**三处致命*
 
 | 项 | 状态 |
 | --- | --- |
-| React UMD 副本 | 已取（npm `react@18.3.1` / `react-dom@18.3.1` 的 `umd/*.production.min.js`），放进 `UmbraDesign/runtime/`，并分发到 `ui/` |
-| `support.js` 权威副本 | 已收进 `UmbraDesign/runtime/`（md5 `951ae391`） |
+| React UMD 副本 | 已取（npm `react@18.3.1` / `react-dom@18.3.1` 的 `umd/*.production.min.js`），放进 `Umbra Studio/runtime/`，并分发到 `ui/` |
+| `support.js` 权威副本 | 已收进 `Umbra Studio/runtime/`（md5 `951ae391`） |
 | 运行时的位置 | **与稿同层**，不是 `_runtime/` 子目录 —— `<script src>` 相对文档解析，子目录要改每份稿的 src（`00` §三） |
 | 注入器 | `runtime/inject-resources.mjs`，幂等，带 `--check`。**过渡工具**，`write_draft` 上线即废弃 |
 | 实测 | 注入后**断网**打开 S1 / S2：两份 `alive`、零外部请求、控制台零 error。**C1 达成** |

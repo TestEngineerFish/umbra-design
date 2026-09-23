@@ -170,10 +170,10 @@ async function singleRequest(
   /* 端点拼接要保留 baseUrl 自带的路径：智谱是 https://open.bigmodel.cn/api/paas/v4，
      `new URL("/chat/completions", base)` 会把 /api/paas/v4 整段丢掉，POST 到根路径 → nginx 405【实测 2026-09-23】。 */
   const endpoint = cfg.baseUrl.replace(/\/+$/, "") + "/chat/completions";
-  // 排查开关：UMBRADESIGN_AI_DEBUG=<文件路径> 时把请求体原样落到那个文件（不含密钥），拿它去二分 4xx
-  if (process.env.UMBRADESIGN_AI_DEBUG) {
+  // 排查开关：UMBRASTUDIO_AI_DEBUG=<文件路径> 时把请求体原样落到那个文件（不含密钥），拿它去二分 4xx
+  if (process.env.UMBRASTUDIO_AI_DEBUG) {
     const { writeFile } = await import("node:fs/promises");
-    await writeFile(process.env.UMBRADESIGN_AI_DEBUG, JSON.stringify({ endpoint, body }, null, 1)).catch(() => {});
+    await writeFile(process.env.UMBRASTUDIO_AI_DEBUG, JSON.stringify({ endpoint, body }, null, 1)).catch(() => {});
   }
   let resp: Response;
   try {

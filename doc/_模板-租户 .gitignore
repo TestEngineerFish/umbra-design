@@ -1,12 +1,13 @@
 # ── 设计项目（租户）的仓库 ────────────────────────────────────
-# 每个设计项目各自一个 git 仓库。git 在 UmbraDesign 里是【兜底手段】：
-# 主路径是 .umbradesign/snapshots/ 的语义快照 + CHANGELOG-设计侧.md，
+# 每个设计项目各自一个 git 仓库。git 在 Umbra Studio 里是【兜底手段】：
+# 主路径是 .umbrastudio/snapshots/ 的语义快照 + CHANGELOG-设计侧.md，
 # 只有要按任意 git ref 取历史版本时才用到 git（见 doc/07 §七）。
 
 # 工具产物：快照、体检记录、缩略图、索引缓存。可由稿件重算 / 重体检，不必进仓库。
-# （.umbradesign/checks/ 里是 render_check 的读数，带源码 sha256 —— 换机器重跑一次就有）
+# （.umbrastudio/checks/ 里是 render_check 的读数，带源码 sha256 —— 换机器重跑一次就有）
 # ⚠️ 若希望语义 diff 的历史随仓库一起走，把下面这行注释掉，
 #    改为只忽略 shots/ 与 cache/ —— 见 doc/07 §七的两种取法。
+.umbrastudio/
 .umbradesign/
 
 # 工具界面与入口页：不用在这里列。

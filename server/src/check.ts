@@ -37,12 +37,12 @@ export interface CheckRecord {
 export const sha256 = (s: string) => createHash("sha256").update(s, "utf8").digest("hex");
 
 function checkFile(p: Project, relPath: string): string {
-  return join(p.dir, ".umbradesign", "checks", relPath.replace(/[\\/]/g, "__") + ".json");
+  return join(p.dir, ".umbrastudio", "checks", relPath.replace(/[\\/]/g, "__") + ".json");
 }
 
 export async function saveCheck(p: Project, rec: CheckRecord): Promise<string> {
   const f = checkFile(p, rec.file);
-  await mkdir(join(p.dir, ".umbradesign", "checks"), { recursive: true });
+  await mkdir(join(p.dir, ".umbrastudio", "checks"), { recursive: true });
   await writeFile(f, JSON.stringify(rec, null, 1) + "\n", "utf8");
   return f;
 }

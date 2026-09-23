@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* UmbraDesign · 离线资源注入器（过渡工具）
+/* Umbra Studio · 离线资源注入器（过渡工具）
  *
  * 做什么：给目录下每一份 .dc.html 注入 window.__resources 映射，
  *         让 support.js 里硬编码的 React CDN 走同层的本地副本。

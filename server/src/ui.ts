@@ -65,7 +65,7 @@ serveHold(p.name);
 
 const entry = serve.url + "__app/";   // 应用前端本体（doc/00 §四十六）；build_index 的入口页仍在 index.dc.html
 console.log("");
-console.log(`  ${b("UmbraDesign")}  ${p.title}`);
+console.log(`  ${b("Umbra Studio")}  ${p.title}`);
 console.log(`  项目    ${p.dir}`);
 console.log(`  稿件    ${built.drafts} 份` +
   `（ok ${built.byHealth.ok} · warn ${built.byHealth.warn} · error ${built.byHealth.error} · 没体检 ${built.byHealth.unchecked}）`);

@@ -1,0 +1,20 @@
+{
+ "file": "渲染/02-polyline的points-报.dc.html",
+ "checkedAt": "2026-09-23T09:24:22.301Z",
+ "srcSha256": "0270240a627f39ded161249a38d7777652b351e11087330b40bba03c15b4d657",
+ "alive": true,
+ "nodeCount": 18,
+ "renderMs": 1416,
+ "viewport": {
+  "width": 1440,
+  "height": 900
+ },
+ "offline": true,
+ "screenshot": null,
+ "counts": {
+  "unresolvedHoles": 0,
+  "missingResources": 0,
+  "externalRequests": 0,
+  "consoleWarnings": 1
+ }
+}

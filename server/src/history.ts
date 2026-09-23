@@ -1,6 +1,6 @@
 /** 版本历史与变更清单。doc/07 §五、§六、§七
  *
- * 主路径是 .umbradesign/snapshots/ 的快照序列；git 是兜底，只在要按任意 ref
+ * 主路径是 .umbrastudio/snapshots/ 的快照序列；git 是兜底，只在要按任意 ref
  * 取版本时用（07 §七）。实现侧永远不碰 git —— 它读 CHANGELOG-设计侧.md。
  */
 import { execFile } from "node:child_process";
@@ -55,7 +55,7 @@ export function humanTime(iso: string, now: Date = new Date()): string {
 }
 
 export function snapDir(p: Project, relPath: string): string {
-  return join(p.dir, ".umbradesign", "snapshots", relPath.replace(/[\\/]/g, "__"));
+  return join(p.dir, ".umbrastudio", "snapshots", relPath.replace(/[\\/]/g, "__"));
 }
 
 /** 这份稿有哪些快照版本，升序 */

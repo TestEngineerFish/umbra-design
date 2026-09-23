@@ -127,7 +127,7 @@ export async function handleApi(
       /* 应用前端的侧栏要类型 / 健康 / 元素数 / 版本（UI-2 / UI-3），这些 build_index 已经算过并存在
          index-data.json 里 —— 直接读缓存，不在这里重新校验几十份稿。没建过索引就只有文件名。 */
       let indexed: Record<string, unknown> = {};
-      const dataFile = join(p.dir, ".umbradesign", "index-data.json");
+      const dataFile = join(p.dir, ".umbrastudio", "index-data.json");
       if (existsSync(dataFile)) {
         try {
           const data = JSON.parse(await readFile(dataFile, "utf8")) as { drafts?: Array<{ file: string }> };
@@ -330,7 +330,7 @@ export async function handleApi(
       const j = getJob(id);
       if (!j) {
         json(reply, 404, { ok: false, errors: [{ code: "E_JOB_UNKNOWN", message: `没有这个作业：${id}`,
-          fix: "作业记录活在 MCP server 进程里，重启就没了。读数本身在 .umbradesign/checks/，可以直接 GET validate" }] });
+          fix: "作业记录活在 MCP server 进程里，重启就没了。读数本身在 .umbrastudio/checks/，可以直接 GET validate" }] });
         return true;
       }
       json(reply, 200, { ok: j.ok !== false, data: jobView(j) });
@@ -440,7 +440,7 @@ export async function handleApi(
         try { pj = await buildProject(dir); } catch { return null; }
         const files = (await listDrafts(pj)).map((a) => relative(pj!.dir, a).split(sep).join("/")).filter((r) => !isToolPage(r));
         let thumb: string | null = null, generatedAt: string | null = null;
-        const dataFile = join(dir, ".umbradesign", "index-data.json");
+        const dataFile = join(dir, ".umbrastudio", "index-data.json");
         if (existsSync(dataFile)) {
           try {
             const data = JSON.parse(await readFile(dataFile, "utf8")) as { project?: { generatedAt?: string }; drafts?: Array<{ thumb: string | null; elements: number }> };

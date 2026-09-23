@@ -1,0 +1,20 @@
+{
+ "file": "渲染/06-svg的width-报.dc.html",
+ "checkedAt": "2026-09-23T09:24:31.222Z",
+ "srcSha256": "91971a75f0c74f0c358abeb8380f9e7f6088f1929fa48254e202cd3db689b3c9",
+ "alive": true,
+ "nodeCount": 18,
+ "renderMs": 1425,
+ "viewport": {
+  "width": 1440,
+  "height": 900
+ },
+ "offline": true,
+ "screenshot": null,
+ "counts": {
+  "unresolvedHoles": 0,
+  "missingResources": 0,
+  "externalRequests": 0,
+  "consoleWarnings": 2
+ }
+}

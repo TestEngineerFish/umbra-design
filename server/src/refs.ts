@@ -410,7 +410,7 @@ export async function deleteDraftImpact(
 /**
  * 删除稿到回收站。
  *
- * 回收站路径 `.umbradesign/trash/<时间戳>/<原文件名>.dc.html`。
+ * 回收站路径 `.umbrastudio/trash/<时间戳>/<原文件名>.dc.html`。
  * 删除前检查影响面，如果有关联引用方，返回里会带有警告信息。
  * 调用方应该先看影响面，确认后再调这个。
  */
@@ -425,9 +425,9 @@ export async function deleteDraft(
   const abs = draftPath(p, path);
   const impact = await deleteDraftImpact(p, path);
 
-  // 回收站路径：.umbradesign/trash/<ISO时间戳>/<原文件名>
+  // 回收站路径：.umbrastudio/trash/<ISO时间戳>/<原文件名>
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-  const trashDir = join(p.dir, ".umbradesign", "trash", timestamp);
+  const trashDir = join(p.dir, ".umbrastudio", "trash", timestamp);
   await mkdir(trashDir, { recursive: true });
 
   const trashPath = join(trashDir, basename(path));
@@ -446,7 +446,7 @@ export async function listTrash(
   p: Project,
 ): Promise<Array<{ trashPath: string; originalName: string; deletedAt: string }>> {
   const { readdir, stat } = await import("node:fs/promises");
-  const trashRoot = join(p.dir, ".umbradesign", "trash");
+  const trashRoot = join(p.dir, ".umbrastudio", "trash");
   if (!existsSync(trashRoot)) return [];
 
   const items: Array<{ trashPath: string; originalName: string; deletedAt: string }> = [];
@@ -486,7 +486,7 @@ export async function restoreDraft(
     throw new Error(`回收站文件 "${trashPath}" 不存在`);
   }
 
-  // 从路径中推断原始位置：.umbradesign/trash/<时间戳>/<文件名>
+  // 从路径中推断原始位置：.umbrastudio/trash/<时间戳>/<文件名>
   const fileName = basename(trashPath);
   // 默认恢复到项目根
   let restoreAbs = resolve(p.dir, fileName);
@@ -547,11 +547,11 @@ export async function restoreDraft(
   };
 }
 
-/** 彻底删除回收站里的一项（S8 回收站的「彻底删除」）。trashPath 必须在 .umbradesign/trash/ 下 —— 别的路径一律拒绝。 */
+/** 彻底删除回收站里的一项（S8 回收站的「彻底删除」）。trashPath 必须在 .umbrastudio/trash/ 下 —— 别的路径一律拒绝。 */
 export async function purgeTrash(p: Project, trashPath: string): Promise<{ removed: string }> {
   const { rm } = await import("node:fs/promises");
   const rel = trashPath.split("\\").join("/");
-  if (!rel.startsWith(".umbradesign/trash/") || rel.includes("..")) {
+  if (!rel.startsWith(".umbrastudio/trash/") || rel.includes("..")) {
     throw new Error(`只能彻底删除回收站里的条目：${rel}`);
   }
   const abs = join(p.dir, rel);

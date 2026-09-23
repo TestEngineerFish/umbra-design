@@ -367,7 +367,7 @@ export async function runChatSend(p: Project, a: ChatSendArgs): Promise<Envelope
 
     // 系统提示：设计助手角色 + 选中节点上下文
     const systemParts: string[] = [
-      "你是 UmbraDesign 设计助手。你可以通过工具调用读取和修改设计稿。",
+      "你是 Umbra Studio 设计助手。你可以通过工具调用读取和修改设计稿。",
       "改稿前先用 read_draft 读源码：里面每个元素都有 data-ud-node 地址，改一处样式/属性/文案就用 set_prop(node=那个地址)；不要猜地址。",
       "修改稿必须用 write_draft 或 patch_draft 落盘，不要口头说改了什么。",
       "修改前先 validate_draft 确认当前状态，修改后再次 validate 确认无 error。",
@@ -464,7 +464,7 @@ export async function runChatSend(p: Project, a: ChatSendArgs): Promise<Envelope
 
   // 通道 B 的系统提示（含选中节点上下文）
   const bSystemParts: string[] = [
-    "你是 UmbraDesign 设计助手。你可以通过 MCP 工具 umbradesign 读取和修改设计稿。",
+    "你是 Umbra Studio 设计助手。你可以通过 MCP 工具 umbrastudio 读取和修改设计稿。",
     "修改稿必须用 write_draft 或 patch_draft 落盘。修改前先 validate_draft，修改后再次 validate。",
   ];
   if (nodeContext) {

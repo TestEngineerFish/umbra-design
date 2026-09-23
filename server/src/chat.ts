@@ -1,6 +1,6 @@
 /** 会话模型（M2-5）
  *
- * 会话与项目绑定，存 `.umbradesign/chats/`。关掉应用重开会话还在。
+ * 会话与项目绑定，存 `.umbrastudio/chats/`。关掉应用重开会话还在。
  * 每条消息记录角色、内容、工具调用、时间戳。
  */
 
@@ -43,7 +43,7 @@ export interface CreateChatOpts {
 
 // ── 路径 ──
 
-const CHATS_DIR = ".umbradesign" + "/chats";
+const CHATS_DIR = ".umbrastudio" + "/chats";
 
 function chatsDir(projectDir: string): string {
   return join(projectDir, CHATS_DIR);

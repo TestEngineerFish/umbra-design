@@ -6,7 +6,7 @@
  * 2. 四级分级是否正确（有 counts 字段）
  * 3. 能否回退（revert 后稿回到原始状态）
  *
- * 需要 AI 配置才能跑（.umbradesign/ai_config.json）。未配置时整块跳过。
+ * 需要 AI 配置才能跑（.umbrastudio/ai_config.json）。未配置时整块跳过。
  */
 
 import { readFile, writeFile, mkdir, rm } from "node:fs/promises";
@@ -44,7 +44,7 @@ const TEST_DRAFT_CONTENT = `<!DOCTYPE html>
 <x-dc>
 <helmet><style>html,body{margin:0;padding:0}</style></helmet>
 <div style="padding:40px; text-align:center; font-family:system-ui; background:#f5f5f5; min-height:100vh;">
-  <h1 style="color:#1a1a2e; font-size:32px; margin-bottom:16px;">欢迎使用 UmbraDesign</h1>
+  <h1 style="color:#1a1a2e; font-size:32px; margin-bottom:16px;">欢迎使用 Umbra Studio</h1>
   <p style="color:#666; font-size:16px; margin-bottom:24px;">这是一个测试稿</p>
   <button style="padding:12px 32px; background:#0066ff; color:#fff; border:none; border-radius:8px; font-size:16px; cursor:pointer;">点击按钮</button>
 </div>
@@ -71,7 +71,7 @@ async function main() {
   // ── 步骤 1：创建测试项目和稿 ──
   console.log("① 创建测试项目...");
   try {
-    await mkdir(join(TEST_PROJECT, ".umbradesign"), { recursive: true });
+    await mkdir(join(TEST_PROJECT, ".umbrastudio"), { recursive: true });
 
     const projectJson = JSON.stringify({
       name: "test-agent",

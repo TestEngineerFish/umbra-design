@@ -25,7 +25,7 @@ let p: Awaited<ReturnType<typeof loadProject>>;
 
 async function main() {
   // 创建临时目录
-  TEMP = join(tmpdir(), `umbradesign-lifecycle-${Date.now()}`);
+  TEMP = join(tmpdir(), `umbrastudio-lifecycle-${Date.now()}`);
   await mkdir(TEMP, { recursive: true });
   console.log(`临时目录 ${TEMP}`);
 
@@ -58,7 +58,7 @@ async function main() {
     const archiveParent = join(tmpdir());
     try {
       for (const d of await readdir(archiveParent)) {
-        if (d.startsWith("umbradesign-archived-")) {
+        if (d.startsWith("umbrastudio-archived-")) {
           await rm(join(archiveParent, d), { recursive: true, force: true });
         }
       }
@@ -300,7 +300,7 @@ async function step9_updateProject() {
 async function step10_archiveProject() {
   bar("步骤 10：归档项目");
 
-  const archiveDir = join(tmpdir(), `umbradesign-archived-${Date.now()}`);
+  const archiveDir = join(tmpdir(), `umbrastudio-archived-${Date.now()}`);
   const archiveR = await archiveProject(p, archiveDir);
 
   ok(`项目已归档到 ${archiveR.archivePath}`);

@@ -36,7 +36,7 @@ export interface ChannelBResult {
 async function buildMcpConfig(mcpServerPath: string): Promise<string> {
   const cfg = {
     mcpServers: {
-      umbradesign: {
+      umbrastudio: {
         command: "node",
         args: [mcpServerPath],
       },
@@ -48,30 +48,30 @@ async function buildMcpConfig(mcpServerPath: string): Promise<string> {
 /** 列出我们的 MCP 工具名（给 --allowed-tools 用） */
 function listMcpToolNames(): string[] {
   return [
-    "mcp__umbradesign__list_projects",
-    "mcp__umbradesign__get_project",
-    "mcp__umbradesign__list_drafts",
-    "mcp__umbradesign__search_tokens",
-    "mcp__umbradesign__get_token",
-    "mcp__umbradesign__list_components",
-    "mcp__umbradesign__get_component",
-    "mcp__umbradesign__list_icons",
-    "mcp__umbradesign__get_icon",
-    "mcp__umbradesign__get_syntax_guide",
-    "mcp__umbradesign__validate_draft",
-    "mcp__umbradesign__write_draft",
-    "mcp__umbradesign__patch_draft",
-    "mcp__umbradesign__render_check",
-    "mcp__umbradesign__list_versions",
-    "mcp__umbradesign__diff_drafts",
-    "mcp__umbradesign__snapshot_draft",
-    "mcp__umbradesign__get_changes_since",
-    "mcp__umbradesign__revert_to",
-    "mcp__umbradesign__locate_node",
-    "mcp__umbradesign__set_prop",
-    "mcp__umbradesign__list_references",
+    "mcp__umbrastudio__list_projects",
+    "mcp__umbrastudio__get_project",
+    "mcp__umbrastudio__list_drafts",
+    "mcp__umbrastudio__search_tokens",
+    "mcp__umbrastudio__get_token",
+    "mcp__umbrastudio__list_components",
+    "mcp__umbrastudio__get_component",
+    "mcp__umbrastudio__list_icons",
+    "mcp__umbrastudio__get_icon",
+    "mcp__umbrastudio__get_syntax_guide",
+    "mcp__umbrastudio__validate_draft",
+    "mcp__umbrastudio__write_draft",
+    "mcp__umbrastudio__patch_draft",
+    "mcp__umbrastudio__render_check",
+    "mcp__umbrastudio__list_versions",
+    "mcp__umbrastudio__diff_drafts",
+    "mcp__umbrastudio__snapshot_draft",
+    "mcp__umbrastudio__get_changes_since",
+    "mcp__umbrastudio__revert_to",
+    "mcp__umbrastudio__locate_node",
+    "mcp__umbrastudio__set_prop",
+    "mcp__umbrastudio__list_references",
     // 内置工具也授权，以防模型想用
-    "Bash", "Read", "Edit", "Write", "mcp__umbradesign__*",
+    "Bash", "Read", "Edit", "Write", "mcp__umbrastudio__*",
   ];
 }
 
@@ -108,7 +108,7 @@ export async function channelBRun(
   const mcpJson = await buildMcpConfig(cfg.mcpServerPath);
 
   // 写临时 MCP 配置文件
-  const tmpDir = await mkdtemp(join(tmpdir(), "umbradesign-cc-"));
+  const tmpDir = await mkdtemp(join(tmpdir(), "umbrastudio-cc-"));
   const mcpFile = join(tmpDir, "mcp.json");
   await writeFile(mcpFile, mcpJson);
 

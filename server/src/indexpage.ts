@@ -1,7 +1,7 @@
 /** build_index —— 生成项目入口页。doc/08 S1 的数据契约 + doc/01 §4.2 形态 A
  *
  * 产出三样：
- *   .umbradesign/index-data.json   数据（08 S1 的形状，原样）
+ *   .umbrastudio/index-data.json   数据（08 S1 的形状，原样）
  *   index-data.js                  同一份数据挂成 window.__UD_INDEX，给别的页/脚本用
  *                                  （入口页本身不读它，数据是内联注进去的，见 injectIndexData）
  *   _ds-tool/tokens.css            工具皮肤，拷成与设计稿里 href 相同的相对路径
@@ -64,7 +64,7 @@ const rel = (p: Project, abs: string) => relative(p.dir, abs).split(sep).join("/
  *
  * 原来是「有 error → 红；没截图 → 未体检；有 warning → 黄；否则绿」。
  * 那个判据有个静默失败：**截图不随稿改动失效**，改完稿不重新体检，索引上仍然
- * 显示「通过」。现在读 `.umbradesign/checks/` 里的体检记录，并用 srcSha256
+ * 显示「通过」。现在读 `.umbrastudio/checks/` 里的体检记录，并用 srcSha256
  * 比对源码 —— 对不上就是过期，等同于没体检。宁可说不知道，不可以说通过。
  *
  * 另外两条也是这次才对上的：
@@ -196,7 +196,7 @@ export async function indexStatus(p: Project): Promise<{
   exists: boolean; generatedAt: string | null; stale: boolean; reason: string | null;
   changed: string[]; added: string[]; removed: string[]; draftCount: number;
 }> {
-  const dataFile = join(p.dir, ".umbradesign", "index-data.json");
+  const dataFile = join(p.dir, ".umbrastudio", "index-data.json");
   const files = (await listDrafts(p))
     .map((a) => rel(p, a)).filter((r) => !isToolPage(r));
   if (!existsSync(dataFile)) {
@@ -265,7 +265,7 @@ function page(data: IndexData): string {
 </helmet>
 <div style="min-height:100vh">
   <header style="display:flex;align-items:center;gap:12px;padding:14px 20px;border-bottom:1px solid ${t("border")};background:${t("panel")}">
-    <strong style="font-size:14px">UmbraDesign</strong>
+    <strong style="font-size:14px">Umbra Studio</strong>
     <span style="color:${t("border-strong")}">|</span>
     <strong style="font-size:14px">{{ title }}</strong>
     <code style="font-family:${t("mono")};font-size:12px;color:${t("muted")}">{{ name }}</code>
@@ -547,7 +547,7 @@ export async function buildIndex(p: Project, serveUrl: string | null, opts?: Bui
   }
 
   const data = await collectIndex(p);
-  const udDir = join(p.dir, ".umbradesign");
+  const udDir = join(p.dir, ".umbrastudio");
   await mkdir(udDir, { recursive: true });
 
   const dataFile = join(udDir, "index-data.json");
@@ -556,7 +556,7 @@ export async function buildIndex(p: Project, serveUrl: string | null, opts?: Bui
   const jsFile = join(p.dir, "index-data.js");
   await writeAtomic(jsFile, `/* 由 build_index 生成，勿手改 */\nwindow.__UD_INDEX = ${JSON.stringify(data)};\n`);
 
-  // 预览点选桥：壳在 iframe 载入后注入它（doc/00 §十九）。放 .umbradesign/ 下 ——
+  // 预览点选桥：壳在 iframe 载入后注入它（doc/00 §十九）。放 .umbrastudio/ 下 ——
   // 它是工具行为，不是设计事实，不进稿也不进设计系统目录。
   const srcBridge = join(TOOL_ROOT, "runtime", "select-bridge.js");
   let bridgeFile: string | null = null;
@@ -609,7 +609,7 @@ export async function buildIndex(p: Project, serveUrl: string | null, opts?: Bui
 
   /* 部署清单 = 我们真的往项目目录里写过的东西。交给 .gitignore 那一段。 */
   const ignored = await ensureIgnored(p, [
-    "index.dc.html", "index-data.js", "_ds-tool/", "_runtime/", ".umbradesign/",
+    "index.dc.html", "index-data.js", "_ds-tool/", "_runtime/", ".umbrastudio/", ".umbra" + "design/",   // 旧名：迁移后留着不删，也不该进用户仓库
     "react.production.min.js", "react-dom.production.min.js", "support.js",
     ...SHELLS,
   ]);

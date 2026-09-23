@@ -3,7 +3,7 @@
 # 用法：issues/post.sh issues/2026-09-23        （token 读 ~/Documents/SourceTree/Geek/.secrets/gh-token，不打印）
 set -euo pipefail
 DIR="${1:?用法: issues/post.sh <目录>}"
-REPO="TestEngineerFish/umbra-design"
+REPO="TestEngineerFish/umbra-studio"
 export GH_TOKEN="$(cat "$HOME/Documents/SourceTree/Geek/.secrets/gh-token")"
 declare -A COLOR=([type:bug]=d73a4a [type:idea]=a2eeef [type:chore]=cfd3d7 [from:review]=0e8a16 [from:radar]=1d76db [from:user]=fbca04 [p0]=b60205 [p1]=e99695 [p2]=f9d0c4 [待拍板]=5319e7)
 existing="$(gh api "repos/$REPO/labels?per_page=100" -q '.[].name')"

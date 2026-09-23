@@ -37,8 +37,8 @@ function isExecutableFile(p: string): boolean {
 
 /** 浏览器可执行文件：环境变量 → 常见路径。找不到返回 null（不猜、不下载）。 */
 export function findBrowser(): { path: string; from: string } | null {
-  const envPath = process.env.UMBRADESIGN_CHROMIUM;
-  if (envPath && isExecutableFile(envPath)) return { path: envPath, from: "UMBRADESIGN_CHROMIUM" };
+  const envPath = process.env.UMBRASTUDIO_CHROMIUM;
+  if (envPath && isExecutableFile(envPath)) return { path: envPath, from: "UMBRASTUDIO_CHROMIUM" };
   const candidates = [
     "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
     "/Applications/Chromium.app/Contents/MacOS/Chromium",
@@ -130,8 +130,8 @@ export async function renderCheck(
     throw new ToolError(
       err(X.IO, relPath, { kind: "file", name: "chromium" },
         "找不到可用的 Chromium / Chrome，render_check 跑不了",
-        { fix: "装一个 Chrome，或把可执行文件路径写进环境变量 UMBRADESIGN_CHROMIUM。不会自动下载浏览器。" }),
-      { searched: "UMBRADESIGN_CHROMIUM 与常见安装路径" }
+        { fix: "装一个 Chrome，或把可执行文件路径写进环境变量 UMBRASTUDIO_CHROMIUM。不会自动下载浏览器。" }),
+      { searched: "UMBRASTUDIO_CHROMIUM 与常见安装路径" }
     );
   }
 
@@ -295,11 +295,11 @@ export async function renderCheck(
 
     let shot: string | null = null;
     if (alive && opts.screenshot !== false) {
-      const dir = join(p.dir, ".umbradesign", "shots");
+      const dir = join(p.dir, ".umbrastudio", "shots");
       await mkdir(dir, { recursive: true });
       const name = `${relPath.replace(/[\\/]/g, "__").replace(/\.dc\.html$/, "")}@${width}x${height}.png`;
       const okShot = await race(page.screenshot({ path: join(dir, name) }).then(() => true), 8000, false);
-      shot = okShot ? join(".umbradesign", "shots", name).split(sep).join("/") : null;
+      shot = okShot ? join(".umbrastudio", "shots", name).split(sep).join("/") : null;
     }
 
     // ── 诊断 ──

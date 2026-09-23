@@ -65,7 +65,7 @@ for (const f of ["support.js", "react.production.min.js", "react-dom.production.
   await copyFile(join(TOOL_ROOT, "runtime", f), join(pack, f));
 }
 
-await writeFile(join(stage, "README-给设计侧.md"), `# UmbraDesign 界面稿 · ${stamp}
+await writeFile(join(stage, "README-给设计侧.md"), `# Umbra Studio 界面稿 · ${stamp}
 
 这个包里是我们这边 \`ui/\` 的**完整现版**，共 ${drafts.length} 份稿，外加运行时三件套（support.js + 两个 React UMD，和稿同层放）。配套的交办单是 \`doc/14\`。
 
@@ -87,7 +87,7 @@ ${drafts.map((f) => `- \`${f}\``).join("\n")}
    那一步要删除权限；有些环境（沙箱、只读挂载）没有。拷贝只需要写权限。 */
 const outDir = join(TOOL_ROOT, "outgoing");
 await mkdir(outDir, { recursive: true });
-const zipName = `UmbraDesign-ui-${stamp}.zip`;
+const zipName = `UmbraStudio-ui-${stamp}.zip`;
 const tmpZip = join(tmpdir(), zipName);
 await rm(tmpZip, { force: true });
 execFileSync("zip", ["-qr", tmpZip, "."], { cwd: stage });
@@ -96,11 +96,11 @@ await copyFile(tmpZip, zipPath);
 await rm(tmpZip, { force: true });
 
 // 本地发件记录：incoming 用它说清「是基于哪一次发出去的版本」
-const recDir = join(TOOL_ROOT, ".umbradesign", "outgoing");
+const recDir = join(TOOL_ROOT, ".umbrastudio", "outgoing");
 await mkdir(recDir, { recursive: true });
 await writeFile(join(recDir, `${stamp}.json`), JSON.stringify({ sent: stamp, files: record }, null, 2) + "\n");
 await rm(stage, { recursive: true, force: true });
 
 console.log(`✓ 已打包 ${drafts.length} 份稿 → ${zipPath.replace(TOOL_ROOT + "/", "")}`);
-console.log(`  发件记录 .umbradesign/outgoing/${stamp}.json`);
+console.log(`  发件记录 .umbrastudio/outgoing/${stamp}.json`);
 console.log("  把这个 zip 连同 doc/14 一起发给设计侧。");

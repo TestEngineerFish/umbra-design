@@ -30,7 +30,7 @@ const found = findBrowser();
 bar("fixtures/渲染");
 if (!found) {
   console.log("  找不到 chromium / Chrome —— 这一块整块跳过。");
-  console.log("  装一个，或设 UMBRADESIGN_CHROMIUM 指到可执行文件。");
+  console.log("  装一个，或设 UMBRASTUDIO_CHROMIUM 指到可执行文件。");
   console.log("  ⚠️ 跳过不等于通过：这一层是唯一能证明「浏览器到底报不报」的证据。");
   process.exitCode = 0;
 } else {

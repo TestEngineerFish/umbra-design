@@ -1,4 +1,4 @@
-# 接手 UmbraDesign · 给下一个 Agent 的须知
+# 接手 Umbra Studio · 给下一个 Agent 的须知
 
 读完这一份再动手。全文约 5 分钟。
 
@@ -6,7 +6,7 @@
 
 ## 1. 这是什么
 
-**Umbra Studio（原 UmbraDesign，2026-09-23 转向）：一个目录工作台。** 打开一个目录，左边和 AI 对话，
+**Umbra Studio（原名 UmbraDesign，2026-09-23 转向）：一个目录工作台。** 打开一个目录，左边和 AI 对话，
 右边看选中的文件；按文件类型给不同的预览与编辑方式；设计稿 `.dc.html` 是它最深的一种类型 ——
 一份文件同时是设计稿、规范出处和可运行原型，S1–S10 那套能力全部保留。
 
@@ -16,7 +16,7 @@
 同一套能力暴露成本地 MCP server：外部模型客户端直接连，**Umbra 秘书把它当文件面**（`01` §4.8）。
 第一期 PC + Web 同一份前端（`01` §4.9），移动端后期走 Web 版。
 
-**改名尚未执行**（`12` M7-1）：仓库、目录、MCP 名、`.umbradesign/` 都还是旧名，文档里已经用新名。
+**改名已执行**（`12` M7-1，2026-09-24，`00` §四十九）：本地目录 `Geek/UmbraStudio`、包名 `umbrastudio-server`、MCP 名 `umbrastudio`、配置目录 `.umbrastudio/`（旧 `.umbradesign/` 第一次打开时自动拷成新名，旧目录不删）、环境变量 `UMBRASTUDIO_*`。**格式与协议级标识不改**：`<!-- umbradesign:resources -->` 等注释标记、postMessage 的 `source`、`data-ud-node`、`x-ud-token` 照旧（`.dc.html` 格式名不改，Q28）。GitHub 仓库改名由用户操作。
 
 ---
 
@@ -70,7 +70,7 @@ S1 稿件索引那一页仍在 `index.dc.html`，只是不再当入口。Tauri �
 当 MCP 用（给别的模型客户端）：
 
 ```bash
-claude mcp add umbradesign -- node <仓库绝对路径>/server/dist/index.js
+claude mcp add umbrastudio -- node <仓库绝对路径>/server/dist/index.js
 ```
 
 细节见根目录 `README.md`。
@@ -88,14 +88,14 @@ claude mcp add umbradesign -- node <仓库绝对路径>/server/dist/index.js
 5. 通道 B（M2-3）仍等 GLM Coding Plan 续订
 
 **纪律**：旧 vanilla 前端 `server/ui/index.html` **不再加任何功能**，只修阻塞性 bug；新功能全进 `app/`。
-key 只放 `.umbradesign/ai_config.json`（改名后 `.umbrastudio/`），**不进仓库、不写进任何文档**。
+key 只放 `.umbrastudio/ai_config.json`，**不进仓库、不写进任何文档**。
 
 ---
 
 ## 5. 设计侧（ClaudeDesign）：现状与你要做的
 
 你可以**通过 MCP 直接连 ClaudeDesign 的项目**看稿、放文件、取文件，不再经用户中转。
-项目：`https://claude.ai/design/p/26c16030-ab11-411c-a5e9-3beb734e6982`（id `26c16030-ab11-411c-a5e9-3beb734e6982`，名 UmbraDesign）。
+项目：`https://claude.ai/design/p/26c16030-ab11-411c-a5e9-3beb734e6982`（id `26c16030-ab11-411c-a5e9-3beb734e6982`，名 UmbraDesign —— 云端项目名未改）。
 工作方式按 `claude-design-sync` 技能：交办单与回执写进它的 `uploads/`，用户只在它的 chat 里说一句「读 uploads/xxx 照做」；
 它做完用户说一声，我们按 etag 找改动、取回、过 `incoming`。**我们只读它的设计文件，不改、不删。**
 ⚠️【判断】ClaudeDesign MCP 具体有哪些工具（能不能上传文件、能不能发消息）我这边没验证过，
@@ -110,7 +110,7 @@ ClaudeDesign 的项目在云端，**只拥有被上传过的东西**。之前只
 
 ### 5.2 协议（工具化了，照着走）
 
-1. `npm --prefix server run outgoing` → `outgoing/UmbraDesign-ui-<时间>.zip`
+1. `npm --prefix server run outgoing` → `outgoing/UmbraStudio-ui-<时间>.zip`
    （`ui/` 全套 11 份稿 + `_ds-tool` + `_demo` + 说明页；每份稿 `<head>` 后插一行 baseline 注释）。
    **ui/ 有改动就重新打包**，别发旧包
 2. 把包里的文件**整体替换**进 ClaudeDesign 项目里的同名文件，连同 `doc/14` 一起给它
@@ -195,9 +195,9 @@ ClaudeDesign 的项目在云端，**只拥有被上传过的东西**。之前只
 | `npm --prefix server run lifecycletest` | 生命周期回归（建/改/删/恢复全流程） |
 | `npm --prefix server run rendertest` | 渲染回归（要浏览器） |
 | `npm --prefix server run ui -- <项目名>` | 起界面给人用 |
-| `npm --prefix server run outgoing` | 给设计侧打包 ui/（每份稿插 baseline 行），产出 `outgoing/UmbraDesign-ui-<时间>.zip`；**每一轮交办都要随附这个包**（`doc/00` §三十二） |
+| `npm --prefix server run outgoing` | 给设计侧打包 ui/（每份稿插 baseline 行），产出 `outgoing/UmbraStudio-ui-<时间>.zip`；**每一轮交办都要随附这个包**（`doc/00` §三十二） |
 | `npm --prefix server run incoming` | 接设计侧交回来的稿（`ui/_incoming/`），先查底稿（正确 / 过时 / 不明），再查合法性与接线标记；加 `-- --apply` 把过关的稿并入 `ui/` |
-| `UMBRADESIGN_AUTOTEST_DIR=<项目> UMBRADESIGN_AUTOTEST_LOG=<文件> npx tauri dev --no-watch` | 壳内自测：前端在 Tauri 壳里自己走一遍主流程，每步一行 JSON（`doc/00` §三十八）。看到 `"step":"done"` 就杀进程 |
+| `UMBRASTUDIO_AUTOTEST_DIR=<项目> UMBRASTUDIO_AUTOTEST_LOG=<文件> npx tauri dev --no-watch` | 壳内自测：前端在 Tauri 壳里自己走一遍主流程，每步一行 JSON（`doc/00` §三十八）。看到 `"step":"done"` 就杀进程 |
 
 ---
 
@@ -205,7 +205,7 @@ ClaudeDesign 的项目在云端，**只拥有被上传过的东西**。之前只
 
 1. **你自己提交，不用给用户贴 commit 文本。** 一件事做完、回归过了就提交一次，小步走；
    不要把没跑过回归的改动提交上去。**push 前先问用户**（【判断】用户只授权了提交）。
-2. 提交到对的仓库：工具仓库是 `Geek/UmbraDesign`；`projects/` 下每个设计项目各自是一个仓库，
+2. 提交到对的仓库：工具仓库是 `Geek/UmbraStudio`；`projects/` 下每个设计项目各自是一个仓库，
    **开发侧不往那里提交**。
 3. commit 信息不要长：改了什么、为什么、实测读数（例如「selftest 19/19 · rendertest 15/15」）。
    末尾照你所在环境的规矩带署名。
@@ -220,11 +220,11 @@ ClaudeDesign 的项目在云端，**只拥有被上传过的东西**。之前只
 
 ## 9. 当前状态一句话（2026-09-23）
 
-**2026-09-23 夜：转向 Umbra Studio 目录工作台。** `01` 整篇重写、`12` 新立 M7–M10 共 31 条（78 / 113）、`11` Q18–Q29 拍板、`08` §三之三 + `14` 第四轮给设计侧的委托已写好。代码一行未动，下一步从 M7-1 改名开始。以下是转向前的状态，仍然有效：
+**2026-09-24：M7-1 改名已执行（`00` §四十九），仓库 GitHub 侧改名由用户做。** **2026-09-23 夜：转向 Umbra Studio 目录工作台。** `01` 整篇重写、`12` 新立 M7–M10 共 31 条（78 / 113）、`11` Q18–Q29 拍板、`08` §三之三 + `14` 第四轮给设计侧的委托已写好。代码一行未动，下一步从 M7-1 改名开始。以下是转向前的状态，仍然有效：
 
 M0 / M1 已验收；M3 外壳能跑，**应用前端 UI-1..UI-8 已按设计侧裁决落地**；界面十屏全部可渲染、演示态可切，
 S1 索引过期 / S2 版本弹层 / S6 版本对比**接真数据并实测**；**通道 A 已真跑通**，通道 B 等套餐续订。
-**三种编辑方式都在应用里闭环**（① S2 壳属性面板 · ② 选中节点带给 AI · ③ 直接对话），改稿 → 变更卡 → 一键回退；**首页是项目列表、进项目直接工作台、`npm run ui` 打开的就是应用本体**（§四十六）；**S8 项目设置也进了应用**；会话**作业化：边跑边看工具行、真中断**（§四十）；壳内自测（§三十八）在 Tauri 壳里走通主流程并修掉三条壳里的缺陷。进度 78 / 82。仓库已上 GitHub（`origin` = `TestEngineerFish/umbra-design`）。**2026-09-23 第一轮扫测**：12 条发现按 `doc/17` 写成 issue 草稿（`issues/2026-09-23/`，状态表 `doc/12` §九），修掉 8 条（首页打开未建索引项目失败是根因，见 `00` §四十七；画布工具栏合成一条、S2 嵌入模式收掉自己的 chrome，见 §四十八）；Q16（导入稿没有节点地址）、Q17（缩略图）待拍板；GitHub token 缺 Issues 权限，`issues/post.sh` 等权限补上后一键提交。对照 ClaudeDesign 的结论在 `doc/16`，Q13–Q15 已拍板并全部落地（M6-1..5：会话栏在左 + 开关、节点评论、源码视图、演示全屏、文字就地编辑）。剩通道 B 等套餐续订。
+**三种编辑方式都在应用里闭环**（① S2 壳属性面板 · ② 选中节点带给 AI · ③ 直接对话），改稿 → 变更卡 → 一键回退；**首页是项目列表、进项目直接工作台、`npm run ui` 打开的就是应用本体**（§四十六）；**S8 项目设置也进了应用**；会话**作业化：边跑边看工具行、真中断**（§四十）；壳内自测（§三十八）在 Tauri 壳里走通主流程并修掉三条壳里的缺陷。进度 78 / 82。仓库已上 GitHub（`origin` = `TestEngineerFish/umbra-studio`）。**2026-09-23 第一轮扫测**：12 条发现按 `doc/17` 写成 issue 草稿（`issues/2026-09-23/`，状态表 `doc/12` §九），修掉 8 条（首页打开未建索引项目失败是根因，见 `00` §四十七；画布工具栏合成一条、S2 嵌入模式收掉自己的 chrome，见 §四十八）；Q16（导入稿没有节点地址）、Q17（缩略图）待拍板；GitHub token 缺 Issues 权限，`issues/post.sh` 等权限补上后一键提交。对照 ClaudeDesign 的结论在 `doc/16`，Q13–Q15 已拍板并全部落地（M6-1..5：会话栏在左 + 开关、节点评论、源码视图、演示全屏、文字就地编辑）。剩通道 B 等套餐续订。
 
 ⚠️ 先看一眼 `doc/00` §三十、§三十一 —— 曾有三屏被标成 ✅ 而实际渲染不出来
 （校验器当时漏报），补了判据才暴露。

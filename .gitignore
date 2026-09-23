@@ -1,4 +1,4 @@
-# ── UmbraDesign 工具自身的仓库 ────────────────────────────────
+# ── Umbra Studio 工具自身的仓库 ────────────────────────────────
 # 这个仓库只追踪「工具」：doc/ + server/ + runtime/。
 # 用户的设计项目不在这里追踪 —— 见下面 projects/。
 
@@ -43,7 +43,8 @@ pnpm-debug.log*
 /.playwright/
 
 # 工具运行产物
-.umbradesign/
+.umbrastudio/
+.umbradesign/   # 旧名，迁移后留着
 *.log
 
 # 环境与密钥

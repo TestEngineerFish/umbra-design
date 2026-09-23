@@ -1,22 +1,39 @@
 /** 租户（设计项目）解析。doc/00 §三
  *
  * 要点：
- *  - 项目根只是默认在 UmbraDesign/projects，可由 --projects-root / UMBRADESIGN_PROJECTS_ROOT 指定。
+ *  - 项目根只是默认在 Umbra Studio/projects，可由 --projects-root / UMBRASTUDIO_PROJECTS_ROOT 指定。
  *    工具不追踪用户的项目，打包分发后 projects/ 甚至不在安装目录里。
  *  - 租户目录必须自包含：运行时副本与稿同层（不是 _runtime/ 子目录）。
  *  - git 自动探测租户目录下有没有 .git，不手填。
  */
-import { readdir, readFile, stat, rename } from "node:fs/promises";
-import { existsSync } from "node:fs";
+import { readdir, readFile, stat, rename, cp } from "node:fs/promises";
+import { existsSync, cpSync } from "node:fs";
 import { join, resolve, relative, dirname, basename, sep, isAbsolute } from "node:path";
 import { fileURLToPath } from "node:url";
 import { X } from "./codes.js";
 import { err, ToolError } from "./envelope.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-/** 工具自身的根：server/dist/.. → server/.. → UmbraDesign/ */
+/** 工具自身的根：server/dist/.. → server/.. → Umbra Studio/ */
 export const TOOL_ROOT = resolve(HERE, "..", "..");
 export const RUNTIME_DIR = join(TOOL_ROOT, "runtime");
+
+/** 项目 / 工具自己的配置目录名（M7-1 改名，`11` Q28）。旧名 `.umbradesign/` 的项目第一次打开时自动拷成新名，旧目录不删。 */
+export const UD_DIRNAME = ".umbrastudio";
+const LEGACY_UD_DIRNAME = ".umbra" + "design";
+export function migrateUdDirSync(dir: string): boolean {
+  const oldDir = join(dir, LEGACY_UD_DIRNAME), newDir = join(dir, UD_DIRNAME);
+  if (!existsSync(oldDir) || existsSync(newDir)) return false;
+  cpSync(oldDir, newDir, { recursive: true });
+  return true;
+}
+export async function migrateUdDir(dir: string): Promise<boolean> {
+  const oldDir = join(dir, LEGACY_UD_DIRNAME), newDir = join(dir, UD_DIRNAME);
+  if (!existsSync(oldDir) || existsSync(newDir)) return false;
+  await cp(oldDir, newDir, { recursive: true });
+  return true;
+}
+migrateUdDirSync(TOOL_ROOT);   // 工具自己的 ai_config / workspace / outgoing 记录
 
 export interface ProjectConfig {
   name: string;
@@ -52,7 +69,7 @@ const DEFAULT_LIMITS = { elementsWarn: 1200, elementsHard: 1500 };
 export function projectsRoot(): string {
   const flag = process.argv.indexOf("--projects-root");
   if (flag >= 0 && process.argv[flag + 1]) return resolve(process.argv[flag + 1] as string);
-  if (process.env.UMBRADESIGN_PROJECTS_ROOT) return resolve(process.env.UMBRADESIGN_PROJECTS_ROOT);
+  if (process.env.UMBRASTUDIO_PROJECTS_ROOT) return resolve(process.env.UMBRASTUDIO_PROJECTS_ROOT);
   return join(TOOL_ROOT, "projects");
 }
 
@@ -118,6 +135,7 @@ async function readConfig(dir: string): Promise<ProjectConfig | null> {
 }
 
 export async function buildProject(dir: string): Promise<Project> {
+  await migrateUdDir(dir);
   const fallbackName = dir.split(sep).pop() as string;
   const config = (await readConfig(dir)) ?? { name: fallbackName };
   const dsDir = config.designSystem?.dir ?? null;
@@ -224,7 +242,7 @@ function blankDraft(title: string): string {
 </head>
 <body>
 <x-dc>
-<!-- ${title} —— UmbraDesign 空白稿，从这里开始画 -->
+<!-- ${title} —— Umbra Studio 空白稿，从这里开始画 -->
 <div style="padding:80px 20px;text-align:center;color:var(--ink,#888);font-family:system-ui">
   <div style="font-size:16px;font-weight:600;margin-bottom:8px">${title}</div>
   <div style="font-size:13px">选中这个元素，改它的字号 / 颜色 / 文案</div>
@@ -243,13 +261,14 @@ class Component extends DCLogic {
 /** .gitignore 模板。新建项目时拷一次，之后由 build_index 维护生成的那段。 */
 function gitignoreTemplate(): string {
   return `# ── 设计项目（租户）的仓库 ────────────────────────────────────
-# 每个设计项目各自一个 git 仓库。git 在 UmbraDesign 里是【兜底手段】：
-# 主路径是 .umbradesign/snapshots/ 的语义快照 + CHANGELOG-设计侧.md，
+# 每个设计项目各自一个 git 仓库。git 在 Umbra Studio 里是【兜底手段】：
+# 主路径是 .umbrastudio/snapshots/ 的语义快照 + CHANGELOG-设计侧.md，
 # 只有要按任意 git ref 取历史版本时才用到 git（见 doc/07 §七）。
 
 # 工具产物：快照、缩略图、索引缓存。可由稿件重算，不必进仓库。
 # ⚠️ 若希望语义 diff 的历史随仓库一起走，把下面这行注释掉，
 #    改为只忽略 shots/ 与 cache/ —— 见 doc/07 §七的两种取法。
+.umbrastudio/
 .umbradesign/
 
 # 旧宿主（Claude Design）留下的产物，不是设计事实的出处
