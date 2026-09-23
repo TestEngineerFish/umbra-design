@@ -63,7 +63,7 @@ const built = await buildIndex(p, serve.url);
 // 前台用法里它就是唯一的存活理由，必须 ref 回来，否则打印完地址就退了。
 serveHold(p.name);
 
-const entry = serve.url + "index.dc.html";
+const entry = serve.url + "__app/";   // 应用前端本体（doc/00 §四十六）；build_index 的入口页仍在 index.dc.html
 console.log("");
 console.log(`  ${b("UmbraDesign")}  ${p.title}`);
 console.log(`  项目    ${p.dir}`);
@@ -73,8 +73,8 @@ console.log(`  界面    ${built.shells.length} 屏 · 本地 API ${built.api ? 
 console.log("");
 console.log(`  ${b("打开 " + entry)}`);
 console.log("");
-console.log(dim("  在入口页点一份稿 → 单稿预览壳。那里能点选节点、改属性、"));
-console.log(dim("  看诊断、看变更、回退版本 —— 都不需要模型在场。"));
+console.log(dim("  这是和 Tauri 壳里一样的应用界面：左会话、右预览，首页是项目列表。"));
+console.log(dim(`  只看稿件索引页：${serve.url}index.dc.html`));
 console.log("");
 console.log(dim("  回车 = 改完稿之后重跑索引 · Ctrl-C = 退出"));
 console.log("");

@@ -274,6 +274,51 @@
   .chat-empty { margin: auto; text-align: center; color: var(--muted); font-size: 12px; line-height: 1.7; padding: 20px; }
   .chat-empty b { color: var(--text); }
 
+  /* ── 首页 · 项目列表（M6-6，形制照 ClaudeDesign 首页：列表 / 网格、搜索、星标、最近查看） ── */
+  .home { flex: 1; overflow: auto; }
+  .home-inner { max-width: 1120px; margin: 0 auto; padding: 28px 24px 60px; }
+  .home-brand { display: flex; align-items: baseline; gap: 10px; margin-bottom: 26px; }
+  .home-brand h1 { font-size: 26px; font-weight: 640; letter-spacing: -0.02em; }
+  .home-brand .beta { font-size: 12px; color: var(--muted); }
+  .home-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
+  .home-tabs { display: flex; gap: 2px; }
+  .home-tab { height: 32px; padding: 0 12px; border-radius: var(--radius); border: 1px solid transparent; background: transparent; font-size: 14px; color: var(--text2); }
+  .home-tab.on { background: var(--panel); border-color: var(--border); color: var(--text); font-weight: 560; box-shadow: var(--shadow-1, 0 1px 2px rgba(20,26,36,0.06)); }
+  .home-search { display: flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel); min-width: 260px; }
+  .home-search input { border: 0; outline: 0; background: transparent; flex: 1; font-size: 13px; color: var(--text); }
+  .home-search svg { width: 14px; height: 14px; color: var(--muted); }
+  .home-table { border-top: 1px solid var(--border); }
+  .home-head, .home-row { display: grid; grid-template-columns: 96px minmax(0, 1fr) 160px 110px 80px; gap: 16px; align-items: center; }
+  .home-head { padding: 8px 0; font-size: 12px; color: var(--muted); }
+  .home-row { padding: 10px 0; border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.1s; }
+  .home-row:hover { background: var(--hover); }
+  .home-row.current { background: var(--accent-soft); }
+  .thumb { width: 88px; height: 56px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--panel2); overflow: hidden; display: grid; place-items: center; color: var(--muted); font-size: 10px; }
+  .thumb img { width: 100%; height: 100%; object-fit: cover; object-position: top; }
+  .home-name { font-size: 14px; font-weight: 560; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .home-sub { font-size: 11px; color: var(--muted); font-family: var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+  .home-meta { font-size: 12px; color: var(--text2); }
+  .home-tools { display: flex; justify-content: flex-end; gap: 4px; }
+  .star { width: 26px; height: 26px; border: 0; background: transparent; color: var(--muted); border-radius: var(--radius-sm); display: grid; place-items: center; }
+  .star.on { color: var(--warn); }
+  .star:hover { background: var(--hover); }
+  .home-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; padding-top: 12px; }
+  .home-card { border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--panel); overflow: hidden; cursor: pointer; transition: border-color 0.13s; }
+  .home-card:hover { border-color: var(--accent); }
+  .home-card .thumb { width: 100%; height: 130px; border: 0; border-radius: 0; border-bottom: 1px solid var(--border); }
+  .home-card .body { padding: 10px 12px; display: flex; align-items: center; gap: 8px; }
+  .home-card .body > div { min-width: 0; flex: 1; }
+  .home-empty { padding: 40px; text-align: center; color: var(--muted); line-height: 1.7; }
+  /* 预览顶栏的文件页签（进项目后两栏：文件切换在这里，不靠侧栏） */
+  .file-tab { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel); font-size: 13px; font-weight: 560; max-width: 360px; }
+  .file-tab .nm { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .file-tab svg { width: 12px; height: 12px; color: var(--muted); flex: none; }
+  .file-menu { position: absolute; top: 40px; left: 12px; width: 380px; max-height: 60vh; background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-2); z-index: 30; display: flex; flex-direction: column; overflow: hidden; animation: fade-in 0.12s ease; }
+  .file-menu .search { padding: 8px; border-bottom: 1px solid var(--border); }
+  .file-menu .search input { width: 100%; height: 30px; padding: 0 10px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg); color: var(--text); outline: none; font-size: 12px; }
+  .file-menu .list { overflow: auto; }
+  .preview-toolbar { position: relative; }
+
   /* ── Welcome ── */
   .welcome { flex: 1; display: flex; align-items: center; justify-content: center; }
   .welcome-inner { text-align: center; max-width: 520px; padding: 40px; }
@@ -372,7 +417,10 @@ const state = {
   form: {},
   previewMode: load('ud.previewMode', 'shell'),   // shell = 经 S2 预览壳（可点选、可改属性）；raw = 稿本身；code = 源码只读（M6-3）
   layout: load('ud.layout', 'chat-left'),          // M6-1：会话栏默认在左（跟 ClaudeDesign），可切到右
-  sidebarCollapsed: load('ud.sidebarCollapsed', '0') === '1',
+  sidebarCollapsed: load('ud.sidebarCollapsed', '1') === '1',   // 默认收起：两栏，左会话右预览（文件切换在预览顶栏）
+  hub: null,                                       // 浏览器模式下托管本页的那个服务 { url, token }（首页的项目列表走它）
+  home: { projects: [], view: load('ud.homeView', 'list'), q: '', stars: (() => { try { return JSON.parse(load('ud.stars', '[]')); } catch (e) { return []; } })(), loaded: false, loading: false, starOnly: false },
+  fileMenu: false, fileQ: '',
   present: false,                                  // M6-4：演示全屏
   source: null,                                    // 源码视图缓存 { file, source }
   comments: [],                                    // M6-2：当前稿的评论
@@ -409,7 +457,7 @@ function setTheme(t) { state.theme = t; save('ud.theme', t); applyTheme(); rende
 
 // ── 渲染 ──────────────────────────────────────────────
 function render() {
-  if (!state.project) { wsKey = null; renderWelcome(); } else renderWorkspace();
+  if (!state.project) { wsKey = null; renderHome(); } else renderWorkspace();
   renderSheet();
 }
 
@@ -425,53 +473,101 @@ const ICON = {
   close: '<svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>',
   check: '<svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 8.4l3 3 7-7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   compare: '<svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="2" y="3" width="5" height="10" rx="1.2" stroke="currentColor" stroke-width="1.3"/><rect x="9" y="3" width="5" height="10" rx="1.2" stroke="currentColor" stroke-width="1.3"/></svg>',
+  search: '<svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="7" cy="7" r="4.4" stroke="currentColor" stroke-width="1.4"/><path d="M10.4 10.4L14 14" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>',
+  list: '<svg viewBox="0 0 16 16" fill="none" aria-hidden="true" width="14" height="14"><path d="M2.5 4h11M2.5 8h11M2.5 12h11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>',
+  grid: '<svg viewBox="0 0 16 16" fill="none" aria-hidden="true" width="14" height="14"><rect x="2.5" y="2.5" width="4.5" height="4.5" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="9" y="2.5" width="4.5" height="4.5" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="2.5" y="9" width="4.5" height="4.5" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="9" y="9" width="4.5" height="4.5" rx="1" stroke="currentColor" stroke-width="1.3"/></svg>',
+  chevron: '<svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4.5 6.5L8 10l3.5-3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   folder: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg>',
 };
 
-// ── Welcome 屏 ──────────────────────────────────────
-async function renderWelcome() {
-  let recent = [];
-  try {
-    const r = parseMcpResult(await invoke('get_recent_projects_command'));
-    recent = r?.projects || [];
-  } catch (e) { /* ignore */ }
-
+// ── 首页 · 项目列表（M6-6，照 ClaudeDesign 首页） ──────────────
+function renderHome() {
+  const h = state.home;
+  if (!h.loaded && !h.loading) loadProjects();
+  const q = h.q.trim().toLowerCase();
+  let rows = h.projects.filter(p => !q || [p.name, p.title, p.dir].join(' ').toLowerCase().includes(q));
+  if (h.starOnly) rows = rows.filter(p => h.stars.includes(p.dir));
+  rows = rows.slice().sort((a, b) => (b.lastOpened || '').localeCompare(a.lastOpened || '') || a.name.localeCompare(b.name));
+  const starBtn = (p) => `<button class="star ${h.stars.includes(p.dir) ? 'on' : ''}" onclick="event.stopPropagation(); toggleStar('${escHtml(p.dir)}')" title="${h.stars.includes(p.dir) ? '取消星标' : '星标'}"><svg viewBox="0 0 16 16" width="14" height="14" fill="${h.stars.includes(p.dir) ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="1.3"><path d="M8 1.8l1.9 3.9 4.3.6-3.1 3 .7 4.3L8 11.6l-3.8 2 .7-4.3-3.1-3 4.3-.6z"/></svg></button>`;
+  const thumb = (p) => `<div class="thumb">${p.thumb ? `<img src="${p.thumb}" alt="">` : p.missing ? '目录不在' : (p.drafts ? p.drafts + ' 份稿' : '空项目')}</div>`;
+  const body = !h.loaded ? '<div class="home-empty">正在读项目列表…</div>'
+    : !rows.length ? `<div class="home-empty">${h.projects.length ? '没有匹配的项目' : '还没有项目<br>右上角「新建项目」从一个目录起步，或「打开目录」接管已有的稿件目录'}</div>`
+    : h.view === 'grid'
+      ? `<div class="home-grid">${rows.map(p => `<div class="home-card ${p.current ? 'current' : ''}" onclick="openFromHome('${escHtml(p.dir)}')">${thumb(p)}<div class="body"><div><div class="home-name" title="${escHtml(p.dir)}">${escHtml(p.name)}</div><div class="home-sub">${escHtml(p.title && p.title !== p.name ? p.title : p.dir)}</div></div>${starBtn(p)}</div></div>`).join('')}</div>`
+      : `<div class="home-table">
+          <div class="home-head"><span></span><span>名称</span><span>最近打开</span><span>稿件</span><span></span></div>
+          ${rows.map(p => `<div class="home-row ${p.current ? 'current' : ''}" onclick="openFromHome('${escHtml(p.dir)}')" title="${escHtml(p.dir)}">
+            ${thumb(p)}
+            <div><div class="home-name">${escHtml(p.name)}${p.title && p.title !== p.name ? ` <span style="font-weight:400;color:var(--muted)">· ${escHtml(p.title)}</span>` : ''}</div><div class="home-sub">${escHtml(p.dir)}</div></div>
+            <span class="home-meta">${p.lastOpened ? timeAgo(p.lastOpened) : '—'}</span>
+            <span class="home-meta">${p.missing ? '<span style="color:var(--err)">找不到</span>' : (p.drafts ?? '—') + ' 份'}</span>
+            <div class="home-tools">${starBtn(p)}</div>
+          </div>`).join('')}
+        </div>`;
   appEl.innerHTML = `
     <div class="topbar">
       <div class="topbar-logo">${ICON.logo} UmbraDesign</div>
       <div class="topbar-spacer"></div>
-      <button class="btn ghost sm" onclick="openSheet('settings')" title="主题">${ICON.gear} 外观</button>
-      <span class="topbar-status">sidecar: ${state.sidecar === 'running' ? '运行中' : state.sidecar === 'stopped' ? '已停止' : '检测中…'}</span>
+      <button class="btn ghost sm" onclick="openSheet('settings')" title="外观">${ICON.gear} 外观</button>
+      ${T ? `<button class="btn" onclick="handleOpenProject()">${ICON.folder} 打开目录</button>` : ''}
+      <button class="btn primary" onclick="openSheet('newProject')">${ICON.plus} 新建项目</button>
     </div>
-    <div class="welcome">
-      <div class="welcome-inner">
-        <h1><span>UmbraDesign</span></h1>
-        <p class="welcome-sub">本地 PC 端设计软件 · 打开或创建项目开始</p>
-        <div class="welcome-actions">
-          <button class="welcome-btn" onclick="handleOpenProject()">
-            ${ICON.folder}
-            <div><span class="welcome-btn-label">打开项目</span><span class="welcome-btn-desc">选择已有的项目目录</span></div>
-          </button>
-          <button class="welcome-btn" onclick="openSheet('newProject')">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
-            <div><span class="welcome-btn-label">新建项目</span><span class="welcome-btn-desc">创建一个新的设计项目</span></div>
-          </button>
-        </div>
-        ${recent.length ? `
-          <div class="welcome-recent">
-            <h3>最近项目</h3>
-            ${recent.map(p => `
-              <div class="welcome-recent-item" onclick="handleOpenPath('${escHtml(p)}')">
-                <span class="welcome-recent-dot"></span>
-                <span class="welcome-recent-name">${escHtml(baseName(p))}</span>
-                <span class="welcome-recent-path">${escHtml(p)}</span>
-              </div>
-            `).join('')}
-          </div>
-        ` : ''}
+    <div class="home"><div class="home-inner">
+      <div class="home-brand"><h1>UmbraDesign</h1><span class="beta">本地 · 设计稿存在自己电脑上</span></div>
+      <div class="home-bar">
+        <div class="home-tabs"><button class="home-tab on">项目</button><button class="home-tab" disabled title="设计系统在项目设置里绑定">设计系统</button><button class="home-tab" disabled title="模板库：新建稿件时可选">模板</button></div>
+        <div class="topbar-spacer"></div>
+        <div class="home-search">${ICON.search}<input type="text" placeholder="搜索项目" value="${escHtml(h.q)}" oninput="state.home.q=this.value; render()"></div>
+        <button class="btn ghost sm ${h.starOnly ? 'on' : ''}" onclick="state.home.starOnly=!state.home.starOnly; render()" title="只看星标" style="${h.starOnly ? 'color:var(--warn)' : ''}"><svg viewBox="0 0 16 16" width="14" height="14" fill="${h.starOnly ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="1.3"><path d="M8 1.8l1.9 3.9 4.3.6-3.1 3 .7 4.3L8 11.6l-3.8 2 .7-4.3-3.1-3 4.3-.6z"/></svg></button>
+        <div class="radio-row"><button class="${h.view === 'list' ? 'on' : ''}" onclick="setHomeView('list')" title="列表" style="height:28px;padding:0 9px">${ICON.list}</button><button class="${h.view === 'grid' ? 'on' : ''}" onclick="setHomeView('grid')" title="网格" style="height:28px;padding:0 9px">${ICON.grid}</button></div>
       </div>
-    </div>
-  `;
+      ${body}
+    </div></div>`;
+}
+
+async function loadProjects() {
+  const h = state.home;
+  h.loading = true;
+  try {
+    if (!T && state.hub) {
+      const r = await fetch(state.hub.url.replace(/\/$/, '') + '/__ud/projects?token=' + encodeURIComponent(state.hub.token)).then(r => r.json());
+      h.projects = (r.data && r.data.projects) || [];
+    } else if (T) {
+      const [lp, rc] = await Promise.all([mcp('list_projects', {}), invoke('get_recent_projects_command').then(parseMcpResult).catch(() => null)]);
+      const rows = ((lp && lp.data && lp.data.projects) || []).map(p => ({ name: p.name, title: p.title, dir: p.dir, drafts: p.drafts, lastOpened: null, thumb: null }));
+      const recents = (rc && rc.projects) || [];
+      for (const dir of recents) { const hit = rows.find(r => r.dir === dir); if (hit) hit.lastOpened = hit.lastOpened || new Date(0).toISOString(); else rows.push({ name: baseName(dir), title: '', dir, drafts: null, lastOpened: null, thumb: null }); }
+      h.projects = rows;
+    } else h.projects = [];
+  } catch (e) { toast('读项目列表失败：' + e.message, 'error'); h.projects = []; }
+  h.loaded = true; h.loading = false;
+  if (!state.project) render();
+}
+function setHomeView(v) { state.home.view = v; save('ud.homeView', v); render(); }
+function toggleStar(dir) { const st = state.home.stars; const i = st.indexOf(dir); if (i >= 0) st.splice(i, 1); else st.push(dir); save('ud.stars', JSON.stringify(st)); render(); }
+async function openFromHome(dir) {
+  const p = state.home.projects.find(x => x.dir === dir);
+  if (p && p.missing) { toast('这个目录已经不在了', 'error'); return; }
+  if (T) { await openProjectDir(dir).catch(() => {}); return; }
+  // 浏览器模式：让托管本页的服务为那个项目起（或复用）一个服务，跳过去
+  try {
+    const r = await fetch(state.hub.url.replace(/\/$/, '') + '/__ud/open_project?token=' + encodeURIComponent(state.hub.token), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dir }) }).then(r => r.json());
+    if (!r.ok) throw new Error(r.errors?.[0]?.message || '打不开');
+    if (r.data.url === state.hub.url) { state.project = { name: r.data.name, title: r.data.title, dir: r.data.dir, url: r.data.url, token: r.data.token }; await enterProject(); }
+    else location.href = r.data.app;
+  } catch (e) { toast('打开项目失败：' + e.message, 'error'); }
+}
+function goHome() { state.project = null; state.selectedDraft = null; state.picked = null; state.home.loaded = false; wsKey = null; render(); }
+
+/* 进项目：读稿件列表 → 自动打开上次看的稿（没有就第一份）→ 会话。和 ClaudeDesign 一样，进来就是左会话右预览。 */
+async function enterProject() {
+  state.selectedDraft = null; state.diags = []; state.changes = []; state.comments = []; state.source = null;
+  await fetchDrafts();
+  const last = load('ud.lastDraft.' + state.project.dir, '');
+  const pick = state.drafts.find(d => d.file === last) || state.drafts[0];
+  render();
+  if (pick) selectDraft(pick.file);
+  chatLoad();
 }
 
 // ── Workspace 屏 ─────────────────────────────────────
@@ -484,7 +580,7 @@ function workspaceKey() { return [state.project && state.project.dir, state.layo
 function topbarHtml() {
   const p = state.project;
   return `<div class="topbar">
-      <div class="topbar-logo">${ICON.logo} UmbraDesign</div>
+      <div class="topbar-logo" onclick="goHome()" style="cursor:pointer" title="回到项目列表">${ICON.logo} UmbraDesign</div>
       <div class="topbar-sep"></div>
       <div class="topbar-project">
         <span class="topbar-project-name" title="${escHtml(p.dir)}">${escHtml(p.name)}</span>
@@ -527,7 +623,8 @@ function sidebarHtml() {
 function previewToolbarHtml() {
   const p = state.project;
   return `<div class="preview-toolbar">
-            <span class="preview-url" title="${escHtml(p.url + state.selectedDraft)}">${escHtml(state.selectedDraft)}</span>
+            <button class="file-tab" onclick="toggleFileMenu(event)" title="${escHtml(state.selectedDraft)} · 切换稿件" aria-haspopup="true" aria-expanded="${state.fileMenu}"><span class="nm">${escHtml(baseName(state.selectedDraft).replace(/\.dc\.html$/, ''))}</span>${ICON.chevron}</button>
+            ${state.fileMenu ? fileMenuHtml() : ''}
             <div class="radio-row" title="编辑壳：能点选节点、改属性（方式 ①）、把选中节点带给 AI（方式 ②）；稿本身：原样预览；源码：只读">
               <button class="${state.previewMode === 'shell' ? 'on' : ''}" style="height:24px;padding:0 8px;font-size:11px;" onclick="setPreviewMode('shell')">编辑壳</button>
               <button class="${state.previewMode === 'raw' ? 'on' : ''}" style="height:24px;padding:0 8px;font-size:11px;" onclick="setPreviewMode('raw')">稿本身</button>
@@ -539,10 +636,23 @@ function previewToolbarHtml() {
           </div>`;
 }
 
+function fileMenuHtml() {
+  const q = state.fileQ.trim().toLowerCase();
+  const rows = state.drafts.filter(d => !q || [d.title, d.file].join(' ').toLowerCase().includes(q));
+  return `<div class="file-menu" id="fileMenu" onclick="event.stopPropagation()">
+      <div class="search"><input type="text" placeholder="搜稿名、文件名…" value="${escHtml(state.fileQ)}" oninput="state.fileQ=this.value; refreshFileMenu()" autofocus></div>
+      <div class="list" role="listbox">${rows.length ? rows.map(d => draftItemHtml(d)).join('') : '<div class="empty">没有匹配的稿</div>'}</div>
+      <div style="padding:6px 8px;border-top:1px solid var(--border);font-size:11px;color:var(--muted);display:flex;gap:8px;align-items:center"><span>${state.drafts.length} 份稿</span><span class="grow" style="flex:1"></span><button class="btn ghost sm" onclick="state.fileMenu=false; openSheet('newDraft')">${ICON.plus} 新建稿件</button><button class="btn ghost sm" onclick="state.fileMenu=false; toggleSidebar()">列表栏</button></div>
+    </div>`;
+}
+function toggleFileMenu(e) { e.stopPropagation(); state.fileMenu = !state.fileMenu; state.fileQ = ''; render(); if (state.fileMenu) { const i = document.querySelector('#fileMenu input'); if (i) i.focus(); } }
+function refreshFileMenu() { const m = document.getElementById('fileMenu'); if (!m) return; const tpl = document.createElement('template'); tpl.innerHTML = fileMenuHtml().trim(); const nl = tpl.content.firstElementChild.querySelector('.list'); m.querySelector('.list').replaceWith(nl); }
+document.addEventListener('click', (e) => { if (state.fileMenu && !e.target.closest('#fileMenu') && !e.target.closest('.file-tab')) { state.fileMenu = false; render(); } });
+
 function previewHtml() {
-  if (!state.selectedDraft) return `<div class="preview-placeholder">
+  if (!state.selectedDraft) return `<div class="preview-toolbar"><button class="file-tab" onclick="toggleFileMenu(event)"><span class="nm">选一份稿…</span>${ICON.chevron}</button>${state.fileMenu ? fileMenuHtml() : ''}</div><div class="preview-placeholder">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
-            <div>在左侧选择一份稿件预览</div>
+            <div>${state.drafts.length ? '从上面的页签里选一份稿' : '这个项目还没有稿，点右上角「新建稿件」'}</div>
           </div>`;
   return previewToolbarHtml() + (state.previewMode === 'code' ? renderCodeView() : `<div id="previewSlot" style="flex:1;display:flex;min-height:0"></div>`);
 }
@@ -595,7 +705,7 @@ function renderWorkspace() {
     replaceEl(appEl.querySelector('.topbar'), topbarHtml());
     replaceEl(appEl.querySelector('.sidebar'), sidebarHtml());
     const tb = appEl.querySelector('.preview-toolbar');
-    if (tb) replaceEl(tb, previewToolbarHtml());
+    if (tb && state.selectedDraft) replaceEl(tb, previewToolbarHtml());
     if (state.previewMode === 'code') { const cv = appEl.querySelector('.code-view, .preview .preview-placeholder'); if (cv) replaceEl(cv, renderCodeView()); }
     replaceEl(appEl.querySelector('.bottom-panel'), bottomHtml());
     replaceEl(appEl.querySelector('.chat-rail'), renderChatRail());
@@ -1217,7 +1327,8 @@ function setBottomTab(t) {
 }
 
 function selectDraft(file) {
-  state.selectedDraft = file;
+  state.selectedDraft = file; state.fileMenu = false;
+  if (state.project) save('ud.lastDraft.' + state.project.dir, file);
   state.diags = []; state.changes = []; state.source = null; state.comments = [];
   render();
   if (state.previewMode === 'code') loadSource();
@@ -1354,10 +1465,7 @@ async function openProjectDir(dir) {
     if (!serve.data?.url) throw new Error('serve_start 未返回 URL');
     const info = serve.data;
     state.project = { name: info.project || baseName(dir), title: info.title || '', dir, url: info.url, token: info.token };
-    state.selectedDraft = null; state.diags = []; state.changes = [];
-    await fetchDrafts();
-    render();
-    chatLoad();
+    await enterProject();
   } catch (e) {
     toast('打开项目失败: ' + e.message, 'error');
     throw e;   // 调用方（自测、新建项目）要拿到原因
@@ -1369,7 +1477,7 @@ async function handleCloseProject() {
     try { parseMcpResult(await invoke('close_project_command', { name: state.project.name })); } catch (_) { /* ignore */ }
   }
   state.project = null; state.drafts = []; state.selectedDraft = null; state.diags = []; state.changes = [];
-  render();
+  goHome();
 }
 
 async function handleBuildIndex() {
@@ -1477,12 +1585,14 @@ async function boot() {
   applyTheme();
   // 浏览器调试模式：?url=http://127.0.0.1:port/&token=…&name=… —— 只靠本地 API，不经 Tauri
   const q = new URLSearchParams(location.search);
-  if (!T && q.get('url') && q.get('token')) {
-    state.project = { name: q.get('name') || 'project', title: q.get('title') || '', dir: q.get('dir') || '', url: q.get('url'), token: q.get('token') };
+  const app = window.__UD_APP || (q.get('url') && q.get('token') ? { url: q.get('url'), token: q.get('token'), name: q.get('name') || 'project', title: q.get('title') || '', dir: q.get('dir') || '' } : null);
+  if (!T && app) {
+    // 浏览器模式：本页由某个项目的服务托管（/__app/），令牌已注入；首页的项目列表也走这个服务
+    state.hub = { url: app.url, token: app.token };
     state.sidecar = 'running';
-    render();
-    await fetchDrafts();
-    chatLoad();
+    if (q.get('home') === '1') { render(); return; }
+    state.project = { name: app.name, title: app.title, dir: app.dir, url: app.url, token: app.token };
+    await enterProject();
     return;
   }
   try {

@@ -36,7 +36,7 @@ import { renderCheck } from "./render.js";
 import { get as getJob, start as startJob, view as jobView } from "./jobs.js";
 import { changesSince, diffDrafts, humanTime, listVersions, projectChangesSince, readVersionMeta, snapDir, toMarkdown, workspaceState } from "./history.js";
 import { gunzipSync } from "node:zlib";
-import { existsSync } from "node:fs";
+import { existsSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { draftPath, listDrafts, type Project } from "./project.js";
 import { resolveDraft } from "./locate.js";
@@ -45,7 +45,8 @@ import { relative, sep } from "node:path";
 import { ToolError } from "./envelope.js";
 import { buildIndex, indexStatus, isToolPage } from "./indexpage.js";
 import { runChatSend } from "./chat_run.js";
-import { updateProject, archiveProject, deleteProject } from "./project.js";
+import { updateProject, archiveProject, deleteProject, listProjectDirs, buildProject } from "./project.js";
+import { listRecentProjects, touchProject } from "./workspace.js";
 import { listTrash, restoreDraft, purgeTrash, emptyTrash, deleteDraft } from "./refs.js";
 import { listChats, loadChat, createChat } from "./chat.js";
 import { listComments, addComment, updateComment, deleteComment } from "./comments.js";
@@ -426,6 +427,58 @@ export async function handleApi(
       if (!ctl) { json(reply, 200, { ok: true, data: { interrupted: false, note: "作业不在跑或已结束" } }); return true; }
       ctl.abort();
       json(reply, 200, { ok: true, data: { interrupted: true, note: "已发中断：通道 A 在当前这一步结束后停下；已落盘的改动照常可审可回退" } });
+      return true;
+    }
+
+    /* ── 应用首页（doc/12 M6-6）：全部项目 + 最近打开 + 缩略图。这是全局数据，不限于本服务的项目 ── */
+    if (route === "projects" && req.method === "GET") {
+      const recents = (await listRecentProjects()).recents;
+      const seen = new Set<string>();
+      const rows: Array<Record<string, unknown>> = [];
+      const describe = async (dir: string) => {
+        let pj: Project | null = null;
+        try { pj = await buildProject(dir); } catch { return null; }
+        const files = (await listDrafts(pj)).map((a) => relative(pj!.dir, a).split(sep).join("/")).filter((r) => !isToolPage(r));
+        let thumb: string | null = null, generatedAt: string | null = null;
+        const dataFile = join(dir, ".umbradesign", "index-data.json");
+        if (existsSync(dataFile)) {
+          try {
+            const data = JSON.parse(await readFile(dataFile, "utf8")) as { project?: { generatedAt?: string }; drafts?: Array<{ thumb: string | null; elements: number }> };
+            generatedAt = data.project?.generatedAt ?? null;
+            const first = (data.drafts ?? []).filter((d) => d.thumb).sort((a, b) => b.elements - a.elements)[0];
+            if (first?.thumb) {
+              const png = join(dir, first.thumb);
+              if (existsSync(png) && statSync(png).size < 400 * 1024) thumb = "data:image/png;base64," + (await readFile(png)).toString("base64");
+            }
+          } catch { /* 没索引就没缩略图 */ }
+        }
+        return { name: pj.name, title: pj.title, dir: pj.dir, drafts: files.length, gitEnabled: pj.gitEnabled, generatedAt, thumb };
+      };
+      for (const r of recents) {
+        if (seen.has(r.dir)) continue;
+        seen.add(r.dir);
+        if (!r.exists) continue;   // 目录不在的最近项目（多半是回归测试留下的临时目录）不上首页，免得一屏「找不到」
+        const d = await describe(r.dir);
+        if (d) rows.push({ ...d, lastOpened: r.lastOpened, current: r.dir === p.dir });
+      }
+      for (const dir of await listProjectDirs()) {
+        if (seen.has(dir)) continue;
+        seen.add(dir);
+        const d = await describe(dir);
+        if (d) rows.push({ ...d, lastOpened: null, current: dir === p.dir });
+      }
+      json(reply, 200, { ok: true, data: { current: p.dir, projects: rows } });
+      return true;
+    }
+    if (route === "open_project" && req.method === "POST") {
+      if (!originOk(req, ctx.port)) { json(reply, 403, { ok: false, errors: [{ code: "E_API_ORIGIN", message: "Origin 不是本服务" }] }); return true; }
+      const b = await readBody(req);
+      const dir = str(b.dir, "dir");
+      const target = await buildProject(dir);
+      const { serveStart } = await import("./serve.js");
+      const s = await serveStart(target);
+      await touchProject(target.dir, target.name, target.title);
+      json(reply, 200, { ok: true, data: { url: s.url, token: s.token, name: target.name, title: target.title, dir: target.dir, app: s.url + "__app/" } });
       return true;
     }
 

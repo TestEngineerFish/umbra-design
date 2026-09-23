@@ -5,12 +5,12 @@
  *
  * 服务活在 MCP server 进程里，跨工具调用保持运行 —— 起一次，浏览器里一直能开。
  */
-import { createReadStream, existsSync, statSync } from "node:fs";
+import { createReadStream, existsSync, statSync, readFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import { extname, normalize, resolve } from "node:path";
 import { X } from "./codes.js";
 import { err, ToolError } from "./envelope.js";
-import type { Project } from "./project.js";
+import { TOOL_ROOT, type Project } from "./project.js";
 import { API_PREFIX, handleApi, newToken, type ApiCtx } from "./api.js";
 
 const MIME: Record<string, string> = {
@@ -69,6 +69,24 @@ function makeServer(dir: string, onHit: () => void, api: () => ApiCtx | null): S
     let raw: string;
     try { raw = decodeURIComponent((req.url ?? "/").split("?")[0] as string); }
     catch { raw = "/"; }
+    /* /__app/ —— 应用前端本体（server/ui/index.html）由本服务托管：和稿同源，令牌注入，
+       浏览器里打开就是和 Tauri 壳里一模一样的界面（doc/00 §四十六）。 */
+    if (raw === "/__app" || raw === "/__app/" || raw === "/__app/index.html") {
+      const c = api();
+      const html = readFileSync(resolve(TOOL_ROOT, "server", "ui", "index.html"), "utf8");
+      const boot = c ? `<script>window.__UD_APP=${JSON.stringify({ url: `http://127.0.0.1:${c.port}/`, token: c.token, name: c.project.name, title: c.project.title, dir: c.project.dir })};</script>` : "";
+      reply.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
+      reply.end(html.replace(/<head>/i, "<head>" + boot));
+      return;
+    }
+    if (raw.startsWith("/__app/")) {
+      const f = resolve(TOOL_ROOT, "server", "ui", "." + normalize(raw.slice("/__app".length)));
+      if (f.startsWith(resolve(TOOL_ROOT, "server", "ui")) && existsSync(f) && !statSync(f).isDirectory()) {
+        reply.writeHead(200, { "content-type": MIME[extname(f).toLowerCase()] ?? "application/octet-stream", "cache-control": "no-store" });
+        createReadStream(f).pipe(reply);
+        return;
+      }
+    }
     if (raw === "/" || raw.endsWith("/")) raw += "index.dc.html";
     const abs = resolve(dir, "." + normalize(raw));
     if (!abs.startsWith(dir) || !existsSync(abs) || statSync(abs).isDirectory()) {

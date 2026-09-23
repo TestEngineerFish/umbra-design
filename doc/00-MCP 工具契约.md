@@ -2745,3 +2745,15 @@ UMBRADESIGN_AUTOTEST_DIR=<项目目录> UMBRADESIGN_AUTOTEST_LOG=<读数文件> 
 
 这一轮设计侧没有欠项；下次发包前照旧 `npm run outgoing`。
 
+## 四十六、入口对齐 ClaudeDesign：首页项目列表 · 进项目直接工作台 · 浏览器入口统一（2026-09-23）
+
+用户跑 `npm run ui` 看到的是 S1 稿件索引页，和 ClaudeDesign 的首页（项目列表）/ 项目页（左聊天右画布）都不像。根因是入口分裂：S1 那十屏是浏览器形态的设计稿，应用前端是后来另起的一页，文档的「看界面」又指向前者。三处一起改：
+
+- **`/__app/` 由 sidecar 托管应用前端**（`serve.ts`）：读 `server/ui/index.html`，`<head>` 注入 `window.__UD_APP = { url, token, name, title, dir }`；`/__app/_ds-tool/…` 从 `server/ui/` 出。和稿同源，所有 API 直接用。`npm run ui` 打开的就是它；`index.dc.html` 退成 build_index 的入口页备用。
+- **首页 = 项目列表**（M6-6）：新路由 `projects`（全局：最近打开 + projects/ 根下全部，目录已不在的不列；缩略图取索引里元素最多且有截图的那份，base64 内联）；前端列表 / 网格、搜索、星标（本地）、最近打开时间、当前项目高亮；`open_project` 路由给别的项目起服务并跳到它的 `/__app/`。Tauri 里走 `list_projects` + 最近项目（没缩略图）。
+- **进项目直接工作台**（M6-7）：`enterProject()` 读稿件列表后自动打开上次看的稿（`ud.lastDraft.<dir>`）或第一份；稿件列表默认收成窄条 → 两栏；文件切换放进预览顶栏的页签下拉（带搜索、新建稿件、展开列表栏）；Logo 回首页。
+
+缩略图只有跑过体检的稿才有（`checks/*.png`），没跑过的显示稿数。
+
+【实测】Playwright 用真项目 `Umbra_design`（29 份稿）：`/__app/` 打开即左会话 + 右预览（自动开 PC 吐司），列序 `chat-rail · sidebar.collapsed · preview`；文件页签下拉 29 行；Logo 回首页列出 3 个真实项目（临时目录已滤掉）；列表 / 网格可切；点另一个项目 → 起它的服务并跳过去，自动开了它上次看的稿。
+
