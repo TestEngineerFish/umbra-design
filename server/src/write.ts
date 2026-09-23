@@ -8,6 +8,7 @@
  * ⚠️ 当前 ③ 只写快照，还不产 CHANGELOG —— changelog 的内容要靠语义 diff，
  * diff 在下一批。快照从第一次落盘就开始攒，所以不会丢历史。
  */
+import { emit } from "./events.js";
 import { mkdir, readdir, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { createHash } from "node:crypto";
@@ -166,6 +167,7 @@ export async function writeDraft(
   /* 版本元数据（S2 版本弹层，设计侧 §3.2）：来源 · 时间 · 一句摘要。
      第一版一律「新建」；摘要取变更结论（最重的那一级），第一版就写元素数。
      默认来源是 AI —— 走 MCP 的调用方都是模型；人手改的入口（本地 API）自己标「人手改」。 */
+  emit("write", p.dir, { file: relPath, version, origin: opts?.origin ?? null });
   await recordVersionMeta(p, relPath, version, {
     origin: version === "v1" ? "新建" : (opts?.origin ?? "AI"),
     capturedAt: snap.capturedAt,

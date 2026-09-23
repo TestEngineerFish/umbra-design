@@ -4,6 +4,7 @@
  * 每条消息记录角色、内容、工具调用、时间戳。
  */
 
+import { emit } from "./events.js";
 import { readFile, mkdir, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
@@ -127,5 +128,6 @@ export async function addMessage(projectDir: string, sessionId: string, entry: O
   };
   session.messages.push(msg);
   await saveChat(projectDir, session);
+  emit("chat", projectDir, { sessionId, entry: { role: entry.role, toolName: (entry as { toolName?: string }).toolName ?? null } });
   return session;
 }

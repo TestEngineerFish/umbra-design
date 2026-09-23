@@ -5,9 +5,11 @@
  *
  * 服务活在 MCP server 进程里，跨工具调用保持运行 —— 起一次，浏览器里一直能开。
  */
-import { createReadStream, existsSync, statSync, readFileSync } from "node:fs";
+import { createReadStream, existsSync, statSync, readFileSync, watch, type FSWatcher } from "node:fs";
 import { createServer, type Server } from "node:http";
-import { extname, normalize, resolve } from "node:path";
+import { extname, normalize, resolve, relative, sep } from "node:path";
+import { WebSocketServer, type WebSocket } from "ws";
+import { emit, subscribe } from "./events.js";
 import { X } from "./codes.js";
 import { err, ToolError } from "./envelope.js";
 import { TOOL_ROOT, type Project } from "./project.js";
@@ -22,7 +24,20 @@ const MIME: Record<string, string> = {
   ".md": "text/markdown; charset=utf-8",
 };
 
-interface Running { server: Server; port: number; dir: string; startedAt: string; hits: number; token: string; project: Project }
+interface Running { server: Server; port: number; dir: string; startedAt: string; hits: number; token: string; project: Project; wss: WebSocketServer | null; watcher: FSWatcher | null; unsubscribe: (() => void) | null }
+
+/** 新前端（app/dist，M7-2）；没 build 过就退回旧前端 server/ui/index.html，命令行提示去 build。 */
+const APP_DIST = resolve(TOOL_ROOT, "app", "dist");
+const LEGACY_UI = resolve(TOOL_ROOT, "server", "ui");
+export function appDistReady(): boolean { return existsSync(resolve(APP_DIST, "index.html")); }
+
+function serveStatic(root: string, rel: string, reply: import("node:http").ServerResponse): boolean {
+  const f = resolve(root, "." + normalize(rel));
+  if (!f.startsWith(root) || !existsSync(f) || statSync(f).isDirectory()) return false;
+  reply.writeHead(200, { "content-type": MIME[extname(f).toLowerCase()] ?? "application/octet-stream", "cache-control": "no-store" });
+  createReadStream(f).pipe(reply);
+  return true;
+}
 
 /** 进程级注册表：项目名 → 正在跑的服务 */
 const running = new Map<string, Running>();
@@ -69,24 +84,26 @@ function makeServer(dir: string, onHit: () => void, api: () => ApiCtx | null): S
     let raw: string;
     try { raw = decodeURIComponent((req.url ?? "/").split("?")[0] as string); }
     catch { raw = "/"; }
-    /* /__app/ —— 应用前端本体（server/ui/index.html）由本服务托管：和稿同源，令牌注入，
-       浏览器里打开就是和 Tauri 壳里一模一样的界面（doc/00 §四十六）。 */
-    if (raw === "/__app" || raw === "/__app/" || raw === "/__app/index.html") {
-      const c = api();
-      const html = readFileSync(resolve(TOOL_ROOT, "server", "ui", "index.html"), "utf8");
-      const boot = c ? `<script>window.__UD_APP=${JSON.stringify({ url: `http://127.0.0.1:${c.port}/`, token: c.token, name: c.project.name, title: c.project.title, dir: c.project.dir })};</script>` : "";
+    /* /__app/ —— 应用前端本体由本服务托管：和稿同源，令牌注入（doc/00 §四十六）。
+       M7-2 起是 app/dist（Vite 构建产物）；没 build 过退回旧前端。旧前端另挂在 /__legacy/ 直到 M7-8 退役。 */
+    const c = api();
+    const boot = (front: "app" | "legacy") => c ? `<script>window.__UD_APP=${JSON.stringify({ url: `http://127.0.0.1:${c.port}/`, token: c.token, name: c.project.name, title: c.project.title, dir: c.project.dir, ws: `ws://127.0.0.1:${c.port}${API_PREFIX}ws`, front })};</script>` : "";
+    const useApp = appDistReady();
+    if (raw === "/__app" || raw === "/__app/" || raw === "/__app/index.html" || (useApp && raw.startsWith("/__app/") && !existsSync(resolve(APP_DIST, "." + normalize(raw.slice("/__app".length)))))) {
+      // SPA：/__app/ 下任何不是静态文件的路径都回 index.html（前端自己按路径分页）
+      const html = readFileSync(useApp ? resolve(APP_DIST, "index.html") : resolve(LEGACY_UI, "index.html"), "utf8");
       reply.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
-      reply.end(html.replace(/<head>/i, "<head>" + boot));
+      reply.end(html.replace(/<head>/i, "<head>" + boot(useApp ? "app" : "legacy")));
       return;
     }
-    if (raw.startsWith("/__app/")) {
-      const f = resolve(TOOL_ROOT, "server", "ui", "." + normalize(raw.slice("/__app".length)));
-      if (f.startsWith(resolve(TOOL_ROOT, "server", "ui")) && existsSync(f) && !statSync(f).isDirectory()) {
-        reply.writeHead(200, { "content-type": MIME[extname(f).toLowerCase()] ?? "application/octet-stream", "cache-control": "no-store" });
-        createReadStream(f).pipe(reply);
-        return;
-      }
+    if (raw.startsWith("/__app/") && serveStatic(useApp ? APP_DIST : LEGACY_UI, raw.slice("/__app".length), reply)) return;
+    if (raw === "/__legacy" || raw === "/__legacy/" || raw === "/__legacy/index.html") {
+      const html = readFileSync(resolve(LEGACY_UI, "index.html"), "utf8");
+      reply.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
+      reply.end(html.replace(/<head>/i, "<head>" + boot("legacy")));
+      return;
     }
+    if (raw.startsWith("/__legacy/") && serveStatic(LEGACY_UI, raw.slice("/__legacy".length), reply)) return;
     if (raw === "/" || raw.endsWith("/")) raw += "index.dc.html";
     const abs = resolve(dir, "." + normalize(raw));
     if (!abs.startsWith(dir) || !existsSync(abs) || statSync(abs).isDirectory()) {
@@ -135,9 +152,10 @@ export async function serveStart(p: Project, wantPort?: number): Promise<ServeIn
   if (cur) return info(p.name, cur);
 
   const rec: Running = { server: null as unknown as Server, port: 0, dir: p.dir,
-    startedAt: new Date().toISOString(), hits: 0, token: newToken(), project: p };
+    startedAt: new Date().toISOString(), hits: 0, token: newToken(), project: p, wss: null, watcher: null, unsubscribe: null };
   rec.server = makeServer(p.dir, () => { rec.hits++; },
     () => (rec.port ? { project: rec.project, token: rec.token, port: rec.port } : null));
+  attachWs(rec);
 
   await new Promise<void>((res, rej) => {
     rec.server.on("error", (e: NodeJS.ErrnoException) => {
@@ -173,6 +191,7 @@ export function serveHold(name: string): boolean {
 export function serveStop(name: string): { stopped: boolean } {
   const r = running.get(name);
   if (!r) return { stopped: false };
+  r.unsubscribe?.(); r.watcher?.close(); r.wss?.close();
   r.server.close();
   running.delete(name);
   return { stopped: true };
@@ -186,4 +205,42 @@ export function serveOf(name: string): ServeInfo | null {
 
 export function serveStatus(): ServeInfo[] {
   return [...running.entries()].map(([n, r]) => info(n, r));
+}
+
+/* ── WebSocket（M7-4）：/__ud/ws?token=<令牌>。令牌与 Origin 的门槛和 HTTP 一样。
+   连接上先回 hello；之后把事件总线里属于本项目（或全局）的事件原样推过去；
+   同时监听项目目录，磁盘上文件变了（外部编辑器、git checkout）推一条 fs。 ── */
+function attachWs(rec: Running): void {
+  const wss = new WebSocketServer({ noServer: true });
+  rec.wss = wss;
+  rec.server.on("upgrade", (req, socket, head) => {
+    const url = new URL(req.url ?? "/", `http://127.0.0.1:${rec.port}`);
+    const o = req.headers.origin;
+    const originOk = !o || /^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(o) || o === "null";
+    if (url.pathname !== API_PREFIX + "ws" || url.searchParams.get("token") !== rec.token || !originOk) {
+      socket.write("HTTP/1.1 403 Forbidden\r\n\r\n"); socket.destroy(); return;
+    }
+    wss.handleUpgrade(req, socket, head, (ws) => wss.emit("connection", ws, req));
+  });
+  wss.on("connection", (ws: WebSocket) => {
+    ws.send(JSON.stringify({ type: "hello", projectDir: rec.dir, payload: { project: rec.project.name, port: rec.port }, at: new Date().toISOString() }));
+  });
+  rec.unsubscribe = subscribe((e) => {
+    if (e.projectDir && e.projectDir !== rec.dir) return;
+    const line = JSON.stringify(e);
+    for (const c of wss.clients) if (c.readyState === c.OPEN) c.send(line);
+  });
+  // 磁盘监听：只报稿与文档一类，工具自己的产物（.umbrastudio/、快照）不报；200ms 合并一次
+  try {
+    let pending = new Set<string>(); let timer: NodeJS.Timeout | null = null;
+    rec.watcher = watch(rec.dir, { recursive: true }, (_ev, name) => {
+      if (!name) return;
+      const rel = String(name).split(sep).join("/");
+      if (rel.startsWith(".") || rel.includes("/.") || rel.includes("node_modules")) return;
+      if (!/\.(dc\.html|md|html|css|js|json|png|jpe?g|webp|gif|svg)$/i.test(rel)) return;
+      pending.add(rel);
+      if (!timer) timer = setTimeout(() => { const changes = [...pending]; pending = new Set(); timer = null; emit("fs", rec.dir, { changes }); }, 200);
+    });
+    rec.watcher.unref?.();
+  } catch { rec.watcher = null; /* 平台不支持 recursive 就不监听，事件其它三种照推 */ }
 }

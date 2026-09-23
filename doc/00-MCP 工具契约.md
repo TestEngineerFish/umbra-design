@@ -2859,3 +2859,18 @@ S2 放在 `outgoing/手动拖入/S2-单稿预览壳.dc.html`，请用户拖进�
 **边界再确认一次**：单个文件 > ~100 KB 经 MCP 内联传不动（上轮 react-dom 132 KB，这轮 S2 132 KB）。S2 已经到这个尺寸，后面若还长，要么拆成子组件（`dc-import`），要么发包时改走用户拖入。
 
 触发句：「读 uploads/21-交办单（2026-09-23 第四轮）.md 照做」。
+
+## 五十二、M7-2 / M7-3 / M7-4：新前端骨架 app/ · host adapter · 核心侧 HTTP + WS（2026-09-24）
+
+**app/**（Vite 5 + React 18 + TS + Tailwind 3，与 UmbraPC 同栈，版本对齐它的 package.json）。`base: "/__app/"`，产物 `app/dist/`（不进仓库）。皮肤 token 直接 `@import` 一份 `ui/_ds-tool/tokens.css` 的拷贝（`src/tokens.css`），Tailwind 颜色名全部指向 `--tool-*` 变量，浅深两份靠 CSS 变量切，**token 名没换**。骨架只有两页：首页壳（项目列表 + 搜索 + 导入目录 + 在访达中显示）和空工作台（顶栏 · 会话栏三态 · 预览区永远最大 · 按类型出现的从属面板 · < 1100 px 抽屉），功能一个都没平移（M7-5 / M7-6）。
+
+**host adapter**（`app/src/host/`）：`types.ts` 接口 `pickDirectory / revealInFinder / openExternal / notify / setTitle` + `capabilities()`；`browser.ts` 实现 —— 目录选择框没有（`capabilities().pickDirectory.why` 说清，首页给一个粘路径的输入框），`revealInFinder` 走本地 API `reveal_dir`，通知退化成页面内 toast；`index.ts` 是前端里唯一知道壳存在的地方：`window.umbraHost` 在就是 desktop（M9-2 由 preload 挂上），否则 browser。验收 `grep -r "electron\|tauri" app/src` → **零命中**（大小写不敏感也只命中 `host/` 两处注释）。
+
+**核心侧 HTTP + WS**（M7-4）：
+- `events.ts` 事件总线：`emit(type, projectDir, payload)` / `subscribe`。四种事件都是「提醒」，前端收到后按需再 HTTP 拉正文：`job`（`jobs.start` 起 / 完）、`chat`（`chat.addMessage`）、`write`（`writeDraft` 落盘后；`createDraft` 也发一条 —— 它没走 `writeDraft`，直接 `writeAtomic` 写模板，这是 M1 留下的旁路，**登记为待修**）、`fs`（`fs.watch(recursive)` 项目目录，200 ms 合并，只报稿 / 文档 / 图片一类，`.umbrastudio/` 不报）。
+- `serve.ts`：每个项目服务挂一个 `ws`（`WebSocketServer noServer`）在 `/__ud/ws?token=`，令牌与 Origin 门槛同 HTTP；连上先回 `hello`。`/__app/` 改为托管 `app/dist`（SPA：非静态路径回 `index.html`，`window.__UD_APP` 多带 `ws` 与 `front`），没 build 过退回旧前端；旧前端另挂 `/__legacy/` 直到 M7-8。
+- 前端 `api/client.ts`：`Core.get / post / events(onEvent)`，WS 断了 2 s 重连。
+
+【实测】Playwright，`umbra_copy`（58 份稿）：`/__app/` 打开 `front=app`、React 挂载、标题由 host.setTitle 设为「Umbra 私人 AI 助手 · Umbra Studio」；WS `hello` 已连；往目录里写一个 `.md` → 收到 `fs`；`create_draft` → 收到 `write`；`check` 作业 → 收到两条 `job`（起 / 完）；选稿 → `.dc.html` 类型的从属面板出现；会话栏 收成输入条 → 展开 → 换边，`us.layout` 记住；窗宽 1000 时从属面板变抽屉（`aside.fixed`）；首页列出 6 个项目、`/__app/home` 深链可开；`/__legacy/` 旧前端照常。断网 build：产物 165 KB，无外链。回归：`selftest` 零 error · `lifecycletest` 全通 · `rendertest` 15/15。
+
+**没做、下一步做的**：桌面壳（M9-2）需要一个不属于任何项目的「hub」服务（首页要在没打开项目时就能列项目）—— 现在 `/__app/` 仍由某个项目的服务托管，浏览器入口 `npm run ui -- <项目>` 不受影响；hub 随 M9-2 一起做。

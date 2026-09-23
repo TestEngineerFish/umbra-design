@@ -11,6 +11,7 @@ import { existsSync, cpSync } from "node:fs";
 import { join, resolve, relative, dirname, basename, sep, isAbsolute } from "node:path";
 import { fileURLToPath } from "node:url";
 import { X } from "./codes.js";
+import { emit } from "./events.js";
 import { err, ToolError } from "./envelope.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -513,6 +514,7 @@ export async function createDraft(
   }
 
   await writeAtomic(abs, content);
+  emit("write", p.dir, { file: relative(p.dir, abs).split(sep).join("/"), version: null, origin: "create" });   // 新建也算一次落盘，前端据此刷列表（M7-4）
 
   return {
     path,

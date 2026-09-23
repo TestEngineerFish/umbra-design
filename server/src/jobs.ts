@@ -13,6 +13,7 @@
  * 这是对的：读数已经落盘在 `.umbrastudio/checks/`（§十五），作业记录本身不必持久化。
  */
 import { randomBytes } from "node:crypto";
+import { emit } from "./events.js";
 
 export interface Job<T = unknown> {
   id: string;
@@ -64,6 +65,7 @@ export function start<T>(
   };
   jobs.set(job.id, job as Job);
   byKey.set(key, job.id);
+  emit("job", null, view(job as Job));
 
   void run().then(
     (r) => { job.result = r; job.ok = true; },
@@ -75,6 +77,7 @@ export function start<T>(
     job.running = false;
     job.finishedAt = new Date().toISOString();
     if (byKey.get(key) === job.id) byKey.delete(key);
+    emit("job", null, view(job as Job));
     sweep();
   });
 
