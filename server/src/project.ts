@@ -8,7 +8,7 @@
  */
 import { readdir, readFile, stat, rename } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { join, resolve, relative, dirname, basename, sep } from "node:path";
+import { join, resolve, relative, dirname, basename, sep, isAbsolute } from "node:path";
 import { fileURLToPath } from "node:url";
 import { X } from "./codes.js";
 import { err, ToolError } from "./envelope.js";
@@ -79,6 +79,17 @@ export async function listProjectDirs(): Promise<string[]> {
 }
 
 export async function loadProject(nameOrDir: string): Promise<Project> {
+  /* 绝对路径直接当项目目录（M1-2：项目可在任意路径）。以前只按 projects/ 下的名字找，
+     参数叫 nameOrDir 却从没处理过 Dir —— Tauri 壳里打开 projects/ 之外的项目一律「找不到」【实测 2026-09-23】。 */
+  if (isAbsolute(nameOrDir)) {
+    if (!existsSync(join(nameOrDir, "project.json"))) {
+      throw new ToolError(
+        err(X.PROJECT_UNKNOWN, nameOrDir, { kind: "path", name: nameOrDir },
+          `目录 "${nameOrDir}" 下没有 project.json，不是一个设计项目`,
+          { fix: "用 create_project 在这个目录建项目（已有的稿会被接管，不改动）" }));
+    }
+    return await buildProject(nameOrDir);
+  }
   const dirs = await listProjectDirs();
   let hit = dirs.find((d) => d.split(sep).pop() === nameOrDir) ?? null;
   if (!hit) {

@@ -45,6 +45,8 @@ import { relative, sep } from "node:path";
 import { ToolError } from "./envelope.js";
 import { buildIndex, indexStatus, isToolPage } from "./indexpage.js";
 import { runChatSend } from "./chat_run.js";
+import { updateProject, archiveProject, deleteProject } from "./project.js";
+import { listTrash, restoreDraft, purgeTrash, emptyTrash } from "./refs.js";
 import { listChats, loadChat } from "./chat.js";
 import { readCheck, sha256 } from "./check.js";
 
@@ -81,12 +83,19 @@ const str = (v: unknown, name: string): string => {
 function originOk(req: IncomingMessage, port: number): boolean {
   const o = req.headers.origin;
   if (!o) return true;
-  // Tauri 壳里的前端从 tauri://localhost（macOS）或 http://tauri.localhost（Windows）发请求；令牌照样要带
+  // Tauri 壳里的前端：打包后是 tauri://localhost（macOS）/ http://tauri.localhost（Windows），
+  // tauri dev 时是 http://127.0.0.1:1430（dev server，端口和 sidecar 不同）。
+  // 所以本机任何端口的 127.0.0.1 / localhost 都放行 —— 真正的门槛是随机令牌，Origin 只挡跨站页面。
   if (o === "tauri://localhost" || o === "http://tauri.localhost" || o === "https://tauri.localhost") return true;
-  return o === `http://127.0.0.1:${port}` || o === `http://localhost:${port}`;
+  return /^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(o);
 }
 
 export interface ApiCtx { project: Project; token: string; port: number }
+
+/** 归档 / 删除后停掉本项目的静态服务。serve.ts 引了本文件，所以这里延迟 import 避免循环。 */
+function serveStopByName(name: string): void {
+  void import("./serve.js").then((m) => m.serveStop(name)).catch(() => { /* ignore */ });
+}
 
 /** 返回 true = 这个请求已经被 API 接手了 */
 export async function handleApi(
@@ -350,6 +359,69 @@ export async function handleApi(
         contextFile: typeof b.contextFile === "string" ? b.contextFile : undefined,
       });
       json(reply, 200, env);
+      return true;
+    }
+
+    /* ── S8 项目设置（M1-9 / M1-10 / M1-12 的界面接线，doc/00 §三十九） ── */
+    if (route === "project_settings" && req.method === "GET") {
+      const files = (await listDrafts(p)).map((a) => relative(p.dir, a).split(sep).join("/")).filter((r) => !isToolPage(r));
+      let dsStats: { tokens: number; icons: number; components: number } | null = null;
+      if (p.dsDir) {
+        try {
+          const [tk, ic, comps] = await Promise.all([
+            searchTokens(p, "", 1).then((r) => (r as { total?: number }).total ?? 0).catch(() => 0),
+            listIcons(p, undefined, 1).then((r) => r.total).catch(() => 0),
+            listComponents(p).then((r) => r.length).catch(() => 0),
+          ]);
+          dsStats = { tokens: tk, icons: ic, components: comps };
+        } catch { dsStats = null; }
+      }
+      json(reply, 200, { ok: true, data: {
+        name: p.name, title: p.title, dir: p.dir, draftCount: files.length, gitEnabled: p.gitEnabled,
+        designSystem: { dir: p.dsDir, alias: p.dsAlias, tokens: p.tokensPath, icons: p.iconsPath, stats: dsStats },
+        limits: p.limits,
+        trash: await listTrash(p),
+      } });
+      return true;
+    }
+    if (route === "project_update" && req.method === "POST") {
+      if (!originOk(req, ctx.port)) { json(reply, 403, { ok: false, errors: [{ code: "E_API_ORIGIN", message: "Origin 不是本服务" }] }); return true; }
+      const b = await readBody(req);
+      const opts: Record<string, unknown> = {};
+      for (const k of ["title", "designSystemDir", "designSystemAlias", "tokens", "icons"]) if (k in b) opts[k] = b[k];
+      for (const k of ["elementsWarn", "elementsHard"]) if (typeof b[k] === "number") opts[k] = b[k];
+      const r = await updateProject(p, opts as Parameters<typeof updateProject>[1]);
+      // 配置变了，本服务上的 Project 对象也要换 —— 否则下一次校验还用旧限额
+      const { buildProject } = await import("./project.js");
+      Object.assign(ctx.project, await buildProject(p.dir));
+      json(reply, 200, { ok: true, data: r });
+      return true;
+    }
+    if (route === "trash_restore" && req.method === "POST") {
+      if (!originOk(req, ctx.port)) { json(reply, 403, { ok: false, errors: [{ code: "E_API_ORIGIN", message: "Origin 不是本服务" }] }); return true; }
+      const b = await readBody(req);
+      json(reply, 200, { ok: true, data: await restoreDraft(p, str(b.trashPath, "trashPath")) });
+      return true;
+    }
+    if (route === "trash_purge" && req.method === "POST") {
+      if (!originOk(req, ctx.port)) { json(reply, 403, { ok: false, errors: [{ code: "E_API_ORIGIN", message: "Origin 不是本服务" }] }); return true; }
+      const b = await readBody(req);
+      json(reply, 200, { ok: true, data: await purgeTrash(p, str(b.trashPath, "trashPath")) });
+      return true;
+    }
+    if (route === "trash_empty" && req.method === "POST") {
+      if (!originOk(req, ctx.port)) { json(reply, 403, { ok: false, errors: [{ code: "E_API_ORIGIN", message: "Origin 不是本服务" }] }); return true; }
+      json(reply, 200, { ok: true, data: await emptyTrash(p) });
+      return true;
+    }
+    if ((route === "project_archive" || route === "project_delete") && req.method === "POST") {
+      if (!originOk(req, ctx.port)) { json(reply, 403, { ok: false, errors: [{ code: "E_API_ORIGIN", message: "Origin 不是本服务" }] }); return true; }
+      const b = await readBody(req);
+      if (route === "project_delete" && b.typed !== p.name) throw new Error("要把项目名敲一遍才能删");
+      // 两条现在都是「移到 .archived/」（delete_project = 归档，doc/12 M1-10）；目录一搬走，这个服务就该停
+      const r = route === "project_delete" ? await deleteProject(p) : await archiveProject(p);
+      json(reply, 200, { ok: true, data: { ...r, note: "项目目录已移走，这个服务随即关闭" } });
+      setTimeout(() => { try { serveStopByName(p.name); } catch { /* ignore */ } }, 300);
       return true;
     }
 

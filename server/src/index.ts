@@ -33,7 +33,7 @@ import {
   resolveSnapshot, toMarkdown,
 } from "./history.js";
 import { serveStart, serveStatus, serveStop } from "./serve.js";
-import { buildIndex, collectIndex } from "./indexpage.js";
+import { buildIndex, collectIndex, isToolPage } from "./indexpage.js";
 import { locateNode } from "./locate.js";
 import { revertTo, setProp } from "./edit.js";
 import { touchProject, listRecentProjects, removeRecentProject, clearRecentProjects } from "./workspace.js";
@@ -317,7 +317,7 @@ server.registerTool("inspect_dir", {
       if (e.name.startsWith(".") || e.name === "node_modules") continue;
       const abs = join(d, e.name);
       if (e.isDirectory()) await walk(abs, depth + 1);
-      else if (e.name.endsWith(".dc.html")) draftCount++;
+      else if (e.name.endsWith(".dc.html") && !isToolPage(e.name)) draftCount++;   // 工具自己的壳（S2…、index）不算稿
     }
   };
   await walk(dir, 0);

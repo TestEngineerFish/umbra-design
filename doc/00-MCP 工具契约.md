@@ -2646,3 +2646,40 @@ DeepSeek 端点没跑（没 key），同一适配器，M2-1 验收里「分别�
 
 `git@github.com:TestEngineerFish/umbra-design.git`。第一次推被 GH001 拒：M3-5 把 106 MB 的 `src-tauri/binaries/node-aarch64-apple-darwin` 提交进了历史。处理：打备份标签 `backup/pre-purge-node-binary` → `filter-branch` 从 master 全史剥掉它 → `.gitignore` 加 `src-tauri/binaries/node-*` → `src-tauri/binaries/README.md` 写本地生成办法（`cp $(which node) …`）。推上去 75 个提交，master 里已无 >50 MB 的对象。
 
+## 三十八、壳内自测：Tauri 壳里第一次真走主流程（2026-09-23）
+
+**为什么要有它**：前端这几轮的实测都在浏览器调试模式（同源）里做；Tauri 壳是另一个环境（跨源、`invoke` 参数走 Rust）。
+macOS 上 `tauri-driver` 不支持，没法从外面驱动 WKWebView，只能让前端**自己在壳里跑一遍**，每步把读数写进文件。
+
+**做法**：Rust 加两条命令 `get_autotest`（读环境变量 `UMBRADESIGN_AUTOTEST_DIR` / `_LOG`）、`autotest_log(line)`（追加写）。
+前端 `boot()` 末尾若拿到 dir，就依次：sidecar 状态 → 打开项目 → 选第一份稿 → `validate`（GET）→ `check`（POST）→ `changes` → `chat_list` →
+`build_index`（MCP）→ `inspect_dir`（MCP）→ S6 新窗口 → 主题。只读、只建索引，不改稿。
+
+```bash
+UMBRADESIGN_AUTOTEST_DIR=<项目目录> UMBRADESIGN_AUTOTEST_LOG=<读数文件> npx tauri dev --no-watch
+# 看到 {"step":"done"} 就可以杀掉进程；每行一步 JSON
+```
+
+**第一跑就抓到三条壳里的真缺陷**（浏览器调试模式看不见的）：
+
+| # | 现象 | 根因 | 修 |
+| --- | --- | --- | --- |
+| 1 | 任意路径的项目在壳里打不开：「找不到目录对应的项目」 | `open_project_command` 只在 `list_projects`（projects/ 根）里按目录找；`loadProject(nameOrDir)` 参数名有 Dir 却从没处理过绝对路径 —— M1-2「项目可在任意路径」在壳里是假的 | `loadProject` 认绝对路径（要有 `project.json`）；壳里找不到名字就把路径当项目标识 |
+| 2 | dev 模式下所有 POST 路由 403 | 前端来源是 `http://127.0.0.1:1430`（Tauri dev server），`originOk` 只认 sidecar 自己的端口 | 本机任意端口的 `127.0.0.1` / `localhost` 放行（真正的门槛是随机令牌，Origin 只挡跨站页面） |
+| 3 | 壳里所有 MCP 调用失败：`missing required key msgId` | 前端传 `msg_id`，Tauri 把 Rust 参数 `msg_id` 映射成 `msgId` —— **接手前壳里的「重建索引」从来没成功过** | 改传 `msgId` |
+
+**读数**（修后第二跑 / 第三跑）：sidecar running → open_project（任意路径）✓ → select_draft（预览走 S2 壳 `embed=1`）✓ → validate ✓ → check POST ✓（jobId 返回）→ changes ✓（9 版 · versionMeta 9）→ chat_list ✓ → build_index（MCP）✓ → inspect_dir（MCP）✓ → S6 新窗口 ✓ → 主题 ✓。
+
+**没盖到的**：系统目录对话框（要人点）、会话发送（要 key 与时间，浏览器模式已验）、打包后的 `tauri://localhost` 来源（`originOk` 已放行，但没在打包产物里跑过 —— `01` §7.7 第 24 条仍待干净机器一遍）。
+
+## 三十九、S8 项目设置接进应用（2026-09-23）
+
+应用的「项目设置」面板原来只有主题一档；设计系统、限额、回收站、危险操作这些 M1 后端能力只在 S8 设计稿里。现在：
+
+- 本地 API 七条：`project_settings`（GET，一次给全：基本信息 · 设计系统含 token/图标/组件计数 · 限额 · 回收站清单）、`project_update`（POST，改完立刻 `buildProject` 换掉服务里的 Project 对象，下一次校验就用新限额）、`trash_restore` / `trash_purge` / `trash_empty`、`project_archive` / `project_delete`（后者要把项目名敲一遍；两者现在都是移到 `.archived/`，成功后 300ms 停掉本项目的服务）。`refs.ts` 加 `purgeTrash`（只认 `.umbradesign/trash/` 下的路径）与 `emptyTrash`。
+- S8：判据同 S5（`window.__UD_API`）；`liveVals()` 键名与演示态一模一样，模板不分叉；字段改完即存（600ms 防抖，和 S2 属性面板一个口径，没有「应用」钮）；`?embed=1` 收起索引链接；归档 / 删除成功、回收站恢复后 `postMessage` 给父窗口（`umbradesign-s8`）。重命名 / 移动两行标「未接」—— 后端没有这两个操作，不装有。
+- 应用：设置面板变宽，嵌 S8 iframe；收到 `project-gone` 关项目、`drafts-changed` 刷新列表。**面板打开时整页重绘不再重建它** —— 否则稿件列表一刷新 S8 就整个重载（第一跑就撞上）。
+- `SHELLS` 加 S8，build_index 部署进项目。
+
+【实测】Playwright：设置面板里 S8 读到真配置（`meta-test · 1 份稿`、路径）；curl `project_update` 改标题与 warn 阈值，`project.json` 立刻变；先删一份稿进回收站 → S8 回收站 tab 列出 → 点「恢复」→ 稿件列表 1 → 2。S8 render_check（演示态）alive、117 节点、洞 0。
+

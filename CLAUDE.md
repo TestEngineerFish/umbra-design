@@ -26,6 +26,7 @@
 | 3 | `doc/11-路线图与分期.md` | 分期理由、架构演进、已定决策 Q1–Q10 |
 | 4 | `doc/00-MCP 工具契约.md` | 动手前全程对照。§十起是逐批实现记录，抓坑很有用 |
 | 5 | `doc/04` §二 | **排查纪律**。这一节救过很多时间，不读会重犯 |
+| 5.5 | `doc/16-ClaudeDesign 对照调研.md` | ClaudeDesign 本尊长什么样、我们差在哪（实见 + 资料）；待拍板项在 `doc/11` Q13–Q15 |
 | 6 | `doc/14-给 ClaudeDesign 的交办单.md` §零 + `doc/00` §三十二 | 和设计侧怎么往来、它现在欠什么（见本文 §5） |
 | 按需 | `02` 格式 · `03` 运行时语义 · `06` 写稿规则 · `07` 变更交付 | 改到哪块读哪块 |
 
@@ -191,6 +192,7 @@ ClaudeDesign 的项目在云端，**只拥有被上传过的东西**。之前只
 | `npm --prefix server run ui -- <项目名>` | 起界面给人用 |
 | `npm --prefix server run outgoing` | 给设计侧打包 ui/（每份稿插 baseline 行），产出 `outgoing/UmbraDesign-ui-<时间>.zip`；**每一轮交办都要随附这个包**（`doc/00` §三十二） |
 | `npm --prefix server run incoming` | 接设计侧交回来的稿（`ui/_incoming/`），先查底稿（正确 / 过时 / 不明），再查合法性与接线标记；加 `-- --apply` 把过关的稿并入 `ui/` |
+| `UMBRADESIGN_AUTOTEST_DIR=<项目> UMBRADESIGN_AUTOTEST_LOG=<文件> npx tauri dev --no-watch` | 壳内自测：前端在 Tauri 壳里自己走一遍主流程，每步一行 JSON（`doc/00` §三十八）。看到 `"step":"done"` 就杀进程 |
 
 ---
 
@@ -215,7 +217,7 @@ ClaudeDesign 的项目在云端，**只拥有被上传过的东西**。之前只
 
 M0 / M1 已验收；M3 外壳能跑，**应用前端 UI-1..UI-8 已按设计侧裁决落地**；界面十屏全部可渲染、演示态可切，
 S1 索引过期 / S2 版本弹层 / S6 版本对比**接真数据并实测**；**通道 A 已真跑通**，通道 B 等套餐续订。
-**三种编辑方式都在应用里闭环**（① S2 壳属性面板 · ② 选中节点带给 AI · ③ 直接对话），改稿 → 变更卡 → 一键回退。进度 70 / 74。仓库已上 GitHub（`origin` = `TestEngineerFish/umbra-design`）。剩通道 B 等套餐续订。
+**三种编辑方式都在应用里闭环**（① S2 壳属性面板 · ② 选中节点带给 AI · ③ 直接对话），改稿 → 变更卡 → 一键回退；**S8 项目设置也进了应用**；壳内自测（§三十八）在 Tauri 壳里走通主流程并修掉三条壳里的缺陷。进度 70 / 74。仓库已上 GitHub（`origin` = `TestEngineerFish/umbra-design`）。对照 ClaudeDesign 的结论在 `doc/16`，待拍板 Q13–Q15。剩通道 B 等套餐续订。
 
 ⚠️ 先看一眼 `doc/00` §三十、§三十一 —— 曾有三屏被标成 ✅ 而实际渲染不出来
 （校验器当时漏报），补了判据才暴露。

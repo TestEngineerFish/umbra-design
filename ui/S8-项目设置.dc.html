@@ -29,10 +29,12 @@
 
   <div style="position: sticky; top: 0; z-index: 6; background: var(--tool-panel); border-bottom: 1px solid var(--tool-border);">
     <div style="display: flex; align-items: center; gap: 12px; padding: 11px 20px; flex-wrap: wrap;">
+      <sc-if value="{{ showIndexLink }}" hint-placeholder-val="{{ true }}">
       <a href="./S1-稿件索引.dc.html" style="display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px 0 8px; border-radius: var(--tool-radius); border: 1px solid var(--tool-border-strong); background: var(--tool-panel); color: var(--tool-text); font-size: 12px; flex: none; transition: background .13s ease;" style-hover="background: var(--tool-hover); text-decoration: none;" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">
         <dc-import name="IconGlyph" d="M9.6 3.6L5.2 8l4.4 4.4" size="13" hint-size="13px,13px"></dc-import>
         索引
       </a>
+      </sc-if>
       <div style="display: flex; align-items: baseline; gap: 9px; min-width: 0; flex: 1 1 220px;">
         <span style="font-size: 15px; font-weight: 620; letter-spacing: -0.01em; white-space: nowrap;">项目设置</span>
         <span style="font-family: var(--tool-mono); font-size: 12px; color: var(--tool-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ projectRel }}</span>
@@ -306,6 +308,9 @@ const DRAFTS_DEMO = [
 /* 项目名只写一处 —— 危险操作里的「敲一遍项目名」和基本信息那一格必须同源，
    不然改了一处另一处就成了假数据（§一 第 2 条）。 */
 const PROJECT_NAME = "Umbra_design";
+/* 真数据判据和 S5 一样看 window.__UD_API（项目级，不需要 ?file=）；?embed=1 = 被应用的设置面板装在 iframe 里。 */
+const hasApi = () => !!(typeof window !== "undefined" && window.__UD_API);
+const EMBED = (function () { try { return new URLSearchParams(location.search).get("embed") === "1"; } catch (e) { return false; } })();
 
 const TRASH_DEMO = [
   { name: "旧版首页.dc.html", deletedAt: "2026-09-18 14:32", size: "703 元素" },
@@ -314,14 +319,62 @@ const TRASH_DEMO = [
 ];
 
 class Component extends DCLogic {
-  state = { demo: 1, tab: "basic", arm: null, typed: "" };
+  state = { demo: 1, tab: "basic", arm: null, typed: "", cfg: null, apiErr: null, note: null, gone: null, pending: {} };
+
+  componentDidMount() { if (hasApi()) this.pull(); }
+
+  /* ── 真数据（doc/00 §三十九）：project_settings 一次给全 —— 基本信息、设计系统、限额、回收站 ── */
+  api(path, body) {
+    const A = window.__UD_API;
+    const url = new URL(A.base + path, location.href).toString();
+    return fetch(url, body === undefined
+      ? { headers: { "x-ud-token": A.token } }
+      : { method: "POST", headers: { "x-ud-token": A.token, "content-type": "application/json" }, body: JSON.stringify(body) })
+      .then((r) => r.json())
+      .then((j) => { if (j.errors && j.errors.length) throw new Error(j.errors[0].message || j.errors[0].code); return j.data; });
+  }
+  pull() {
+    this.api("project_settings").then((d) => this.setState({ cfg: d, apiErr: null }))
+      .catch((e) => this.setState({ apiErr: e.message }));
+  }
+  /* 字段改完即存（和 S2 属性面板一个口径：没有「应用」钮）。600ms 防抖，存完拉一次。 */
+  save(patch) {
+    clearTimeout(this.saveTimer);
+    this.setState((st) => ({ pending: Object.assign({}, st.pending, patch), note: "改动待存…" }));
+    this.saveTimer = setTimeout(() => {
+      const body = Object.assign({}, this.state.pending);
+      this.setState({ pending: {} });
+      this.api("project_update", body)
+        .then((r) => { this.setState({ note: "已保存：" + (r.updated || []).join("、") }); this.pull(); })
+        .catch((e) => this.setState({ note: "保存失败：" + e.message }));
+    }, 600);
+  }
+  num(v) { const n = parseInt(String(v).replace(/[^0-9]/g, ""), 10); return isFinite(n) ? n : undefined; }
+  tellParent(type, payload) {
+    try { if (window.parent && window.parent !== window) window.parent.postMessage({ source: "umbradesign-s8", type: type, payload: payload }, "*"); } catch (e) { /* ignore */ }
+  }
 
   renderVals() {
     const s = this.state;
     const demo = DEMOS[s.demo - 1];
+    const live = hasApi();
+    const cfg = s.cfg;
+    const name = live ? (cfg ? cfg.name : "…") : PROJECT_NAME;
+    const fmt = (n) => (n == null ? "—" : String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ","));
+    if (live) {
+      const ds = cfg && cfg.designSystem || {};
+      const st = ds.stats;
+      const trash = (cfg && cfg.trash) || [];
+      return this.liveVals({
+        name: name, cfg: cfg, ds: ds,
+        dsStats: st ? (st.tokens + " token · " + st.icons + " 图标 · " + st.components + " 组件稿") : "",
+        trash: trash, fmt: fmt,
+      });
+    }
     return {
       theme: this.props.theme === "dark" ? "dark" : null,
       showDemoBar: true,
+      showIndexLink: !EMBED,
       projectRel: PROJECT_NAME + " · 57 份稿",
       demoNote: demo.note,
       demoStates: DEMOS.map((d) => ({
@@ -450,6 +503,111 @@ class Component extends DCLogic {
           ask: () => this.setState({ arm: d.key, typed: "" }),
           cancel: () => this.setState({ arm: null, typed: "" }),
           go: () => { if (!blocked) this.setState({ arm: null, typed: "" }); }
+        };
+      })
+    };
+  }
+
+  /* ── 真数据的 renderVals。键名和演示态一模一样，模板不分叉。 ── */
+  liveVals(L) {
+    const s = this.state;
+    const cfg = L.cfg, ds = L.ds, name = L.name;
+    const tabDefs = [
+      { key: "basic", label: "基本信息", icon: "M2.6 3h10.8c.6 0 1 .4 1 1v10c0 .6-.4 1-1 1H2.6c-.6 0-1-.4-1-1V4c0-.6.4-1 1-1z" },
+      { key: "ds", label: "设计系统", icon: "M8 1.8l5.2 3v6.4L8 14.2 2.8 11.2V4.8z" },
+      { key: "limits", label: "限额", icon: "M3 4.4h10M3 8h10M3 11.6h6" },
+      { key: "trash", label: "回收站", icon: "M3.6 4.4h8.8M5.2 4.4V3.2c0-.7.5-1.2 1.2-1.2h3.2c.7 0 1.2.5 1.2 1.2v1.2M4.4 4.4l.6 8.4c0 .7.6 1.2 1.2 1.2h5.6c.6 0 1.2-.5 1.2-1.2L13.6 4.4" },
+      { key: "danger", label: "危险操作", icon: "M8 2.2l6 11.2H2z", sep: true, danger: true }
+      ];
+    const gone = s.gone;
+    const dangerDefs = [
+      { key: "rename", title: "重命名项目", btn: "重命名", tone: "n", unsupported: true,
+        body: "改目录名和 project.json 的 name。后端还没有这个操作 —— 标题在「基本信息」里改。", confirm: "", confirmLabel: "" },
+      { key: "move", title: "移动项目", btn: "移动", tone: "n", unsupported: true,
+        body: "把项目目录移到别的位置。后端还没有这个操作 —— 用系统文件管理器移，再从最近项目重新打开。", confirm: "", confirmLabel: "" },
+      { key: "archive", title: "归档项目", btn: "归档", tone: "w",
+        body: "把项目目录移到工具根的 .archived/ 下。目录保留，可随时移回来。",
+        confirm: "归档只是搬目录，随时能移回来 —— 所以这一步不用敲项目名。归档后这个项目会从应用里关闭。",
+        confirmLabel: "确认归档", route: "project_archive" },
+      { key: "delete", title: "删除项目", btn: "删除", tone: "e", needsType: true,
+        body: "现在的「删除」= 归档到 .archived/（历史版本随目录一起搬走，不销毁）。要彻底删除，归档后手动删那个目录。",
+        confirm: "目录会被移走、应用里关闭；历史版本随目录一起搬走。要继续，把项目名敲一遍。",
+        confirmLabel: "确认移走", route: "project_delete" }
+    ];
+    return {
+      theme: this.props.theme === "dark" ? "dark" : null,
+      showDemoBar: false,
+      showIndexLink: !EMBED,
+      projectRel: gone ? ("已移到 " + gone.archivePath) : cfg ? (name + " · " + cfg.draftCount + " 份稿" + (s.apiErr ? " · 接口出错：" + s.apiErr : s.note ? " · " + s.note : "")) : (s.apiErr ? "接口读不到：" + s.apiErr : "正在读项目配置…"),
+      demoNote: "",
+      demoStates: [],
+      tabs: tabDefs.map((t) => ({
+        ...t,
+        sep: !!t.sep,
+        bg: t.key === s.tab ? (t.danger ? "var(--tool-err-soft)" : "var(--tool-accent-soft)") : "transparent",
+        fg: t.key === s.tab ? (t.danger ? "var(--tool-err)" : "var(--tool-accent)") : (t.danger ? "var(--tool-err)" : "var(--tool-text-2)"),
+        fw: t.key === s.tab ? "560" : "400",
+        iconFg: t.key === s.tab ? (t.danger ? "var(--tool-err)" : "var(--tool-accent)") : (t.danger ? "var(--tool-err)" : "var(--tool-muted)"),
+        bar: t.key === s.tab ? (t.danger ? "var(--tool-err)" : "var(--tool-accent)") : "transparent",
+        pick: () => this.setState({ tab: t.key, arm: null, typed: "" })
+      })),
+      tab: s.tab,
+      showBasic: s.tab === "basic", showDs: s.tab === "ds", showLimits: s.tab === "limits", showTrash: s.tab === "trash", showDanger: s.tab === "danger",
+
+      projectName: name,
+      projectTitle: cfg ? (cfg.title || "") : "",
+      projectDir: cfg ? cfg.dir : "",
+      fieldBg: "var(--tool-panel)",
+      onNameChange: () => { this.setState({ note: "项目名（目录名）不能在这里改；标题可以" }); },
+      onTitleChange: (e) => this.save({ title: e.target.value }),
+
+      dsDir: ds.dir || "", dsAlias: ds.alias || "@ds", tokensPath: ds.tokens || "", iconsPath: ds.icons || "",
+      onDsDirChange: (e) => this.save({ designSystemDir: e.target.value || null }),
+      onDsAliasChange: (e) => this.save({ designSystemAlias: e.target.value || "@ds" }),
+      onTokensChange: (e) => this.save({ tokens: e.target.value || null }),
+      onIconsChange: (e) => this.save({ icons: e.target.value || null }),
+      onBrowseDs: () => this.setState({ note: "目录对话框在应用壳里；这里直接填相对项目根的路径" }),
+      dsConfigured: !!ds.dir, dsNotConfigured: !ds.dir,
+      dsStats: L.dsStats,
+
+      elementsWarn: cfg ? L.fmt(cfg.limits.elementsWarn) : "", elementsHard: cfg ? L.fmt(cfg.limits.elementsHard) : "",
+      onWarnChange: (e) => { const n = this.num(e.target.value); if (n) this.save({ elementsWarn: n }); },
+      onHardChange: (e) => { const n = this.num(e.target.value); if (n) this.save({ elementsHard: n }); },
+      showLimitExample: false, limitExamples: [],
+
+      trashEmpty: L.trash.length === 0, trashNotEmpty: L.trash.length > 0,
+      trashItems: L.trash.map((t) => ({
+        name: t.originalName, deletedAt: t.deletedAt, size: "",
+        restore: () => this.api("trash_restore", { trashPath: t.trashPath }).then((r) => { this.setState({ note: "已恢复到 " + r.originalPath }); this.pull(); this.tellParent("drafts-changed", null); }).catch((e) => this.setState({ note: "恢复失败：" + e.message })),
+        permanentDelete: () => this.api("trash_purge", { trashPath: t.trashPath }).then(() => { this.setState({ note: "已彻底删除 " + t.originalName }); this.pull(); }).catch((e) => this.setState({ note: "删除失败：" + e.message }))
+      })),
+      onEmptyTrash: () => this.api("trash_empty", {}).then((r) => { this.setState({ note: "回收站已清空（" + r.removed + " 项）" }); this.pull(); }).catch((e) => this.setState({ note: "清空失败：" + e.message })),
+
+      typed: s.typed,
+      onTyped: (e) => this.setState({ typed: e.target.value }),
+      dangerRows: dangerDefs.map((d) => {
+        const fg = d.tone === "e" ? "var(--tool-err)" : d.tone === "w" ? "var(--tool-warn)" : "var(--tool-text-2)";
+        const bd = d.tone === "e" ? "var(--tool-err-border)" : d.tone === "w" ? "var(--tool-warn-border)" : "var(--tool-border-strong)";
+        const soft = d.tone === "e" ? "var(--tool-err-soft)" : d.tone === "w" ? "var(--tool-warn-soft)" : "var(--tool-hover)";
+        const solid = d.tone === "e" ? "var(--tool-err)" : d.tone === "w" ? "var(--tool-warn)" : "var(--tool-accent)";
+        const blocked = !!d.needsType && s.typed.trim() !== name;
+        return {
+          title: d.title, body: d.body, btn: d.unsupported ? "未接" : d.btn,
+          titleFg: d.tone === "e" ? "var(--tool-err)" : "var(--tool-text)",
+          fg: d.unsupported ? "var(--tool-muted)" : fg, bd: d.unsupported ? "var(--tool-border)" : bd, softBg: soft, solidBg: solid,
+          fw: d.tone === "e" ? "560" : "400",
+          arming: s.arm === d.key,
+          confirmText: d.confirm, confirmLabel: d.confirmLabel,
+          needsType: !!d.needsType, typeHint: "敲一遍：" + name,
+          blocked: blocked, goCursor: blocked ? "not-allowed" : "pointer", goOpacity: blocked ? "0.45" : "1",
+          ask: () => { if (!d.unsupported) this.setState({ arm: d.key, typed: "" }); },
+          cancel: () => this.setState({ arm: null, typed: "" }),
+          go: () => {
+            if (blocked || !d.route) return;
+            this.api(d.route, { typed: s.typed.trim() })
+              .then((r) => { this.setState({ arm: null, typed: "", gone: r, note: null }); this.tellParent("project-gone", r); })
+              .catch((e) => this.setState({ note: (d.key === "delete" ? "删除失败：" : "归档失败：") + e.message }));
+          }
         };
       })
     };

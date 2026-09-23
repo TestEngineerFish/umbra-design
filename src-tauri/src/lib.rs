@@ -457,7 +457,8 @@ fn open_project_command(
             p.get("dir").and_then(|d| d.as_str()) == Some(&dir)
         }))
         .and_then(|p| p.get("name").and_then(|n| n.as_str()))
-        .ok_or_else(|| format!("找不到目录对应的项目: {}", dir))?;
+        // 不在 projects/ 根下的项目（任意路径，M1-2）：直接把绝对路径当项目标识，loadProject 认绝对路径
+        .unwrap_or(dir.as_str());
 
     eprintln!("[rust] found project: {}", project_name);
 
@@ -549,6 +550,26 @@ fn invoke_mcp_command(
     Ok(result)
 }
 
+/// 壳内自测（doc/00 §三十八）：macOS 上没有 WebDriver 驱动 WKWebView，只能让前端自己在壳里跑一遍主流程，
+/// 每步把读数经这条命令写进文件。两个环境变量：UMBRADESIGN_AUTOTEST_DIR（要打开的项目目录）、
+/// UMBRADESIGN_AUTOTEST_LOG（读数文件）。都没设时前端什么也不做。
+#[tauri::command]
+fn get_autotest() -> Result<serde_json::Value, String> {
+    Ok(serde_json::json!({
+        "dir": std::env::var("UMBRADESIGN_AUTOTEST_DIR").ok(),
+        "log": std::env::var("UMBRADESIGN_AUTOTEST_LOG").ok(),
+    }))
+}
+
+#[tauri::command]
+fn autotest_log(line: String) -> Result<(), String> {
+    use std::io::Write;
+    let path = std::env::var("UMBRADESIGN_AUTOTEST_LOG").map_err(|_| "未设 UMBRADESIGN_AUTOTEST_LOG".to_string())?;
+    let mut f = std::fs::OpenOptions::new().create(true).append(true).open(&path).map_err(|e| e.to_string())?;
+    writeln!(f, "{}", line).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 /// 获取最近打开的项目列表
 #[tauri::command]
 fn get_recent_projects_command(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
@@ -598,6 +619,8 @@ pub fn run() {
             open_project_command,
             close_project_command,
             invoke_mcp_command,
+            get_autotest,
+            autotest_log,
         ])
         .setup(|app| {
             let menu = build_menu(app.handle())?;

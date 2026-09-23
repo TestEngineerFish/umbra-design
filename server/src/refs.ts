@@ -546,3 +546,27 @@ export async function restoreDraft(
     referencesRestored: restoredCount,
   };
 }
+
+/** 彻底删除回收站里的一项（S8 回收站的「彻底删除」）。trashPath 必须在 .umbradesign/trash/ 下 —— 别的路径一律拒绝。 */
+export async function purgeTrash(p: Project, trashPath: string): Promise<{ removed: string }> {
+  const { rm } = await import("node:fs/promises");
+  const rel = trashPath.split("\\").join("/");
+  if (!rel.startsWith(".umbradesign/trash/") || rel.includes("..")) {
+    throw new Error(`只能彻底删除回收站里的条目：${rel}`);
+  }
+  const abs = join(p.dir, rel);
+  if (!existsSync(abs)) throw new Error(`回收站里没有 ${rel}`);
+  await rm(abs, { recursive: true, force: true });
+  // 时间戳目录空了就一起收掉
+  const tsDir = join(abs, "..");
+  try { const { readdir, rmdir } = await import("node:fs/promises"); if ((await readdir(tsDir)).length === 0) await rmdir(tsDir); } catch { /* 留着也无妨 */ }
+  return { removed: rel };
+}
+
+/** 清空回收站 —— 二次确认由界面做（S8 行内确认），这里不问 */
+export async function emptyTrash(p: Project): Promise<{ removed: number }> {
+  const items = await listTrash(p);
+  for (const it of items) await purgeTrash(p, it.trashPath);
+  return { removed: items.length };
+}
+
