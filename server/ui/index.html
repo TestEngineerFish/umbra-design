@@ -408,7 +408,7 @@ function setTheme(t) { state.theme = t; save('ud.theme', t); applyTheme(); rende
 
 // ── 渲染 ──────────────────────────────────────────────
 function render() {
-  if (!state.project) renderWelcome(); else renderWorkspace();
+  if (!state.project) { wsKey = null; renderWelcome(); } else renderWorkspace();
   renderSheet();
 }
 
@@ -474,13 +474,15 @@ async function renderWelcome() {
 }
 
 // ── Workspace 屏 ─────────────────────────────────────
-function renderWorkspace() {
-  const p = state.project;
-  const filtered = filterDrafts();
-  const bottomStyle = state.bottomMode === 'half' ? 'height: 50vh;' : `height: ${state.bottomHeight}px;`;
+/* 分区渲染：第一次画整块骨架，之后每次 render() 只替换会变的区（顶栏 / 侧栏 / 预览工具栏 / 底栏 / 会话栏 / 演示层）。
+   预览 iframe **原地不动** —— iframe 元素只要被重新插入 DOM 就会重载，整块重建会让 S2 壳和它里面的稿每次都重载
+   【实测踩到：选中节点、会话轮询一重绘，双击就地编辑的内层 iframe 就被卸掉】。只有换稿 / 换档 / 换布局才真的重建。 */
+let wsKey = null;
+function workspaceKey() { return [state.project && state.project.dir, state.layout, state.sidebarCollapsed ? 1 : 0, state.chat.open ? 1 : 0, state.selectedDraft, state.previewMode].join('|'); }
 
-  appEl.innerHTML = `
-    <div class="topbar">
+function topbarHtml() {
+  const p = state.project;
+  return `<div class="topbar">
       <div class="topbar-logo">${ICON.logo} UmbraDesign</div>
       <div class="topbar-sep"></div>
       <div class="topbar-project">
@@ -500,11 +502,13 @@ function renderWorkspace() {
           <div class="menu-sep"></div>
           <button class="menu-item danger" onclick="closeMenu(); handleCloseProject()">${ICON.close} 关闭项目</button>
         </div>` : ''}
-    </div>
+    </div>`;
+}
 
-    <div class="workspace">
-      ${state.layout === 'chat-left' ? renderChatRail() + `<div class="chat-resize" id="chatResize" style="${state.chat.open ? '' : 'display:none'}"></div>` : ''}
-      ${state.sidebarCollapsed ? `<div class="sidebar collapsed"><div class="sidebar-strip" onclick="toggleSidebar()" title="展开稿件列表"><span class="n">${state.drafts.length}</span><span class="vt">稿件</span></div></div>` : `<div class="sidebar">
+function sidebarHtml() {
+  const filtered = filterDrafts();
+  if (state.sidebarCollapsed) return `<div class="sidebar collapsed"><div class="sidebar-strip" onclick="toggleSidebar()" title="展开稿件列表"><span class="n">${state.drafts.length}</span><span class="vt">稿件</span></div></div>`;
+  return `<div class="sidebar">
         <div class="sidebar-head"><span>稿件</span><span class="grow"></span><button class="btn ghost sm" onclick="toggleSidebar()" title="收起列表">${ICON.close}</button></div>
         <div class="sidebar-search">
           <input type="text" value="${escHtml(state.search)}" placeholder="搜稿名、文件名、演示态…" onInput="onSearch(event.target.value)" />
@@ -516,11 +520,12 @@ function renderWorkspace() {
         <div class="draft-list" role="listbox" aria-label="稿件列表">
           ${filtered.length === 0 ? '<div class="empty">没有匹配的稿</div>' : filtered.map(d => draftItemHtml(d)).join('')}
         </div>
-      </div>`}
-      <div class="resize-handle" id="resizeHandle" style="${state.sidebarCollapsed ? 'display:none' : ''}"></div>
-      <div class="preview">
-        ${state.selectedDraft ? `
-          <div class="preview-toolbar">
+      </div>`;
+}
+
+function previewToolbarHtml() {
+  const p = state.project;
+  return `<div class="preview-toolbar">
             <span class="preview-url" title="${escHtml(p.url + state.selectedDraft)}">${escHtml(state.selectedDraft)}</span>
             <div class="radio-row" title="编辑壳：能点选节点、改属性（方式 ①）、把选中节点带给 AI（方式 ②）；稿本身：原样预览；源码：只读">
               <button class="${state.previewMode === 'shell' ? 'on' : ''}" style="height:24px;padding:0 8px;font-size:11px;" onclick="setPreviewMode('shell')">编辑壳</button>
@@ -530,21 +535,20 @@ function renderWorkspace() {
             <button class="btn sm" onclick="handleValidate()" ${state.validating ? 'disabled' : ''}>${ICON.check} ${state.validating ? '体检中…' : '体检'}</button>
             <button class="btn sm" onclick="startPresent()" title="全屏只看稿，Esc 退出">演示</button>
             <button class="btn sm" onclick="handleOpenInBrowser()" title="在浏览器中打开">${ICON.ext} 浏览器</button>
-          </div>
-          ${state.previewMode === 'code' ? renderCodeView() : `<iframe src="${previewSrc()}" id="previewFrame" sandbox="allow-scripts allow-same-origin allow-forms allow-popups"></iframe>`}
-        ` : `
-          <div class="preview-placeholder">
+          </div>`;
+}
+
+function previewHtml() {
+  if (!state.selectedDraft) return `<div class="preview-placeholder">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
             <div>在左侧选择一份稿件预览</div>
-          </div>
-        `}
-      </div>
-      ${state.layout === 'chat-right' ? `<div class="chat-resize" id="chatResize" style="${state.chat.open ? '' : 'display:none'}"></div>` + renderChatRail() : ''}
-    </div>
-    ${state.present && state.selectedDraft ? `<div class="present" id="present"><iframe src="${p.url + encodeURIComponent(state.selectedDraft).replace(/%2F/g, '/')}" title="演示"></iframe><div class="bar"><button class="btn sm" onclick="stopPresent()">退出演示 <kbd style="font-size:10px">Esc</kbd></button></div></div>` : ''}
+          </div>`;
+  return previewToolbarHtml() + (state.previewMode === 'code' ? renderCodeView() : `<div id="previewSlot" style="flex:1;display:flex;min-height:0"></div>`);
+}
 
-    <!-- UI-1：底栏两档 + 拖拽把手；收起留 32px 条（tab 仍在，随时展开） -->
-    <div class="bottom-panel ${state.bottomMode === 'collapsed' ? 'collapsed' : ''}" id="bottomPanel" style="${bottomStyle}">
+function bottomHtml() {
+  const bottomStyle = state.bottomMode === 'half' ? 'height: 50vh;' : `height: ${state.bottomHeight}px;`;
+  return `<div class="bottom-panel ${state.bottomMode === 'collapsed' ? 'collapsed' : ''}" id="bottomPanel" style="${bottomStyle}">
       <div class="bottom-grip" id="bottomGrip" title="拖动调整高度 · 双击切换 220px / 半屏"></div>
       <div class="bottom-tabs">
         <button class="bottom-tab ${state.bottomTab === 'diags' ? 'active' : ''}" onclick="setBottomTab('diags')">诊断${diagBadge('error')}</button>
@@ -558,12 +562,65 @@ function renderWorkspace() {
         </div>
       </div>
       <div class="bottom-content" id="bottomContent">${renderBottomContent()}</div>
-    </div>
-  `;
+    </div>`;
+}
 
+function presentHtml() {
+  const p = state.project;
+  return state.present && state.selectedDraft ? `<div class="present" id="present"><iframe src="${p.url + encodeURIComponent(state.selectedDraft).replace(/%2F/g, '/')}" title="演示"></iframe><div class="bar"><button class="btn sm" onclick="stopPresent()">退出演示 <kbd style="font-size:10px">Esc</kbd></button></div></div>` : '';
+}
+
+function renderWorkspace() {
+  const key = workspaceKey();
+  const ws = appEl.querySelector('.workspace');
+  if (!ws || wsKey !== key) {
+    // 整块骨架（首次 / 换稿 / 换档 / 换布局）
+    wsKey = key;
+    appEl.innerHTML = `
+    ${topbarHtml()}
+    <div class="workspace">
+      ${state.layout === 'chat-left' ? renderChatRail() + `<div class="chat-resize" id="chatResize" style="${state.chat.open ? '' : 'display:none'}"></div>` : ''}
+      ${sidebarHtml()}
+      <div class="resize-handle" id="resizeHandle" style="${state.sidebarCollapsed ? 'display:none' : ''}"></div>
+      <div class="preview">${previewHtml()}</div>
+      ${state.layout === 'chat-right' ? `<div class="chat-resize" id="chatResize" style="${state.chat.open ? '' : 'display:none'}"></div>` + renderChatRail() : ''}
+    </div>
+    <div id="presentHost">${presentHtml()}</div>
+    ${bottomHtml()}`;
+    mountPreview();
+  } else {
+    // 分区更新：iframe 不碰
+    replaceEl(appEl.querySelector('.topbar'), topbarHtml());
+    replaceEl(appEl.querySelector('.sidebar'), sidebarHtml());
+    const tb = appEl.querySelector('.preview-toolbar');
+    if (tb) replaceEl(tb, previewToolbarHtml());
+    if (state.previewMode === 'code') { const cv = appEl.querySelector('.code-view, .preview .preview-placeholder'); if (cv) replaceEl(cv, renderCodeView()); }
+    replaceEl(appEl.querySelector('.bottom-panel'), bottomHtml());
+    replaceEl(appEl.querySelector('.chat-rail'), renderChatRail());
+    const ph = document.getElementById('presentHost'); if (ph) ph.innerHTML = presentHtml();
+  }
   wireSidebarResize();
   wireBottomGrip();
   wireChatRail();
+}
+
+function replaceEl(el, html) {
+  if (!el) return;
+  const tpl = document.createElement('template'); tpl.innerHTML = html.trim();
+  el.replaceWith(tpl.content.firstElementChild);
+}
+
+/* 预览 iframe：只在换稿 / 换档时创建；render() 的分区更新不碰它 */
+function mountPreview() {
+  const slot = document.getElementById('previewSlot');
+  if (!slot) return;
+  const iframe = document.createElement('iframe');
+  iframe.id = 'previewFrame';
+  iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-popups');
+  const want = previewSrc();
+  iframe.setAttribute('data-src', want);
+  iframe.src = want;
+  slot.replaceChildren(iframe);
 }
 
 // ── AI 会话侧栏（M2-12） ─────────────────────────────
@@ -741,7 +798,7 @@ async function chatRevert(idx) {
   render();
 }
 
-function reloadPreview() { const f = document.getElementById('previewFrame'); if (f) f.src = f.src; if (state.previewMode === 'code') loadSource(); }
+function reloadPreview() { const f = document.getElementById('previewFrame'); if (f) f.src = f.getAttribute('data-src') || f.src; if (state.previewMode === 'code') loadSource(); }
 
 /* 预览走 S2 预览壳（build_index 部署在项目根），它注入点选桥、带属性面板；?embed=1 让它收起「索引」链接并把选中节点 postMessage 上来。 */
 function previewSrc() {

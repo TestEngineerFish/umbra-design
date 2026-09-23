@@ -116,6 +116,7 @@
           {{ healthLabel }}
         </span>
 
+        <button type="button" onClick="{{ onPresent }}" title="全屏只看稿，Esc 退出（M6-4）" style="display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 11px; border-radius: var(--tool-radius); border: 1px solid var(--tool-border-strong); background: var(--tool-panel); cursor: pointer; font-size: 12px; transition: background .13s ease, border-color .13s ease;" style-hover="background: var(--tool-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">演示</button>
         <button type="button" onClick="{{ onRecheck }}" disabled="{{ checking }}" style="display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 11px; border-radius: var(--tool-radius); border: 1px solid var(--tool-border-strong); background: var(--tool-panel); cursor: pointer; font-size: 12px; transition: background .13s ease, border-color .13s ease; opacity: {{ recheckOpacity }};" style-hover="background: var(--tool-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">
           <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M13.2 8a5.2 5.2 0 11-1.9-4.02" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path><path d="M13.4 2.4v2.9h-2.9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
           {{ recheckLabel }}
@@ -619,6 +620,7 @@
          「不进属性面板」这一条依旧且更强 —— 面板要先选中节点，
          而回退不应该需要选中任何东西。 -->
     <span style="flex: 1;"></span>
+    <sc-if value="{{ hasEditHint }}" hint-placeholder-val="{{ false }}"><span style="color: var(--tool-accent); font-weight: 560;">{{ editHint }}</span></sc-if>
     <span style="display: flex; align-items: center; gap: 5px;"><kbd style="font-family: var(--tool-mono); background: var(--tool-panel-2); border: 1px solid var(--tool-border); border-radius: var(--tool-radius-sm); padding: 1px 5px;">R</kbd> 重跑体检</span>
     <span style="display: flex; align-items: center; gap: 5px;"><kbd style="font-family: var(--tool-mono); background: var(--tool-panel-2); border: 1px solid var(--tool-border); border-radius: var(--tool-radius-sm); padding: 1px 5px;">D</kbd> 诊断栏</span>
     <span style="display: flex; align-items: center; gap: 5px;"><kbd style="font-family: var(--tool-mono); background: var(--tool-panel-2); border: 1px solid var(--tool-border); border-radius: var(--tool-radius-sm); padding: 1px 5px;">Esc</kbd> 收起</span>
@@ -724,7 +726,7 @@ class Component extends DCLogic {
             selectOn: false, picked: null, bridgeReady: false,
             live: null, chg: null, slots: null, apiErr: null, drafts: {}, busy: null,
             draftTheme: "light",
-            revertPick: "", checkNote: null, previewing: null, previewSlot: null, verOpen: null,
+            revertPick: "", checkNote: null, previewing: null, previewSlot: null, editHint: null, verOpen: null,
             /* 属性面板的形制状态（设计侧 §五）：组折叠 / ? 展开 / 色板展开 /
                行级失败 / 已落盘条 / sc-for 改完那条 / 回退两段式 */
             gOpen: {}, hintOpen: {}, colorOpen: null, tokenHits: [], tokenQ: "",
@@ -774,6 +776,10 @@ class Component extends DCLogic {
       this.onFrameLoad = () => { this.injectBridge(); this.pushDraftTheme(); };
       /* 方式 ②（doc/12 M2-8）：应用壳把这份预览壳装在 iframe 里，它和我们跨源，
          选中的节点只能用 postMessage 送上去，应用的会话面板据此带 selectedNodeFile / Address。 */
+      this.postFrame = (type, payload) => {
+        const f = this.frameRef && this.frameRef.current;
+        if (f && f.contentWindow) f.contentWindow.postMessage({ source: "umbradesign-shell", type: type, payload: payload }, "*");
+      };
       this.tellParent = (type, payload) => {
         try { if (window.parent && window.parent !== window) window.parent.postMessage({ source: "umbradesign-s2", type: type, payload: payload }, "*"); }
         catch (e) { /* 没有父窗口就算了 */ }
@@ -790,6 +796,27 @@ class Component extends DCLogic {
           return;
         }
         if (m.type === "clear") { this.clearPreview(); this.setState({ picked: null, slots: null, previewing: null, previewSlot: null }); this.tellParent("cleared", null); return; }
+        /* 文字就地编辑（M6-5）：双击来的请求先问 locate —— 只有字面量文案才能改；
+           洞（函数 / 引用 / 循环变量 / 计算）给一句来源说明，不进编辑，和属性面板同一口径。 */
+        if (m.type === "edit-request") {
+          const a = m.payload;
+          this.api("locate", { file: a.file, node: a.node }).then((d) => {
+            const slot = (d.slots || []).find((x) => x.kind === "text");
+            this.setState({ picked: a, slots: d, previewing: null, previewSlot: null });
+            this.tellParent("picked", a);
+            if (slot && slot.editable) { this.editSlot = slot; this.setState({ editHint: "就地编辑中：Enter 落盘 · Esc 放弃" }); this.postFrame("edit-start", { node: a.node }); }
+            else this.setState({ editHint: slot ? ("这段文字不能就地改：" + (slot.why || "值来自洞，到属性面板看来源")) : "这个节点没有直接的文案，到属性面板改" });
+          }).catch((e) => this.setState({ editHint: "定位失败：" + e.message }));
+          return;
+        }
+        if (m.type === "edit-commit") {
+          const q = m.payload || {};
+          const slot = this.editSlot; this.editSlot = null;
+          this.setState({ editHint: null });
+          if (slot && q.text !== q.original) this.applyProp(slot, q.text, "text.(文本)");   // 和属性面板里改文案同一条路
+          return;
+        }
+        if (m.type === "edit-cancel") { this.editSlot = null; this.setState({ editHint: null }); return; }
       };
       window.addEventListener("message", this.onMsg);
       const f = this.frameRef;
@@ -1390,6 +1417,9 @@ class Component extends DCLogic {
       checking: checking,
       notChecking: !checking,
       onRecheck: () => this.recheck(),
+      onPresent: () => { const f = this.frameRef && this.frameRef.current; if (f && f.requestFullscreen) f.requestFullscreen().catch(() => {}); },
+      hasEditHint: !!s.editHint,
+      editHint: s.editHint || "",
       recheckLabel: checking ? (s.checkNote || "体检中") : "重跑体检",
       recheckOpacity: checking ? "0.55" : "1",
       onRescan: () => this.setState({ demo: 1 }),

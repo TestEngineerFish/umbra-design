@@ -149,8 +149,53 @@
   }, true);
 
   document.addEventListener("keydown", function (e) {
+    if (EDIT) return;                                   // 编辑中的 Esc 由编辑器自己处理
     if (e.key === "Escape") { CUR = null; hide(); send("clear", null); }
   }, true);
+
+  /* ── 文字就地编辑（doc/12 M6-5）──
+   * 点选模式下双击一个节点 → 先问壳「这段文字能不能改」（壳去 locate，只有字面量文案才行）；
+   * 壳回 edit-start 才把元素设成 contentEditable。Enter / 失焦提交，Esc 放弃并还原。
+   * React 托管文本，提交后壳会走 set_prop 落盘、iframe 重载 —— 所以这里不做「预览」，只做输入。 */
+  var EDIT = null;   // { el, node, original }
+  document.addEventListener("dblclick", function (e) {
+    if (!on() || EDIT) return;
+    var a = addressOf(e.target);
+    if (!a) return;
+    e.preventDefault(); e.stopPropagation();
+    send("edit-request", a);
+  }, true);
+
+  function editStart(nodeId) {
+    var el = document.querySelector('[data-ud-node="' + cssEscape(nodeId) + '"]');
+    if (!el || EDIT) return;
+    EDIT = { el: el, node: nodeId, original: el.textContent };
+    el.setAttribute("contenteditable", "true");
+    el.setAttribute("data-ud-editing", "");
+    el.style.outline = "2px solid #3a49cf"; el.style.outlineOffset = "2px";
+    el.focus();
+    try { var range = document.createRange(); range.selectNodeContents(el); var sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range); } catch (err) { /* ignore */ }
+    el.addEventListener("keydown", onEditKey, true);
+    el.addEventListener("blur", onEditBlur, true);
+    hide();
+  }
+  function editEnd(commit) {
+    if (!EDIT) return;
+    var ed = EDIT; EDIT = null;
+    ed.el.removeEventListener("keydown", onEditKey, true);
+    ed.el.removeEventListener("blur", onEditBlur, true);
+    ed.el.removeAttribute("contenteditable"); ed.el.removeAttribute("data-ud-editing");
+    ed.el.style.outline = ""; ed.el.style.outlineOffset = "";
+    var text = ed.el.textContent;
+    if (!commit || text === ed.original) { ed.el.textContent = ed.original; send("edit-cancel", { node: ed.node }); return; }
+    send("edit-commit", { node: ed.node, text: text, original: ed.original });
+  }
+  function onEditKey(e) {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); e.stopPropagation(); editEnd(true); }
+    else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); editEnd(false); }
+    else e.stopPropagation();   // 稿自己的快捷键别抢
+  }
+  function onEditBlur() { editEnd(true); }
 
   // 壳可以问「现在选的是谁」，也可以让 iframe 高亮某个地址
   window.addEventListener("message", function (e) {
@@ -172,6 +217,8 @@
       return;
     }
     if (m.type === "clear-style") { clearPreview((m.payload || {}).node); return; }
+    if (m.type === "edit-start") { editStart((m.payload || {}).node); return; }
+    if (m.type === "edit-abort") { editEnd(false); return; }
     if (m.type === "ping") send("ready", {
       nodes: document.querySelectorAll("[data-ud-node]").length,
       mode: on(),

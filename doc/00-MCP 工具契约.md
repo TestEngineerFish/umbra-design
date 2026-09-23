@@ -2715,3 +2715,11 @@ UMBRADESIGN_AUTOTEST_DIR=<项目目录> UMBRADESIGN_AUTOTEST_LOG=<读数文件> 
 
 【实测】Playwright：默认列序 `chat-rail · chat-resize · sidebar · resize-handle · preview`，切 chat-right 后反过来；列表收起 36px；源码 19 行带行号；演示覆盖层装 `/t.dc.html`，Esc 收掉。
 
+## 四十三、M6-5 文字就地编辑 · 应用前端改分区渲染（2026-09-23）
+
+**就地编辑**：点选桥（`runtime/select-bridge.js`）在点选模式下双击 → `edit-request` 给 S2；S2 先 `locate`，只有 `kind=text` 且 `editable` 的字面量文案才回 `edit-start`，桥把元素设 `contenteditable`（全选、描边）；Enter / 失焦 `edit-commit`，Esc `edit-cancel` 还原。S2 收到 commit 走 `applyProp(slot, text, "text.(文本)")` —— 和属性面板里改文案同一条落盘路。洞上的文字给一句来源说明，不进编辑。底栏出「就地编辑中：Enter 落盘 · Esc 放弃」。不做输入期预览：文本由 React 托管，提交后 set_prop 落盘、iframe 重载，闪回比没有更糟（§二十五 的同一条理由）。S2 顶栏顺带加「演示」（iframe 全屏，M6-4 的 S2 侧）。
+
+**应用前端改分区渲染**：原来 `render()` 每次把整个应用 `innerHTML` 重建 —— 选中节点、会话轮询（每 1.2 s）都会让 S2 壳和它里面的稿重载；就地编辑第一跑时内层 iframe 直接被卸掉。先试过「把同一个 iframe 元素挪回新 DOM」，不行：iframe 只要重新插入就重载。现在骨架只在换稿 / 换档 / 换布局时重建（`workspaceKey`），平时只替换顶栏 / 侧栏 / 预览工具栏 / 底栏 / 会话栏 / 演示层各自的元素，预览 iframe 原地不动。
+
+【实测】Playwright：点选开 → 双击按钮 → 编辑态、底栏提示 → 改成「保存草稿」回车 → v14 → v15，diff 仅 `L3 text_changed 提交 → 保存草稿`，文件里按钮文案已变。
+
