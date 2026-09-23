@@ -2578,3 +2578,35 @@ S10 已改 `type="text" inputmode="decimal"`。**S2 的属性面板一直是这�
 
 `ai_config.json` 加 `channelB: { baseUrl, apiKey, model }`；`set_ai_config` 加 `channel: a|b`；`chat_send` 通道 B 改读 `getChannelB()`，不再回落到通道 A（端点不同，回落只会打到错的地址）。两条通道仍都没真跑过 —— 等 key。
 
+## 三十五、两条 AI 通道第一次真跑（2026-09-23）
+
+用户给了一个智谱 key。key 只在 `.umbradesign/ai_config.json`（`chmod 600`，`.gitignore` 内），不进仓库、不进本文。
+实测脚本走 MCP stdio 真调 `chat_send`（不是 agenttest 那种模拟），判据 `01` §7.6 第 23 条。
+
+### 35.1 通道 A（智谱通用 API，OpenAI 兼容）—— ✅ 跑通
+
+两条真缺陷，都是代码写完从没跑过才留下的：
+
+1. **端点拼接丢路径**：`new URL("/chat/completions", baseUrl)` 会把 `https://open.bigmodel.cn/api/paas/v4` 的路径整段丢掉，POST 到根 → nginx 405。改成字符串拼接。DeepSeek 的 base 没路径所以从没暴露。
+2. **发给模型的 messages 里没有用户那句**：`chat_send` 把用户消息 `addMessage` 进会话后没拿回更新后的对象，history 从旧对象取，只剩 system 一条 → 智谱 400「messages 参数非法」。用一个 `UMBRADESIGN_AI_DEBUG=<路径>` 开关把请求体落盘才看出来（provider.ts，留着）。回包的 messages 同样要重新读盘。
+
+修后读数：`把「测试.dc.html」里的那个按钮改成 danger 态` → 23.6 s，12,555 tokens，模型调了我们的工具把稿从 v1 写到 v2（`background: #ff4d4f`），`changes` = L2 ×1，`revert_to v1` 后 `#0066ff` 回来。**判据三件全中。**
+DeepSeek 端点没跑（没 key），同一适配器，M2-1 验收里「分别对 DeepSeek 与智谱跑通」只有后一半。
+
+### 35.2 通道 B（Claude Code 子进程 → 智谱 Anthropic 端点）—— ⛔ 卡在套餐
+
+`claude --print` 挂到 120 s 超时，三种变体（裸 / 去掉嵌套环境变量 / 带 `--brief`）都一样，stderr 只有 `unrecognized_model` 警告。分辨仪器还是世界：
+
+- 直接 curl `…/api/anthropic/v1/messages`：**0.38 s 回 429**，`[1309] 您的 GLM Coding Plan 套餐已到期`
+- 同一台机器用本机登录跑 `claude --print "只回复 ok"`：9.4 s 正常返回
+
+所以链路（spawn / `--mcp-config` / `--allowed-tools` / 输出解析）没被证伪，卡的是 Claude Code 对 429 的静默重试 + 套餐过期。
+加了**端点预检**：spawn 前先发一条 `max_tokens: 1` 的最小请求，非 2xx 立刻把原话回给上层（实测 0.4 s 报 `HTTP 429 …套餐已到期`），不再白等 120 s。
+**通道 B 的最终验证等套餐续订**（或换一把 Coding Plan 的 key）。
+
+`--brief` 顺便查了：它是「给 agent 开 SendUserMessage 工具」，和「简短」无关，对 headless 没用处；先留着不动，等真跑通再决定去留。
+
+### 35.3 新增
+
+`chat_list` / `chat_get` 两个 MCP 工具（应用前端会话面板要列会话、读历史）。
+

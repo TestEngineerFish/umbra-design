@@ -82,6 +82,29 @@ export async function channelBRun(
   systemPrompt?: string,
   timeoutMs: number = 120000,
 ): Promise<ChannelBResult> {
+  /* 端点预检：Claude Code 对 4xx（尤其 429）会静默重试，外面看就是挂死到超时。
+     先用一条 max_tokens=1 的最小请求问一下端点，不通就立刻把原话回给上层。
+     【实测 2026-09-23】智谱 Anthropic 端点 429「GLM Coding Plan 套餐已到期」，0.4 秒就能知道，不必等 120 秒。 */
+  try {
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), 15000);
+    const r = await fetch(cfg.baseUrl.replace(/\/+$/, "") + "/v1/messages", {
+      method: "POST",
+      headers: { "x-api-key": cfg.apiKey, "authorization": `Bearer ${cfg.apiKey}`, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+      body: JSON.stringify({ model: cfg.model, max_tokens: 1, messages: [{ role: "user", content: "ok" }] }),
+      signal: ctl.signal,
+    });
+    clearTimeout(timer);
+    if (!r.ok) {
+      const text = (await r.text().catch(() => "")).slice(0, 400);
+      return { ok: false, result: "", usage: null, toolCalls: [], numTurns: 0,
+        error: `通道 B 端点预检失败 HTTP ${r.status}：${text || r.statusText}` };
+    }
+  } catch (e) {
+    return { ok: false, result: "", usage: null, toolCalls: [], numTurns: 0,
+      error: `通道 B 端点预检连不上 ${cfg.baseUrl}：${(e as Error).message}` };
+  }
+
   const mcpJson = await buildMcpConfig(cfg.mcpServerPath);
 
   // 写临时 MCP 配置文件

@@ -1379,6 +1379,26 @@ server.registerTool("set_ai_config", {
   return envelope({ ok: true, channel: ch }, [], {});
 }));
 
+server.registerTool("chat_list", {
+  title: "列出项目的 AI 会话",
+  description: "会话存 .umbradesign/chats/，与项目绑定。返回 id / 通道 / 模型 / 更新时间 / 条数，按更新时间倒序。",
+  inputSchema: { project: z.string().describe("项目名") },
+}, async ({ project }) => run(async () => {
+  const p = await loadProject(project);
+  const r = await listChats(p.dir);
+  return envelope(r, [], { count: r.sessions.length });
+}));
+
+server.registerTool("chat_get", {
+  title: "读一个 AI 会话的全部消息",
+  inputSchema: { project: z.string().describe("项目名"), sessionId: z.string().describe("会话 ID") },
+}, async ({ project, sessionId }) => run(async () => {
+  const p = await loadProject(project);
+  const s = await loadChat(p.dir, sessionId);
+  if (!s) throw new Error(`没有会话 ${sessionId}`);
+  return envelope(s, [], { messages: s.messages.length });
+}));
+
 server.registerTool("chat_send", {
   title: "发送 AI 会话消息",
   description: [
@@ -1412,8 +1432,9 @@ server.registerTool("chat_send", {
     });
   }
 
-  // 用户消息写入会话
-  await addMessage(p.dir, session.id, { role: "user", content: message });
+  // 用户消息写入会话 —— 要拿回更新后的会话对象：下面的 history 从它取，
+  // 否则发给模型的只有 system 一条，用户那句根本不在（智谱直接 400「messages 参数非法」，2026-09-23 实测）
+  session = await addMessage(p.dir, session.id, { role: "user", content: message });
 
   // ── 选中节点上下文（M2-8） ──
   let nodeContext: string | null = null;
@@ -1515,6 +1536,7 @@ server.registerTool("chat_send", {
     }
 
     const diags = result.error ? [err(X.IO, p.rel, { kind: "key", name: "ai" }, result.error)] : [];
+    session = (await loadChat(p.dir, session.id)) ?? session;   // 回包里的消息要含模型回复与工具调用，重新读盘
 
     // ── 审计本次 AI 会话对稿件的变更（M2-9） ──
     const changes: Array<{ path: string; counts: Record<string, number>; summary: string }> = [];
