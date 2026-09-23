@@ -63,15 +63,16 @@ Thumbs.db
 *.bak
 *.bak[0-9]
 *.orig
-src-tauri/target/
 
 # agenttest 的临时项目：每次跑都会建再删，不进仓库
 server/test-agent-project/
 
-# Tauri 捆绑的 Node 二进制（106MB，GitHub 拒收 >100MB）：不进仓库，按 src-tauri/binaries/README.md 本地生成
-src-tauri/binaries/node-*
 doc/Umbra定时测试任务模版.txt
 
 # 新前端（M7-2）
 app/node_modules/
 app/dist/
+
+# 桌面壳（Electron，M9-2）
+shell/node_modules/
+shell/out/

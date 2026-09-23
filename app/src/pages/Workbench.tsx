@@ -6,6 +6,7 @@ import { kindOf, loadLayout, saveLayout, type ChatRail } from "../layout/layout"
 /** 空的工作台布局（M7-2）：左会话 / 右预览为主结构，预览永远最大（R1）；会话栏三态（R2）；
  *  从属面板按类型出现并记住收放（R3）；< 1100px 从属面板改抽屉（R5）。功能平移在 M7-5 / M7-6。 */
 export function Workbench({ core, host, boot, onHome }: { core: Core; host: HostAdapter; boot: { name: string; title: string; dir: string }; onHome: () => void }) {
+  // core 是当前项目自己的服务（桌面壳里和 hub 不是同一个端口）
   const [layout, setLayout] = useState(loadLayout);
   const [drafts, setDrafts] = useState<{ file: string }[]>([]);
   const [selected, setSelected] = useState<string | null>(null);

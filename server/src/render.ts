@@ -121,7 +121,23 @@ export interface RenderResult {
   record: string;
 }
 
+/** 壳里体检窗口的 URL 标记（shell/main.mjs 与这里要一致） */
+export const CDP_PAGE_MARK = "umbrastudio-check";
+/** CDP 模式只有一页，体检必须串行；起浏览器的老路各开各的页，不用排队 */
+let cdpQueue: Promise<unknown> = Promise.resolve();
+
 export async function renderCheck(
+  p: Project, relPath: string, opts: RenderOptions = {}
+): Promise<{ result: RenderResult; diags: Diagnostic[] }> {
+  if (process.env.UMBRASTUDIO_CDP) {
+    const run = cdpQueue.then(() => renderCheckInner(p, relPath, opts));
+    cdpQueue = run.catch(() => undefined);
+    return run;
+  }
+  return renderCheckInner(p, relPath, opts);
+}
+
+async function renderCheckInner(
   p: Project, relPath: string, opts: RenderOptions = {}
 ): Promise<{ result: RenderResult; diags: Diagnostic[] }> {
   const abs = draftPath(p, relPath);
@@ -170,13 +186,18 @@ export async function renderCheck(
   const diags: Diagnostic[] = [];
 
   try {
-    /* Electron 的 CDP 不支持新建隔离上下文，只能用它默认上下文里已有的页（壳里开一个隐藏窗口）。
-       起浏览器那条路照旧 newPage。 */
+    /* Electron 的 CDP 不支持新建隔离上下文，只能用它默认上下文里已有的页。壳开了一个隐藏窗口专给体检用，
+       URL 带标记 about:blank#umbrastudio-check —— **必须按标记找**，不能拿 pages()[0]：主窗口也在同一个上下文里，
+       拿错了会把用户正在用的窗口导航走【实测 2026-09-24，M9-2】。体检完把它导回标记页，下一次还能找到。 */
     const cdpCtx = cdp ? (browser.contexts()[0] ?? null) : null;
-    const page = cdpCtx
-      ? (cdpCtx.pages()[0] ?? await cdpCtx.newPage())
-      : await browser.newPage({ viewport: { width, height } });
-    if (cdpCtx) await page.setViewportSize({ width, height });
+    const findCheckPage = () => cdpCtx ? (cdpCtx.pages().find((pg) => pg.url().includes(CDP_PAGE_MARK)) ?? null) : null;
+    let cdpPage = findCheckPage();
+    if (cdpCtx && !cdpPage) {
+      if (cdpCtx.pages().length === 1) cdpPage = cdpCtx.pages()[0] as import("playwright-core").Page;   // 只有一页（spike 那种），就是它
+      else throw new ToolError(err(X.IO, relPath, { kind: "key", name: "UMBRASTUDIO_CDP" }, "CDP 那头找不到带标记的体检窗口", { fix: `壳要开一个隐藏窗口并 load about:blank#${CDP_PAGE_MARK}` }));
+    }
+    const page = cdpPage ?? await browser.newPage({ viewport: { width, height } });
+    if (cdpPage) await page.setViewportSize({ width, height });
     const consoleWarnings: RenderResult["consoleWarnings"] = [];
     const missing: string[] = [];
     const external: string[] = [];
@@ -387,6 +408,7 @@ export async function renderCheck(
     };
   } finally {
     // 卡死的渲染进程会让 close() 挂住 —— 超时就硬杀，不然工具跟着一起挂
+    if (cdp) { try { const pg = browser.contexts()[0]?.pages()[0]; const mine = browser.contexts()[0]?.pages().find((x) => !x.url().includes(CDP_PAGE_MARK) && x.url().startsWith(base)); await (mine ?? pg)?.goto("about:blank#" + CDP_PAGE_MARK, { timeout: 3000 }); } catch { /* 导不回去下次会报「找不到体检窗口」 */ } }
     const closed = await race(browser.close().then(() => true), 5000, false);
     if (!closed) {
       const proc = (browser as unknown as { process?: () => { kill?: (s?: string) => void } | null }).process?.();

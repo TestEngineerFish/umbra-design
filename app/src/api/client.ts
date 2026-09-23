@@ -1,6 +1,8 @@
 /** 前端 ⇄ 核心：只有 HTTP（/__ud/*）和 WS（/__ud/ws）两条路（doc/01 §4.9）。
  *  启动数据由核心在托管 /__app/ 时注进 window.__UD_APP（server/src/serve.ts）。 */
-export interface Boot { url: string; token: string; name: string; title: string; dir: string; ws: string; front: "app" | "legacy" }
+/** 托管本页的核心：属于某个项目（name/dir 有值）或是桌面壳的 hub（hub=true，只有全局路由） */
+export interface Boot { url: string; token: string; name: string | null; title: string | null; dir: string | null; ws: string; front: "app" | "legacy"; hub?: boolean }
+export interface ProjectHandle { url: string; token: string; ws: string; name: string; title: string; dir: string }
 export interface Envelope<T = unknown> { ok: boolean; data?: T; errors?: { code?: string; message: string }[] }
 export interface UdEvent { type: "hello" | "job" | "chat" | "write" | "fs"; projectDir: string | null; payload: unknown; at: string }
 

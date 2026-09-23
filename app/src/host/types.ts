@@ -14,4 +14,7 @@ export interface HostAdapter {
   notify(n: { title: string; body?: string }): Promise<void>;
   setTitle(title: string): void;
   capabilities(): Record<"pickDirectory" | "revealInFinder" | "openExternal" | "notify" | "setTitle", HostCapability>;
+  /** 壳主动发来的事：菜单「打开目录」、上次没正常退出（未落盘提示）。浏览器宿主没有这些事。 */
+  onEvent?(cb: (e: HostEvent) => void): () => void;
 }
+export type HostEvent = { type: "open-dir"; dir: string } | { type: "dirty-restart"; at: string | null } | { type: "go-home" };

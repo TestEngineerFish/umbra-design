@@ -93,7 +93,9 @@ function originOk(req: IncomingMessage, port: number): boolean {
   return /^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(o);
 }
 
-export interface ApiCtx { project: Project; token: string; port: number }
+export interface ApiCtx { project: Project | null; token: string; port: number }
+/** hub 服务（桌面壳的首页，不属于任何项目）只有这几条路由；其余都要项目上下文 */
+const GLOBAL_ROUTES = new Set(["projects", "open_project", "create_project", "inspect_dir", "reveal_dir"]);
 
 /** 作业化会话的中断句柄：jobId → AbortController（作业活在进程里，这张表也是） */
 const chatAborts = new Map<string, AbortController>();
@@ -117,7 +119,11 @@ export async function handleApi(
     return true;
   }
 
-  const p = ctx.project;
+  if (!ctx.project && !GLOBAL_ROUTES.has(route)) {
+    json(reply, 404, { ok: false, errors: [{ code: "E_API_HUB", message: `hub 服务没有项目上下文，路由 ${route} 要从项目自己的服务调（open_project 会给 url / token）` }] });
+    return true;
+  }
+  const p = ctx.project as Project;   // 非全局路由到这里一定有项目；全局路由只在下面用 p?.dir
   try {
     // ── 只读 ──
     if (route === "drafts" && req.method === "GET") {
@@ -459,15 +465,15 @@ export async function handleApi(
         seen.add(r.dir);
         if (!r.exists) continue;   // 目录不在的最近项目（多半是回归测试留下的临时目录）不上首页，免得一屏「找不到」
         const d = await describe(r.dir);
-        if (d) rows.push({ ...d, lastOpened: r.lastOpened, current: r.dir === p.dir });
+        if (d) rows.push({ ...d, lastOpened: r.lastOpened, current: r.dir === p?.dir });
       }
       for (const dir of await listProjectDirs()) {
         if (seen.has(dir)) continue;
         seen.add(dir);
         const d = await describe(dir);
-        if (d) rows.push({ ...d, lastOpened: null, current: dir === p.dir });
+        if (d) rows.push({ ...d, lastOpened: null, current: dir === p?.dir });
       }
-      json(reply, 200, { ok: true, data: { current: p.dir, projects: rows } });
+      json(reply, 200, { ok: true, data: { current: p?.dir ?? null, projects: rows } });
       return true;
     }
     if (route === "open_project" && req.method === "POST") {
@@ -479,7 +485,7 @@ export async function handleApi(
       const s = await serveStart(target);
       if (!s.indexExists) await buildIndex(target, s.url);   // 第一次打开：部署壳与令牌，否则 S2 / S6 / S8 全 404
       await touchProject(target.dir, target.name, target.title);
-      json(reply, 200, { ok: true, data: { url: s.url, token: s.token, name: target.name, title: target.title, dir: target.dir, app: s.url + "__app/" } });
+      json(reply, 200, { ok: true, data: { url: s.url, token: s.token, ws: `ws://127.0.0.1:${s.port}${API_PREFIX}ws`, name: target.name, title: target.title, dir: target.dir, app: s.url + "__app/" } });
       return true;
     }
 
@@ -585,7 +591,7 @@ export async function handleApi(
       const r = await updateProject(p, opts as Parameters<typeof updateProject>[1]);
       // 配置变了，本服务上的 Project 对象也要换 —— 否则下一次校验还用旧限额
       const { buildProject } = await import("./project.js");
-      Object.assign(ctx.project, await buildProject(p.dir));
+      Object.assign(p, await buildProject(p.dir));
       json(reply, 200, { ok: true, data: r });
       return true;
     }

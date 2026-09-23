@@ -68,6 +68,9 @@ npm --prefix server run ui -- Umbra_design
 旧前端在 `/__legacy/`，功能齐全，M7-8 退役），然后停在前台（回车重跑索引，Ctrl-C 退出）。
 S1 稿件索引那一页仍在 `index.dc.html`，只是不再当入口。
 
+桌面壳（Electron，M9-2）：`npm --prefix shell install`（Electron 二进制走 npmmirror，见 `shell/.npmrc`）→ `npm --prefix shell start`。
+壳测试：`node shell/shelltest.mjs`（先把里面的 `<scratchpad>` 换成放测试项目副本的目录）。打包：`npm --prefix shell run dist`。
+
 当 MCP 用（给别的模型客户端）：
 
 ```bash
@@ -83,8 +86,8 @@ claude mcp add umbrastudio -- node <仓库绝对路径>/server/dist/index.js
 转向 Umbra Studio 的依据 `doc/18`，决策 `doc/11` Q18–Q29，条目 `doc/12` M7–M10。**2026-09-24 起顺序以 `doc/12` §〇.2 为准**，
 要点：M7-1 / M9-1 / M7-9 已完成，Q26 定了换 Electron，所以**新前端直接在 Electron 壳里平移，不在 Tauri 上做两遍**：
 
-1. M7-2 新前端骨架 + M7-3 host adapter（`browser` 实现）+ M7-4 核心侧 HTTP / WS
-2. M9-2 Electron 壳（含 `desktop` adapter；Tauri 与 sidecar 退役；M9-3 随之成立）
+1. ~~M7-2 新前端骨架 + M7-3 host adapter + M7-4 核心侧 HTTP / WS~~ ✅（`00` §五十二）
+2. ~~M9-2 Electron 壳~~ ✅（`00` §五十三；Tauri 已删）
 3. M7-5 / M7-6 平移现有能力，两个宿主都跑；不加新功能
 4. M7-7 布局引擎 → M7-8 旧前端退役 → M8 加类型
 
@@ -185,6 +188,7 @@ ClaudeDesign 的项目在云端，**只拥有被上传过的东西**。之前只
 | `doc/` | 需求、契约、规则、实测、路线图、待办 | ✅ |
 | `server/` | MCP server + 本地 API + WS + CLI（Node + TS） | ✅（`dist/` 除外） |
 | `app/` | 新前端（Vite + React + TS + Tailwind）；`src/host/` 是唯一碰壳的目录 | ✅（`dist/`、`node_modules/` 除外） |
+| `shell/` | Electron 桌面壳：主进程起核心、preload 挂 `window.umbraHost`、`shelltest.mjs` | ✅（`node_modules/`、`out/` 除外） |
 | `runtime/` | `support.js` + 两个 React UMD，**刻意 vendor** | ✅ |
 | `ui/` | 工具自己的界面稿（S1–S10、IconGlyph）；`ui/_incoming/` 是收设计侧稿的暂存处，不进仓库 | ✅ |
 | `outgoing/` | 给设计侧的发件包 | ❌ |
@@ -202,7 +206,7 @@ ClaudeDesign 的项目在云端，**只拥有被上传过的东西**。之前只
 | `npm --prefix server run ui -- <项目名>` | 起界面给人用 |
 | `npm --prefix server run outgoing` | 给设计侧打包 ui/（每份稿插 baseline 行），产出 `outgoing/UmbraStudio-ui-<时间>.zip`；**每一轮交办都要随附这个包**（`doc/00` §三十二） |
 | `npm --prefix server run incoming` | 接设计侧交回来的稿（`ui/_incoming/`），先查底稿（正确 / 过时 / 不明），再查合法性与接线标记；加 `-- --apply` 把过关的稿并入 `ui/` |
-| `UMBRASTUDIO_AUTOTEST_DIR=<项目> UMBRASTUDIO_AUTOTEST_LOG=<文件> npx tauri dev --no-watch` | 壳内自测：前端在 Tauri 壳里自己走一遍主流程，每步一行 JSON（`doc/00` §三十八）。看到 `"step":"done"` 就杀进程 |
+| `npm --prefix shell start` / `run dist` | 起 Electron 壳 / 打包（`doc/00` §五十三）；`node shell/shelltest.mjs` 用 Playwright `_electron` 走一遍壳的主流程 |
 
 ---
 
@@ -225,7 +229,7 @@ ClaudeDesign 的项目在云端，**只拥有被上传过的东西**。之前只
 
 ## 9. 当前状态一句话（2026-09-23）
 
-**2026-09-24：M7-1 改名已执行（`00` §四十九，仓库 GitHub 侧已是 `umbra-studio`）；M9-1 壳 spike 两条都过（`00` §五十，Q26 回填：换 Electron，下一步 M9-2）；M7-9 第四轮已发给设计侧（`00` §五十一），等它交回；**M7-2 / M7-3 / M7-4 完成**（`00` §五十二：`app/` 骨架、host adapter browser 实现、事件总线 + WS）。** **2026-09-23 夜：转向 Umbra Studio 目录工作台。** `01` 整篇重写、`12` 新立 M7–M10 共 31 条（78 / 113）、`11` Q18–Q29 拍板、`08` §三之三 + `14` 第四轮给设计侧的委托已写好。代码一行未动，下一步从 M7-1 改名开始。以下是转向前的状态，仍然有效：
+**2026-09-24：M7-1 改名已执行（`00` §四十九，仓库 GitHub 侧已是 `umbra-studio`）；M9-1 壳 spike 两条都过（`00` §五十，Q26 回填：换 Electron，下一步 M9-2）；M7-9 第四轮已发给设计侧（`00` §五十一），等它交回；**M7-2 / M7-3 / M7-4 完成**（`00` §五十二：`app/` 骨架、host adapter browser 实现、事件总线 + WS）；**M9-2 / M9-3 完成**（`00` §五十三：Electron 壳 + 自带 Chromium 体检，Tauri 已删；打包产物本机可开，干净机器与三平台是 M9-4）。下一步 M7-5 / M7-6 平移。** **2026-09-23 夜：转向 Umbra Studio 目录工作台。** `01` 整篇重写、`12` 新立 M7–M10 共 31 条（78 / 113）、`11` Q18–Q29 拍板、`08` §三之三 + `14` 第四轮给设计侧的委托已写好。代码一行未动，下一步从 M7-1 改名开始。以下是转向前的状态，仍然有效：
 
 M0 / M1 已验收；M3 外壳能跑，**应用前端 UI-1..UI-8 已按设计侧裁决落地**；界面十屏全部可渲染、演示态可切，
 S1 索引过期 / S2 版本弹层 / S6 版本对比**接真数据并实测**；**通道 A 已真跑通**，通道 B 等套餐续订。

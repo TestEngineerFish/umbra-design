@@ -2874,3 +2874,21 @@ S2 放在 `outgoing/手动拖入/S2-单稿预览壳.dc.html`，请用户拖进�
 【实测】Playwright，`umbra_copy`（58 份稿）：`/__app/` 打开 `front=app`、React 挂载、标题由 host.setTitle 设为「Umbra 私人 AI 助手 · Umbra Studio」；WS `hello` 已连；往目录里写一个 `.md` → 收到 `fs`；`create_draft` → 收到 `write`；`check` 作业 → 收到两条 `job`（起 / 完）；选稿 → `.dc.html` 类型的从属面板出现；会话栏 收成输入条 → 展开 → 换边，`us.layout` 记住；窗宽 1000 时从属面板变抽屉（`aside.fixed`）；首页列出 6 个项目、`/__app/home` 深链可开；`/__legacy/` 旧前端照常。断网 build：产物 165 KB，无外链。回归：`selftest` 零 error · `lifecycletest` 全通 · `rendertest` 15/15。
 
 **没做、下一步做的**：桌面壳（M9-2）需要一个不属于任何项目的「hub」服务（首页要在没打开项目时就能列项目）—— 现在 `/__app/` 仍由某个项目的服务托管，浏览器入口 `npm run ui -- <项目>` 不受影响；hub 随 M9-2 一起做。
+
+## 五十三、M9-2 / M9-3：Electron 壳（2026-09-24）
+
+`shell/`（Electron 44，`main.mjs` + `preload.cjs`，electron-builder 配置在 `package.json.build`）。Tauri 目录、根 `package.json`、sidecar 二进制规则全部删除。
+
+**主进程起核心**（§五十 的做法）：`import()` `server/dist` 的 `serve.js / project.js / workspace.js`，起 **hub 服务** `hubStart()`（不属于任何项目：只托管 `/__app/` 与全局路由 `projects / open_project / create_project / inspect_dir / reveal_dir`，别的路由回 404 `E_API_HUB`；`ApiCtx.project` 因此可空）。主窗口开 `hub/__app/home`；项目服务由前端调 `open_project` 按需起，`open_project` 现在也返回 `ws`，前端拿 `{url, token, ws}` 直接跨端口连（CORS 与 WS 的 Origin 门槛本来就放行本机任意端口）。带 `--mcp` 时再 `import index.js`，stdio 归 MCP —— 秘书 / 其它模型客户端把这个可执行文件当 MCP server 起就行。
+
+**desktop adapter**：`preload.cjs` 用 `contextBridge` 挂 `window.umbraHost`（`pickDirectory / revealInFinder / openExternal / notify / setTitle / capabilities / onEvent`），前端 `host/index.ts` 见到它就是 desktop。壳主动发的事走 `host:event`：菜单「打开目录」→ `open-dir`，「回到项目列表」→ `go-home`，上次没正常退出 → `dirty-restart`。
+
+**体检走自带 Chromium**（M9-3）：`remote-debugging-port=0`，端口从 `userData/DevToolsActivePort` 读，写进 `UMBRASTUDIO_CDP`；隐藏窗口 load `about:blank#umbrastudio-check`。`render.ts` **按这个标记找页**：第一版拿 `pages()[0]`，主窗口先开之后 `pages()[0]` 就是用户的主窗口 —— 体检把它导航走了，Playwright 报「Execution context was destroyed」才抓到；现在找不到标记页且不止一页就报错，体检完把页导回标记 URL。CDP 模式只有这一页，`renderCheck` 加了串行队列。
+
+**单实例 / 未落盘提示**：`requestSingleInstanceLock`，第二个实例退出、第一个聚焦。启动写 `userData/session.json { cleanExit:false }`，`before-quit` 改 true；下次启动见到 false 就发 `dirty-restart`，前端 toast「上次没有正常退出」。真正的逐稿未落盘状态随 M7-6 平移 S2 时接上。
+
+**打包**：`extraResources` 把 `server/dist + server/node_modules + runtime + ui + app/dist + fixtures` 放进 `Resources/core/`，主进程按 `app.isPackaged` 切 `CORE_ROOT`。electron-builder 与 Electron 二进制都要走 npmmirror（`shell/.npmrc`）。
+
+【实测】`shell/shelltest.mjs`（Playwright `_electron`，把 `<scratchpad>` 换成实际目录）：起壳到首页 1.3 s，列 6 个项目，`umbraHost.kind = desktop`、`pickDirectory.ok = true`；两个窗口（隐藏体检页 + 主窗口）；主进程 `UMBRASTUDIO_CDP` 已设；菜单事件 `open-dir` → 工作台「58 份稿 · WS 已连」；壳里 `check` 作业 alive · 24 节点 · 1430 ms，期间 `ps` 里 headless Chrome 进程 0；第二个实例 exit 0；SIGKILL 后重开 toast「上次没有正常退出」出现，正常退出后重开不出现；`--mcp`：MCP 客户端 initialize 678 ms · 60 工具 · `list_projects` ok，客户端断开后壳进程随之退出。打包：`electron-builder --mac --arm64 --dir` → `shell/out/mac-arm64/Umbra Studio.app` 366 MB，启动 `packaged:true`、hub 可开、`/__app/home` 200。回归：`selftest` 零 error · `lifecycletest` 全通 · `rendertest` 15/15。
+
+**没做**：签名 / dmg / x64 / Windows（M9-4）；「干净机器双击」（`01` 第 36 条后半）没有机器可验；`createDraft` 绕过 `writeDraft` 的旁路（§五十二 提到）仍在。

@@ -1,0 +1,84 @@
+{
+  "name": "umbrastudio-shell",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Umbra Studio 桌面壳（Electron）：主进程起核心，自带 Chromium 跑体检",
+  "main": "main.mjs",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --mac --arm64 --dir"
+  },
+  "devDependencies": {
+    "electron": "^44.0.0",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.umbrastudio.app",
+    "productName": "Umbra Studio",
+    "directories": {
+      "output": "out"
+    },
+    "files": [
+      "main.mjs",
+      "preload.cjs",
+      "package.json"
+    ],
+    "asar": false,
+    "extraResources": [
+      {
+        "from": "../server/dist",
+        "to": "core/server/dist"
+      },
+      {
+        "from": "../server/node_modules",
+        "to": "core/server/node_modules"
+      },
+      {
+        "from": "../server/package.json",
+        "to": "core/server/package.json"
+      },
+      {
+        "from": "../runtime",
+        "to": "core/runtime"
+      },
+      {
+        "from": "../ui",
+        "to": "core/ui",
+        "filter": [
+          "**/*",
+          "!_incoming/**"
+        ]
+      },
+      {
+        "from": "../app/dist",
+        "to": "core/app/dist"
+      },
+      {
+        "from": "../fixtures",
+        "to": "core/fixtures"
+      }
+    ],
+    "mac": {
+      "target": [
+        {
+          "target": "dir",
+          "arch": [
+            "arm64"
+          ]
+        }
+      ],
+      "category": "public.app-category.developer-tools",
+      "identity": null
+    },
+    "win": {
+      "target": [
+        "dir"
+      ]
+    },
+    "linux": {
+      "target": [
+        "dir"
+      ]
+    }
+  }
+}

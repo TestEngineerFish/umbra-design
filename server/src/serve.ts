@@ -42,7 +42,7 @@ function serveStatic(root: string, rel: string, reply: import("node:http").Serve
 /** 进程级注册表：项目名 → 正在跑的服务 */
 const running = new Map<string, Running>();
 
-function makeServer(dir: string, onHit: () => void, api: () => ApiCtx | null): Server {
+function makeServer(dir: string | null, onHit: () => void, api: () => ApiCtx | null): Server {
   return createServer((req, reply) => {
     onHit();
 
@@ -87,7 +87,7 @@ function makeServer(dir: string, onHit: () => void, api: () => ApiCtx | null): S
     /* /__app/ —— 应用前端本体由本服务托管：和稿同源，令牌注入（doc/00 §四十六）。
        M7-2 起是 app/dist（Vite 构建产物）；没 build 过退回旧前端。旧前端另挂在 /__legacy/ 直到 M7-8 退役。 */
     const c = api();
-    const boot = (front: "app" | "legacy") => c ? `<script>window.__UD_APP=${JSON.stringify({ url: `http://127.0.0.1:${c.port}/`, token: c.token, name: c.project.name, title: c.project.title, dir: c.project.dir, ws: `ws://127.0.0.1:${c.port}${API_PREFIX}ws`, front })};</script>` : "";
+    const boot = (front: "app" | "legacy") => c ? `<script>window.__UD_APP=${JSON.stringify({ url: `http://127.0.0.1:${c.port}/`, token: c.token, name: c.project?.name ?? null, title: c.project?.title ?? null, dir: c.project?.dir ?? null, ws: `ws://127.0.0.1:${c.port}${API_PREFIX}ws`, front, hub: !c.project })};</script>` : "";
     const useApp = appDistReady();
     if (raw === "/__app" || raw === "/__app/" || raw === "/__app/index.html" || (useApp && raw.startsWith("/__app/") && !existsSync(resolve(APP_DIST, "." + normalize(raw.slice("/__app".length)))))) {
       // SPA：/__app/ 下任何不是静态文件的路径都回 index.html（前端自己按路径分页）
@@ -105,6 +105,9 @@ function makeServer(dir: string, onHit: () => void, api: () => ApiCtx | null): S
     }
     if (raw.startsWith("/__legacy/") && serveStatic(LEGACY_UI, raw.slice("/__legacy".length), reply)) return;
     if (raw === "/" || raw.endsWith("/")) raw += "index.dc.html";
+    if (dir === null) {   // hub：没有项目目录，只有 /__app/ 与全局 API
+      reply.writeHead(302, { location: "/__app/home" }); reply.end(); return;
+    }
     const abs = resolve(dir, "." + normalize(raw));
     if (!abs.startsWith(dir) || !existsSync(abs) || statSync(abs).isDirectory()) {
       reply.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
@@ -188,6 +191,25 @@ export function serveHold(name: string): boolean {
   return true;
 }
 
+/** hub（M9-2）：桌面壳的入口服务 —— 不属于任何项目，只托管 /__app/ 与全局路由（projects / open_project / …）。
+ *  首页要在没打开项目时就能列项目，所以壳一起来就起它；项目各自的服务仍由 open_project 按需起。 */
+const HUB_KEY = "__hub__";
+export async function hubStart(wantPort?: number): Promise<{ url: string; port: number; token: string }> {
+  const cur = running.get(HUB_KEY);
+  if (cur) return { url: `http://127.0.0.1:${cur.port}/`, port: cur.port, token: cur.token };
+  const rec: Running = { server: null as unknown as Server, port: 0, dir: "", startedAt: new Date().toISOString(), hits: 0, token: newToken(),
+    project: null as unknown as Project, wss: null, watcher: null, unsubscribe: null };
+  rec.server = makeServer(null, () => { rec.hits++; }, () => (rec.port ? { project: null, token: rec.token, port: rec.port } : null));
+  attachWs(rec, true);
+  await new Promise<void>((res, rej) => {
+    rec.server.on("error", (e) => rej(e));
+    rec.server.listen(wantPort ?? 0, "127.0.0.1", () => { const a = rec.server.address(); if (a && typeof a === "object") { rec.port = a.port; res(); } else rej(new Error("拿不到端口")); });
+  });
+  rec.server.unref();
+  running.set(HUB_KEY, rec);
+  return { url: `http://127.0.0.1:${rec.port}/`, port: rec.port, token: rec.token };
+}
+
 export function serveStop(name: string): { stopped: boolean } {
   const r = running.get(name);
   if (!r) return { stopped: false };
@@ -210,7 +232,7 @@ export function serveStatus(): ServeInfo[] {
 /* ── WebSocket（M7-4）：/__ud/ws?token=<令牌>。令牌与 Origin 的门槛和 HTTP 一样。
    连接上先回 hello；之后把事件总线里属于本项目（或全局）的事件原样推过去；
    同时监听项目目录，磁盘上文件变了（外部编辑器、git checkout）推一条 fs。 ── */
-function attachWs(rec: Running): void {
+function attachWs(rec: Running, hub = false): void {
   const wss = new WebSocketServer({ noServer: true });
   rec.wss = wss;
   rec.server.on("upgrade", (req, socket, head) => {
@@ -223,13 +245,14 @@ function attachWs(rec: Running): void {
     wss.handleUpgrade(req, socket, head, (ws) => wss.emit("connection", ws, req));
   });
   wss.on("connection", (ws: WebSocket) => {
-    ws.send(JSON.stringify({ type: "hello", projectDir: rec.dir, payload: { project: rec.project.name, port: rec.port }, at: new Date().toISOString() }));
+    ws.send(JSON.stringify({ type: "hello", projectDir: hub ? null : rec.dir, payload: { project: hub ? null : rec.project.name, port: rec.port }, at: new Date().toISOString() }));
   });
   rec.unsubscribe = subscribe((e) => {
-    if (e.projectDir && e.projectDir !== rec.dir) return;
+    if (!hub && e.projectDir && e.projectDir !== rec.dir) return;   // hub 收全部事件（首页要知道哪个项目动了）
     const line = JSON.stringify(e);
     for (const c of wss.clients) if (c.readyState === c.OPEN) c.send(line);
   });
+  if (hub) return;
   // 磁盘监听：只报稿与文档一类，工具自己的产物（.umbrastudio/、快照）不报；200ms 合并一次
   try {
     let pending = new Set<string>(); let timer: NodeJS.Timeout | null = null;
