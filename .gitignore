@@ -69,3 +69,4 @@ server/test-agent-project/
 
 # Tauri 捆绑的 Node 二进制（106MB，GitHub 拒收 >100MB）：不进仓库，按 src-tauri/binaries/README.md 本地生成
 src-tauri/binaries/node-*
+doc/Umbra定时测试任务模版.txt
