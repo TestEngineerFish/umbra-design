@@ -125,7 +125,10 @@ export async function renderCheck(
   p: Project, relPath: string, opts: RenderOptions = {}
 ): Promise<{ result: RenderResult; diags: Diagnostic[] }> {
   const abs = draftPath(p, relPath);
-  const found = findBrowser();
+  /* M9-1 spike：UMBRASTUDIO_CDP=http://127.0.0.1:9222 时不起浏览器，经 CDP 接已经在跑的 Chromium
+     （Electron 壳自带的那个）。这时不需要系统 Chrome（M9-3 的路）。 */
+  const cdp = process.env.UMBRASTUDIO_CDP || null;
+  const found = cdp ? { path: cdp, from: "UMBRASTUDIO_CDP" } : findBrowser();
   if (!found) {
     throw new ToolError(
       err(X.IO, relPath, { kind: "file", name: "chromium" },
@@ -153,7 +156,7 @@ export async function renderCheck(
   const base = `http://127.0.0.1:${port}`;
   // 关掉浏览器自己的后台联网。page.route 只管页面发起的请求，拦不住浏览器级的
   // 遥测 / 组件更新 —— 一个要断网跑的工具必须把这些也关掉，否则每次体检都在等超时。
-  const browser = await chromium.launch({
+  const browser = cdp ? await chromium.connectOverCDP(cdp) : await chromium.launch({
     executablePath: found.path,
     headless: true,
     args: [
@@ -167,7 +170,13 @@ export async function renderCheck(
   const diags: Diagnostic[] = [];
 
   try {
-    const page = await browser.newPage({ viewport: { width, height } });
+    /* Electron 的 CDP 不支持新建隔离上下文，只能用它默认上下文里已有的页（壳里开一个隐藏窗口）。
+       起浏览器那条路照旧 newPage。 */
+    const cdpCtx = cdp ? (browser.contexts()[0] ?? null) : null;
+    const page = cdpCtx
+      ? (cdpCtx.pages()[0] ?? await cdpCtx.newPage())
+      : await browser.newPage({ viewport: { width, height } });
+    if (cdpCtx) await page.setViewportSize({ width, height });
     const consoleWarnings: RenderResult["consoleWarnings"] = [];
     const missing: string[] = [];
     const external: string[] = [];

@@ -2798,3 +2798,43 @@ UMBRASTUDIO_AUTOTEST_DIR=<项目目录> UMBRASTUDIO_AUTOTEST_LOG=<读数文件> 
 **迁移**：`project.ts` 新增 `UD_DIRNAME` / `migrateUdDir(dir)` —— 项目目录下有 `.umbradesign/` 且没有 `.umbrastudio/` 时整目录拷一份（`fs.cp recursive`），旧目录不删；`buildProject`（`loadProject` 两条路都经它）和模块加载时的 `TOOL_ROOT` 各调一次。部署清单与租户 `.gitignore` 模板两个目录名都忽略。
 
 【实测】旧项目副本（`.umbradesign/` 2 个文件）`loadProject` 一次后 `.umbrastudio/` 出现、文件数一致、旧目录仍在；工具根同样迁出 `.umbrastudio/`（`ai_config.json` 在，AI 通道不用重配）。`selftest` 零 error · `lifecycletest` 全通 · `rendertest` 15/15 · `cargo check` 过。
+
+## 五十、M9-1 壳 spike：Electron 自带 Chromium 跑体检 · 核心跑在主进程里不影响 MCP stdio（2026-09-24）
+
+半天封顶，两条都过。脚本在 scratchpad `spike/`（`main-cdp.js` / `spike1.mjs` / `main-core.js` / `spike2.mjs`），Electron 44.4.5（Chrome 152）、playwright-core 1.63.0。
+
+**① playwright-core 经 CDP 接 Electron 自带 Chromium 跑 `render_check`**
+
+`render.ts` 加一条通道：环境变量 `UMBRASTUDIO_CDP=http://127.0.0.1:<port>` 存在时不 `chromium.launch`，改 `chromium.connectOverCDP`，且不再要求系统 Chrome。Electron 的 CDP **不支持新建隔离上下文**（`newContext` / `newPage` 不可用），所以用默认上下文里壳开的那个隐藏窗口的页（`contexts()[0].pages()[0]`），再 `setViewportSize`。`page.route`（断网拦截）、console / pageerror / requestfailed 监听全部照旧生效。
+
+| 稿 | 通道 | alive | nodes | renderMs | console | 墙钟 |
+| --- | --- | --- | --- | --- | --- | --- |
+| PC 吐司 | Electron CDP | true | 24 | 1501 | 2 | 2181 ms（首次） |
+| Umbra PC 端（6323 元素） | Electron CDP | true | 6320 | 1421 | 52 | 1513 ms |
+| PC 吐司 | Electron CDP（第二次） | true | 24 | 1421 | 2 | 1501 ms |
+| PC 吐司 | 系统 Chrome（原路，对照） | true | 24 | 1430 | 2 | 3424 ms |
+
+读数与系统 Chrome **逐项一致**（alive / nodes / console 条数 / diags 数），墙钟反而短 —— 省掉了每次起浏览器的 ~2 s。CDP 端口从 Electron 起到可连 1110 ms。
+
+**② 核心跑在 Electron 主进程里，MCP stdio 出口不受影响**
+
+`main-core.js`：`app.whenReady` 后开隐藏窗口、设 `UMBRASTUDIO_CDP`，然后 `await import(server/dist/index.js)` —— 核心原样在主进程里起，`StdioServerTransport` 用的就是 Electron 主进程的 `process.stdin / stdout`。外面用 MCP SDK 的 `StdioClientTransport` 把 `electron main-core.js` 当 server 起：
+
+| 步 | 结果 | 耗时 |
+| --- | --- | --- |
+| initialize | ok | 568 ms（含 Electron 启动） |
+| listTools | 60 个 | — |
+| list_projects | 3 个项目 | 8 ms |
+| serve_start（副本项目） | ok | 5 ms |
+| render_check PC 吐司 | alive · 24 节点 · 1439 ms | 1757 ms |
+| render_check Umbra PC 端 | alive · 6320 节点 | 1512 ms |
+| validate_draft | ok | 7 ms |
+
+协议全程走通就是 stdout 没被污染的证据（一个字节的杂音都会让 JSON-RPC 断）；Electron / Chromium 的日志全在 stderr（共 269 字节）。
+
+**结论**（回填 `11` Q26）：**换 Electron 可做。** 一份 Electron 同时给了壳、自带 Chromium（M9-3 顺手成立，不再要系统 Chrome）和跑核心的 Node，Tauri 那 106 MB 的 sidecar 与三平台三种 webview 的问题一并消失。
+
+**三条注意**（做 M9-2 时处理）：
+- Electron 的 CDP 只有一个上下文一页，`render_check` 并发时会抢同一页 —— 壳里给体检专开一个隐藏窗口，作业本来就串行（`jobs.ts`），够用；要并发就多开几个窗口做池。
+- `npm install electron` 的二进制下载在这台机器上直连 GitHub 失败（`fetch failed`），走 `ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/` 才下来 —— M9-4 打包脚本要把镜像写进 `.npmrc`。
+- 主进程里跑核心时 `process.stdin` 就是 MCP 的入口，壳自己不能再用 stdin；壳与前端的通道走 HTTP + WS（M7-4），不冲突。
