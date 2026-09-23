@@ -2776,3 +2776,15 @@ UMBRADESIGN_AUTOTEST_DIR=<项目目录> UMBRADESIGN_AUTOTEST_LOG=<读数文件> 
 **GitHub**：token（`~/Documents/SourceTree/Geek/.secrets/gh-token`）对仓库是 admin，但建标签、建 issue 都 403「Resource not accessible by personal access token」—— 细粒度 PAT 没勾 Issues 读写。草稿与 `issues/post.sh` 已就绪，权限补上后一条命令提交（查重 fp、建标签、已修的顺手关）。
 
 【实测】浏览器模式（`pwfix.mjs`）：从未建索引的副本 `open_project` → 索引与 S2 壳文件生成 → 进应用 57 份稿全部带元素数、S2 内层 7 节点可选；新建「扫测新稿」落盘并选中；`/tmp/ud-sweep-proj` 建成并跳入；`reveal_dir` 对不存在目录报「目录不存在」；首页「导入目录」钮与 3 个访达钮在。壳内自测（`umbra_copy3`）：sidecar running → open_project 57 ✓ → select_draft 走 S2 壳 ✓ → validate / check / changes / chat_list ✓ → build_index 57 ✓ → `reveal_dir_command` 对坏目录 rejected ✓ → inspect_dir ✓ → S6 ✓ → 主题 ✓。第二轮扫测（`pwmore.mjs`）：6323 元素大稿 S2 壳 1429 ms 画完、源码视图 17937 行 413 ms、体检 1438 ms；删除 → 恢复 ✓；1024 宽无横向溢出；空项目进去能建第一稿。回归：selftest / lifecycletest / agenttest 4/4 / rendertest 15 条全绿，`cargo check` 过。
+
+## 四十八、画布工具栏合成一条：S2 嵌入模式收掉自己的 chrome（2026-09-23）
+
+用户截图：进项目后右上角按钮堆满，「体检」「演示」各两颗，诊断三处。根因是 S2 按独立整页设计，嵌进应用后它的顶栏两行 + 状态栏 + 右栏页签和应用自己的工具栏、底栏叠在一起（`issues/2026-09-23/13`）。
+
+- **S2 嵌入模式**（`EMBED`，即 `?embed=1`）：`showHead: !EMBED` 把顶栏两行、右栏标题行、底部状态栏整块 `sc-if` 掉；`isDiag / isChange` 加 `!EMBED`；`railOpen` 在嵌入时只在有 `slots`（选中节点）后为真 —— 右栏退成纯属性 + 评论面板，和 ClaudeDesign 的 Edit › Simple 一样。**独立打开的 S2 一个像素不变。**
+- **父窗口指令**：S2 `onMsg` 新认 `{ source: "umbradesign-app", type: "cmd", cmd, value }`，`cmd ∈ pick | preset | zoom | theme | recheck | clear`；`componentDidUpdate` 在嵌入时把 `{ selectOn, preset, zoom, draftTheme, picked, busy, editHint, checkNote, apiErr }` 去重后用 `shell-state` 回报父窗口。
+- **应用工具栏**（`previewToolbarHtml`）一条：`[☰ 列表] [稿名 ▾] │ [编辑 | 预览 | 源码] │ [PC 1440 ▾] [－ 70% ＋] [☀/☾] [就地编辑 / 落盘中 / 出错 的一句话] …… [点选] [评论 n] [● 体检] [▷ 演示] [⋯]`。`⋯` = 在浏览器打开 / 对比上一版（S6）/ 变更与版本 / 重新加载预览。画布控件只在「编辑」档显示。顶栏只剩 `⋯`（「新建稿件」进文件页签下拉和 `⋯`）。
+- **fit**：第一次收到 `shell-state`（preset=PC、zoom=1）且画布比 1440 窄，就发 `zoom = floor(宽/1440×20)/20`（1036px 画布 → 70%）。换稿时重置。
+- 名字：「编辑壳 / 稿本身」改叫「编辑 / 预览」，对齐 ClaudeDesign 的 Edit。
+
+【实测】Playwright（`pwtb.mjs` / `pwtb2.mjs`）：工具栏 11 项、嵌入的 S2 可见文字为空；`pick` → 桥 `select` → 属性面板出现（12 个 style + 2 attr + 1 text）→ `clear` 收起；`preset 2 / zoom 0.8 / theme dark` 各自生效并回报；fit 70%；「预览」档只剩 8 项；独立 S2 顶栏照旧。selftest 零 error。

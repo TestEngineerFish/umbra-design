@@ -29,6 +29,8 @@
 <div style="height: 100vh; display: flex; flex-direction: column; background: var(--tool-bg); color: var(--tool-text); font-family: var(--tool-sans); font-size: 13px; -webkit-font-smoothing: antialiased; overflow: hidden; max-width: {{ shellMax }}; margin: 0 auto; border-left: {{ shellEdge }}; border-right: {{ shellEdge }};" data-tool-theme="{{ theme }}">
 
   <div style="flex: none; background: var(--tool-panel); border-bottom: 1px solid var(--tool-border);">
+    <!-- 嵌进应用时（?embed=1）这一块不显示：应用的工具栏 / 底栏已经有同样的东西（2026-09-23 用户反馈按钮重复堆满右上角） -->
+    <sc-if value="{{ showHead }}" hint-placeholder-val="{{ true }}">
     <div style="display: flex; align-items: center; gap: 12px; padding: 10px 16px; flex-wrap: wrap;">
       <sc-if value="{{ showIndexLink }}" hint-placeholder-val="{{ true }}">
       <a href="./S1-稿件索引.dc.html" style="display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px 0 8px; border-radius: var(--tool-radius); border: 1px solid var(--tool-border-strong); background: var(--tool-panel); color: var(--tool-text); font-size: 12px; text-decoration: none; flex: none; transition: background .13s ease, border-color .13s ease;" style-hover="background: var(--tool-hover); text-decoration: none;" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">
@@ -144,7 +146,10 @@
         </button>
       </div>
     </div>
+    </sc-if>
 
+    <!-- 嵌进应用时（?embed=1）这一块不显示：应用的工具栏 / 底栏已经有同样的东西（2026-09-23 用户反馈按钮重复堆满右上角） -->
+    <sc-if value="{{ showHead }}" hint-placeholder-val="{{ true }}">
     <div style="display: flex; align-items: center; gap: 10px; padding: 0 16px 10px; flex-wrap: wrap; font-size: 12px;">
       <div style="display: flex; padding: 2px; gap: 2px; background: var(--tool-panel-2); border: 1px solid var(--tool-border); border-radius: var(--tool-radius); flex: none;">
         <sc-for list="{{ presets }}" as="p" hint-placeholder-count="4">
@@ -178,6 +183,7 @@
       <span style="color: var(--tool-muted); white-space: nowrap;">{{ lastCheckLabel }}</span>
 
     </div>
+    </sc-if>
 
     <sc-if value="{{ showDemoBar }}" hint-placeholder-val="{{ true }}">
     <div style="padding: 0 16px 9px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px;">
@@ -300,6 +306,8 @@
 
     <sc-if value="{{ railOpen }}" hint-placeholder-val="{{ true }}">
       <div style="min-width: 0; min-height: 0; background: var(--tool-panel); border-left: 1px solid var(--tool-border); display: flex; flex-direction: column; overflow: hidden;">
+        <!-- 嵌进应用时（?embed=1）这一块不显示：应用的工具栏 / 底栏已经有同样的东西（2026-09-23 用户反馈按钮重复堆满右上角） -->
+        <sc-if value="{{ showHead }}" hint-placeholder-val="{{ true }}">
         <div style="flex: none; display: flex; align-items: center; gap: 8px; padding: 11px 14px; border-bottom: 1px solid var(--tool-border);">
           <span style="font-weight: 620;">{{ railTitle }}</span>
           <span style="flex: 1;"></span>
@@ -310,6 +318,7 @@
             <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4.4 4.4l7.2 7.2M11.6 4.4l-7.2 7.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path></svg>
           </button>
         </div>
+        </sc-if>
 
         <div style="flex: 1; min-height: 0; overflow: auto;">
           <sc-if value="{{ hasSlots }}" hint-placeholder-val="{{ false }}">
@@ -622,6 +631,8 @@
     </div>
   </sc-if>
 
+  <!-- 嵌进应用时（?embed=1）这一块不显示：应用的工具栏 / 底栏已经有同样的东西（2026-09-23 用户反馈按钮重复堆满右上角） -->
+  <sc-if value="{{ showHead }}" hint-placeholder-val="{{ true }}">
   <div style="flex: none; display: flex; align-items: center; gap: 12px; padding: 7px 16px; background: var(--tool-panel); border-top: 1px solid var(--tool-border); font-size: 11px; color: var(--tool-muted); flex-wrap: wrap;">
     <span style="font-family: var(--tool-mono);">{{ file }}</span>
     <span style="color: var(--tool-border-strong);">·</span>
@@ -649,6 +660,7 @@
     <span style="display: flex; align-items: center; gap: 5px;"><kbd style="font-family: var(--tool-mono); background: var(--tool-panel-2); border: 1px solid var(--tool-border); border-radius: var(--tool-radius-sm); padding: 1px 5px;">D</kbd> 诊断栏</span>
     <span style="display: flex; align-items: center; gap: 5px;"><kbd style="font-family: var(--tool-mono); background: var(--tool-panel-2); border: 1px solid var(--tool-border); border-radius: var(--tool-radius-sm); padding: 1px 5px;">Esc</kbd> 收起</span>
   </div>
+  </sc-if>
 </div>
 
 </x-dc>
@@ -837,6 +849,16 @@ class Component extends DCLogic {
       };
       this.onMsg = (e) => {
         const m = e.data;
+        /* 应用壳的指令（embed=1）：它的工具栏替我们显示这些开关，我们只执行并把状态回报（shell-state） */
+        if (m && m.source === "umbradesign-app" && m.type === "cmd") {
+          if (m.cmd === "pick") this.setState((st) => ({ selectOn: typeof m.value === "boolean" ? m.value : !st.selectOn, picked: null }), () => this.pushMode());
+          else if (m.cmd === "preset") this.setState({ preset: Math.max(0, Math.min(PRESETS.length - 1, Number(m.value) || 0)) });
+          else if (m.cmd === "zoom") this.setState({ zoom: Math.max(0.3, Math.min(1.5, Number(m.value) || 1)) });
+          else if (m.cmd === "theme") { this.setState({ draftTheme: m.value === "dark" ? "dark" : "light" }); this.pushDraftTheme(); }
+          else if (m.cmd === "recheck") this.recheck();
+          else if (m.cmd === "clear") { this.clearPreview(); this.setState({ picked: null, slots: null, previewing: null, previewSlot: null }); }
+          return;
+        }
         if (!m || m.source !== "umbradesign") return;
         if (m.type === "ready") { this.setState({ bridgeReady: true }); this.pushMode(); return; }
         if (m.type === "select") {
@@ -878,7 +900,15 @@ class Component extends DCLogic {
     }
   }
 
-  componentDidUpdate() { this.syncFrame(); }
+  componentDidUpdate() {
+    this.syncFrame();
+    if (!EMBED) return;
+    const st = this.state;
+    const snap = JSON.stringify({ selectOn: !!st.selectOn, preset: st.preset, zoom: st.zoom, draftTheme: st.draftTheme, picked: !!st.picked, busy: !!st.busy, editHint: st.editHint || null, checkNote: st.checkNote || null, apiErr: st.apiErr || null });
+    if (snap === this._lastShellState) return;
+    this._lastShellState = snap;
+    this.tellParent("shell-state", JSON.parse(snap));
+  }
 
   /* 本地 JSON API（doc/00 §二十）。令牌由 build_index 注进这一页 ——
      诊断 / 变更 / slots 每改一次稿就变，注入解决不了，所以走接口。 */
@@ -1354,7 +1384,7 @@ class Component extends DCLogic {
     const dead = mode === "dead";
     const missing = mode === "missing";
     const unchecked = mode === "unchecked";
-    const railOpen = s.rail && !narrow;
+    const railOpen = s.rail && !narrow && (!EMBED || !!(s.slots && s.slots.slots && s.slots.slots.length));   // 嵌入时只在选中节点后才开面板
 
     /* LIVE 时诊断来自接口，不再用演示数据。拉到之前 live 是 null —— 那时显示
        「正在读」而不是演示条目，宁可空着也不拿假数据冒充（§19.3 的教训）。 */
@@ -1423,6 +1453,7 @@ class Component extends DCLogic {
       version: LIVE ? (curVer || "—") : "v217",
       verOpen: verOpen,
       showIndexLink: !EMBED,
+      showHead: !EMBED,
       verBtnBg: verOpen ? "var(--tool-accent-soft)" : "var(--tool-panel-2)",
       verBtnBd: verOpen ? "var(--tool-accent-border)" : "var(--tool-border)",
       verBtnFg: verOpen ? "var(--tool-accent)" : "var(--tool-text-2)",
@@ -1493,8 +1524,8 @@ class Component extends DCLogic {
       recheckOpacity: checking ? "0.55" : "1",
       onRescan: () => this.setState({ demo: 1 }),
 
-      isDiag: s.tab === "diag",
-      isChange: s.tab === "change",
+      isDiag: !EMBED && s.tab === "diag",
+      isChange: !EMBED && s.tab === "change",
       tabDiag: () => this.setState({ tab: "diag", rail: true }),
       tabChange: () => this.setState({ tab: "change", rail: true }),
       diagBtnBg: s.tab === "diag" ? "var(--tool-panel)" : "transparent",

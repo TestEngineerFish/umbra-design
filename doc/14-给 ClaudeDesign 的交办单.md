@@ -418,3 +418,4 @@ const hasApi = () => !!(typeof window !== "undefined" && window.__UD_API);
 ## 附：工具侧对稿件的本地小补（下次发包会带上，你不用改）
 
 - 2026-09-23 · S2：诊断行号判空 `d.line !== null` → `d.line != null`（两处）。信封约定定位不到就省略 `line`，原判法会显示 `Lundefined:undefined`。
+- 2026-09-23 · S2 **嵌入模式**（`?embed=1`，应用把 S2 装进 iframe 时）：顶栏两行、底部状态栏、右栏标题与诊断 / 变更页签整块 `sc-if showHead` 掉，右栏只在选中节点后出现；`onMsg` 多认父窗口的 `umbradesign-app` 指令，`componentDidUpdate` 回报 `shell-state`。**独立打开不受影响。** 你改 S2 时请保留 `showHead` 那四处 `sc-if` 和这两段逻辑（`doc/00` §四十八）。

@@ -76,6 +76,7 @@
   .btn.ghost { border-color: transparent; background: transparent; color: var(--text2); }
   .btn.ghost:hover { background: var(--hover); color: var(--text); }
   .btn.sm { height: 24px; padding: 0 8px; font-size: 11px; }
+  .btn.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
   .btn[disabled] { opacity: 0.45; cursor: not-allowed; }
   .topbar-status { font-size: 11px; color: var(--muted); }
 
@@ -319,6 +320,24 @@
   .file-menu .search input { width: 100%; height: 30px; padding: 0 10px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg); color: var(--text); outline: none; font-size: 12px; }
   .file-menu .list { overflow: auto; }
   .preview-toolbar { position: relative; }
+  /* ClaudeDesign 式的一条画布工具栏：左 = 稿 · 中 = 视图与画布控件 · 右 = 动作。分组用细分隔线，不用一排同色按钮 */
+  .tb-sep { width: 1px; height: 18px; background: var(--border); flex: none; margin: 0 2px; }
+  .tb-spacer { flex: 1; }
+  .seg { display: inline-flex; padding: 2px; gap: 2px; background: var(--panel2, var(--bg)); border: 1px solid var(--border); border-radius: var(--radius); }
+  .seg button { height: 22px; padding: 0 9px; border: 0; border-radius: calc(var(--radius) - 2px); background: transparent; color: var(--muted); font-size: 11px; cursor: pointer; white-space: nowrap; }
+  .seg button:hover { color: var(--text); }
+  .seg button.on { background: var(--panel); color: var(--text); font-weight: 560; box-shadow: 0 1px 2px rgba(0,0,0,0.08); }
+  .seg button:disabled { opacity: 0.4; cursor: default; }
+  .tb-icon { width: 28px; height: 28px; padding: 0; justify-content: center; }
+  .tb-icon svg { width: 14px; height: 14px; }
+  .tb-pick.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+  .tb-zoom { font-family: var(--mono); font-size: 11px; color: var(--text2); min-width: 40px; text-align: center; }
+  .tb-select { height: 28px; padding: 0 24px 0 8px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel); color: var(--text); font-size: 12px; appearance: none; -webkit-appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none'%3E%3Cpath d='M4.2 6.4L8 10.2l3.8-3.8' stroke='%23888' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 6px center; background-size: 11px; cursor: pointer; }
+  .tb-health { width: 7px; height: 7px; border-radius: 999px; flex: none; }
+  .tb-health.ok { background: var(--ok); } .tb-health.warn { background: var(--warn); } .tb-health.error { background: var(--err); } .tb-health.unchecked { background: var(--unchecked, #999); }
+  .tb-badge { min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px; background: var(--warn-soft); color: var(--warn); font-size: 10px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; }
+  .tb-note { font-size: 11px; color: var(--accent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 260px; }
+  .preview-toolbar .menu { top: 36px; right: 8px; left: auto; }
 
   /* ── Welcome ── */
   .welcome { flex: 1; display: flex; align-items: center; justify-content: center; }
@@ -419,7 +438,9 @@ const state = {
   previewMode: load('ud.previewMode', 'shell'),   // shell = 经 S2 预览壳（可点选、可改属性）；raw = 稿本身；code = 源码只读（M6-3）
   layout: load('ud.layout', 'chat-left'),          // M6-1：会话栏默认在左（跟 ClaudeDesign），可切到右
   sidebarCollapsed: load('ud.sidebarCollapsed', '1') === '1',   // 默认收起：两栏，左会话右预览（文件切换在预览顶栏）
-  hub: null,                                       // 浏览器模式下托管本页的那个服务 { url, token }（首页的项目列表走它）
+  hub: null,
+  shell: { selectOn: false, preset: 0, zoom: 1, draftTheme: 'light', picked: false, busy: false, editHint: null, checkNote: null, apiErr: null },   // 嵌入的 S2 壳回报的状态（shell-state）
+  previewMenu: false,                                       // 浏览器模式下托管本页的那个服务 { url, token }（首页的项目列表走它）
   home: { projects: [], view: load('ud.homeView', 'list'), q: '', stars: (() => { try { return JSON.parse(load('ud.stars', '[]')); } catch (e) { return []; } })(), loaded: false, loading: false, starOnly: false },
   fileMenu: false, fileQ: '',
   present: false,                                  // M6-4：演示全屏
@@ -463,6 +484,11 @@ function render() {
 }
 
 const ICON = {
+  minus: '<svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.4 8h9.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>',
+  cursor: '<svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.5 2.5l9 4.2-4 1.4-1.6 4.1z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M8.5 8.1l3.6 3.6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>',
+  play: '<svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4.5 3.2v9.6l8-4.8z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>',
+  sun: '<svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="3" stroke="currentColor" stroke-width="1.4"/><path d="M8 1.5v1.8M8 12.7v1.8M1.5 8h1.8M12.7 8h1.8M3.4 3.4l1.3 1.3M11.3 11.3l1.3 1.3M3.4 12.6l1.3-1.3M11.3 4.7l1.3-1.3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>',
+  moon: '<svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M13.2 9.8A5.6 5.6 0 016.2 2.8a5.6 5.6 0 107 7z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>',
   page: '<svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="2.6" y="2" width="10.8" height="12" rx="1.6" stroke="currentColor" stroke-width="1.3"/><path d="M5 5.6h6M5 8.2h6M5 10.8h3.6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>',
   component: '<svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 1.8l5.2 3v6.4L8 14.2 2.8 11.2V4.8z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>',
   logo: '<svg width="18" height="18" viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="1.5" y="1.5" width="13" height="13" rx="3.2" stroke="currentColor" stroke-width="1.4"/><path d="M5 8.2h6M5 5.4h6M5 11h3.2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>',
@@ -596,11 +622,11 @@ function topbarHtml() {
       </div>
       <span class="topbar-status">${state.drafts.length} 份稿</span>
       <div class="topbar-spacer"></div>
-      <!-- UI-6：顶栏一颗实心「新建稿件」；其余常用操作收进 ⋯，顶栏不会长到五颗 -->
-      <button class="btn primary" onclick="openSheet('newDraft')">${ICON.plus} 新建稿件</button>
+      <!-- 顶栏只留 ⋯（ClaudeDesign 的顶栏也只有项目名）；新建稿件在文件页签下拉和这里 -->
       <button class="btn" onclick="toggleMenu(event)" title="更多" aria-haspopup="true" aria-expanded="${state.menuOpen}">${ICON.more}</button>
       ${state.menuOpen ? `
         <div class="menu" id="menu">
+          <button class="menu-item" onclick="closeMenu(); openSheet('newDraft')">${ICON.plus} 新建稿件</button>
           <button class="menu-item" onclick="closeMenu(); handleBuildIndex()">${ICON.refresh} 重建索引</button>
           <button class="menu-item" onclick="closeMenu(); handleOpenInBrowser()" ${state.selectedDraft ? '' : 'disabled'}>${ICON.ext} 在浏览器打开当前稿</button>
           <button class="menu-item" onclick="closeMenu(); revealDir(state.project.dir)">${ICON.folder} 在访达中显示项目目录</button>
@@ -630,18 +656,46 @@ function sidebarHtml() {
 }
 
 function previewToolbarHtml() {
-  const p = state.project;
+  const d = state.drafts.find(x => x.file === state.selectedDraft) || {};
+  const sh = state.shell;
+  const inShell = state.previewMode === 'shell';
+  const hClass = state.validating ? 'unchecked' : (d.health || 'unchecked');
+  const hLabel = state.validating ? '体检中…' : ({ ok: '通过', warn: '有提醒', error: '有错误', unchecked: '未体检' }[hClass] || hClass);
+  const unresolved = state.comments.filter(c => !c.resolved).length;
+  const note = sh.editHint || sh.checkNote || (sh.apiErr ? '出错：' + sh.apiErr : '') || (sh.busy ? '落盘中…' : '');
+  const PRESETS = ['PC 1440', '笔记本 1280', 'iPhone 390', '自适应'];
   return `<div class="preview-toolbar">
+            <button class="btn ghost tb-icon" onclick="toggleSidebar()" title="${state.sidebarCollapsed ? '展开稿件列表' : '收起稿件列表'}">${ICON.list}</button>
             <button class="file-tab" onclick="toggleFileMenu(event)" title="${escHtml(state.selectedDraft)} · 切换稿件" aria-haspopup="true" aria-expanded="${state.fileMenu}"><span class="nm">${escHtml(baseName(state.selectedDraft).replace(/\.dc\.html$/, ''))}</span>${ICON.chevron}</button>
             ${state.fileMenu ? fileMenuHtml() : ''}
-            <div class="radio-row" title="编辑壳：能点选节点、改属性（方式 ①）、把选中节点带给 AI（方式 ②）；稿本身：原样预览；源码：只读">
-              <button class="${state.previewMode === 'shell' ? 'on' : ''}" style="height:24px;padding:0 8px;font-size:11px;" onclick="setPreviewMode('shell')">编辑壳</button>
-              <button class="${state.previewMode === 'raw' ? 'on' : ''}" style="height:24px;padding:0 8px;font-size:11px;" onclick="setPreviewMode('raw')">稿本身</button>
-              <button class="${state.previewMode === 'code' ? 'on' : ''}" style="height:24px;padding:0 8px;font-size:11px;" onclick="setPreviewMode('code')">源码</button>
+            <div class="tb-sep"></div>
+            <div class="seg" title="编辑：能点选节点、改属性、把选中节点带给 AI；预览：稿本身；源码：只读">
+              <button class="${inShell ? 'on' : ''}" onclick="setPreviewMode('shell')">编辑</button>
+              <button class="${state.previewMode === 'raw' ? 'on' : ''}" onclick="setPreviewMode('raw')">预览</button>
+              <button class="${state.previewMode === 'code' ? 'on' : ''}" onclick="setPreviewMode('code')">源码</button>
             </div>
-            <button class="btn sm" onclick="handleValidate()" ${state.validating ? 'disabled' : ''}>${ICON.check} ${state.validating ? '体检中…' : '体检'}</button>
-            <button class="btn sm" onclick="startPresent()" title="全屏只看稿，Esc 退出">演示</button>
-            <button class="btn sm" onclick="handleOpenInBrowser()" title="在浏览器中打开">${ICON.ext} 浏览器</button>
+            ${inShell ? `
+            <div class="tb-sep"></div>
+            <select class="tb-select" onchange="shellCmd('preset', Number(this.value))" title="画布宽度">${PRESETS.map((n, i) => `<option value="${i}" ${sh.preset === i ? 'selected' : ''}>${n}</option>`).join('')}</select>
+            <button class="btn ghost tb-icon" onclick="shellZoom(-0.1)" title="缩小">${ICON.minus}</button>
+            <span class="tb-zoom">${Math.round((sh.zoom || 1) * 100)}%</span>
+            <button class="btn ghost tb-icon" onclick="shellZoom(0.1)" title="放大">${ICON.plus}</button>
+            <button class="btn ghost tb-icon" onclick="shellCmd('theme', '${sh.draftTheme === 'dark' ? 'light' : 'dark'}')" title="稿的浅 / 深色（现在：${sh.draftTheme === 'dark' ? '深' : '浅'}）">${sh.draftTheme === 'dark' ? ICON.moon : ICON.sun}</button>
+            ` : ''}
+            ${note ? `<span class="tb-note" title="${escHtml(note)}">${escHtml(note)}</span>` : ''}
+            <div class="tb-spacer"></div>
+            ${inShell ? `<button class="btn tb-pick ${sh.selectOn ? 'on' : ''}" onclick="shellCmd('pick')" title="点选：开着的时候点稿里的元素是「选中」，关掉才能真的用这个界面">${ICON.cursor} 点选${sh.selectOn ? '：开' : ''}</button>` : ''}
+            <button class="btn ${state.bottomTab === 'comments' && state.bottomMode !== 'collapsed' ? 'on' : ''}" onclick="setBottomTab('comments'); if (state.bottomMode === 'collapsed') setBottomMode('normal')" title="钉在节点上的评论">评论${unresolved ? ` <span class="tb-badge">${unresolved}</span>` : ''}</button>
+            <button class="btn" onclick="handleValidate()" ${state.validating ? 'disabled' : ''} title="真开浏览器跑一次 render_check（${hLabel}）"><span class="tb-health ${hClass}"></span> 体检</button>
+            <button class="btn" onclick="startPresent()" title="全屏只看稿，Esc 退出">${ICON.play} 演示</button>
+            <button class="btn tb-icon" onclick="togglePreviewMenu(event)" title="更多" aria-haspopup="true" aria-expanded="${state.previewMenu}">${ICON.more}</button>
+            ${state.previewMenu ? `
+              <div class="menu" id="previewMenu">
+                <button class="menu-item" onclick="closePreviewMenu(); handleOpenInBrowser()">${ICON.ext} 在浏览器打开</button>
+                <button class="menu-item" onclick="closePreviewMenu(); handleCompare()">${ICON.compare} 对比上一版（S6）</button>
+                <button class="menu-item" onclick="closePreviewMenu(); setBottomTab('changes'); if (state.bottomMode === 'collapsed') setBottomMode('normal')">变更与版本</button>
+                <button class="menu-item" onclick="closePreviewMenu(); reloadPreview()">${ICON.refresh} 重新加载预览</button>
+              </div>` : ''}
           </div>`;
 }
 
@@ -919,7 +973,7 @@ async function chatRevert(idx) {
   render();
 }
 
-function reloadPreview() { const f = document.getElementById('previewFrame'); if (f) f.src = f.getAttribute('data-src') || f.src; if (state.previewMode === 'code') loadSource(); }
+function reloadPreview() { state.shellSeen = false; const f = document.getElementById('previewFrame'); if (f) f.src = f.getAttribute('data-src') || f.src; if (state.previewMode === 'code') loadSource(); }
 
 /* 预览走 S2 预览壳（build_index 部署在项目根），它注入点选桥、带属性面板；?embed=1 让它收起「索引」链接并把选中节点 postMessage 上来。 */
 function previewSrc() {
@@ -968,7 +1022,18 @@ window.addEventListener('message', (e) => {
   if (m.type === 'picked' && m.payload) { state.picked = { file: m.payload.file || state.selectedDraft, node: m.payload.node, tag: m.payload.tag || '' }; renderSheet(); render(); }
   if (m.type === 'cleared') { state.picked = null; render(); }
   if (m.type === 'comments-changed') fetchComments();
+  if (m.type === 'shell-state' && m.payload) {
+    const first = !state.shellSeen; state.shellSeen = true;
+    state.shell = { ...state.shell, ...m.payload };
+    // 第一次拿到壳的状态：画布比 PC 预设窄就把缩放调到刚好放下（ClaudeDesign 打开也是先 fit），用户之后自己调
+    if (first && m.payload.preset === 0 && (m.payload.zoom === 1 || !m.payload.zoom)) { const slot = document.getElementById('previewSlot'); const w = slot ? slot.clientWidth - 24 : 0; if (w > 0 && w < 1440) shellCmd('zoom', Math.max(0.3, Math.floor(w / 1440 * 20) / 20)); } const tb = document.querySelector('.preview-toolbar'); if (tb && state.selectedDraft) replaceEl(tb, previewToolbarHtml()); }
 });
+/* 应用工具栏 → 嵌入的 S2 壳：点选 / 设备 / 缩放 / 稿主题 / 重跑体检（S2 执行后用 shell-state 回报，工具栏据此重绘） */
+function shellCmd(cmd, value) { const f = document.getElementById('previewFrame'); if (f && f.contentWindow) f.contentWindow.postMessage({ source: 'umbradesign-app', type: 'cmd', cmd, value }, '*'); }
+function shellZoom(delta) { shellCmd('zoom', Math.max(0.3, Math.min(1.5, Math.round(((state.shell.zoom || 1) + delta) * 10) / 10))); }
+function togglePreviewMenu(e) { e.stopPropagation(); state.previewMenu = !state.previewMenu; const tb = document.querySelector('.preview-toolbar'); if (tb) replaceEl(tb, previewToolbarHtml()); }
+function closePreviewMenu() { state.previewMenu = false; const tb = document.querySelector('.preview-toolbar'); if (tb) replaceEl(tb, previewToolbarHtml()); }
+document.addEventListener('click', (e) => { if (state.previewMenu && !e.target.closest('#previewMenu')) closePreviewMenu(); });
 window.addEventListener('message', (e) => {
   const m = e.data;
   if (!m || m.source !== 'umbradesign-s8') return;
@@ -1338,6 +1403,7 @@ function setBottomTab(t) {
 }
 
 function selectDraft(file) {
+  state.shellSeen = false; state.shell = { ...state.shell, selectOn: false, picked: false, editHint: null, checkNote: null, apiErr: null };
   state.selectedDraft = file; state.fileMenu = false;
   if (state.project) save('ud.lastDraft.' + state.project.dir, file);
   state.diags = []; state.changes = []; state.source = null; state.comments = [];
