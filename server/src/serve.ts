@@ -13,6 +13,7 @@ import { emit, subscribe } from "./events.js";
 import { X } from "./codes.js";
 import { err, ToolError } from "./envelope.js";
 import { TOOL_ROOT, type Project } from "./project.js";
+import { isToolPage } from "./indexpage.js";
 import { API_PREFIX, handleApi, newToken, type ApiCtx } from "./api.js";
 
 const MIME: Record<string, string> = {
@@ -109,15 +110,40 @@ function makeServer(dir: string | null, onHit: () => void, api: () => ApiCtx | n
       reply.end(`404 ${raw}`);
       return;
     }
-    reply.writeHead(200, {
+    const head = {
       "content-type": MIME[extname(abs).toLowerCase()] ?? "application/octet-stream",
       // 设计稿改一下就要能刷出来，所以一律不缓存
       "cache-control": "no-store, must-revalidate",
       // CORS 头
       ...(allowOrigin && { "access-control-allow-origin": allowOrigin }),
-    });
+    };
+
+    /* 工具页（S1–S15 那些我们部署进项目的界面稿）的 `__UD_API` **在这里现给**，不读盘上那份。
+     *
+     * 盘上那份是 `build_index` 当时写的，钉着**那一刻**的端口和令牌 —— 而端口每次起服务都重随机、
+     * 令牌也重新生成。于是隔一次启动再打开 S8 就是「接口读不到: Failed to fetch」：
+     * 它拿着一个早就没人监听的端口在敲门（2026-09-24 用户实测，`00` §六十六）。
+     *
+     * 顺带解决一个更隐蔽的问题：令牌本来被写进了稿件文件，那份稿被拷走令牌就跟着走。
+     * 现在盘上只留 `null`，令牌只活在这一次响应里 —— 这也才真的符合「令牌只出现在壳页面里」（§20.2）。
+     */
+    if (isToolPage(relFromDir(dir, abs)) && abs.endsWith(".dc.html")) {
+      const api = { base: `${API_PREFIX}`, token: c?.token ?? "" };   // base 用相对路径：跟着页面自己的源走，换端口也不会错
+      const src = readFileSync(abs, "utf8").replace(
+        /window\.__UD_API\s*=\s*(?:\{[\s\S]*?\}|null)\s*;/,
+        `window.__UD_API = ${JSON.stringify(api)};`);
+      reply.writeHead(200, head);
+      reply.end(src);
+      return;
+    }
+    reply.writeHead(200, head);
     createReadStream(abs).pipe(reply);
   });
+}
+
+/** abs → 相对项目根、用 / 分隔 —— isToolPage 认的是这种形状 */
+function relFromDir(dir: string, abs: string): string {
+  return abs.slice(dir.length).replace(/^[/\\]/, "").split(sep).join("/");
 }
 
 export interface ServeInfo {

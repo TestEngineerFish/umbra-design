@@ -472,11 +472,15 @@ const DATA_CLOSE = "<!-- /umbradesign:index-data -->";
  * 幂等：标记之间的内容整段替换，重复 build_index 不会越堆越长。
  */
 export function injectIndexData(src: string, data: IndexData, api?: { base: string; token: string } | null): string {
-  // API 信息和索引数据一起注入。令牌只出现在壳页面里 —— 别的页面拿不到，
-  // 这是 /__ud/* 那道门的前提（doc/00 §20.2）。
-  const apiLine = api
-    ? `window.__UD_API = ${JSON.stringify(api)};`
-    : `window.__UD_API = null;`;
+  /* **盘上一律写 null。** 真正的 `__UD_API` 由 serve 在响应工具页时现给（`00` §六十六）。
+   *
+   * 以前这里把当时的端口和令牌写进文件，两个后果：
+   * ① 端口每次起服务都重随机，隔一次启动再打开就是「Failed to fetch」——
+   *    它拿着一个没人监听的端口在敲门；
+   * ② 令牌被持久化进稿件，那份稿被拷走令牌就跟着走，这跟「令牌只出现在壳页面里」（§20.2）是反的。
+   * 参数 `api` 保留是为了兼容调用方，值不再落盘。 */
+  void api;
+  const apiLine = `window.__UD_API = null;`;
   const block = `${DATA_OPEN}\n<script>window.__UD_INDEX = ${JSON.stringify(data)};${apiLine}</script>\n${DATA_CLOSE}`;
   const i = src.indexOf(DATA_OPEN);
   if (i >= 0) {

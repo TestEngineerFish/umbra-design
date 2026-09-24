@@ -1,12 +1,18 @@
 import { useEffect, useRef, useState } from "react";
 import { SELECTION_ICON, type ChatMessage, type Selection, type ToolCall } from "../api/types";
 import type { ChatStore } from "./useChat";
+import { renderMd, renderMdInline } from "../ui/markdown";
 
 /** 会话栏，形制按 S9：用户句右对齐；一个 AI 回合共用一根左栏，文本与工具行按出现顺序排；变更卡带回退；「已选中」药丸紧挨输入框上方 */
 export function ChatRail({ chat, selections, onDropSelection, onClearSelections, contextLabel, onCollapse, onSwapSide, width, onResize, side }: { chat: ChatStore; selections: Selection[]; onDropSelection: (i: number) => void; onClearSelections: () => void; contextLabel: string | null; onCollapse: () => void; onSwapSide: () => void; width: number; onResize: (w: number) => void; side: "left" | "right" }) {
   const body = useRef<HTMLDivElement>(null);
   useEffect(() => { if (body.current) body.current.scrollTop = body.current.scrollHeight; }, [chat.messages, chat.notes, chat.running]);
-  const who = `通道 ${chat.channel.toUpperCase()}${chat.model ? ` · ${chat.model}` : ""}`;
+  /* 状态行要一眼看出**现在谁在干活**。通道 B 光写「通道 B · sonnet」不够 ——
+     真正动手的是 Codex 还是 Cursor 得说出来（2026-09-24 用户实测提的）。
+     model 可能是空的（留空 = 用那个 CLI 自己的默认），空就不显示，不写「undefined」。 */
+  const cap = chat.caps?.[chat.channel];
+  const who = [`通道 ${chat.channel.toUpperCase()}`, chat.channel === "b" ? cap?.cliLabel : null, chat.model || null]
+    .filter(Boolean).join(" · ");
   const usage = chat.usage
     ? (chat.usage.totalCostUSD != null ? `${who} · $${Number(chat.usage.totalCostUSD).toFixed(3)}` : `${who} · ${(chat.usage.totalTokens ?? 0).toLocaleString()} tokens`)
     : who;
@@ -58,9 +64,12 @@ function Turns({ messages }: { messages: ChatMessage[] }) {
   messages.forEach((m, i) => {
     if (m.role === "user") { flush(i); out.push(<div key={i} className="self-end max-w-[85%] rounded-lg bg-accent text-onAccent px-3 py-2 text-xs whitespace-pre-wrap">{m.content}</div>); }
     else if (m.role === "assistant") {
-      if (m.content) turn.push(<div key={i + "c"} className="text-xs leading-relaxed whitespace-pre-wrap">{m.content}</div>);
+      /* AI 的回复按 Markdown 渲染 —— 模型本来就在用 `**粗体**`、列表、代码块说话，
+         当纯文本显示等于把排版符号糊在脸上（2026-09-24 用户实测）。
+         渲染器和样式都走全站那一份（`ui/markdown.ts` + `.md-body`），不在这儿另起一套。 */
+      if (m.content) turn.push(<div key={i + "c"} className="md-body text-xs leading-relaxed" dangerouslySetInnerHTML={{ __html: renderMd(m.content) }} />);
       if (m.toolCalls?.length) turn.push(<div key={i + "t"} className="flex flex-col gap-0.5">{m.toolCalls.map((tc) => <ToolRow key={tc.id} tc={tc} raw={toolResults.get(tc.id)} />)}</div>);
-    } else if (m.role === "system") { flush(i); out.push(<div key={i} className="text-[11px] text-muted">{m.content}</div>); }
+    } else if (m.role === "system") { flush(i); out.push(<div key={i} className="text-[11px] text-muted md-body" dangerouslySetInnerHTML={{ __html: renderMdInline(m.content) }} />); }
   });
   flush(messages.length);
   return <>{out}</>;

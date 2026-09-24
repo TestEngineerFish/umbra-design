@@ -569,10 +569,14 @@ export async function handleApi(
       const one = (c: { model: string; supportsImage?: boolean } | null | undefined) => c ? { model: c.model, supportsImage: channelSupportsImage(c) } : null;
       /* 通道 B 多报一个 via：「本机已登录的 Claude Code」和「别家 Anthropic 兼容端点」
          在界面上得分得清 —— 分不清就会把不是 Anthropic 形状的端点填进来（2026-09-24 真发生过）。 */
+      const { CLI_SPECS } = await import("./local_cli.js");
+      const bCli = cfg.channelB?.cli ?? "claude";
       const b = cfg.channelB ? {
         ...one(cfg.channelB)!,
         via: channelBUsesLocalLogin(cfg.channelB) ? "local" as const : "endpoint" as const,
-        cli: cfg.channelB.cli ?? "claude",
+        cli: bCli,
+        // 显示名由服务端给：CLI_SPECS 已经有了，前端再抄一份 id→名字 的表迟早对不上
+        cliLabel: CLI_SPECS.find((x) => x.id === bCli)?.label ?? bCli,
       } : null;
       json(reply, 200, { ok: true, data: { channelA: one(cfg.channelA), channelB: b, channelC: one(cfg.channelC), defaultChannel: cfg.defaultChannel } });
       return true;

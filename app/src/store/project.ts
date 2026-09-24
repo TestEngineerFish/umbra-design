@@ -105,16 +105,30 @@ export function useProject(core: Core, dir: string) {
 
   // 首次进项目拉列表；WS 事件到了按需刷新
   useEffect(() => { void fetchDrafts(); }, [fetchDrafts, dir]);
+  /* 「这个文件什么时候变的」——**以文件系统为准，不管是谁改的**。
+   *
+   * 原来右侧详情靠 `write` 事件刷新，而 `write` 只有我们自己进程里的写入口会发。
+   * 通道 B 的 CLI 起的是**独立的 MCP server 进程**，它的 emit 到不了这条总线，
+   * 于是「Codex 改完文件，右边还是旧的」（2026-09-24 用户实测）。
+   * 换成认 `fs`（serve 里的 fs.watch，macOS 上底层就是 FSEvents）之后，
+   * 别的编辑器、终端、甚至 Finder 改的也一样能刷 —— 判据从「谁改的」换成「文件变没变」。
+   * `write` 仍然收：它比文件事件早到一点，而且带得动 changes 列表。 */
+  const [changedAt, setChangedAt] = useState<Record<string, number>>({});
   useEffect(() => core.events((e) => {
     setLastEvent(e);
     if (e.type === "write" || e.type === "fs") {
       void fetchDrafts();
-      const f = sel.current; const p = e.payload as { file?: string; changes?: string[] };
+      const p = e.payload as { file?: string; changes?: string[] };
+      const touched = [...(p.file ? [p.file] : []), ...(p.changes ?? [])];
+      if (touched.length) setChangedAt((m) => { const n = { ...m }; const t = Date.now(); for (const f of touched) n[f] = t; return n; });
+      const f = sel.current;
       // 诊断与变更只有设计稿有；对 .md / 图片调这两条路由是 400（resolveDraft 找不到稿）
-      if (f && /\.dc\.html$/.test(f) && (p.file === f || p.changes?.includes(f))) { void fetchDiagnostics(f); void fetchChanges(f); }
+      if (f && /\.dc\.html$/.test(f) && touched.includes(f)) { void fetchDiagnostics(f); void fetchChanges(f); }
     }
   }, setWsState), [core, fetchDrafts, fetchDiagnostics, fetchChanges]);
+  /** 某个文件最后一次变化的时刻。视图把它放进 deps 就会跟着重载。 */
+  const fileTick = useCallback((path: string | null) => (path ? changedAt[path] ?? 0 : 0), [changedAt]);
 
-  return { drafts, indexed, selected, select, diags, comments, changes, source, checking, lastEvent, wsState, fetchDrafts, fetchDiagnostics, fetchComments, fetchChanges, fetchSource, runCheck, rebuildIndex };
+  return { drafts, indexed, selected, select, diags, comments, changes, source, checking, lastEvent, wsState, fileTick, fetchDrafts, fetchDiagnostics, fetchComments, fetchChanges, fetchSource, runCheck, rebuildIndex };
 }
 export type ProjectStore = ReturnType<typeof useProject>;

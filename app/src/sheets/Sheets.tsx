@@ -3,12 +3,37 @@ import type { Core } from "../api/client";
 import { baseName, type CliStatus, type DirInfo } from "../api/types";
 import type { HostAdapter } from "../host";
 import type { LayoutState } from "../layout/layout";
+import { currentChannel, pickChannel, type ChannelId } from "../chat/channel";
 import { toast } from "../ui/Toast";
 
+/** 弹窗外壳。
+ *  **高度必须封顶 + 内容区能滚** —— 内容一多就撑出屏幕、底部按钮够不着，
+ *  2026-09-24 用户实测撞到过（设置面板加了「本地 CLI」那一块之后）。
+ *  所以这里是三段式：`<Sheet.Head>` 与 `<Sheet.Foot>` 钉住，中间那段自己滚。 */
 function Sheet({ children, onClose, wide }: { children: React.ReactNode; onClose: () => void; wide?: boolean }) {
   useEffect(() => { const on = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); }; document.addEventListener("keydown", on); return () => document.removeEventListener("keydown", on); }, [onClose]);
-  return <div className="fixed inset-0 z-40 bg-black/25 flex items-start justify-center pt-[10vh]" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}><div role="dialog" aria-modal="true" className={`bg-panel border border-border rounded-lg shadow-2xl p-5 flex flex-col gap-4 text-xs ${wide ? "w-[880px] max-w-[95vw]" : "w-[520px] max-w-[95vw]"}`}>{children}</div></div>;
+  return (
+    <div className="fixed inset-0 z-40 bg-black/25 flex items-start justify-center p-4 sm:py-[6vh] overflow-hidden"
+      onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div role="dialog" aria-modal="true"
+        className={`bg-panel border border-border rounded-lg shadow-2xl flex flex-col text-xs max-h-full min-h-0 ${wide ? "w-[880px] max-w-full" : "w-[520px] max-w-full"}`}>
+        {children}
+      </div>
+    </div>
+  );
 }
+/** 钉在顶部的标题条 */
+Sheet.Head = ({ children }: { children: React.ReactNode }) => (
+  <div className="px-5 pt-5 pb-3 shrink-0">{children}</div>
+);
+/** 会滚的内容区 —— 弹窗里所有可能变长的东西都该放这里 */
+Sheet.Body = ({ children }: { children: React.ReactNode }) => (
+  <div className="px-5 flex-1 min-h-0 overflow-y-auto flex flex-col gap-4">{children}</div>
+);
+/** 钉在底部的操作条：内容再长，「完成」也够得着 */
+Sheet.Foot = ({ children }: { children: React.ReactNode }) => (
+  <div className="px-5 pt-3 pb-5 shrink-0 flex justify-end gap-2 border-t border-border mt-4">{children}</div>
+);
 const Field = ({ label, children, note, err }: { label: string; children: React.ReactNode; note?: string; err?: boolean }) => <label className="flex flex-col gap-1"><span className="text-muted">{label}</span>{children}{note && <span className={err ? "text-err" : "text-muted"}>{note}</span>}</label>;
 const inputCls = "h-8 px-3 rounded border border-border bg-bg outline-none focus:border-accent";
 
@@ -68,6 +93,10 @@ export function NewProjectSheet({ hub, host, initialDir, onClose, onOpen }: { hu
  *  **密钥不在这里** —— 那个只在 ai_config.json 里手改。
  */
 function CliPicker({ core }: { core: Core }) {
+  /* 当前通道用共用规则算（`chat/channel.ts`）—— **不要在这儿另判一遍**：
+     「mem 没值就跟 defaultChannel」这条规则自己写一遍，就会和 useChat 对不上。 */
+  const [channel, setChannel] = useState<ChannelId>(() => currentChannel(null));
+  const pick2 = (c: ChannelId) => { setChannel(c); pickChannel(c); };
   const [rows, setRows] = useState<CliStatus[] | null>(null);
   const [cur, setCur] = useState<{ cli: string; model: string; via?: string } | null>(null);
   const [model, setModel] = useState("");
@@ -78,11 +107,13 @@ function CliPicker({ core }: { core: Core }) {
   const load = useCallback(async () => {
     const [a, b] = await Promise.all([
       core.get<{ clis: CliStatus[] }>("local_clis"),
-      core.get<{ channelB?: { model: string; via?: string; cli?: string } | null }>("ai_config"),
+      core.get<{ channelB?: { model: string; via?: string; cli?: string } | null; defaultChannel?: ChannelId }>("ai_config"),
     ]);
     if (a.ok && a.data) setRows(a.data.clis);
     const cb = b.ok ? b.data?.channelB : null;
     if (cb) { setCur({ cli: cb.cli ?? "claude", model: cb.model, via: cb.via }); setModel(cb.model); }
+    // defaultChannel 要一起拿：没手动选过时当前通道就是它
+    setChannel(currentChannel(b.ok ? b.data?.defaultChannel ?? null : null));
     setModels(null);
   }, [core]);
   useEffect(() => { void load(); }, [load]);
@@ -108,11 +139,23 @@ function CliPicker({ core }: { core: Core }) {
   };
   return (
     <section className="rounded-lg border border-border bg-panel p-3 flex flex-col gap-2.5">
-      <div className="flex items-baseline gap-2">
-        <h3 className="text-sm font-semibold">通道 B · 本地 CLI</h3>
-        <span className="text-[11px] text-muted flex-1">走 CLI 自己的登录态，用你已经在付的订阅，不按量买 token</span>
-        <button className="btn sm ghost" onClick={() => void load()} title="重新扫一遍这台机器">重新扫描</button>
+      <div className="flex items-baseline gap-2 flex-wrap">
+        <h3 className="text-sm font-semibold shrink-0">通道 B · 本地 CLI</h3>
+        <span className="text-[11px] text-muted flex-1 min-w-[12rem]">走 CLI 自己的登录态，用你已经在付的订阅，不按量买 token</span>
+        <button className="btn sm ghost shrink-0" onClick={() => void load()} title="重新扫一遍这台机器">重新扫描</button>
       </div>
+      {/* 这里配的是**通道 B 用哪个 CLI**，而会话栏此刻用的可能是别的通道 ——
+          不把这个断层说出来，就会「我明明选了 Codex，左下角却还是通道 C」（用户实测撞到）。 */}
+      {channel !== "b" && (
+        <div className="flex items-center gap-2 px-2.5 py-2 rounded text-[11px]"
+          style={{ background: "var(--tool-warn-soft)", borderLeft: "2px solid var(--tool-warn)", color: "var(--tool-warn)" }}>
+          <span className="flex-1">这里选的是<b>通道 B 用哪个 CLI</b>。会话栏现在用的是<b>通道 {channel.toUpperCase()}</b> —— 光在这儿选不会切过去。</span>
+          <button className="btn sm shrink-0" onClick={() => { pick2("b"); toast("会话已切到通道 B", sel ? `用 ${sel.label}` : undefined, "ok"); }}>切到通道 B</button>
+        </div>
+      )}
+      {channel === "b" && (
+        <div className="text-[11px] text-muted">会话栏正用着通道 B —— 下面选的就是这一轮真正跑的那个。</div>
+      )}
       {!rows ? <div className="text-xs text-muted py-2">正在扫这台机器…</div> : (
         <ul className="flex flex-col gap-1.5">
           {rows.map((r) => {
@@ -165,13 +208,17 @@ function CliPicker({ core }: { core: Core }) {
 export function SettingsSheet({ core, projectUrl, layout, setLayout, onClose }: { core: Core | null; projectUrl: string | null; layout: LayoutState; setLayout: (l: LayoutState) => void; onClose: () => void }) {
   const s8 = projectUrl ? `${projectUrl}${encodeURIComponent("S8-项目设置.dc.html")}?embed=1` : null;
   return <Sheet onClose={onClose} wide={!!s8}>
-    <h2 className="text-base font-semibold">设置</h2>
-    <div className="grid grid-cols-[72px_1fr] gap-x-3 gap-y-3 items-center">
-      <span className="text-muted">会话栏</span><div className="seg self-start"><button className={layout.chatSide === "left" ? "on" : ""} onClick={() => setLayout({ ...layout, chatSide: "left" })}>在左（默认）</button><button className={layout.chatSide === "right" ? "on" : ""} onClick={() => setLayout({ ...layout, chatSide: "right" })}>在右</button></div>
-      <span className="text-muted">外观</span><div className="seg self-start">{(["system", "light", "dark"] as const).map((t) => <button key={t} className={layout.theme === t ? "on" : ""} onClick={() => setLayout({ ...layout, theme: t })}>{{ system: "跟随系统", light: "浅色", dark: "深色" }[t]}</button>)}</div>
-    </div>
-    {core && <CliPicker core={core} />}
-    {s8 ? <iframe src={s8} title="项目设置" className="w-full border border-border rounded bg-panel" style={{ height: "min(600px, calc(100vh - 260px))" }} /> : <p className="text-muted">打开一个项目后，这里还有设计系统、限额、回收站与危险操作。</p>}
-    <div className="flex justify-end"><button className="btn primary" onClick={onClose}>完成</button></div>
+    <Sheet.Head><h2 className="text-base font-semibold">设置</h2></Sheet.Head>
+    <Sheet.Body>
+      <div className="grid grid-cols-[72px_1fr] gap-x-3 gap-y-3 items-center">
+        <span className="text-muted">会话栏</span><div className="seg self-start"><button className={layout.chatSide === "left" ? "on" : ""} onClick={() => setLayout({ ...layout, chatSide: "left" })}>在左（默认）</button><button className={layout.chatSide === "right" ? "on" : ""} onClick={() => setLayout({ ...layout, chatSide: "right" })}>在右</button></div>
+        <span className="text-muted">外观</span><div className="seg self-start">{(["system", "light", "dark"] as const).map((t) => <button key={t} className={layout.theme === t ? "on" : ""} onClick={() => setLayout({ ...layout, theme: t })}>{{ system: "跟随系统", light: "浅色", dark: "深色" }[t]}</button>)}</div>
+      </div>
+      {core && <CliPicker core={core} />}
+      {/* iframe 的高度给固定值，别用 vh —— 它在会滚的内容区里，用 vh 会和外层的滚动打架 */}
+      {s8 ? <iframe src={s8} title="项目设置" className="w-full border border-border rounded bg-panel shrink-0" style={{ height: 560 }} />
+        : <p className="text-muted">打开一个项目后，这里还有设计系统、限额、回收站与危险操作。</p>}
+    </Sheet.Body>
+    <Sheet.Foot><button className="btn primary" onClick={onClose}>完成</button></Sheet.Foot>
   </Sheet>;
 }

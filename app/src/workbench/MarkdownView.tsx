@@ -1,6 +1,6 @@
-import MarkdownIt from "markdown-it";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Core } from "../api/client";
+import { renderMd } from "../ui/markdown";
 import { timeAgo, type FileSnapshotMeta, type ReadFileResult, type Selection } from "../api/types";
 import { toast } from "../ui/Toast";
 
@@ -14,8 +14,7 @@ import { toast } from "../ui/Toast";
  *    `.md` 里 Enter 是换行，所以落盘是 ⌘S / 失焦，不是 Enter。
  *  - 选一段 → `range` 药丸（路径 + 行范围 + 文本），AI 用 `write_file` 只改那一段。
  *
- *  渲染用 markdown-it，打进 app 的构建产物里 —— 不从 CDN 取，断网照常（H2）。 */
-const md = new MarkdownIt({ html: false, linkify: true, breaks: false });
+ *  渲染走 `ui/markdown.ts` 那一份共用实例 —— 打进 app 的构建产物，不从 CDN 取，断网照常（H2）。 */
 
 export interface Outline { level: number; text: string; line: number }
 
@@ -42,7 +41,7 @@ export function MarkdownView({ core, path, onSelection, onOutline, writeTick, on
 
   const dirty = !!info && text !== (info.content ?? "");
   const { front, body, bodyStartLine } = useMemo(() => splitFrontmatter(text), [text]);
-  const html = useMemo(() => md.render(body), [body]);
+  const html = useMemo(() => renderMd(body), [body]);
   const outline = useMemo(() => headings(body, bodyStartLine), [body, bodyStartLine]);
 
   // 大纲归右侧那一列（S11 定的：从属面板统一在右）—— 这里只负责算，不自己画一份

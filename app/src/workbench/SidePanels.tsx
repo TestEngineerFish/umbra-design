@@ -21,7 +21,7 @@ export function SidePanels({ core, store, file, picked, onPicked, panels, active
     <section className={`bg-panel border-border flex flex-col min-h-0 ${narrow ? "fixed top-[86px] bottom-6 right-10 z-40 w-[320px] shadow-2xl border-l" : "shrink-0 border-l"}`} style={narrow ? undefined : { width: PANEL_WIDTH }}>
       <header className="h-9 px-3 flex items-center gap-2 border-b border-border text-xs font-semibold shrink-0">{PANEL_TITLE[active]}{badge[active] ? <span className="badge">{badge[active]}</span> : null}<span className="flex-1" /><button className="ib" onClick={() => setActive(null)} title="收起">›</button></header>
       <div className="flex-1 min-h-0 overflow-auto text-xs">
-        {active === "props" && <PropsPanel core={core} file={file} picked={picked} onPicked={onPicked} writeTick={store.lastEvent?.type === "write" ? store.lastEvent.at : ""} onWritten={() => { void store.fetchDrafts(); void store.fetchDiagnostics(file); void store.fetchChanges(file); }} />}
+        {active === "props" && <PropsPanel core={core} file={file} picked={picked} onPicked={onPicked} writeTick={String(store.fileTick(file))} onWritten={() => { void store.fetchDrafts(); void store.fetchDiagnostics(file); void store.fetchChanges(file); }} />}
         {active === "diagnostics" && <Diagnostics store={store} />}
         {active === "changes" && <Changes core={core} store={store} file={file} />}
         {active === "comments" && <Comments core={core} store={store} file={file} onSendToAI={onSendToAI} />}

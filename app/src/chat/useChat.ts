@@ -2,8 +2,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Core } from "../api/client";
 import type { ChatMessage, ChatNote, ChatSessionRow, ChatUsage, Selection } from "../api/types";
 
-interface Cap { model: string; supportsImage: boolean; via?: "local" | "endpoint" }
+interface Cap { model: string; supportsImage: boolean; via?: "local" | "endpoint"; cli?: string; cliLabel?: string }
 import { mem } from "../layout/layout";
+import { pickChannel as pickChannelShared } from "./channel";
 import { toast } from "../ui/Toast";
 
 /** AI 会话（M2-12 / §四十）：作业化 —— chat_send async 拿 jobId，每 1.2 s 拉一次会话正文与作业状态；WS 的 chat 事件到了也拉一次 */
@@ -48,7 +49,14 @@ export function useChat(core: Core, dir: string, ctx: { selectedDraft: string | 
   useEffect(() => { void reloadCaps(); }, [reloadCaps]);
 
   const newSession = useCallback(() => { setSessionId(null); setMessages([]); setNotes([]); setUsage(null); }, []);
-  const pickChannel = useCallback((c: "a" | "b" | "c") => { setChannel(c); mem.set("us.chatChannel", c); }, []);
+  const pickChannel = useCallback((c: "a" | "b" | "c") => { setChannel(c); pickChannelShared(c); }, []);
+  /* 设置面板里也能切通道（在那儿选 CLI 的人多半就是想用它）。
+     它发这个事件，这里跟上 —— 不然会出现「设置里选了 Codex，会话栏还停在通道 C」。 */
+  useEffect(() => {
+    const on = (e: Event) => { const c = (e as CustomEvent<"a" | "b" | "c">).detail; if (c === "a" || c === "b" || c === "c") setChannel(c); };
+    window.addEventListener("ud-pick-channel", on);
+    return () => window.removeEventListener("ud-pick-channel", on);
+  }, []);
 
   const send = useCallback(async (textIn?: string, selIn?: Selection[]) => {
     const text = (textIn ?? input).trim();
