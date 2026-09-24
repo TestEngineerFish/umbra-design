@@ -356,6 +356,9 @@ export async function referencesOf(p: Project, rel: string): Promise<Array<{ fil
   const out: Array<{ file: string; line: number }> = [];
   for (const abs of await listDrafts(p)) {
     const draftRel = relative(p.dir, abs).split(sep).join("/");
+    // 工具自己部署进项目的壳页面（S2–S8、index）不算「引用方」——
+    // 它们引 support.js 是 build_index 干的，跟用户的文件组织没关系
+    if (isToolArtifact(draftRel)) continue;
     let src: string;
     try { src = await readFile(abs, "utf8"); } catch { continue; }
     if (!src.includes(target)) continue;          // 先粗筛，避免每份稿都逐行

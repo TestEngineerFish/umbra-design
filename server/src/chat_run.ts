@@ -28,6 +28,7 @@ import {
 import { serveStart, serveStatus, serveStop } from "./serve.js";
 import { buildIndex, collectIndex } from "./indexpage.js";
 import { locateNode } from "./locate.js";
+import { readAnyFile } from "./files.js";
 import { revertTo, setProp } from "./edit.js";
 import { touchProject, listRecentProjects, removeRecentProject, clearRecentProjects } from "./workspace.js";
 import { buildRefGraph, listReferences, renameDraft, moveDraft, deleteDraft, deleteDraftImpact, listTrash, restoreDraft } from "./refs.js";
@@ -51,6 +52,8 @@ export interface ChatSendArgs {
   channel?: "a" | "b";
   selectedNodeFile?: string;
   selectedNodeAddress?: string;
+  /** 目录视图里选中的若干文件（M8-4，`01` 第 32 条）。路径相对项目根 */
+  selectedFiles?: string[];
   /** 应用前端里当前正在看的稿（没选中节点时的弱上下文）：进系统提示，不进用户那句 */
   contextFile?: string;
   /** 作业化调用时的中断信号（本地 API chat_interrupt 触发）：通道 A 的 agent 循环在下一步前停下 */
@@ -277,7 +280,7 @@ function sanitizeHistory(msgs: ChatMessage[]): ChatMessage[] {
 
 /** chat_send：加载/新建会话 → 选中节点上下文 → 通道 A agent 循环或通道 B 子进程 → 审计变更。返回信封。 */
 export async function runChatSend(p: Project, a: ChatSendArgs): Promise<Envelope<any>> {
-  const { message, sessionId, channel, selectedNodeFile, selectedNodeAddress, contextFile, abortSignal } = a;
+  const { message, sessionId, channel, selectedNodeFile, selectedNodeAddress, selectedFiles, contextFile, abortSignal } = a;
   const ch = channel ?? "a";
 
   // 加载或新建会话
@@ -315,6 +318,22 @@ export async function runChatSend(p: Project, a: ChatSendArgs): Promise<Envelope
     } catch {
       // 节点地址可能已过期，静默忽略
     }
+  }
+
+  /* ── 选中文件上下文（M8-4）：给路径、类型、大小，外加文本的头几行。
+     不把正文整份塞进系统提示 —— 模型有 read_file，要看自己去读；这里只保证它**知道是哪几个**。 ── */
+  let filesContext: string | null = null;
+  if (selectedFiles && selectedFiles.length) {
+    const lines: string[] = [`【当前选中的文件】共 ${selectedFiles.length} 个`];
+    for (const rel of selectedFiles.slice(0, 20)) {
+      try {
+        const info = await readAnyFile(p, rel);
+        const head = info.content ? info.content.split("\n").slice(0, 3).map((x) => x.trim()).filter(Boolean).join(" / ").slice(0, 100) : "";
+        lines.push(`  - ${rel}（${info.kind}，${info.size} 字节${info.width ? `，${info.width}×${info.height}` : ""}）${head ? ` — ${head}` : ""}`);
+      } catch { lines.push(`  - ${rel}（读不到，可能刚被挪走）`); }
+    }
+    if (selectedFiles.length > 20) lines.push(`  … 还有 ${selectedFiles.length - 20} 个`);
+    filesContext = lines.join("\n");
   }
 
   // 通道 A：跑 agent 循环
@@ -377,6 +396,10 @@ export async function runChatSend(p: Project, a: ChatSendArgs): Promise<Envelope
       systemParts.push("", "### 当前选中节点（用户正在编辑的元素）", nodeContext, "", "用户说「这个」「这里」「字号大一点」等指向性描述时，就是指这个节点。用 set_prop 修改它的可编辑项，或调用 write_draft/patch_draft 做更大改动。");
     } else if (contextFile) {
       systemParts.push("", `### 用户当前正在看的稿：${contextFile}`, "用户说「这份稿」「这个按钮」时，默认指这份稿里的内容；先读它再改。");
+    }
+    if (filesContext) {
+      systemParts.push("", "### 用户选中的文件", filesContext, "",
+        "用户说「这几个」「它们」时就是指这些文件。要看内容用 read_file；改非设计稿用 write_file（带上 read_file 给的 sha256），改设计稿用 write_draft。");
     }
 
     const result = await chat(providerCfg, {
@@ -472,6 +495,7 @@ export async function runChatSend(p: Project, a: ChatSendArgs): Promise<Envelope
   } else if (contextFile) {
     bSystemParts.push("", `### 用户当前正在看的稿：${contextFile}`);
   }
+  if (filesContext) bSystemParts.push("", "### 用户选中的文件", filesContext);
 
   const ccResult = await channelBRun(ccConfig, message, bSystemParts.join("\n"), 120000);
 

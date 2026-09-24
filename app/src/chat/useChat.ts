@@ -43,8 +43,10 @@ export function useChat(core: Core, dir: string, ctx: { selectedDraft: string | 
       const body: Record<string, unknown> = { message: text, channel, async: true };
       if (sessionId) body.sessionId = sessionId;
       if (ctxRef.current.selectedDraft) body.contextFile = ctxRef.current.selectedDraft;
-      // 后端今天只认一个节点上下文；别的四种选择项随 M8 的类型接入（S9 的药丸形制已经能显示它们）
       if (node?.node) { body.selectedNodeFile = node.file; body.selectedNodeAddress = node.node; }
+      // files 药丸：把路径带过去（M8-4）。range / region 随 M8-6 / M8-10 接
+      const files = sels.filter((s) => s.kind === "files").flatMap((s) => s.detail.split("\n")).filter(Boolean);
+      if (files.length) body.selectedFiles = files;
       const started = await core.post<{ jobId: string; sessionId?: string }>("chat_send", body);
       if (!started.ok || !started.data) throw new Error(started.errors?.[0]?.message ?? "起作业失败");
       job.current = started.data.jobId; const sid = started.data.sessionId ?? sessionId!; setSessionId(sid);

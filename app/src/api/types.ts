@@ -18,6 +18,13 @@ export interface Picked { file: string; node: string; tag: string }
 export type SelectionKind = "node" | "range" | "region" | "files" | "dir";
 export interface Selection { kind: SelectionKind; label: string; detail: string; ref?: { file?: string; node?: string } }
 export const SELECTION_ICON: Record<SelectionKind, string> = { node: "⌖", range: "≡", region: "▢", files: "⧉", dir: "▤" };
+
+/** 泛型文件层（M8，server/src/files.ts 的返回形状） */
+export type FileKindS = "dir" | "dc" | "md" | "image" | "code" | "html" | "other";
+export interface FileEntry { path: string; name: string; kind: FileKindS; isDir: boolean; size: number; updatedAt: string; count?: number; width?: number; height?: number; excerpt?: string; snapshot?: string }
+export interface ListFilesResult { dir: string; entries: FileEntry[]; types: { dc: number; md: number; image: number; other: number } }
+export interface ReadFileResult { path: string; kind: FileKindS; size: number; updatedAt: string; sha256: string; content: string | null; why?: string; lines?: number; snapshot?: string; width?: number; height?: number }
+export interface FileSnapshotMeta { version: string; src: string; at: string; bytes: number; note?: string }
 export interface ShellState { selectOn: boolean; preset: number; zoom: number; draftTheme: "light" | "dark"; picked: boolean; busy: boolean; editHint: string | null; checkNote: string | null; apiErr: string | null }
 
 export interface ToolCall { id: string; function?: { name?: string; arguments?: string } }

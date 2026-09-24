@@ -3,7 +3,7 @@ import { SELECTION_ICON, type ChatMessage, type Selection, type ToolCall } from 
 import type { ChatStore } from "./useChat";
 
 /** 会话栏，形制按 S9：用户句右对齐；一个 AI 回合共用一根左栏，文本与工具行按出现顺序排；变更卡带回退；「已选中」药丸紧挨输入框上方 */
-export function ChatRail({ chat, selections, onDropSelection, onClearSelections, selectedDraft, onCollapse, onSwapSide, width, onResize, side }: { chat: ChatStore; selections: Selection[]; onDropSelection: (i: number) => void; onClearSelections: () => void; selectedDraft: string | null; onCollapse: () => void; onSwapSide: () => void; width: number; onResize: (w: number) => void; side: "left" | "right" }) {
+export function ChatRail({ chat, selections, onDropSelection, onClearSelections, contextLabel, onCollapse, onSwapSide, width, onResize, side }: { chat: ChatStore; selections: Selection[]; onDropSelection: (i: number) => void; onClearSelections: () => void; contextLabel: string | null; onCollapse: () => void; onSwapSide: () => void; width: number; onResize: (w: number) => void; side: "left" | "right" }) {
   const body = useRef<HTMLDivElement>(null);
   useEffect(() => { if (body.current) body.current.scrollTop = body.current.scrollHeight; }, [chat.messages, chat.notes, chat.running]);
   const usage = chat.usage ? (chat.usage.totalCostUSD != null ? `通道 B · $${Number(chat.usage.totalCostUSD).toFixed(3)}` : `通道 ${chat.channel.toUpperCase()} · ${(chat.usage.totalTokens ?? 0).toLocaleString()} tokens`) : `通道 ${chat.channel.toUpperCase()}`;
@@ -19,7 +19,7 @@ export function ChatRail({ chat, selections, onDropSelection, onClearSelections,
       </div>
       <div ref={body} className="flex-1 min-h-0 overflow-auto px-3 py-3 flex flex-col gap-3">
         {chat.messages.length === 0 && chat.notes.length === 0 && !chat.running && (
-          <div className="m-auto text-center text-xs text-muted leading-relaxed px-4"><b className="text-text">直接说要改什么</b><br />比如「把这个按钮改成 danger 态」。<br />AI 走唯一写入口落盘，改动可审、可回退。{selectedDraft ? "" : <><br />先选一份稿，AI 会优先看它。</>}</div>
+          <div className="m-auto text-center text-xs text-muted leading-relaxed px-4"><b className="text-text">直接说要改什么</b><br />比如「把这个按钮改成 danger 态」。<br />AI 走唯一写入口落盘，改动可审、可回退。{contextLabel ? "" : <><br />先选一个文件，AI 会优先看它。</>}</div>
         )}
         <Turns messages={chat.messages} />
         {chat.notes.map((n, i) => n.kind === "change" ? (
@@ -30,7 +30,7 @@ export function ChatRail({ chat, selections, onDropSelection, onClearSelections,
       {selections.length > 0 && <Pills selections={selections} onDrop={onDropSelection} onClear={onClearSelections} />}
       <div className="px-3 pb-2 flex gap-2 items-end shrink-0">
         <textarea id="chatInput" rows={2} value={chat.input} onChange={(e) => chat.setInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void chat.send(); } if (e.key === "Escape" && chat.running) void chat.interrupt(); }}
-          placeholder={selections.length ? "对选中的说…（「这里字号大一点」）" : selectedDraft ? `对 ${selectedDraft} 说…` : "输入消息… ⏎ 发送"} className="flex-1 min-h-[40px] max-h-40 px-3 py-2 rounded border border-border bg-bg text-xs outline-none focus:border-accent resize-y" />
+          placeholder={selections.length ? "对选中的说…（「这里字号大一点」）" : contextLabel ? (/^[\u4e00-\u9fa5]/.test(contextLabel) ? `对${contextLabel}说…` : `对 ${contextLabel} 说…`) : "输入消息… ⏎ 发送"} className="flex-1 min-h-[40px] max-h-40 px-3 py-2 rounded border border-border bg-bg text-xs outline-none focus:border-accent resize-y" />
         {chat.running ? <button className="btn danger" onClick={() => void chat.interrupt()}>中断</button> : <button className="btn primary" onClick={() => void chat.send()} disabled={!chat.input.trim()}>发送</button>}
       </div>
       <div className="px-3 h-6 flex items-center text-[11px] text-muted border-t border-border shrink-0"><span>{usage}</span><span className="flex-1" /><span>{chat.running ? "运行中" : chat.sessions.length ? `${chat.sessions.length} 个会话` : ""}</span></div>
