@@ -86,6 +86,8 @@ async function main(): Promise<void> {
 
   const p = await anyProject();
   const apply = process.argv.includes("--apply");
+  /** 看过「丢的键 → 相近的新键」对应关系之后，人工放行重构改名 */
+  const acceptRenames = process.argv.includes("--accept-renames");
   let blocking = 0;
   /** 过关后可直接并入的稿：baseline 正确（或新文件）、零 error、接线齐全 */
   const ready: Array<{ f: string; body: string }> = [];
@@ -145,6 +147,39 @@ async function main(): Promise<void> {
         const why = !base
           ? "没有 baseline 标记（新屏没经过 outgoing 打包时就是这样）"
           : `baseline 戳是 ${base.sent ?? "?"}（${base.sha}），我们现版是 ${shaOf(cur)}`;
+        /* 丢了的键里，有没有**名字相近的新键**？
+         *
+         * 键零丢失这条判据对「增量改动」很准，但对**重构性改动**会误报：
+         * 2026-09-25 第七轮把按钮重新归类，`showTree` / `showTreeBtn` / `toBar` 三个键没了，
+         * 而功能全被 `treeShown` / `toggleTreeBtn` / `chatModes` 接走了 —— 键是改名不是丢失。
+         *
+         * 工具分不清这两者（也不该假装能分），但它能**把证据摆到人眼前**：
+         * 按驼峰拆词，给每个丢的键找出共享词根的新键。看过之后用 `--accept-renames` 放行。
+         * 这比让人去 grep 快，也比直接放宽判据安全。 */
+        const words = (k: string) => new Set(k.replace(/([a-z0-9])([A-Z])/g, "$1 $2").toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 2));
+        const added = auditRenderVals(parseDraft(incoming, f)).union
+          .filter((k) => !auditRenderVals(parseDraft(cur, f)).union.includes(k));
+        const nearby = (k: string) => {
+          const w = words(k);
+          return added.filter((a) => [...words(a)].some((x) => w.has(x))).slice(0, 4);
+        };
+        if (gone.length > 0) {
+          /* **工具不替人判断「是改名还是真丢了」** —— 实测它判不准：
+             第七轮 `showTree` / `showTreeBtn` 有相近的新键（treeBtnOn…），
+             而 `toBar` 一个相近的都没有，因为那颗钮是真删了、功能被叫 `chatModes` 的新钮接走 ——
+             词根对不上，可功能一点没丢。
+             所以这里只负责**把证据摆全**：每个丢的键旁边列出相近的新键，没有就明说没有。
+             看过之后用 `--accept-renames` 放行，判断权在人手里。 */
+          for (const k of gone) {
+            const near = nearby(k);
+            console.log(dim(`       ${k} → ${near.length ? `名字相近的新键：${near.join(" / ")}` : "没有名字相近的新键（可能是真删了，对照回执确认功能有没有别处承接）"}`));
+          }
+          console.log(dim(`       这一版共新增 ${added.length} 个键。对照设计侧回执确认功能都有着落，再加 --accept-renames 重跑。`));
+          if (acceptRenames) {
+            console.log(`     ${ylw(`按人工确认放行 —— 你看过上面 ${gone.length} 个键的去向了`)}`);
+            gone.length = 0;
+          }
+        }
         if (gone.length === 0) {
           console.log(`     ${ylw("按内容认可 —— baseline 对不上，但我们现版的接线一个键都没少")}`);
           console.log(dim(`       ${why}`));
