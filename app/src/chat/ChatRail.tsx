@@ -6,13 +6,21 @@ import type { ChatStore } from "./useChat";
 export function ChatRail({ chat, selections, onDropSelection, onClearSelections, contextLabel, onCollapse, onSwapSide, width, onResize, side }: { chat: ChatStore; selections: Selection[]; onDropSelection: (i: number) => void; onClearSelections: () => void; contextLabel: string | null; onCollapse: () => void; onSwapSide: () => void; width: number; onResize: (w: number) => void; side: "left" | "right" }) {
   const body = useRef<HTMLDivElement>(null);
   useEffect(() => { if (body.current) body.current.scrollTop = body.current.scrollHeight; }, [chat.messages, chat.notes, chat.running]);
-  const usage = chat.usage ? (chat.usage.totalCostUSD != null ? `通道 B · $${Number(chat.usage.totalCostUSD).toFixed(3)}` : `通道 ${chat.channel.toUpperCase()} · ${(chat.usage.totalTokens ?? 0).toLocaleString()} tokens`) : `通道 ${chat.channel.toUpperCase()}`;
+  const who = `通道 ${chat.channel.toUpperCase()}${chat.model ? ` · ${chat.model}` : ""}`;
+  const usage = chat.usage
+    ? (chat.usage.totalCostUSD != null ? `${who} · $${Number(chat.usage.totalCostUSD).toFixed(3)}` : `${who} · ${(chat.usage.totalTokens ?? 0).toLocaleString()} tokens`)
+    : who;
   return (
     <aside className="relative flex flex-col bg-panel border-border shrink-0 min-h-0" style={{ width }}>
       <Grip onResize={onResize} width={width} side={side} />
       <div className="h-11 px-3 flex items-center gap-2 border-b border-border shrink-0">
         <div className="min-w-0 flex-1"><div className="text-sm font-semibold leading-4">会话</div><div className="text-[11px] text-muted truncate">{chat.sessionId ? `${chat.sessionId.slice(0, 8)} · ${chat.messages.filter((m) => m.role === "user").length} 条` : "新会话"}</div></div>
-        <div className="seg">{(["a", "b"] as const).map((c) => <button key={c} className={chat.channel === c ? "on" : ""} onClick={() => chat.pickChannel(c)} title={c === "a" ? "直连 OpenAI 兼容端点" : "Claude Code 子进程"}>{c.toUpperCase()}</button>)}</div>
+        <div className="seg" title={chat.model ? `当前：${chat.model}` : undefined}>
+          {(["a", "b", "c"] as const).map((c) => (
+            <button key={c} className={chat.channel === c ? "on" : ""} onClick={() => chat.pickChannel(c)}
+              title={c === "a" ? "通道 A：直连 OpenAI 兼容端点（按量计费）" : c === "b" ? "通道 B：Claude Code 子进程" : "通道 C：订阅额度那条（优先用它，额度用完自动退回 A）"}>{c.toUpperCase()}</button>
+          ))}
+        </div>
         <button className="ib" onClick={chat.newSession} title="新会话">＋</button>
         <button className="ib" onClick={onSwapSide} title="换边">⇄</button>
         <button className="ib" onClick={onCollapse} title="收成输入条">—</button>

@@ -29,15 +29,23 @@ export interface ChannelBConfig {
   model: string;      // 如 glm-4.6
 }
 
+/** 通道 C：另一条 OpenAI 兼容端点，和 A 完全同形 —— 存在的理由是**订阅额度**：
+ *  先用包月的那条，额度用完了自动退回按量计费的 A（`11` Q33）。
+ *  火山方舟 Agent Plan 的地址是 `https://ark.cn-beijing.volces.com/api/plan/v1`
+ *  （`/api/plan` 下还有一条 Anthropic 形状的 `/v1/messages`，我们用 OpenAI 那条）。 */
+export type ChannelCConfig = ChannelAConfig;
+
 export interface AiConfig {
   channelA: ChannelAConfig | null;
   channelB: ChannelBConfig | null;
-  defaultChannel: "a" | "b";
+  channelC?: ChannelCConfig | null;
+  defaultChannel: "a" | "b" | "c";
 }
 
 const DEFAULT_CONFIG: AiConfig = {
   channelA: null,
   channelB: null,
+  channelC: null,
   defaultChannel: "a",
 };
 
@@ -76,4 +84,21 @@ export async function getChannelA(): Promise<ChannelAConfig> {
   const cfg = await getAiConfig();
   if (!cfg.channelA) throw new Error("通道 A 未配置：请先设置 baseUrl、apiKey 和 model");
   return cfg.channelA;
+}
+
+export async function getChannelC(): Promise<ChannelCConfig> {
+  const cfg = await getAiConfig();
+  if (!cfg.channelC) throw new Error("通道 C 未配置：请先设置 baseUrl、apiKey 和 model");
+  return cfg.channelC;
+}
+
+/** A 与 C 同形（都是 OpenAI 兼容），取哪一条只看通道名 */
+export async function getOpenAiChannel(ch: "a" | "c"): Promise<ChannelAConfig> {
+  return ch === "c" ? getChannelC() : getChannelA();
+}
+
+/** 这条错误像不像「订阅额度用完 / 被限流」—— 像才降级，别把参数错、网络抖动也当额度问题。
+ *  命中就换通道重试一次；没命中就照原样报错，原文也一并留给用户看。 */
+export function looksLikeQuotaProblem(error: string): boolean {
+  return /(quota|exceed|insufficient|balance|欠费|余额|额度|用完|超出|限流|rate.?limit|too many requests|\b429\b|\b402\b)/i.test(error);
 }

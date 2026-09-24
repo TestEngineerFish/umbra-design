@@ -57,13 +57,13 @@ export interface ProbeResult {
   why: string;
 }
 
-export async function probeImageSupport(channel: "a" | "b" = "a"): Promise<ProbeResult> {
-  if (channel !== "a") {
+export async function probeImageSupport(channel: "a" | "b" | "c" = "a"): Promise<ProbeResult> {
+  if (channel === "b") {
     return { supportsImage: false, asked: "", answered: "", saved: false, why: "通道 B 走 Claude Code 子进程，图片支持由它那边决定，这里探不了" };
   }
   const cfg = await getAiConfig();
-  const a = cfg.channelA;
-  if (!a?.apiKey) return { supportsImage: false, asked: "", answered: "", saved: false, why: "通道 A 还没配" };
+  const a = channel === "c" ? cfg.channelC : cfg.channelA;
+  if (!a?.apiKey) return { supportsImage: false, asked: "", answered: "", saved: false, why: `通道 ${channel.toUpperCase()} 还没配` };
 
   const pick = COLORS[Math.floor(Math.random() * COLORS.length)]!;
   const png = solidPng(64, 64, pick.rgb);
@@ -86,18 +86,19 @@ export async function probeImageSupport(channel: "a" | "b" = "a"): Promise<Probe
   const answered = (typeof last?.content === "string" ? last.content : "").trim().slice(0, 80);
   if (r.error) {
     // 发不出去（4xx / 端点不认多模态）也是一种答案：不支持
-    await save(a, false);
+    await save(channel, a, false);
     return { supportsImage: false, asked: pick.names[0]!, answered: "", saved: true, why: `这条通道拒了带图的消息：${r.error.slice(0, 120)}` };
   }
   const hit = pick.names.some((n) => answered.toLowerCase().includes(n.toLowerCase()));
-  await save(a, hit);
+  await save(channel, a, hit);
   return {
     supportsImage: hit, asked: pick.names[0]!, answered, saved: true,
     why: hit ? `发了一张纯${pick.names[0]}的图，它答「${answered}」—— 答对了` : `发了一张纯${pick.names[0]}的图，它答「${answered}」—— 没答对，按不支持算`,
   };
 }
 
-async function save(a: ChannelAConfig, supportsImage: boolean): Promise<void> {
+async function save(channel: "a" | "c", a: ChannelAConfig, supportsImage: boolean): Promise<void> {
   const cfg = await getAiConfig();
-  await setAiConfig({ ...cfg, channelA: { ...a, supportsImage } });
+  const next = { ...a, supportsImage };
+  await setAiConfig(channel === "c" ? { ...cfg, channelC: next } : { ...cfg, channelA: next });
 }

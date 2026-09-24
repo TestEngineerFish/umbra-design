@@ -16,7 +16,7 @@ import { getComponent, getIcon, getToken, listComponents, listIcons, searchToken
 import { validateDraft } from "./validate.js";
 import { patchDraft, writeDraft } from "./write.js";
 import { missingRuntime } from "./normalize.js";
-import { getAiConfig, setAiConfig, channelSupportsImage, getChannelA, getChannelB, type AiConfig } from "./ai_config.js";
+import { getAiConfig, setAiConfig, channelSupportsImage, getChannelA, getChannelB, getOpenAiChannel, looksLikeQuotaProblem, type AiConfig } from "./ai_config.js";
 import { chat, type ToolDef, type ToolCall, type ChatMessage } from "./provider.js";
 import { createChat, loadChat, saveChat, listChats, deleteChat, addMessage, type ChatSession, type ChatEntry } from "./chat.js";
 import { findBrowser, renderCheck } from "./render.js";
@@ -49,7 +49,7 @@ const GUIDES: Record<string, { file: string; note: string }> = {
 export interface ChatSendArgs {
   message: string;
   sessionId?: string;
-  channel?: "a" | "b";
+  channel?: "a" | "b" | "c";
   selectedNodeFile?: string;
   selectedNodeAddress?: string;
   /** 目录视图里选中的若干文件（M8-4，`01` 第 32 条）。路径相对项目根 */
@@ -306,18 +306,39 @@ function sanitizeHistory(msgs: ChatMessage[]): ChatMessage[] {
 }
 
 /** chat_send：加载/新建会话 → 选中节点上下文 → 通道 A agent 循环或通道 B 子进程 → 审计变更。返回信封。 */
+/** 系统提示里「看不看得了图」那一句的占位 —— 降级换通道时按新通道的能力重填 */
+const IMAGE_NOTE_SLOT = "\u0000IMAGE_NOTE\u0000";
+function imageNote(seeImage: boolean): string {
+  return seeImage
+    ? [
+        "随这条消息发过去的**只有圈中的那一块**，不是整张图 —— 别拿它描述整张图长什么样。",
+        "坐标是原图像素，原点在左上角：x 向右增大，y 向下增大。回答时引用坐标，别只说「这里」。",
+      ].join("\n")
+    : "**你看不到图**（当前通道不支持图片），只有坐标和他的话。别猜图上画的是什么；需要看图就直说「这个通道看不了图，换一个能看图的模型」。";
+}
+/** 换到看不了图的通道时，把已经挂上去的图片段去掉，只留文字 */
+function stripImages(history: Array<{ content: unknown }>): void {
+  for (const m of history) {
+    if (!Array.isArray(m.content)) continue;
+    const text = (m.content as Array<{ type: string; text?: string }>).filter((x) => x.type === "text").map((x) => x.text ?? "").join("");
+    m.content = text;
+  }
+}
+
 export async function runChatSend(p: Project, a: ChatSendArgs): Promise<Envelope<any>> {
   const { message, sessionId, channel, selectedNodeFile, selectedNodeAddress, selectedFiles, selectedRange, selectedRegion, contextFile, abortSignal } = a;
-  const ch = channel ?? "a";
+  const cfgAll = await getAiConfig();
+  const ch = channel ?? cfgAll.defaultChannel ?? "a";
+  /** A 与 C 同形（OpenAI 兼容），走同一条 agent 循环；B 是 Claude Code 子进程 */
+  const isOpenAiChannel = ch === "a" || ch === "c";
 
   // 加载或新建会话
   let session: ChatSession | null = sessionId ? await loadChat(p.dir, sessionId) : null;
   if (!session) {
-    const cfg = await getAiConfig();
     session = await createChat(p.dir, {
       projectId: p.name,
-      channel: ch as "a" | "b",
-      model: cfg.channelA?.model ?? "unknown",
+      channel: ch,
+      model: (ch === "c" ? cfgAll.channelC?.model : ch === "b" ? cfgAll.channelB?.model : cfgAll.channelA?.model) ?? "unknown",
     });
   }
 
@@ -381,9 +402,9 @@ export async function runChatSend(p: Project, a: ChatSendArgs): Promise<Envelope
     regionContext = [`【用户在图上圈了一块】${selectedRegion.label}`, selectedRegion.note ? `他说：${selectedRegion.note}` : ""].filter(Boolean).join("\n");
   }
 
-  // 通道 A：跑 agent 循环
-  if (ch === "a") {
-    const providerCfg = await getChannelA();
+  // 通道 A / C：同一条 agent 循环，只是配置不同（C 是订阅额度那条，优先用）
+  if (isOpenAiChannel) {
+    let providerCfg = await getOpenAiChannel(ch as "a" | "c");
     canSeeImage = channelSupportsImage(providerCfg);
 
     // ── 记录循环前各稿的版本（用于审计变更） ──
@@ -457,13 +478,7 @@ export async function runChatSend(p: Project, a: ChatSendArgs): Promise<Envelope
         "用户说「这段」时就是指它，**不要再问是哪一段**。改法：先 read_file 拿到全文与 sha256，把这一段替换掉、其余一个字都不动，再 write_file 带上那个 sha256。不要重写整份文档。");
     }
     if (regionContext) {
-      systemParts.push("", "### 用户在图上圈的区域", regionContext, "",
-        canSeeImage
-          ? [
-              "随这条消息发过去的**只有圈中的那一块**，不是整张图 —— 别拿它描述整张图长什么样。",
-              "坐标是原图像素，原点在左上角：x 向右增大，y 向下增大。回答时引用坐标，别只说「这里」。",
-            ].join("\n")
-          : "**你看不到图**（当前通道不支持图片），只有坐标和他的话。别猜图上画的是什么；需要看图就直说「这个通道看不了图，换一个能看图的模型」。");
+      systemParts.push("", "### 用户在图上圈的区域", regionContext, "", IMAGE_NOTE_SLOT);
     }
 
     /* 语言约束放最后一条：模型对系统提示末尾的指令更听话。
@@ -483,17 +498,20 @@ export async function runChatSend(p: Project, a: ChatSendArgs): Promise<Envelope
       }
     }
 
-    const result = await chat(providerCfg, {
-      systemPrompt: systemParts.join("\n"),
+    /** 系统提示随通道能力变（看不看得了图那句话不一样），所以降级时要重算 */
+    const buildSystem = (seeImage: boolean) =>
+      systemParts.map((x) => x === IMAGE_NOTE_SLOT ? imageNote(seeImage) : x).join("\n");
+
+    const chatOpts = {
       messages: history,
       tools,
       maxSteps: 10,
       abortSignal,
       /* 逐步落盘（doc/00 §四十）：模型每回一条、每个工具一出结果就写进会话文件 ——
          界面轮询 chat_get 才能边跑边看到工具行长出来；中断时已跑的步骤也都留在会话里。 */
-      onReply: async (reply) => {
+      onReply: async (reply: ChatMessage) => {
         await addMessage(p.dir, session!.id, {
-          role: "assistant", content: typeof reply.content === "string" ? reply.content : (reply.content ?? []).map((x) => x.type === "text" ? x.text : "[图片]").join(""),
+          role: "assistant", content: typeof reply.content === "string" ? reply.content : (reply.content ?? []).map((x: { type: string; text?: string }) => x.type === "text" ? x.text ?? "" : "[图片]").join(""),
           ...(reply.tool_calls ? { toolCalls: reply.tool_calls } : {}),
         });
       },
@@ -503,7 +521,27 @@ export async function runChatSend(p: Project, a: ChatSendArgs): Promise<Envelope
         await addMessage(p.dir, session!.id, { role: "tool", content: out, toolCallId: tc.id, toolName: tc.function.name });
         return out;
       },
-    });
+    };
+
+    let result = await chat(providerCfg, { ...chatOpts, systemPrompt: buildSystem(canSeeImage) });
+
+    /* 订阅额度用完就退回按量那条（`11` Q33）。**只在这一轮什么都没干成时才退** ——
+       已经调过工具（可能落过盘）的话重跑会重复改稿，那比报一次错糟得多。 */
+    let fellBack: string | null = null;
+    if (result.error && ch === "c" && looksLikeQuotaProblem(result.error) && !result.messages.some((m) => m.role === "assistant" && m.tool_calls?.length)) {
+      const before = result.error;
+      try {
+        providerCfg = await getChannelA();
+        canSeeImage = channelSupportsImage(providerCfg);
+        if (!canSeeImage) stripImages(history);   // A 看不了图就别把图带过去
+        result = await chat(providerCfg, { ...chatOpts, systemPrompt: buildSystem(canSeeImage) });
+        fellBack = `通道 C 这一轮没跑成（${before.slice(0, 120)}），已自动换成通道 A（${providerCfg.model}）`;
+        await addMessage(p.dir, session.id, { role: "system", content: fellBack });
+      } catch (e) {
+        // A 也没配就照原样报 C 的错
+        void e;
+      }
+    }
 
     const diags = result.error ? [err(X.IO, p.rel, { kind: "key", name: "ai" }, result.error)] : [];
     session = (await loadChat(p.dir, session.id)) ?? session;   // 回包里的消息要含模型回复与工具调用，重新读盘
@@ -534,8 +572,8 @@ export async function runChatSend(p: Project, a: ChatSendArgs): Promise<Envelope
       }
     } catch { /* 忽略，不影响主流程 */ }
 
-    const chVal: "a" | "b" = ch;
-    return envelope<{ sessionId: string; channel: "a" | "b"; messages: ChatEntry[]; usage: typeof result.usage; interrupted: boolean; changes: typeof changes }>({
+    const chVal: "a" | "b" | "c" = ch;
+    return envelope<{ sessionId: string; channel: "a" | "b" | "c"; messages: ChatEntry[]; usage: typeof result.usage; interrupted: boolean; changes: typeof changes; fellBack?: string | null }>({
       sessionId: session.id,
       channel: chVal,
       messages: session.messages.slice(-10),
@@ -617,8 +655,8 @@ export async function runChatSend(p: Project, a: ChatSendArgs): Promise<Envelope
     }
   } catch { /* 忽略 */ }
 
-  const chValB: "a" | "b" = ch as "a" | "b";
-  return envelope<{ sessionId: string; channel: "a" | "b"; messages: ChatEntry[]; usage: typeof usageInfo; interrupted: boolean; toolCalls: typeof ccResult.toolCalls; numTurns: number; changes: typeof changesB }>({
+  const chValB: "a" | "b" | "c" = ch;
+  return envelope<{ sessionId: string; channel: "a" | "b" | "c"; messages: ChatEntry[]; usage: typeof usageInfo; interrupted: boolean; toolCalls: typeof ccResult.toolCalls; numTurns: number; changes: typeof changesB }>({
     sessionId: session.id,
     channel: chValB,
     messages: session.messages.slice(-10),

@@ -24,7 +24,7 @@ export interface ChatEntry {
 export interface ChatSession {
   id: string;            // uuid
   projectId: string;
-  channel: "a" | "b";    // 通道 A（直连）或 B（Claude Code）
+  channel: "a" | "b" | "c";   // A / C 直连 OpenAI 兼容端点（C 是订阅额度那条），B 是 Claude Code 子进程
   model: string;         // 用的模型名
   createdAt: string;     // ISO
   updatedAt: string;     // ISO
@@ -38,7 +38,7 @@ export interface ChatListResult {
 
 export interface CreateChatOpts {
   projectId: string;
-  channel: "a" | "b";
+  channel: "a" | "b" | "c";
   model: string;
 }
 

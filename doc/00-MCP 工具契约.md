@@ -3060,3 +3060,42 @@ S2 放在 `outgoing/手动拖入/S2-单稿预览壳.dc.html`，请用户拖进�
 【实测】`pwimg.mjs` 六条全过、零 console error：PNG 头部（240×160 / 893 B）· 缩放 ＋ / － / `0` 回适配 · SVG 矢量标签 + 200 % · 坐标换算 scale 1 时中点 (120, 80)。`pwimg2/3.mjs`：拖框得 `x 20 · y 20 · 80×50`（正是拖的那块）· 裁图 80×50、中心像素 `[220,60,60]` 与左上红块一致 · 请求体 `selectedRegion` 带 label / note / 裁图 base64。**不支持的通道不发图**（`UMBRASTUDIO_AI_DEBUG` 落盘的请求体里 `image_url` 为 false，系统提示改成「你看不到图…需要看图就直说」）。
 **`01` 第 31 条通过**：圈右下蓝块 → 「这一块是什么颜色？」→ AI 引用坐标与方位并答对颜色；不支持的通道上圈选是禁用态并说明原因。
 回归：`filetest` 19/19 · `selftest` 零 error · `lifecycletest` 全通 · `agenttest` 4/4 · `rendertest` 15/15。
+
+## 六十二、通道 C：火山方舟 Agent Plan 订阅，优先用它、额度用完退回 A（2026-09-24）
+
+用户配了第三条通道（火山方舟 Agent Plan 个人订阅），要求**优先走它，额度没了再用 A**。
+
+**端点得自己探出来**。用户填的 `https://ark.cn-beijing.volces.com/api/plan` 直接 POST `/chat/completions` 是 404。逐条试出来：
+
+| 路径 | 结果 |
+| --- | --- |
+| `/api/plan/chat/completions` | 404 |
+| `/api/v3/chat/completions` | 401（订阅 key 不能用在按量端点上） |
+| **`/api/plan/v1/chat/completions`** | **200，OpenAI 形状** |
+| `/api/plan/v1/messages` | 200，Anthropic 形状（另一条，我们不用） |
+
+所以 `baseUrl` 要写成 `…/api/plan/v1`（我们的 provider 会拼 `/chat/completions`）。已替用户改好，没碰 key。
+
+**三件必须先验的，都过了**（`doubao-seed-2.1-lite`，实际模型 `doubao-seed-2-1-lite-260915`）：
+- **工具调用**：给一个 `read_file` 的 schema，它回了结构正确的 `tool_calls` —— agent 循环的命根子。
+- **多模态**：纯 #CC22AA 的图答「紫红色」；`probe_image_support` 探纯蓝答「蓝色」，`supportsImage` 写成 true。
+- **中文与用量**：回答中文，`usage` 正常（这个模型有 `reasoning_tokens`，一轮比 DeepSeek 慢些）。
+
+**实现**：C 和 A **同形**（都是 OpenAI 兼容），走同一条 agent 循环，只是配置不同 —— `getOpenAiChannel(ch)` 取哪一条只看通道名。`defaultChannel` 支持 `"c"`，前端三颗通道钮，脚注写当前模型名；没切过通道时跟后端的 `defaultChannel`，切过一次就一直用用户的。
+
+**额度降级**（`11` Q33）：通道 C 报错且**像额度问题**（`looksLikeQuotaProblem`：quota / exceed / insufficient / balance / 余额 / 额度 / 限流 / 429 / 402…）且**这一轮一个工具都没调过**时，自动换 A 再跑一次，并往会话里写一条系统消息说明原委（C 的原始错误也带上）。
+
+两个限制条件都是必要的：
+- 只认额度类错误 —— 参数错、网络抖动、key 失效也降级的话，问题会被藏起来，用户只看到「换了个通道还是不行」。
+- 只在没调过工具时降级 —— 已经调过工具可能已经落过盘，重跑会**重复改稿**，那比报一次错糟得多。
+
+降级时系统提示按新通道的能力重算（「看不看得了图」那句话不一样），新通道看不了图就把消息里的图片段去掉只留文字。
+
+【实测】
+- 通道 C 真跑一轮 agent 改 `.md`：`list_files` → `read_file` → `write_file`，快照 s1 → s2，只改了那一句，回答中文。
+- 降级：把 C 的 `baseUrl` 临时指向一个恒返 429 `{"code":"QuotaExceeded"}` 的本地服务 → 会话里出现「通道 C 这一轮没跑成（HTTP 429: …QuotaExceeded…），已自动换成通道 A」→ 真换了 A。（这次 A 恰好也空了，报的是 A 的 402 —— 两条都不可用时报最后那条的错，会话里能看到全过程。）
+- `looksLikeQuotaProblem` 八条判据自测全对（429 / 402 / 额度用完 / 余额不足 / quota exceeded 判 true；参数非法 / fetch failed / invalid api key 判 false）。
+- 前端：三颗通道钮、C 自动选中、脚注「通道 C · doubao-seed-2.1-lite」、发送时 `channel=c`、回答正常。
+- 回归：`filetest` 19/19 · `selftest` 零 error · `lifecycletest` 全通 · `agenttest` 4/4 · `rendertest` 15/15。
+
+**另记**：DeepSeek（通道 A）在这一轮测试里又用完了（余额 -0.47）。agent 循环每轮 prompt 上万 token，十几轮就把 10 块花掉了。日常走订阅的 C 更合适；A 现在只是降级时的后备，后备本身也空着这件事，得让用户知道。

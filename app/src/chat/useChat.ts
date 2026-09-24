@@ -1,14 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Core } from "../api/client";
 import type { ChatMessage, ChatNote, ChatSessionRow, ChatUsage, Selection } from "../api/types";
+
+interface Cap { model: string; supportsImage: boolean }
 import { mem } from "../layout/layout";
 import { toast } from "../ui/Toast";
 
 /** AI 会话（M2-12 / §四十）：作业化 —— chat_send async 拿 jobId，每 1.2 s 拉一次会话正文与作业状态；WS 的 chat 事件到了也拉一次 */
 export function useChat(core: Core, dir: string, ctx: { selectedDraft: string | null; selections: Selection[]; afterChanges: () => void }) {
-  const [channel, setChannel] = useState<"a" | "b">(() => mem.get("us.chatChannel", "a"));
+  const [channel, setChannel] = useState<"a" | "b" | "c">(() => mem.get("us.chatChannel", "a"));
   /** 当前通道的模型名与它吃不吃图（M8-10：不支持时圈选入口禁用并说明原因） */
-  const [caps, setCaps] = useState<{ a?: { model: string; supportsImage: boolean }; b?: { model: string; supportsImage: boolean } }>({});
+  const [caps, setCaps] = useState<{ a?: Cap; b?: Cap; c?: Cap }>({});
+  /** 后端配的默认通道（`defaultChannel`）只在用户没切过时生效；切过一次就一直用用户的 */
+  const followedDefault = useRef(false);
   const [sessions, setSessions] = useState<ChatSessionRow[]>([]);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -25,19 +29,26 @@ export function useChat(core: Core, dir: string, ctx: { selectedDraft: string | 
     const list = r?.data?.sessions ?? []; setSessions(list);
     if (list.length) {
       const latest = list.slice().sort((a, b) => (b.updatedAt ?? "").localeCompare(a.updatedAt ?? ""))[0]!;
-      const g = await core.get<{ id: string; messages: ChatMessage[]; channel?: "a" | "b" }>("chat_get?session=" + encodeURIComponent(latest.id)).catch(() => null);
+      const g = await core.get<{ id: string; messages: ChatMessage[]; channel?: "a" | "b" | "c" }>("chat_get?session=" + encodeURIComponent(latest.id)).catch(() => null);
       if (g?.data) { setSessionId(g.data.id); setMessages(g.data.messages ?? []); if (g.data.channel) setChannel(g.data.channel); }
     }
   }, [core]);
   useEffect(() => { void load(); }, [load, dir]);
   const reloadCaps = useCallback(async () => {
-    const r = await core.get<{ channelA?: { model: string; supportsImage: boolean } | null; channelB?: { model: string; supportsImage: boolean } | null }>("ai_config").catch(() => null);
-    if (r?.data) setCaps({ a: r.data.channelA ?? undefined, b: r.data.channelB ?? undefined });
+    const r = await core.get<{ channelA?: Cap | null; channelB?: Cap | null; channelC?: Cap | null; defaultChannel?: "a" | "b" | "c" }>("ai_config").catch(() => null);
+    if (!r?.data) return;
+    setCaps({ a: r.data.channelA ?? undefined, b: r.data.channelB ?? undefined, c: r.data.channelC ?? undefined });
+    // 没切过就跟后端的默认通道（用户把订阅那条配成默认时，进来就该是它）
+    if (!followedDefault.current && mem.get<string | null>("us.chatChannel", null) === null) {
+      followedDefault.current = true;
+      const d = r.data.defaultChannel;
+      if (d === "a" || d === "b" || d === "c") setChannel(d);
+    }
   }, [core]);
   useEffect(() => { void reloadCaps(); }, [reloadCaps]);
 
   const newSession = useCallback(() => { setSessionId(null); setMessages([]); setNotes([]); setUsage(null); }, []);
-  const pickChannel = useCallback((c: "a" | "b") => { setChannel(c); mem.set("us.chatChannel", c); }, []);
+  const pickChannel = useCallback((c: "a" | "b" | "c") => { setChannel(c); mem.set("us.chatChannel", c); }, []);
 
   const send = useCallback(async (textIn?: string, selIn?: Selection[]) => {
     const text = (textIn ?? input).trim();

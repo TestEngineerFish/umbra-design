@@ -399,7 +399,7 @@ export async function handleApi(
       const args = {
         message: str(b.message, "message"),
         sessionId: typeof b.sessionId === "string" ? b.sessionId : undefined,
-        channel: (b.channel === "b" ? "b" : "a") as "a" | "b",
+        channel: (b.channel === "b" ? "b" : b.channel === "c" ? "c" : "a") as "a" | "b" | "c",
         selectedFiles: Array.isArray(b.selectedFiles) ? (b.selectedFiles as unknown[]).filter((x): x is string => typeof x === "string") : undefined,
         selectedRange: b.selectedRange && typeof b.selectedRange === "object"
           ? { label: String((b.selectedRange as Record<string, unknown>).label ?? ""), text: String((b.selectedRange as Record<string, unknown>).text ?? "") }
@@ -501,15 +501,16 @@ export async function handleApi(
     if (route === "ai_probe_image" && req.method === "POST") {
       if (!originOk(req, ctx.port)) { json(reply, 403, { ok: false, errors: [{ code: "E_API_ORIGIN", message: "Origin 不是本服务" }] }); return true; }
       const { probeImageSupport } = await import("./ai_probe.js");
-      json(reply, 200, { ok: true, data: await probeImageSupport("a") });
+      const b = await readBody(req);
+      json(reply, 200, { ok: true, data: await probeImageSupport(b.channel === "c" ? "c" : "a") });
       return true;
     }
     if (route === "ai_config" && req.method === "GET") {
       // 只给模型名与「吃不吃图」，**不回显 key**（密钥属于机器，`11` Q7）
       const { getAiConfig, channelSupportsImage } = await import("./ai_config.js");
       const cfg = await getAiConfig();
-      const one = (c: { model: string; supportsImage?: boolean } | null) => c ? { model: c.model, supportsImage: channelSupportsImage(c) } : null;
-      json(reply, 200, { ok: true, data: { channelA: one(cfg.channelA), channelB: one(cfg.channelB), defaultChannel: cfg.defaultChannel } });
+      const one = (c: { model: string; supportsImage?: boolean } | null | undefined) => c ? { model: c.model, supportsImage: channelSupportsImage(c) } : null;
+      json(reply, 200, { ok: true, data: { channelA: one(cfg.channelA), channelB: one(cfg.channelB), channelC: one(cfg.channelC), defaultChannel: cfg.defaultChannel } });
       return true;
     }
 

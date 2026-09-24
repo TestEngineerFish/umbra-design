@@ -95,6 +95,8 @@ claude mcp add umbrastudio -- node <仓库绝对路径>/server/dist/index.js
 
 **纪律**：前端只有 `app/` 一份（旧 vanilla 前端已于 M7-8 删除）。
 key 只放 `.umbrastudio/ai_config.json`，**不进仓库、不写进任何文档**。
+通道：**A** 直连 OpenAI 兼容端点（按量）· **B** Claude Code 子进程 · **C** 火山方舟 Agent Plan 订阅（OpenAI 兼容，`…/api/plan/v1`）。
+默认走 `defaultChannel`；C 遇到额度类错误且这一轮没调过工具时自动退回 A（`11` Q33，`00` §六十二）。
 
 ---
 
