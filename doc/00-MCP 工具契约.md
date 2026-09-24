@@ -2892,3 +2892,14 @@ S2 放在 `outgoing/手动拖入/S2-单稿预览壳.dc.html`，请用户拖进�
 【实测】`shell/shelltest.mjs`（Playwright `_electron`，把 `<scratchpad>` 换成实际目录）：起壳到首页 1.3 s，列 6 个项目，`umbraHost.kind = desktop`、`pickDirectory.ok = true`；两个窗口（隐藏体检页 + 主窗口）；主进程 `UMBRASTUDIO_CDP` 已设；菜单事件 `open-dir` → 工作台「58 份稿 · WS 已连」；壳里 `check` 作业 alive · 24 节点 · 1430 ms，期间 `ps` 里 headless Chrome 进程 0；第二个实例 exit 0；SIGKILL 后重开 toast「上次没有正常退出」出现，正常退出后重开不出现；`--mcp`：MCP 客户端 initialize 678 ms · 60 工具 · `list_projects` ok，客户端断开后壳进程随之退出。打包：`electron-builder --mac --arm64 --dir` → `shell/out/mac-arm64/Umbra Studio.app` 366 MB，启动 `packaged:true`、hub 可开、`/__app/home` 200。回归：`selftest` 零 error · `lifecycletest` 全通 · `rendertest` 15/15。
 
 **没做**：签名 / dmg / x64 / Windows（M9-4）；「干净机器双击」（`01` 第 36 条后半）没有机器可验；`createDraft` 绕过 `writeDraft` 的旁路（§五十二 提到）仍在。
+
+## 五十四、设计侧第四轮收稿：S11 工作台布局壳 + 第 1 题答复（2026-09-24）
+
+设计侧按 Sam 的口头要求只交三件：换底稿、S11、`08` §三之三第 1 题答复（`ui/_incoming/22-设计侧回复（第四轮）.md`，归档 `doc/_archive/22`）。S12–S14 它已画了第一版但**没放进 `_incoming/`**（等第 1 题定了再过一遍），S15 / S1 / S9 未动。
+
+- **换底稿**：它 `ui/` 里 16 个文件的 size 与 1431 包逐个一致（S2 131837 = Sam 手动拖入的新版）。「交办单说 17 个、包里 16 个」—— 第 17 个是 `README-给设计侧.md`，在 `ui/` 外面，它没数错。
+- **S11**：`read_file` 取回 36489 字节（与云端一致）→ `incoming`：新文件、error 0 · warning 1 · 141 元素、零 blocking → `--apply` 并入。新稿没有 `__resources` 块，`incoming --apply` 也不注入（原样 `writeFile`）—— 用 `node runtime/inject-resources.mjs ui` 补上；它同时想改 `IconGlyph` 与 `S7`（这两份一直没有块），**已还原**，免得设计侧手上这两份的 baseline 失配，下次发包前再统一补。
+- **第 1 题答复**：从属面板**统一右侧一列**（40 px 图标轨常驻 + 300 px 面板体，同一时刻只开一个；底栏只留 24 px 状态行；图片 / 目录整列不出现；窄窗时面板体变 320 px 抽屉盖在预览上）。与 `08` 的倾向和 R1–R5 一致，**采纳**。顺带给了第 2 题（类型图标：`IconGlyph` 七种单色描边）和「已选中」药丸位置（紧挨输入框；展开态在上方，输入条态在左侧），一并采纳。
+- **它提的两件需要我们表态的**：① S2 嵌入模式只留画布，属性面板由 S11 这一列装（要动 S2）→ 登记 `11` Q30 待拍板；② `layout.panelByKind: { dc: "props"|null, md: "outline"|null }` → 采纳，新前端 `layout.ts` 的 `side` 记录按它改名。`chatMode` 取值 `"expanded" | "bar"` 采纳。
+
+【实测】并入后本地起静态服务、断外网，六个演示态逐个点：① dc 四面板 / 属性展开 · ② md 只剩大纲 · ③ 图片无从属面板 · ④ 输入条只占预览列、药丸在输入框左 · ⑤ 会话在右、从属面板贴预览 · ⑥ 1024 模拟窗、抽屉盖预览 + Esc；全部零洞、控制台零 error。截图 `S11-工作台布局壳@1440x900.png` 与回复描述一致。`selftest` 零 error（12 份界面稿）· `rendertest` 15/15。

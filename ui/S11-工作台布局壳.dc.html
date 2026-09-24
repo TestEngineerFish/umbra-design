@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- umbradesign:resources -->
+<script>window.__resources = {
+    "https://unpkg.com/react@18.3.1/umd/react.production.min.js": "./react.production.min.js",
+    "https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js": "./react-dom.production.min.js"
+  };</script>
+<!-- /umbradesign:resources -->
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="./_ds-tool/tokens.css">
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; }
+  body { background: var(--tool-bg); }
+  * { box-sizing: border-box; }
+  a { color: var(--tool-accent); text-decoration: none; }
+  a:hover { color: var(--tool-accent-hover); text-decoration: underline; }
+  input, button, textarea { font: inherit; color: inherit; }
+</style>
+</helmet>
+
+<div data-tool-theme="{{ theme }}" style="height: 100vh; display: flex; flex-direction: column; background: var(--tool-bg); color: var(--tool-text); font-family: var(--tool-sans); font-size: 13px; -webkit-font-smoothing: antialiased;">
+
+  <!-- 演示态条：不属于工作台本身，只在 ui/ 下直接打开时出现 -->
+  <sc-if value="{{ showDemoBar }}" hint-placeholder-val="{{ true }}">
+  <div style="flex: none; display: flex; align-items: center; gap: 8px; padding: 8px 16px; flex-wrap: wrap; font-size: 12px; background: var(--tool-panel-2); border-bottom: 1px solid var(--tool-border);">
+    <span style="font-size: 11px; color: var(--tool-muted); flex: none;">演示态</span>
+    <sc-for list="{{ demoStates }}" as="st" hint-placeholder-count="6">
+      <button type="button" onClick="{{ st.pick }}" title="{{ st.name }}" aria-pressed="{{ st.active }}" style="display: inline-flex; align-items: center; gap: 5px; height: 23px; padding: 0 9px 0 6px; border-radius: var(--tool-radius-sm); border: 1px solid; cursor: pointer; font-size: 11px; white-space: nowrap; transition: background .13s ease, border-color .13s ease, color .13s ease; background: {{ st.bg }}; border-color: {{ st.bd }}; color: {{ st.fg }};" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">
+        <span style="font-family: var(--tool-mono); opacity: 0.6;">{{ st.n }}</span>
+        <span style="font-weight: {{ st.fw }};">{{ st.short }}</span>
+      </button>
+    </sc-for>
+    <span style="color: var(--tool-border-strong); flex: none;">·</span>
+    <span style="color: var(--tool-muted); min-width: 0;">{{ demoNote }}</span>
+  </div>
+  </sc-if>
+
+  <div style="flex: 1 1 0; min-height: 0; display: flex; justify-content: center; background: var(--tool-canvas);">
+  <div style="width: 100%; max-width: {{ shellMax }}; height: 100%; display: flex; flex-direction: column; background: var(--tool-bg); box-shadow: {{ shellShadow }};">
+
+    <!-- ═══ 顶栏 40px ═══ -->
+    <div style="flex: none; height: 40px; display: flex; align-items: center; gap: 12px; padding: 0 12px 0 14px; background: var(--tool-panel); border-bottom: 1px solid var(--tool-border);">
+      <div style="display: flex; align-items: center; gap: 8px; flex: none;">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="flex: none; color: var(--tool-accent);" aria-hidden="true">
+          <rect x="1.5" y="1.5" width="13" height="13" rx="3.2" stroke="currentColor" stroke-width="1.4"></rect>
+          <path d="M5 8.2h6M5 5.4h6M5 11h3.2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"></path>
+        </svg>
+        <span style="font-weight: 620; letter-spacing: -0.01em;">Umbra Studio</span>
+      </div>
+      <div style="width: 1px; height: 16px; background: var(--tool-border); flex: none;"></div>
+      <div style="display: flex; align-items: baseline; gap: 8px; min-width: 0;">
+        <span style="font-weight: 560; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ projectTitle }}</span>
+        <span title="{{ projectRoot }}" style="font-family: var(--tool-mono); font-size: 11px; color: var(--tool-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; direction: rtl; text-align: left; max-width: 280px;">{{ projectRoot }}</span>
+      </div>
+      <span style="flex: 1;"></span>
+      <!-- 会话栏三态开关：一组三颗，状态一眼可读，⌘\ 在「展开」与「输入条」之间来回 -->
+      <div role="group" aria-label="会话栏位置" style="display: flex; padding: 2px; gap: 2px; background: var(--tool-panel-2); border: 1px solid var(--tool-border); border-radius: var(--tool-radius); flex: none;">
+        <sc-for list="{{ chatModes }}" as="cm" hint-placeholder-count="3">
+          <button type="button" onClick="{{ cm.pick }}" title="{{ cm.title }}" aria-pressed="{{ cm.active }}" style="width: 30px; height: 24px; display: grid; place-items: center; border: 0; border-radius: var(--tool-radius-sm); cursor: pointer; transition: background .13s ease, color .13s ease; background: {{ cm.bg }}; color: {{ cm.fg }}; box-shadow: {{ cm.sh }};" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">
+            <dc-import name="IconGlyph" d="{{ cm.icon }}" size="14" hint-size="14px,14px"></dc-import>
+          </button>
+        </sc-for>
+      </div>
+    </div>
+
+    <!-- ═══ 主体：会话栏 · 预览列 · 从属面板列（order 决定会话在左还是在右，只画一份） ═══ -->
+    <div style="flex: 1 1 0; min-height: 0; display: flex; position: relative;">
+
+      <!-- 会话栏（展开态）。宽度固定，R4：切文件时这条分界线不动 -->
+      <sc-if value="{{ chatExpanded }}" hint-placeholder-val="{{ true }}">
+      <div style="order: {{ chatOrder }}; flex: none; width: {{ chatWidthPx }}; display: flex; flex-direction: column; min-height: 0; background: var(--tool-panel); border-left: {{ chatBdL }}; border-right: {{ chatBdR }};">
+        <div style="flex: none; height: 36px; display: flex; align-items: center; gap: 8px; padding: 0 8px 0 14px; border-bottom: 1px solid var(--tool-border);">
+          <span style="font-weight: 600;">会话</span>
+          <span style="font-size: 11px; color: var(--tool-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">通道 A · DeepSeek</span>
+          <span style="flex: 1;"></span>
+          <button type="button" onClick="{{ toBar }}" title="收成输入条（⌘\）" style="width: 24px; height: 24px; display: grid; place-items: center; border: 0; background: transparent; color: var(--tool-muted); border-radius: var(--tool-radius-sm); cursor: pointer;" style-hover="background: var(--tool-hover); color: var(--tool-text);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">
+            <dc-import name="IconGlyph" d="M3 12.5h10M5.5 9L8 6.5 10.5 9" size="14" hint-size="14px,14px"></dc-import>
+          </button>
+        </div>
+        <div style="flex: 1 1 0; min-height: 0; overflow: auto; padding: 14px; display: flex; flex-direction: column; gap: 12px;">
+          <div style="align-self: flex-end; max-width: 82%; padding: 8px 12px; border-radius: 12px 12px 4px 12px; background: var(--tool-accent); color: var(--tool-on-accent); line-height: 1.55;">{{ chatAsk }}</div>
+          <div style="display: grid; grid-template-columns: 14px minmax(0, 1fr); gap: 10px;">
+            <div style="display: flex; flex-direction: column; align-items: center;">
+              <span style="width: 7px; height: 7px; margin-top: 5px; border-radius: 999px; background: var(--tool-accent);"></span>
+              <span style="flex: 1; width: 2px; margin-top: 4px; border-radius: 1px; background: var(--tool-accent-soft);"></span>
+            </div>
+            <div style="line-height: 1.6; color: var(--tool-text);">{{ chatReply }}</div>
+          </div>
+          <div style="margin-top: auto; font-size: 11px; color: var(--tool-muted); text-align: center;">消息流的形制见 S9，这里只摆位置</div>
+        </div>
+        <div style="flex: none; padding: 10px 12px 12px; border-top: 1px solid var(--tool-border); display: grid; gap: 8px;">
+          <sc-if value="{{ hasPill }}" hint-placeholder-val="{{ true }}">
+            <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+              <span title="{{ pillDetail }}" style="display: inline-flex; align-items: center; gap: 6px; max-width: 100%; height: 22px; padding: 0 4px 0 7px; border-radius: var(--tool-radius-sm); border: 1px solid var(--tool-accent-border); background: var(--tool-accent-soft); color: var(--tool-accent); font-size: 11px;">
+                <dc-import name="IconGlyph" d="{{ pillIcon }}" size="12" hint-size="12px,12px"></dc-import>
+                <span style="flex: none; font-family: var(--tool-mono); font-weight: 600;">{{ pillKind }}</span>
+                <span style="min-width: 0; font-family: var(--tool-mono); color: var(--tool-text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ pillLabel }}</span>
+                <button type="button" onClick="{{ clearPill }}" title="不带这一项" style="flex: none; width: 16px; height: 16px; display: grid; place-items: center; border: 0; background: transparent; color: var(--tool-muted); border-radius: 3px; cursor: pointer;" style-hover="background: var(--tool-panel); color: var(--tool-text);">
+                  <dc-import name="IconGlyph" d="M4.4 4.4l7.2 7.2M11.6 4.4l-7.2 7.2" size="10" stroke="1.6" hint-size="10px,10px"></dc-import>
+                </button>
+              </span>
+            </div>
+          </sc-if>
+          <div style="display: flex; gap: 8px; align-items: flex-end;">
+            <textarea rows="2" placeholder="说要改什么… ⏎ 发送" style="flex: 1 1 0; min-width: 0; padding: 7px 10px; border: 1px solid var(--tool-border-strong); border-radius: var(--tool-radius); background: var(--tool-panel); color: var(--tool-text); resize: none; line-height: 1.5; outline: none;" style-focus="border-color: var(--tool-accent); box-shadow: 0 0 0 3px var(--tool-accent-soft);"></textarea>
+            <button type="button" style="flex: none; height: 32px; padding: 0 14px; border: 0; border-radius: var(--tool-radius); background: var(--tool-accent); color: var(--tool-on-accent); font-weight: 560; cursor: pointer;" style-hover="background: var(--tool-accent-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">发送</button>
+          </div>
+        </div>
+      </div>
+      </sc-if>
+
+      <!-- 预览列：页签 + 预览区 + （收起态时）输入条 -->
+      <div style="order: 2; flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; position: relative;">
+        <div role="tablist" style="flex: none; height: 34px; display: flex; align-items: stretch; background: var(--tool-panel-2); border-bottom: 1px solid var(--tool-border); overflow: hidden;">
+          <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="3">
+            <div role="tab" tabindex="0" aria-selected="{{ t.active }}" onClick="{{ t.pick }}" title="{{ t.path }}" style="flex: 0 1 200px; min-width: 96px; display: flex; align-items: center; gap: 7px; padding: 0 8px 0 11px; cursor: pointer; border-right: 1px solid var(--tool-border); transition: background .13s ease, color .13s ease; background: {{ t.bg }}; color: {{ t.fg }}; box-shadow: {{ t.sh }};" style-hover="color: var(--tool-text);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: -2px;">
+              <span style="flex: none; display: grid; color: {{ t.iconFg }};"><dc-import name="IconGlyph" d="{{ t.icon }}" size="13" hint-size="13px,13px"></dc-import></span>
+              <span style="flex: 1 1 0; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: {{ t.fw }};">{{ t.name }}</span>
+              <sc-if value="{{ t.unsaved }}" hint-placeholder-val="{{ false }}">
+                <span title="未落盘" style="flex: none; width: 16px; height: 16px; display: grid; place-items: center;"><span style="width: 6px; height: 6px; border-radius: 999px; background: var(--tool-warn);"></span></span>
+              </sc-if>
+              <sc-if value="{{ t.saved }}" hint-placeholder-val="{{ true }}">
+                <span title="关闭页签" style="flex: none; width: 16px; height: 16px; display: grid; place-items: center; border-radius: 3px; color: var(--tool-muted); opacity: {{ t.closeOp }};">
+                  <dc-import name="IconGlyph" d="M4.4 4.4l7.2 7.2M11.6 4.4l-7.2 7.2" size="10" stroke="1.6" hint-size="10px,10px"></dc-import>
+                </span>
+              </sc-if>
+            </div>
+          </sc-for>
+        </div>
+
+        <!-- 预览区：永远是最大的一块（R1）。内容由 S2 / S12 / S13 / S14 / S15 填 -->
+        <div style="flex: 1 1 0; min-height: 0; position: relative; display: grid; place-items: center; padding: 24px; background: var(--tool-canvas); overflow: hidden;">
+          <div style="width: 100%; max-width: {{ frameMax }}; aspect-ratio: {{ frameRatio }}; max-height: 100%; display: grid; place-items: center; text-align: center; padding: 20px; background: {{ frameBg }}; border: 1px dashed var(--tool-border-strong); border-radius: var(--tool-radius); box-shadow: var(--tool-shadow-1);">
+            <div style="display: grid; gap: 6px; justify-items: center;">
+              <span style="color: var(--tool-muted); display: grid;"><dc-import name="IconGlyph" d="{{ fileIcon }}" size="22" stroke="1.3" hint-size="22px,22px"></dc-import></span>
+              <div style="font-weight: 600;">{{ previewLabel }}</div>
+              <div style="font-size: 12px; color: var(--tool-muted); max-width: 340px; line-height: 1.55;">{{ previewNote }}</div>
+            </div>
+          </div>
+
+          <sc-if value="{{ drawerOpen }}" hint-placeholder-val="{{ false }}">
+            <div onClick="{{ closePanel }}" style="position: absolute; inset: 0; background: rgba(15, 18, 24, 0.28);"></div>
+          </sc-if>
+        </div>
+
+        <!-- 会话收成一条输入条：只占预览列的宽，不盖住从属面板 -->
+        <sc-if value="{{ chatIsBar }}" hint-placeholder-val="{{ false }}">
+        <div style="flex: none; min-height: 44px; display: flex; align-items: center; gap: 8px; padding: 6px 8px; background: var(--tool-panel); border-top: 1px solid var(--tool-border);">
+          <button type="button" onClick="{{ toExpanded }}" title="展开会话（⌘\）" style="flex: none; width: 30px; height: 30px; display: grid; place-items: center; border: 1px solid var(--tool-border); background: var(--tool-panel); color: var(--tool-text-2); border-radius: var(--tool-radius); cursor: pointer;" style-hover="background: var(--tool-hover); color: var(--tool-text);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">
+            <dc-import name="IconGlyph" d="M2.5 3.5h11v7.5H7l-3 2.5V11H2.5z" size="14" hint-size="14px,14px"></dc-import>
+          </button>
+          <sc-if value="{{ hasPill }}" hint-placeholder-val="{{ true }}">
+            <span title="{{ pillDetail }}" style="flex: 0 1 auto; min-width: 0; max-width: 42%; display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 4px 0 7px; border-radius: var(--tool-radius-sm); border: 1px solid var(--tool-accent-border); background: var(--tool-accent-soft); color: var(--tool-accent); font-size: 11px;">
+              <dc-import name="IconGlyph" d="{{ pillIcon }}" size="12" hint-size="12px,12px"></dc-import>
+              <span style="flex: none; font-family: var(--tool-mono); font-weight: 600;">{{ pillKind }}</span>
+              <span style="min-width: 0; font-family: var(--tool-mono); color: var(--tool-text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ pillLabel }}</span>
+              <button type="button" onClick="{{ clearPill }}" title="不带这一项" style="flex: none; width: 16px; height: 16px; display: grid; place-items: center; border: 0; background: transparent; color: var(--tool-muted); border-radius: 3px; cursor: pointer;" style-hover="background: var(--tool-panel); color: var(--tool-text);">
+                <dc-import name="IconGlyph" d="M4.4 4.4l7.2 7.2M11.6 4.4l-7.2 7.2" size="10" stroke="1.6" hint-size="10px,10px"></dc-import>
+              </button>
+            </span>
+          </sc-if>
+          <input type="text" placeholder="说要改什么… ⏎ 发送" style="flex: 1 1 0; min-width: 120px; height: 30px; padding: 0 10px; border: 1px solid var(--tool-border-strong); border-radius: var(--tool-radius); background: var(--tool-panel); outline: none;" style-focus="border-color: var(--tool-accent); box-shadow: 0 0 0 3px var(--tool-accent-soft);">
+          <button type="button" style="flex: none; height: 30px; padding: 0 14px; border: 0; border-radius: var(--tool-radius); background: var(--tool-accent); color: var(--tool-on-accent); font-weight: 560; cursor: pointer;" style-hover="background: var(--tool-accent-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">发送</button>
+        </div>
+        </sc-if>
+      </div>
+
+      <!-- 从属面板列：统一在右侧一列（第 1 题的答复）。面板体 300px + 40px 图标轨。
+           没有从属面板的类型（图片 / 目录 / 其他）整列不出现，预览吃满。 -->
+      <sc-if value="{{ hasPanels }}" hint-placeholder-val="{{ true }}">
+      <div style="order: 5; flex: none; display: flex; min-height: 0; background: var(--tool-panel); border-left: 1px solid var(--tool-border); border-right: {{ railBdR }};">
+        <sc-if value="{{ panelInline }}" hint-placeholder-val="{{ true }}">
+          <div style="width: 300px; display: flex; flex-direction: column; min-height: 0; border-right: 1px solid var(--tool-border);">
+            <div style="flex: none; height: 36px; display: flex; align-items: center; gap: 8px; padding: 0 8px 0 14px; border-bottom: 1px solid var(--tool-border);">
+              <span style="font-weight: 600;">{{ panelTitle }}</span>
+              <sc-if value="{{ panelHasBadge }}" hint-placeholder-val="{{ false }}">
+                <span style="font-family: var(--tool-mono); font-size: 11px; color: var(--tool-muted);">{{ panelBadge }}</span>
+              </sc-if>
+              <span style="flex: 1;"></span>
+              <button type="button" onClick="{{ closePanel }}" title="收起（再点一次图标也行）" style="width: 24px; height: 24px; display: grid; place-items: center; border: 0; background: transparent; color: var(--tool-muted); border-radius: var(--tool-radius-sm); cursor: pointer;" style-hover="background: var(--tool-hover); color: var(--tool-text);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">
+                <dc-import name="IconGlyph" d="M6 3.6L10.4 8 6 12.4" size="13" hint-size="13px,13px"></dc-import>
+              </button>
+            </div>
+            <div style="flex: 1 1 0; min-height: 0; overflow: auto; padding: 12px 14px;">
+              <sc-if value="{{ isOutline }}" hint-placeholder-val="{{ false }}">
+                <div style="display: grid; gap: 1px;">
+                  <sc-for list="{{ outline }}" as="o" hint-placeholder-count="3">
+                    <div style="display: flex; align-items: baseline; gap: 8px; height: 28px; padding-left: {{ o.indent }}; padding-right: 6px; border-radius: var(--tool-radius-sm); cursor: pointer; align-items: center;" style-hover="background: var(--tool-hover);">
+                      <span style="flex: 1 1 0; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: {{ o.fw }};">{{ o.text }}</span>
+                      <span style="flex: none; font-family: var(--tool-mono); font-size: 11px; color: var(--tool-muted);">L{{ o.line }}</span>
+                    </div>
+                  </sc-for>
+                </div>
+              </sc-if>
+              <sc-if value="{{ isSlot }}" hint-placeholder-val="{{ true }}">
+                <div style="height: 100%; min-height: 160px; display: grid; place-items: center; text-align: center; padding: 16px; border: 1px dashed var(--tool-border-strong); border-radius: var(--tool-radius); color: var(--tool-muted); font-size: 12px; line-height: 1.6;">{{ panelSlot }}</div>
+              </sc-if>
+            </div>
+          </div>
+        </sc-if>
+        <div role="tablist" aria-orientation="vertical" style="width: 40px; flex: none; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px 0;">
+          <sc-for list="{{ panels }}" as="p" hint-placeholder-count="4">
+            <button type="button" role="tab" aria-selected="{{ p.active }}" onClick="{{ p.pick }}" title="{{ p.title }}" style="position: relative; width: 30px; height: 30px; display: grid; place-items: center; border: 0; border-radius: var(--tool-radius); cursor: pointer; transition: background .13s ease, color .13s ease; background: {{ p.bg }}; color: {{ p.fg }};" style-hover="background: var(--tool-hover); color: var(--tool-text);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">
+              <dc-import name="IconGlyph" d="{{ p.icon }}" size="15" hint-size="15px,15px"></dc-import>
+              <sc-if value="{{ p.hasBadge }}" hint-placeholder-val="{{ false }}">
+                <span style="position: absolute; top: 2px; right: 1px; min-width: 14px; height: 14px; padding: 0 3px; border-radius: 999px; background: {{ p.badgeBg }}; color: {{ p.badgeFg }}; font-family: var(--tool-mono); font-size: 9px; font-weight: 700; line-height: 14px; text-align: center;">{{ p.badge }}</span>
+              </sc-if>
+            </button>
+          </sc-for>
+        </div>
+      </div>
+      </sc-if>
+
+      <!-- 窄窗（< 1100 px，R5）：从属面板改抽屉，盖在预览上，图标轨留在原位 -->
+      <sc-if value="{{ drawerOpen }}" hint-placeholder-val="{{ false }}">
+        <div role="dialog" aria-label="{{ panelTitle }}" style="position: absolute; top: 0; bottom: 0; right: {{ drawerRight }}; width: 320px; z-index: 4; display: flex; flex-direction: column; background: var(--tool-panel); border-left: 1px solid var(--tool-border-strong); box-shadow: var(--tool-shadow-2);">
+          <div style="flex: none; height: 36px; display: flex; align-items: center; gap: 8px; padding: 0 8px 0 14px; border-bottom: 1px solid var(--tool-border);">
+            <span style="font-weight: 600;">{{ panelTitle }}</span>
+            <sc-if value="{{ panelHasBadge }}" hint-placeholder-val="{{ false }}">
+              <span style="font-family: var(--tool-mono); font-size: 11px; color: var(--tool-muted);">{{ panelBadge }}</span>
+            </sc-if>
+            <span style="flex: 1;"></span>
+            <kbd style="font-family: var(--tool-mono); font-size: 10px; color: var(--tool-muted); background: var(--tool-panel-2); border: 1px solid var(--tool-border); border-radius: var(--tool-radius-sm); padding: 0 4px;">Esc</kbd>
+            <button type="button" onClick="{{ closePanel }}" title="关闭抽屉" style="width: 24px; height: 24px; display: grid; place-items: center; border: 0; background: transparent; color: var(--tool-muted); border-radius: var(--tool-radius-sm); cursor: pointer;" style-hover="background: var(--tool-hover); color: var(--tool-text);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">
+              <dc-import name="IconGlyph" d="M4.4 4.4l7.2 7.2M11.6 4.4l-7.2 7.2" size="12" stroke="1.5" hint-size="12px,12px"></dc-import>
+            </button>
+          </div>
+          <div style="flex: 1 1 0; min-height: 0; overflow: auto; padding: 12px 14px;">
+            <div style="height: 100%; min-height: 160px; display: grid; place-items: center; text-align: center; padding: 16px; border: 1px dashed var(--tool-border-strong); border-radius: var(--tool-radius); color: var(--tool-muted); font-size: 12px; line-height: 1.6;">{{ panelSlot }}</div>
+          </div>
+        </div>
+      </sc-if>
+    </div>
+
+    <!-- ═══ 底部状态行 24px：诊断 / 变更都不在这里了，只留读数 ═══ -->
+    <div style="flex: none; height: 24px; display: flex; align-items: center; gap: 10px; padding: 0 12px; font-size: 11px; color: var(--tool-muted); background: var(--tool-panel); border-top: 1px solid var(--tool-border); white-space: nowrap; overflow: hidden;">
+      <span style="font-family: var(--tool-mono); min-width: 0; overflow: hidden; text-overflow: ellipsis;">{{ statusPath }}</span>
+      <span style="color: var(--tool-border-strong);">·</span>
+      <span>{{ statusKind }}</span>
+      <sc-if value="{{ hasStatusMeta }}" hint-placeholder-val="{{ true }}">
+        <span style="color: var(--tool-border-strong);">·</span>
+        <span style="font-family: var(--tool-mono); font-variant-numeric: tabular-nums;">{{ statusMeta }}</span>
+      </sc-if>
+      <span style="flex: 1;"></span>
+      <span>{{ statusLayout }}</span>
+    </div>
+  </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;theme&quot;: {&quot;editor&quot;: &quot;enum&quot;, &quot;options&quot;: [&quot;跟随外层&quot;, &quot;dark&quot;], &quot;default&quot;: &quot;跟随外层&quot;, &quot;tsType&quot;: &quot;'dark'|null&quot;, &quot;section&quot;: &quot;工具皮肤&quot;}}">
+const ICON = {
+  dc: "M2.5 3h11v10h-11zM2.5 5.8h11M5.2 8.4h5.6M5.2 10.6h3.4",
+  dir: "M2 4.4c0-.5.4-.9.9-.9h3.2l1.5 1.6h5.5c.5 0 .9.4.9.9v6.6c0 .5-.4.9-.9.9H2.9c-.5 0-.9-.4-.9-.9z",
+  md: "M4 2h5.4L12 4.6V14H4zM9.4 2v2.6H12M6 8h4M6 10.4h4M6 5.8h1.6",
+  image: "M2.5 3h11v10h-11zM2.5 11l3.2-3.2 2.8 2.8 1.8-1.8 3.2 3.2M10.6 5.8h.1",
+  code: "M5.5 5L2.5 8l3 3M10.5 5l3 3-3 3M9 3.5l-2 9",
+  html: "M8 2a6 6 0 1 0 0 12A6 6 0 1 0 8 2zM2 8h12M8 2c-2.2 2.2-2.2 9.8 0 12M8 2c2.2 2.2 2.2 9.8 0 12",
+  other: "M4 2h5.4L12 4.6V14H4zM9.4 2v2.6H12"
+};
+const KIND_LABEL = { dc: "设计稿", dir: "目录", md: "Markdown", image: "图片", code: "代码", html: "HTML", other: "其他文件" };
+const PANEL_ICON = {
+  props: "M2.5 4.5h11M2.5 11.5h11M5.5 3v3M10.5 10v3",
+  diagnostics: "M8 2.2l6 11.2H2zM8 6.4v3M8 11.4v.1",
+  changes: "M2.5 3h4.5v10H2.5zM9 3h4.5v10H9zM3.8 6.5h2M10.3 9.5h2",
+  comments: "M2.5 3.5h11v7.5H7l-3 2.5V11H2.5z",
+  outline: "M3 4h10M5.5 8h7.5M8 12h5"
+};
+const PANEL_SLOT = {
+  props: "S7 属性面板装在这里（300 px）。今天 S2 右栏那一块整体搬过来，S2 嵌入时不再自带",
+  diagnostics: "S3 诊断面板的侧栏形态装在这里。原来在 S2 底栏，现在和属性同一列，切页签不动预览",
+  changes: "S4 变更清单装在这里。「对比上一版」仍跳 S6 整页",
+  comments: "评论列表装在这里"
+};
+const SEL = {
+  node: { word: "node", icon: "M4 2.8l8.4 4.4-3.6 1-1.8 3.4z" },
+  range: { word: "range", icon: "M2 4.5v7M4.5 4h9M4.5 6.7h9M4.5 9.4h9M4.5 12h5.5" },
+  region: { word: "region", icon: "M2.5 5V2.5H5M11 2.5h2.5V5M13.5 11v2.5H11M5 13.5H2.5V11" },
+  files: { word: "files", icon: "M5.4 4.6h6.8V14H5.4zM3.4 12V2h6.4" },
+  dir: { word: "dir", icon: ICON.dir }
+};
+
+const TABS = [
+  { path: "PC 端/日志.dc.html", kind: "dc", unsaved: false },
+  { path: "README.md", kind: "md", unsaved: true },
+  { path: "uploads/首页截图.png", kind: "image", unsaved: false }
+];
+const DC_PANELS = [
+  { id: "props", title: "属性", open: true },
+  { id: "diagnostics", title: "诊断", open: false, badge: 2 },
+  { id: "changes", title: "变更", open: false },
+  { id: "comments", title: "评论", open: false, badge: 1 }
+];
+const BASE = {
+  project: { name: "umbra", title: "Umbra 私人 AI 助手", root: "/Users/sam/Design/umbra" },
+  layout: { chatSide: "left", chatMode: "expanded", chatWidth: 380, narrow: false },
+  file: { path: "PC 端/日志.dc.html", kind: "dc" },
+  tabs: TABS,
+  panels: DC_PANELS,
+  selection: { kind: "node", label: "button.primary", detail: "PC 端/日志.dc.html › n42" }
+};
+const OUTLINE = [
+  { level: 1, text: "日志页需求", line: 1 },
+  { level: 2, text: "范围", line: 8 },
+  { level: 2, text: "状态", line: 21 }
+];
+const ext = (o, p) => Object.assign({}, o, p);
+
+const DEMOS = [
+  { n: 1, short: ".dc.html", name: "选中 .dc.html", note: "四个从属面板在右侧一列，属性展开", data: BASE },
+  { n: 2, short: ".md", name: "选中 .md", note: "只剩大纲；会话栏与预览的分界线没动（R4）",
+    data: ext(BASE, { file: { path: "README.md", kind: "md" }, panels: [{ id: "outline", title: "大纲", open: true }],
+      selection: { kind: "range", label: "README.md L9–12", detail: "最近 7 天 …" } }) },
+  { n: 3, short: "图片", name: "选中图片", note: "没有从属面板，整列不出现，预览最大",
+    data: ext(BASE, { file: { path: "uploads/首页截图.png", kind: "image" }, panels: [],
+      selection: { kind: "region", label: "首页截图.png (120,640 210×44)", detail: "这个按钮的颜色是什么" } }) },
+  { n: 4, short: "输入条", name: "会话收成一条输入条", note: "输入条只占预览列宽，药丸在输入框左侧",
+    data: ext(BASE, { layout: ext(BASE.layout, { chatMode: "bar" }) }) },
+  { n: 5, short: "会话在右", name: "会话在右", note: "顺序：预览 · 从属面板 · 会话。面板始终贴着预览",
+    data: ext(BASE, { layout: ext(BASE.layout, { chatSide: "right" }) }) },
+  { n: 6, short: "窄窗抽屉", name: "narrow: true（< 1100 px）", note: "模拟 1024 px 窗口；诊断以抽屉盖在预览上，Esc 关",
+    data: ext(BASE, { layout: ext(BASE.layout, { narrow: true }),
+      panels: DC_PANELS.map((p) => ext(p, { open: p.id === "diagnostics" })) }) }
+];
+
+class Component extends DCLogic {
+  state = { demo: 1, side: null, mode: null, open: undefined, pill: true };
+
+  componentDidMount() {
+    this.onKey = (e) => {
+      if (e.key === "Escape" && this.current().layout.narrow) this.setState({ open: null });
+      if ((e.metaKey || e.ctrlKey) && e.key === "\\") { e.preventDefault(); this.setState({ mode: this.mode() === "bar" ? "expanded" : "bar" }); }
+    };
+    document.addEventListener("keydown", this.onKey);
+  }
+  componentWillUnmount() { document.removeEventListener("keydown", this.onKey); }
+
+  current() {
+    const d = DEMOS[this.state.demo - 1].data;
+    const s = this.state;
+    return ext(d, { layout: ext(d.layout, { chatSide: s.side || d.layout.chatSide, chatMode: s.mode || d.layout.chatMode }) });
+  }
+  mode() { return this.current().layout.chatMode; }
+
+  renderVals() {
+    const s = this.state;
+    const d = this.current();
+    const L = d.layout;
+    const kind = d.file.kind;
+    const openId = s.open !== undefined ? s.open : ((d.panels.find((p) => p.open) || {}).id || null);
+    const openP = d.panels.find((p) => p.id === openId) || null;
+    const hasPanels = d.panels.length > 0;
+    const expanded = L.chatMode === "expanded";
+    const right = L.chatSide === "right";
+    const sel = s.pill && d.selection ? d.selection : null;
+    const selK = sel ? SEL[sel.kind] : null;
+    const base = (p) => p.split("/").pop();
+
+    const modes = [
+      { key: "left", title: "会话在左", icon: "M2.5 3h11v10h-11zM6.5 3v10" },
+      { key: "bar", title: "收成输入条（⌘\\）", icon: "M2.5 3h11v10h-11zM2.5 10.2h11" },
+      { key: "right", title: "会话在右", icon: "M2.5 3h11v10h-11zM9.5 3v10" }
+    ];
+    const curMode = expanded ? L.chatSide : "bar";
+
+    const previews = {
+      dc: { label: "S2 画布（?embed=1）", note: "稿子仍在 iframe 里。嵌入模式下 S2 只留画布，属性面板交给右边这一列", ratio: "16 / 10", max: "880px", bg: "var(--tool-panel)" },
+      md: { label: "S13 Markdown 视图", note: "渲染 / 源码两档；大纲在右侧一列", ratio: "3 / 4", max: "560px", bg: "var(--tool-panel)" },
+      image: { label: "S14 图片视图", note: "首页截图.png · 1440×900。适配窗口，可圈选", ratio: "16 / 10", max: "1040px", bg: "var(--tool-panel-2)" }
+    };
+    const pv = previews[kind] || previews.dc;
+
+    const meta = kind === "dc" ? "v217 · 812 元素 · 通过" : kind === "md" ? "s14 · 未落盘" : kind === "image" ? "1440×900 · 793 KB" : "";
+
+    return {
+      theme: this.props.theme === "dark" ? "dark" : null,
+      showDemoBar: true,
+      demoNote: DEMOS[s.demo - 1].note,
+      demoStates: DEMOS.map((m) => {
+        const on = m.n === s.demo;
+        return { n: m.n, name: m.name, short: m.short, active: on, fw: on ? "600" : "400",
+          bg: on ? "var(--tool-accent)" : "var(--tool-panel)", bd: on ? "var(--tool-accent)" : "var(--tool-border-strong)",
+          fg: on ? "var(--tool-on-accent)" : "var(--tool-text-2)",
+          pick: () => this.setState({ demo: m.n, side: null, mode: null, open: undefined, pill: true }) };
+      }),
+
+      shellMax: L.narrow ? "1024px" : "100%",
+      shellShadow: L.narrow ? "0 0 0 1px var(--tool-border-strong)" : "none",
+      projectTitle: d.project.title,
+      projectRoot: d.project.root,
+      chatModes: modes.map((m) => {
+        const on = m.key === curMode;
+        return { title: m.title, icon: m.icon, active: on,
+          bg: on ? "var(--tool-panel)" : "transparent", fg: on ? "var(--tool-text)" : "var(--tool-muted)", sh: on ? "var(--tool-shadow-1)" : "none",
+          pick: () => this.setState(m.key === "bar" ? { mode: "bar" } : { mode: "expanded", side: m.key }) };
+      }),
+
+      chatExpanded: expanded,
+      chatIsBar: !expanded,
+      chatOrder: right ? "9" : "0",
+      chatWidthPx: L.chatWidth + "px",
+      chatBdL: right ? "1px solid var(--tool-border)" : "0",
+      chatBdR: right ? "0" : "1px solid var(--tool-border)",
+      railBdR: "0",
+      toBar: () => this.setState({ mode: "bar" }),
+      toExpanded: () => this.setState({ mode: "expanded" }),
+      chatAsk: kind === "md" ? "这一段写得太啰嗦，压成两句" : kind === "image" ? "这个按钮的颜色是什么" : "把这个按钮的字号调大一点",
+      chatReply: kind === "md" ? "好，我改 L9–12，改完你在预览里看。" : kind === "image" ? "圈出的按钮底色接近 #E8590C，是橙色主按钮。" : "改成 15px，已落盘到 v218。",
+
+      hasPill: !!sel,
+      pillIcon: selK ? selK.icon : "M0 0",
+      pillKind: selK ? selK.word : "",
+      pillLabel: sel ? sel.label : "",
+      pillDetail: sel ? sel.detail : "",
+      clearPill: () => this.setState({ pill: false }),
+
+      tabs: d.tabs.map((t) => {
+        const on = t.path === d.file.path;
+        return { path: t.path, name: base(t.path), icon: ICON[t.kind] || ICON.other, active: on,
+          unsaved: !!t.unsaved, saved: !t.unsaved, closeOp: on ? "1" : "0",
+          bg: on ? "var(--tool-panel)" : "transparent", fg: on ? "var(--tool-text)" : "var(--tool-text-2)",
+          sh: on ? "inset 0 -1px 0 var(--tool-panel), inset 0 2px 0 var(--tool-accent)" : "none",
+          fw: on ? "560" : "400",
+          iconFg: t.kind === "dc" ? "var(--tool-accent)" : "var(--tool-muted)",
+          pick: () => { const i = DEMOS.findIndex((m) => m.data.file.path === t.path); if (i >= 0) this.setState({ demo: i + 1, open: undefined, pill: true }); } };
+      }),
+
+      fileIcon: ICON[kind] || ICON.other,
+      previewLabel: pv.label,
+      previewNote: pv.note,
+      frameRatio: pv.ratio,
+      frameMax: pv.max,
+      frameBg: pv.bg,
+
+      hasPanels: hasPanels,
+      panelInline: !!openP && !L.narrow,
+      drawerOpen: !!openP && L.narrow,
+      drawerRight: (40 + (right && expanded ? L.chatWidth : 0)) + "px",
+      closePanel: () => this.setState({ open: null }),
+      panelTitle: openP ? openP.title : "",
+      panelHasBadge: !!(openP && openP.badge),
+      panelBadge: openP && openP.badge ? String(openP.badge) : "",
+      isOutline: !!openP && openP.id === "outline",
+      isSlot: !!openP && openP.id !== "outline",
+      panelSlot: openP ? (PANEL_SLOT[openP.id] || "") : "",
+      outline: OUTLINE.map((o) => ({ text: o.text, line: String(o.line), indent: (6 + (o.level - 1) * 14) + "px", fw: o.level === 1 ? "600" : "400" })),
+      panels: d.panels.map((p) => {
+        const on = p.id === openId;
+        return { title: p.title + (p.badge ? "（" + p.badge + "）" : ""), icon: PANEL_ICON[p.id] || "M0 0", active: on,
+          hasBadge: !!p.badge, badge: String(p.badge || ""),
+          badgeBg: p.id === "diagnostics" ? "var(--tool-warn)" : "var(--tool-accent)", badgeFg: "var(--tool-panel)",
+          bg: on ? "var(--tool-accent-soft)" : "transparent", fg: on ? "var(--tool-accent)" : "var(--tool-muted)",
+          pick: () => this.setState({ open: on ? null : p.id }) };
+      }),
+
+      statusPath: d.file.path,
+      statusKind: KIND_LABEL[kind] || kind,
+      hasStatusMeta: !!meta,
+      statusMeta: meta,
+      statusLayout: (expanded ? "会话在" + (right ? "右" : "左") + " · " + L.chatWidth + " px" : "会话收起") + (L.narrow ? " · 窄窗，面板为抽屉" : "")
+    };
+  }
+}
+</script>
+</body>
+</html>
