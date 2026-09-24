@@ -1,0 +1,70 @@
+import { useEffect, useState } from "react";
+import type { Core } from "../api/client";
+import { baseName, type DirInfo } from "../api/types";
+import type { HostAdapter } from "../host";
+import type { LayoutState } from "../layout/layout";
+import { toast } from "../ui/Toast";
+
+function Sheet({ children, onClose, wide }: { children: React.ReactNode; onClose: () => void; wide?: boolean }) {
+  useEffect(() => { const on = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); }; document.addEventListener("keydown", on); return () => document.removeEventListener("keydown", on); }, [onClose]);
+  return <div className="fixed inset-0 z-40 bg-black/25 flex items-start justify-center pt-[10vh]" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}><div role="dialog" aria-modal="true" className={`bg-panel border border-border rounded-lg shadow-2xl p-5 flex flex-col gap-4 text-xs ${wide ? "w-[880px] max-w-[95vw]" : "w-[520px] max-w-[95vw]"}`}>{children}</div></div>;
+}
+const Field = ({ label, children, note, err }: { label: string; children: React.ReactNode; note?: string; err?: boolean }) => <label className="flex flex-col gap-1"><span className="text-muted">{label}</span>{children}{note && <span className={err ? "text-err" : "text-muted"}>{note}</span>}</label>;
+const inputCls = "h-8 px-3 rounded border border-border bg-bg outline-none focus:border-accent";
+
+/** 新建稿件：走 create_draft（唯一写入口），建完自动选中 */
+export function NewDraftSheet({ core, current, onClose, onCreated }: { core: Core; current: string | null; onClose: () => void; onCreated: (file: string) => void }) {
+  const [name, setName] = useState(""); const [title, setTitle] = useState(""); const [source, setSource] = useState<"blank" | "copy">("blank"); const [busy, setBusy] = useState(false);
+  const n = name.trim(); const fileName = n ? (n.endsWith(".dc.html") ? n : n + ".dc.html") : ""; const bad = !!n && /[\\/:*?"<>|]/.test(n);
+  const submit = async () => {
+    setBusy(true);
+    const r = await core.post("create_draft", { path: fileName, source, title: source === "blank" ? (title.trim() || undefined) : undefined, sourceFile: source === "copy" ? current : undefined });
+    if (r.ok) { toast(`已新建 ${fileName}`, undefined, "ok"); onCreated(fileName); onClose(); } else { toast("新建稿件失败", r.errors?.[0]?.message, "error"); setBusy(false); }
+  };
+  return <Sheet onClose={onClose}>
+    <h2 className="text-base font-semibold">新建稿件</h2>
+    <Field label="文件名" note={bad ? "文件名不能含 \\ / : * ? \" < > |" : fileName ? `将写入 ${fileName}` : "会自动补 .dc.html"} err={bad}><input autoFocus className={inputCls} value={name} onChange={(e) => setName(e.target.value)} placeholder="例如：设置 · 账号与凭据" /></Field>
+    <Field label="标题"><input className={inputCls} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="不填就用文件名" /></Field>
+    <Field label="来源"><div className="seg self-start"><button className={source === "blank" ? "on" : ""} onClick={() => setSource("blank")}>空白骨架</button><button className={source === "copy" ? "on" : ""} disabled={!current} onClick={() => setSource("copy")} title={current ? `复制当前选中的 ${current}` : "先选中一份稿"}>复制当前稿</button></div></Field>
+    <div className="flex justify-end gap-2"><button className="btn" onClick={onClose}>取消</button><button className="btn primary" disabled={!fileName || bad || busy} onClick={() => void submit()}>{busy ? "正在建…" : "新建"}</button></div>
+  </Sheet>;
+}
+
+/** 新建 / 导入目录：目录本身成为项目根；已有稿被接管不改动 */
+export function NewProjectSheet({ hub, host, initialDir, onClose, onOpen }: { hub: Core; host: HostAdapter; initialDir?: string; onClose: () => void; onOpen: (dir: string) => void }) {
+  const [dir, setDir] = useState(initialDir ?? ""); const [name, setName] = useState(""); const [title, setTitle] = useState(""); const [info, setInfo] = useState<DirInfo | null>(null); const [busy, setBusy] = useState(false);
+  const cap = host.capabilities().pickDirectory;
+  const inspect = async (d: string) => { if (!d.trim()) return; const r = await hub.get<DirInfo>("inspect_dir?dir=" + encodeURIComponent(d.trim())); if (r.ok && r.data) { setInfo(r.data); if (!name && r.data.suggestedName) setName(r.data.suggestedName); } };
+  useEffect(() => { if (initialDir) void inspect(initialDir); }, []);   // eslint-disable-line react-hooks/exhaustive-deps
+  const pick = async () => { const d = await host.pickDirectory({ title: "选择项目目录" }); if (!d) { if (!cap.ok) toast("选目录", cap.why); return; } setDir(d); if (!name) setName(baseName(d).replace(/[^A-Za-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "")); void inspect(d); };
+  const nm = name.trim(); const nameBad = !!nm && !/^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(nm);
+  const submit = async () => {
+    setBusy(true);
+    const r = await hub.post<{ dir?: string; name?: string }>("create_project", { name: nm, dir: dir.trim(), title: title.trim() || undefined });
+    if (r.ok && r.data) { toast("项目创建成功", r.data.name ?? nm, "ok"); onClose(); onOpen(r.data.dir ?? dir.trim()); } else { toast("创建项目失败", r.errors?.[0]?.message, "error"); setBusy(false); }
+  };
+  return <Sheet onClose={onClose}>
+    <h2 className="text-base font-semibold">新建项目</h2>
+    <p className="text-muted leading-relaxed">项目就是磁盘上一个目录。选一个目录，它本身成为项目根；里面已有的稿件会被接管，不会被改动。</p>
+    <Field label="目录" note={info && info.exists === false ? "目录还不存在，会自动创建" : cap.ok ? undefined : cap.why}><div className="flex gap-2"><input className={inputCls + " flex-1"} value={dir} onChange={(e) => setDir(e.target.value)} onBlur={() => void inspect(dir)} placeholder="/Users/…/我的项目" /><button className="btn" onClick={() => void pick()}>选择</button></div></Field>
+    {info?.isProject && <div className="rounded border border-border bg-panel2 px-3 py-2 flex items-center gap-2"><span className="flex-1">这个目录已经是一个项目（有 project.json）。</span><button className="btn sm" onClick={() => { onClose(); onOpen(dir.trim()); }}>直接打开</button></div>}
+    {info && !info.isProject && info.draftCount > 0 && <div className="rounded border border-border bg-panel2 px-3 py-2">这个目录里已有 {info.draftCount} 份稿。新建会把它们接管进项目，稿件不动，只加 project.json。</div>}
+    <Field label="项目名" note={nameBad ? "只能用英文、数字、- 和 _，且以英文或数字开头" : "也是 MCP 里的项目标识"} err={nameBad}><input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} placeholder="英文 / 数字 / - _" /></Field>
+    <Field label="标题"><input className={inputCls} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="给人看的名字，可选" /></Field>
+    <div className="flex justify-end gap-2"><button className="btn" onClick={onClose}>取消</button><button className="btn primary" disabled={!dir.trim() || !nm || nameBad || !!info?.isProject || busy} onClick={() => void submit()}>{busy ? "正在建…" : "新建项目"}</button></div>
+  </Sheet>;
+}
+
+/** 设置：外观三档 + 会话栏位置；项目级设置嵌 S8 壳（?embed=1，走本地 API） */
+export function SettingsSheet({ projectUrl, layout, setLayout, onClose }: { projectUrl: string | null; layout: LayoutState; setLayout: (l: LayoutState) => void; onClose: () => void }) {
+  const s8 = projectUrl ? `${projectUrl}${encodeURIComponent("S8-项目设置.dc.html")}?embed=1` : null;
+  return <Sheet onClose={onClose} wide={!!s8}>
+    <h2 className="text-base font-semibold">设置</h2>
+    <div className="grid grid-cols-[72px_1fr] gap-x-3 gap-y-3 items-center">
+      <span className="text-muted">会话栏</span><div className="seg self-start"><button className={layout.chatSide === "left" ? "on" : ""} onClick={() => setLayout({ ...layout, chatSide: "left" })}>在左（默认）</button><button className={layout.chatSide === "right" ? "on" : ""} onClick={() => setLayout({ ...layout, chatSide: "right" })}>在右</button></div>
+      <span className="text-muted">外观</span><div className="seg self-start">{(["system", "light", "dark"] as const).map((t) => <button key={t} className={layout.theme === t ? "on" : ""} onClick={() => setLayout({ ...layout, theme: t })}>{{ system: "跟随系统", light: "浅色", dark: "深色" }[t]}</button>)}</div>
+    </div>
+    {s8 ? <iframe src={s8} title="项目设置" className="w-full border border-border rounded bg-panel" style={{ height: "min(600px, calc(100vh - 260px))" }} /> : <p className="text-muted">打开一个项目后，这里还有设计系统、限额、回收站与危险操作。</p>}
+    <div className="flex justify-end"><button className="btn primary" onClick={onClose}>完成</button></div>
+  </Sheet>;
+}

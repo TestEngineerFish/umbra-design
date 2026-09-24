@@ -10,13 +10,13 @@ const t0 = Date.now();
 const mainWindow = async (app) => { for (let i = 0; i < 100; i++) { const w = app.windows().find(w => w.url().includes("__app")); if (w) return w; await new Promise(r => setTimeout(r, 200)); } throw new Error("主窗口没出来"); };
 let app = await electron.launch({ executablePath: bin, args: [SHELL], env, cwd: SHELL });
 let win = await mainWindow(app);
-await win.waitForFunction(() => document.querySelectorAll("li").length > 0 || /还没有项目/.test(document.body.innerText), null, { timeout: 30000 });
+await win.waitForFunction(() => /最近打开|还没有项目/.test(document.body.innerText), null, { timeout: 30000 });
 console.log("launch→home:", Date.now() - t0, "ms | projects:", await win.evaluate(() => document.querySelectorAll("li").length), "| host:", await win.evaluate(() => ({ kind: window.umbraHost?.kind, pick: window.umbraHost?.capabilities().pickDirectory.ok })));
 console.log("windows:", await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().map(w => ({ visible: w.isVisible(), url: w.webContents.getURL().replace(/token=[^&]+/, "token=…").slice(0, 60) }))));
 console.log("cdp env in main:", await app.evaluate(() => process.env.UMBRASTUDIO_CDP ?? null));
 // 菜单「打开目录」→ 事件 → 前端 open_project
 await app.evaluate(({ BrowserWindow }, dir) => { const w = BrowserWindow.getAllWindows().find(w => w.isVisible()); w.webContents.send("host:event", { type: "open-dir", dir }); }, S + "/umbra_copy");
-await win.waitForFunction(() => /58 份稿/.test(document.body.innerText) && /WS 已连/.test(document.body.innerText), null, { timeout: 20000 }); await win.waitForTimeout(500);
+await win.waitForFunction(() => /58 份稿/.test(document.body.innerText) && !/核心断开/.test(document.body.innerText), null, { timeout: 20000 }); await win.waitForTimeout(1500);
 console.log("workbench:", await win.evaluate(() => document.querySelector("header")?.innerText.replace(/\s+/g, " ")));
 // 体检：走项目自己的服务，主进程里 render_check 应经 CDP（UMBRASTUDIO_CDP 已设）
 const r = await win.evaluate(async () => {

@@ -2903,3 +2903,15 @@ S2 放在 `outgoing/手动拖入/S2-单稿预览壳.dc.html`，请用户拖进�
 - **它提的两件需要我们表态的**：① S2 嵌入模式只留画布，属性面板由 S11 这一列装（要动 S2）→ 登记 `11` Q30 待拍板；② `layout.panelByKind: { dc: "props"|null, md: "outline"|null }` → 采纳，新前端 `layout.ts` 的 `side` 记录按它改名。`chatMode` 取值 `"expanded" | "bar"` 采纳。
 
 【实测】并入后本地起静态服务、断外网，六个演示态逐个点：① dc 四面板 / 属性展开 · ② md 只剩大纲 · ③ 图片无从属面板 · ④ 输入条只占预览列、药丸在输入框左 · ⑤ 会话在右、从属面板贴预览 · ⑥ 1024 模拟窗、抽屉盖预览 + Esc；全部零洞、控制台零 error。截图 `S11-工作台布局壳@1440x900.png` 与回复描述一致。`selftest` 零 error（12 份界面稿）· `rendertest` 15/15。
+
+## 五十五、M7-5 / M7-6：现有能力平移进新前端（2026-09-24）
+
+旧 vanilla 前端（`server/ui/index.html`，1729 行）的能力按 S11 形制重写成 React 模块：`store/project.ts`（稿件 / 诊断 / 评论 / 变更 / 源码 + 体检作业 + WS 事件驱动刷新）、`chat/useChat.ts` + `ChatRail.tsx`（S9 形制，作业化轮询、工具行、变更卡回退、「已选中」药丸）、`workbench/Canvas.tsx`（§四十八那条工具栏 + S2 嵌入壳 / 稿本身 / 源码只读 / 演示全屏）、`workbench/SidePanels.tsx`（40 px 图标轨 + 340 px 面板体：属性 / 诊断 / 变更 + 版本历史回退 / 评论 + 发给 AI / 稿件信息；窄窗抽屉）、`sheets/Sheets.tsx`（新建稿件 / 新建项目 / 设置嵌 S8）、`pages/Home.tsx`（列表 / 网格 / 星标 / 搜索 / 缩略图 / 导入目录）。页签按项目记在 localStorage；布局键名照设计侧：`chatSide / chatMode / chatWidth / panelByKind`。
+
+**Q30 过渡态**：属性面板仍是 S2 自带的 —— 面板体选「属性」且选中了节点时，S2 的 iframe 向右多铺 340 px，它的右栏正好落在面板体的位置；没选中时面板体给一句提示。M7-7 再把 S7 搬进 React。
+
+**旧前端退役前的差异**：`doc/12` M7-8 之前 `/__legacy/` 仍可用；新前端没有做的：稿件列表侧栏（页签 + 「N 份稿」下拉替代）、底栏诊断（进右列）、稿件改名 / 复制 / 删除入口（`issues/09` 本来就没有）。
+
+【实测】浏览器模式（`pwm76.mjs`，副本 58 份稿）：进项目自动开上次的稿、页签 + 状态行；S2 壳装上；诊断 2 条；变更面板版本历史；评论 1 条；桥 `select` → 药丸 + iframe `calc(100% + 340px)` + S2 右栏出现；源码 64 行；会话栏 收成输入条 / ⌘\ 展开 / 换边；新建稿件 → 落盘 → 自动选中；演示覆盖层（真全屏）；体检完成 14 节点；设置面板嵌 S8（基本信息 / 设计系统 / 限额 / 回收站 / 危险操作）；1000 px 窄窗面板变抽屉；首页 6 行 / 6 卡 / 搜索 5 / 从首页开项目。**落盘 → 回退闭环**（`pwrev.mjs`）：`set_prop` → v2 → WS `write` → 变更面板「2 版 · 人手改 · font-size」→ 回退 → v3 → 稿里 15px 消失、状态行 v3。壳（`shelltest.mjs`）全过。**方式 ② 真调 AI**：选中节点 + 发送 → 1 s 内回「HTTP 402 Insufficient Balance」—— DeepSeek 账户没余额，链路到 provider 为止是通的，`01` 第 21–23 条在新前端的复跑等充值后再做。零 console error。
+
+**踩到的两处**：① 窄窗抽屉的遮罩把图标轨也盖住，点不到 —— 图标轨提到 `z-40`；② `changes` 路由的 `versionMeta` 键是 `src / time / summary`，第一版按 `origin / at` 读，列出来全空。
