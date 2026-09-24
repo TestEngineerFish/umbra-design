@@ -18,7 +18,11 @@ export function ChatRail({ chat, selections, onDropSelection, onClearSelections,
         <div className="seg" title={chat.model ? `当前：${chat.model}` : undefined}>
           {(["a", "b", "c"] as const).map((c) => (
             <button key={c} className={chat.channel === c ? "on" : ""} onClick={() => chat.pickChannel(c)}
-              title={c === "a" ? "通道 A：直连 OpenAI 兼容端点（按量计费）" : c === "b" ? "通道 B：Claude Code 子进程" : "通道 C：订阅额度那条（优先用它，额度用完自动退回 A）"}>{c.toUpperCase()}</button>
+              title={c === "a" ? "通道 A：直连 OpenAI 兼容端点（按量计费）"
+                : c === "b" ? (chat.caps?.b?.via === "local"
+                    ? `通道 B：本机已登录的 Claude Code（${chat.caps.b.model}）—— 用你自己的订阅，不额外花钱，但和你自己的 Claude Code 会话共用同一份窗口配额`
+                    : "通道 B：Claude Code 子进程，指向你自己配的 Anthropic 兼容端点")
+                : "通道 C：订阅额度那条（优先用它，额度用完自动退回 A）"}>{c.toUpperCase()}</button>
           ))}
         </div>
         <button className="ib" onClick={chat.newSession} title="新会话">＋</button>

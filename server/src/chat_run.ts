@@ -604,10 +604,23 @@ export async function runChatSend(p: Project, a: ChatSendArgs): Promise<Envelope
     mcpServerPath: join(TOOL_ROOT, "server", "dist", "index.js"),
   };
 
-  // 通道 B 的系统提示（含选中节点上下文）
+  /* 通道 B 的系统提示。
+     **第一句必须是当前项目的绝对路径** —— 通道 B 的工具跑在独立的 MCP server 进程里，
+     它不像通道 A/C 那样天生知道「用户正在看哪个项目」，只能靠 `project` 参数。
+     不给路径它就得 `list_projects` 猜，而用户打开的目录多半不在 projectsRoot 下（这正是
+     Umbra Studio 的核心场景），于是它反复试到超时 —— 2026-09-24 实测 120 秒耗尽、零工具调用。 */
   const bSystemParts: string[] = [
-    "你是 Umbra Studio 设计助手。你可以通过 MCP 工具 umbrastudio 读取和修改设计稿。",
-    "修改稿必须用 write_draft 或 patch_draft 落盘。修改前先 validate_draft，修改后再次 validate。",
+    "你是 Umbra Studio 设计助手。你可以通过 MCP 工具 umbrastudio 读取和修改这个项目里的文件。",
+    "",
+    "### 当前项目（所有工具的 project 参数一律传这个绝对路径，不要传项目名，也不要去 list_projects 找）",
+    `project = ${p.dir}`,
+    `项目名：${p.name}${p.title && p.title !== p.name ? `（${p.title}）` : ""}`,
+    "",
+    "两类文件分两条路走，不要混：",
+    "- `.dc.html` 设计稿 → `write_draft` / `patch_draft`。改前先 `validate_draft`，改完再 `validate` 一次。",
+    "- 其它文件（`.md`、代码、文本）→ `read_file` / `write_file`。`write_file` 要先读到 sha256 再带上，它靠这个防覆盖。",
+    "",
+    "全程用简体中文回答。",
   ];
   if (nodeContext) {
     bSystemParts.push("", "### 当前选中节点", nodeContext, "", "用户说「这个」「这里」时，就是指这个节点。");
@@ -617,11 +630,14 @@ export async function runChatSend(p: Project, a: ChatSendArgs): Promise<Envelope
   if (filesContext) bSystemParts.push("", "### 用户选中的文件", filesContext);
   if (rangeContext) bSystemParts.push("", "### 用户选中的一段文字", rangeContext, "", "只改这一段，其余不动。");
 
-  const ccResult = await channelBRun(ccConfig, message, bSystemParts.join("\n"), 120000);
+  const ccResult = await channelBRun(ccConfig, message, bSystemParts.join("\n"), 240000);
 
-  // 把结果存入会话
+  /* 把结果存入会话。**要拿 addMessage 的返回值覆盖 session** ——
+     它写的是盘上的文件，内存里这个 `session` 是请求开始时读的旧对象，
+     而下面 `messages: session.messages.slice(-10)` 就是从它取的。不覆盖的话
+     前端发一次消息只看得到自己那句，AI 的回答要等下次刷新才出现（2026-09-24 实测）。 */
   if (ccResult.result) {
-    await addMessage(p.dir, session.id, { role: "assistant", content: ccResult.result });
+    session = await addMessage(p.dir, session.id, { role: "assistant", content: ccResult.result });
   }
 
   const usageInfo = ccResult.usage

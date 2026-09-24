@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Core } from "../api/client";
 import type { ChatMessage, ChatNote, ChatSessionRow, ChatUsage, Selection } from "../api/types";
 
-interface Cap { model: string; supportsImage: boolean }
+interface Cap { model: string; supportsImage: boolean; via?: "local" | "endpoint" }
 import { mem } from "../layout/layout";
 import { toast } from "../ui/Toast";
 
@@ -115,6 +115,6 @@ export function useChat(core: Core, dir: string, ctx: { selectedDraft: string | 
   }, [core, notes]);
 
   return { channel, pickChannel, sessions, sessionId, messages, notes, usage, running, input, setInput, send, interrupt, revert, newSession, reload: load,
-    model: caps[channel]?.model ?? "", supportsImage: caps[channel]?.supportsImage ?? false, reloadCaps };
+    model: caps[channel]?.model ?? "", supportsImage: caps[channel]?.supportsImage ?? false, caps, reloadCaps };
 }
 export type ChatStore = ReturnType<typeof useChat>;

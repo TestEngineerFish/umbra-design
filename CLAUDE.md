@@ -102,8 +102,11 @@ claude mcp add umbrastudio -- node <仓库绝对路径>/server/dist/index.js
 key 只放 `.umbrastudio/ai_config.json`，**不进仓库、不写进任何文档**。
 核心里**只读资产看 `TOOL_ROOT`，可写状态看 `STATE_ROOT`** —— 打包后前者在 `.app` 里（只读），
 后者在 userData。新加会落盘的东西时想清楚是哪一类，混了在开发模式下测不出来（`00` §63.1）。
-通道：**A** 直连 OpenAI 兼容端点（按量）· **B** Claude Code 子进程 · **C** 火山方舟 Agent Plan 订阅（OpenAI 兼容，`…/api/plan/v1`）。
+通道：**A** 直连 OpenAI 兼容端点（按量）· **B** 子进程 Claude Code · **C** 火山方舟 Agent Plan 订阅（OpenAI 兼容，`…/api/plan/v1`）。
 默认走 `defaultChannel`；C 遇到额度类错误且这一轮没调过工具时自动退回 A（`11` Q33，`00` §六十二）。
+**通道 B 的 `baseUrl` / `apiKey` 留空 = 用本机已登录的 Claude Code**（走用户自己的订阅，不额外花钱，
+但和用户手边的开发会话抢同一份窗口配额）；两个都填 = 指向别家 Anthropic 兼容端点（`11` Q34，`00` §六十四）。
+调不通时先 `UMBRASTUDIO_CHANNEL_B_LOG=<文件>` 把原始事件流落盘再看 —— 那条通道是黑盒，猜不出来。
 
 ---
 
@@ -256,9 +259,11 @@ ClaudeDesign 的项目在云端，**只拥有被上传过的东西**。之前只
 | M8-1..M8-10 | 泛型文件层（**第二条写入口** `write_file`）、目录视图、多选进会话、通用文件卡、`.md` 三件套、图片视图 + 圈选给 AI | §五十八–§六十一 |
 | 通道 C | 火山方舟 Agent Plan 订阅，与 A 同形走同一条 agent 循环；额度用完自动退回 A | §六十二 |
 | M9-4 | 三平台打包：mac arm64/x64 dmg+zip、win x64/arm64 zip；**一次逼出三条打包版才会炸的缺陷**（可写状态写进 `.app`、`doc/` 没进包、签名不自洽导致下载后「已损坏」）；新增 `packtest` | §六十三 |
+| 通道 B | 用本机已登录的 Claude Code 打通（用户的 Cursor Pro **接不进来**：Cloud Agent API 没有 chat/completions 也没有 messages，实测都 404）。顺带修五条，其中「硬编码工具名单过时」和通道 A 是同一个病 | §六十四 |
 
-**进度 101 / 114。** 回归读数：`selftest` 零 error · `lifecycletest` 全通 · `filetest` 19/19 ·
+**进度 102 / 114。** 回归读数：`selftest` 零 error · `lifecycletest` 全通 · `filetest` 19/19 ·
 `agenttest` 4/4 · `rendertest` 15/15 · `packtest` mac arm64 34/34 · mac x64 34/34 · win 各 17/17（结构关）。
+三条通道都真跑通过一次（A 智谱 / DeepSeek · B 本机 Claude Code · C 火山方舟订阅）。
 `01` 第 29–33 条通过，第 36 条部分达成（win 真机与真 Intel Mac 未验）。
 
 **下一步**：M9-6 win 真机第一次跑（要用户有 Windows 机器），然后 M10（第二批类型 / 秘书接入；Web 版不排期）。

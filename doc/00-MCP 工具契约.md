@@ -3201,3 +3201,97 @@ packtest
 **还没验的**（诚实记下来）：① win 真机第一次跑（M9-6）；② 真 Intel Mac（本机只能靠 Rosetta）；
 ③ 一台**没装 Node** 的机器 —— 本机有 Node，这一条本机无论怎么测都测不到，
 不过 `app.isPackaged` 分支下核心只用 Electron 自带的 Node，判据上不需要外部 Node。
+
+---
+
+## 六十四、通道 B 打通：用本机已登录的 Claude Code；顺带修掉五条（2026-09-24）
+
+起因是用户想用已付费的 **Cursor Pro**，把 Cursor 的 key 填进了 `channelB`。
+
+### 64.1 Cursor 接不进来 —— 这是能力问题，不是配置问题
+
+【实测】拿用户那把 key 探 Cursor 的 API：
+
+```
+GET  https://api.cursor.com/v1/me               → 200（key 有效，key 名 umbra-studio）
+GET  https://api.cursor.com/v1/models           → 200（Auto / Grok 4.7 / …）
+POST https://api.cursor.com/v1/chat/completions → 404
+POST https://api.cursor.com/v1/messages         → 404
+```
+
+Cursor 的 Cloud Agent API 是**agent 编排**：`POST /v1/agents` 创建一个在云端沙箱跑的 agent，
+对 GitHub 仓库工作，结果以 PR / artifact 交付。它给的是「我帮你跑完整个 agent」，
+我们要的是「给我一个模型，agent 循环和 26 件工具我自己有」——**形状根本不同**，
+不是改个 baseUrl 能对上的。而且它碰不到本地目录，那正是 Umbra Studio 的核心场景。
+
+用户那把 key 已备份到 `.umbrastudio/cursor-api-key.bak.txt`（不进仓库），没有替他丢掉。
+
+### 64.2 替代方案：`baseUrl` / `apiKey` 留空 = 用本机已登录的 Claude Code
+
+通道 B 本来就是「起 `claude` 子进程」，只是一直把 `ANTHROPIC_BASE_URL` / `ANTHROPIC_API_KEY`
+覆盖成别人的端点（GLM Coding Plan）。**不覆盖就是用户自己的订阅** —— 用户本来就在付这份钱。
+
+实现上有一处要小心：本机登录态时**一个 `ANTHROPIC_*` 都不能设，连空串都不行**，
+而且要把父进程里已有的删掉（Umbra 自己可能正被 Claude Code 起着），否则会串到别人的端点上：
+
+```ts
+env: usesLocalLogin(cfg)
+  ? Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("ANTHROPIC_")))
+  : { ...process.env, ANTHROPIC_BASE_URL: cfg.baseUrl, ANTHROPIC_API_KEY: cfg.apiKey },
+```
+
+端点预检也只对自带端点做 —— 本机登录态没有端点可问，登录态坏了 `claude` 自己会说。
+
+### 64.3 打通过程中露出来的五条缺陷
+
+第一次真跑：**120 秒超时，零工具调用**。逐条查出来的：
+
+| # | 缺陷 | 为什么 | 修法 |
+| --- | --- | --- | --- |
+| 1 | 系统提示没说当前是哪个项目 | 通道 B 的工具跑在独立 MCP server 进程里，不像 A/C 那样天生知道用户在看哪个项目，只能靠 `project` 参数。不给它就 `list_projects` 猜，而用户打开的目录多半不在 `projectsRoot` 下（**这正是 Umbra Studio 的核心场景**），于是反复试到超时 | 系统提示第一段写死 `project = <绝对路径>`，并明说「不要传项目名，也不要去 list_projects 找」 |
+| 2 | `--allowed-tools` 硬编码 23 个工具名 | 工具早涨到 66 件。AI 拿不到 M8 那批泛型文件工具，面对 `.md` 只会撞墙 —— **和通道 A 犯过的是同一个病**（§六十之二）：一张手写的名单，加了新工具就会忘 | 换成 server 级放行 `mcp__umbrastudio`，名单不会过时 |
+| 3 | `--output-format json` 拿不到工具调用 | 原来的解析在多行里找 `type:"assistant"` 事件，但 `json` 模式**只吐一个最终对象**，那个循环永远命中不了 → 文件真改了、界面上零工具行 | 换 `stream-json --verbose`，逐行收 `tool_use`，最后一行 `type:"result"` 取回答与 usage |
+| 4 | `--brief` 让回答变空 | 它启用 `SendUserMessage`，模型改用那个工具跟人说话，`result` 字段就空了 | 去掉 |
+| 5 | 返回的 `messages` 里没有 AI 的回答 | `addMessage` 写的是盘上的文件，而 `messages: session.messages.slice(-10)` 取的是请求开始时读的**内存旧对象** → 前端发一次消息只看得到自己那句 | 拿 `addMessage` 的返回值覆盖 `session` |
+
+另外三个 flag 是顺手加的，都有实测依据：
+
+- `--strict-mcp-config`：不加的话子进程继承用户整套环境 —— **实测继承了 54 台 MCP server**
+  （插件 / claude.ai 连接器 / 别的项目的 server），一堆 `needs-auth` 与 `failed` 要在启动时逐个连、超时。
+- `--setting-sources ""`：不继承用户 settings。实测它把用户的「输出风格」hook 整段灌进了系统提示。
+- `--max-budget-usd`（默认 0.5）：**花钱的硬上限**。agent 循环每一步都重发整段上下文，跑飞一次能烧掉一天的额度。
+  撞上限是正常收尾，错误信息里要说清是「你自己设的刹车起了作用」，不然用户只看到「失败」。
+
+### 64.4 一个会骗人的读数
+
+`usage.inputTokens` 原来把 `cache_read_input_tokens` 也加了进去。cache read 按 10% 计价、
+量却常常是十几万，加进来会让「这一轮多贵」虚高一个量级：
+
+```
+一轮实测：input 10 · cache creation 21831 · cache read 118000 · 折算 $0.072
+加总报 139915 → 看着像烧了十几万 token 的钱，其实主要是缓存命中
+```
+
+现在只算真正新处理的（`input + cache_creation`）；要看权威花费就看 `totalCostUSD`，
+那是 Claude Code 自己按当时价目算的。
+
+### 64.5 读数
+
+```
+本机登录态最小验证   claude -p 回四个字：2148 ms · provider firstParty · claude-opus-5-5[1m]
+                     ⚠️ 折算 $0.1768 —— 只为四个字，因为 21831 个 cache creation token。
+                     所以 model 默认给 sonnet 而不是 opus，差一个量级。
+通道 B 真跑改 .md    14.9 s · 5 轮 · ToolSearch → list_files → read_file → write_file
+                     两处都改对（颜色 + 字号）· 快照 s2 · 回答「已把…写入成功（快照 s2）」
+                     usage promptTokens 16467 · completionTokens 863
+ai_config 路由       channelB: { model: "sonnet", via: "local" }
+回归                 selftest 零 error · lifecycletest 全通 · filetest 19/19 · agenttest 4/4
+```
+
+**代价要说清**：本机登录态不额外花钱，但它消耗的是**用户自己那份 Claude Code 窗口配额** ——
+跟用户手边正在跑的开发会话抢同一份。日常改稿走通道 C（订阅）更合适，B 适合「要一个强模型认真改一次」。
+
+**调试留了个后门**：`UMBRASTUDIO_CHANNEL_B_LOG=<文件>` 把原始事件流落盘。
+这条通道是黑盒子（子进程 + 它自带的 agent 循环），出问题时「解析不出来」和「它真没说」长得一样，
+没有原始流就只能猜 —— 这一轮的第 3、4 条就是靠它分开的。
+（注意别在 ESM 模块里用 `require` 记日志：会直接抛，还被 `catch` 吞掉，等于装了个坏仪器。）

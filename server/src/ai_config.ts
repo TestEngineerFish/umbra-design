@@ -25,9 +25,19 @@ export interface ChannelAConfig {
 /** 通道 B：Claude Code 子进程要指向的 Anthropic 兼容端点（GLM Coding Plan）。
  *  和通道 A 不是一个地址、不是一把 key —— 曾经复用 A 的配置，真跑之前必须拆开（doc/11 Q11）。 */
 export interface ChannelBConfig {
-  baseUrl: string;    // Anthropic 兼容端点，如 https://open.bigmodel.cn/api/anthropic
-  apiKey: string;     // ⚠️ 密钥
-  model: string;      // 如 glm-4.6
+  /** Anthropic 兼容端点，如 `https://open.bigmodel.cn/api/anthropic`。
+   *  **留空 = 用本机已登录的 Claude Code**（`claude` 子进程不覆盖 `ANTHROPIC_*`，走用户自己的订阅）。 */
+  baseUrl: string;
+  /** ⚠️ 密钥。`baseUrl` 留空时这里也留空。 */
+  apiKey: string;
+  /** 自带端点时是端点的模型名（如 `glm-4.6`）；本机登录态时是 Claude Code 认的别名
+   *  （`sonnet` / `opus` / `haiku`）—— 默认给 `sonnet`，Opus 一条回复能吃掉几万 cache token。 */
+  model: string;
+}
+
+/** 这条通道走的是本机 Claude Code 的登录态，还是自带的 Anthropic 兼容端点？ */
+export function channelBUsesLocalLogin(cfg: ChannelBConfig): boolean {
+  return !cfg.baseUrl.trim() || !cfg.apiKey.trim();
 }
 
 /** 通道 C：另一条 OpenAI 兼容端点，和 A 完全同形 —— 存在的理由是**订阅额度**：
@@ -68,7 +78,7 @@ export async function setAiConfig(cfg: AiConfig): Promise<void> {
 /** 获取通道 B 的配置，未配置时报错（不再回落到通道 A —— 端点不同，回落只会打到错的地址） */
 export async function getChannelB(): Promise<ChannelBConfig> {
   const cfg = await getAiConfig();
-  if (!cfg.channelB) throw new Error("通道 B 未配置：请用 set_ai_config 传 channel=b 设置 Anthropic 兼容端点 baseUrl、apiKey 和 model");
+  if (!cfg.channelB) throw new Error("通道 B 未配置：set_ai_config channel=b。要用本机已登录的 Claude Code 就把 baseUrl 与 apiKey 留空、model 给 sonnet；要用别家的 Anthropic 兼容端点就三个都填");
   return cfg.channelB;
 }
 
