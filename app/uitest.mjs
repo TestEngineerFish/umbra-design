@@ -32,7 +32,11 @@ pg.on("console", (m) => { const t = m.text(); if (m.type() === "error" && !NOISE
 pg.on("pageerror", (e) => { const t = String(e); if (!NOISE.some((r) => r.test(t))) errs.push("pageerror: " + t.slice(0, 120)); });
 
 await pg.goto(URL_, { waitUntil: "domcontentloaded" });
-await pg.waitForFunction(() => /份稿|\d+ 项/.test(document.body.innerText), null, { timeout: 30000 });
+/* 「起来了」的判据：树里长出了节点。
+   ⚠️ 别拿界面文案当判据 —— 原来这里等的是「N 份稿」，第七轮把那颗钮挪进了
+   目录列头并改叫「转到文件」，整个回归就卡在启动等待上了（M8-15 实测）。
+   `role="treeitem"` 是形制变了也还在的东西。 */
+await pg.waitForFunction(() => document.querySelectorAll('[role="treeitem"]').length > 0, null, { timeout: 30000 });
 await pg.waitForTimeout(1500);
 
 console.log("\n常驻目录列（M8-11 · 设计侧第六轮 6.1 / 6.2）");
@@ -100,6 +104,32 @@ if (await title.count()) {
   ok(!/历史会话/.test(await pg.locator("aside").first().innerText()), "再点标题回到会话");
 } else ok(false, "没找到顶栏的标题入口（▾）");
 
+/* ── 按钮分层（M8-15 · 设计侧第七轮）──
+   它给的判据是「点了它，变的是什么」，分项目 / 窗口布局 / 导航 / 会话 / 当前文件五类，
+   每类只在一个地方出现，每条横带只装一层。
+   **「不该有的东西不在」和「该有的东西在」一样要测** —— 分层做对了的标志
+   恰恰是页签条上少了三颗钮，而那种「少了」截图上根本看不出来。 */
+console.log("\n按钮分层：顶栏 / 页签条 / 目录列头（M8-15 · 设计侧第七轮）");
+const header = pg.locator("header").first();
+const tabbar = pg.locator('div.h-\\[34px\\]').first();
+ok(await header.locator('[aria-label="窗口布局"] button').count() === 4, "顶栏布局组四颗钮（目录列 + 会话三档）", `${await header.locator('[aria-label="窗口布局"] button').count()} 颗`);
+ok(await header.locator('[data-ud="tree-toggle"]').count() === 1, "目录列开关在顶栏布局组里（原来在页签条最左）");
+const tabbarText = await tabbar.innerText().catch(() => "");
+ok(!/份稿|▤\s*目录/.test(tabbarText), "页签条上没有「N 份稿」和「▤ 目录」了", tabbarText.slice(0, 60).replace(/\n/g, " / ") || "（只有页签）");
+/* 项目菜单：路径进了菜单，顶栏上不再铺 280px 的灰字 */
+const headText = await header.innerText();
+ok(!headText.includes("/Users/"), "项目路径不在顶栏上了", headText.replace(/\n/g, " · ").slice(0, 70));
+await header.locator("button[aria-haspopup=\"menu\"]").click(); await pg.waitForTimeout(400);
+const menuText = await pg.locator('[role="menu"]').innerText();
+ok(menuText.includes("/Users/"), "完整路径在项目菜单里（要复制路径时截断的没用）");
+ok(["新建稿件", "重建索引", "项目设置 · 外观", "关闭项目"].every((x) => menuText.includes(x)), "项目级五项都收进这个菜单", menuText.split("\n").filter(Boolean).slice(2).join(" / "));
+await pg.keyboard.press("Escape"); await pg.mouse.click(700, 400); await pg.waitForTimeout(300);
+/* 目录列头的两颗导航钮 */
+ok(await pg.locator('button[title="铺到详情区（多选 · 网格 · 回收站）"]').count() === 1, "「铺到详情区」在目录列头");
+await pg.keyboard.press("Meta+p"); await pg.waitForTimeout(500);
+ok(await pg.locator('input[placeholder="转到文件…"]').count() === 1, "⌘P 打开「转到文件」（入口在目录列头）");
+await pg.keyboard.press("Escape"); await pg.waitForTimeout(300);
+
 /* ── 格式注册表（M8-14）──
    这一轮把「每种文件怎么看」从 Workbench 的一条三元链搬进 `app/src/kinds/` 的独立模块。
    要守住的不是某个像素，而是**三个环节各自还通**：视图（View）、面板（Panels）、状态行（Status）。
@@ -131,8 +161,13 @@ if (await openByName(".md")) {
 if (await openByName(".json")) {
   const t = await pg.locator("footer").innerText();
   ok(/JSON/.test(t), "JSON：状态行写 JSON（新格式的 Status 接上了）");
-  const bodyTxt = await pg.locator("main, body").first().innerText();
-  ok(/结构/.test(bodyTxt) && /源码/.test(bodyTxt), "JSON：结构 / 源码两档都在");
+  /* 这两档现在在**统一的文件工具栏**上（M8-15 把它从视图内部搬了出来），
+     所以判据要落在那条带上 —— 落在 body 上的话，搬没搬都一样过，测不出东西。 */
+  const tb = pg.locator('div[role="group"][aria-label="视图"]').first();
+  ok(await tb.count() > 0, "JSON：视图段组在统一的文件工具栏上");
+  const tbText = await tb.innerText().catch(() => "");
+  ok(/结构/.test(tbText) && /源码/.test(tbText), "JSON：结构 / 源码两档都在", tbText.replace(/\n/g, " / "));
+  ok(await pg.locator('button[title="更多"]').count() > 0, "JSON：文件 ⋯ 在工具栏右端");
 } else console.log("  – 项目里没有 .json，跳过新格式那一条（不算通过）");
 
 console.log("\n控制台");

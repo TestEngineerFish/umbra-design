@@ -61,6 +61,8 @@ export interface ViewContext {
     expandChat(): void;
     /** 演示全屏 */
     present(): void;
+    /** 关掉当前文件的页签。它出现在文件 `⋯` 的公共尾巴里（设计侧第七轮的 `fileTail`） */
+    closeFile(): void;
     toast(title: string, body?: string, kind?: "error" | "ok"): void;
   };
 

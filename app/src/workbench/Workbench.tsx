@@ -10,10 +10,12 @@ import { useProject } from "../store/project";
 import { NewDraftSheet } from "../sheets/Sheets";
 import { toast } from "../ui/Toast";
 import { Present } from "./Canvas";
+import { Glyph, ICON } from "../ui/Glyph";
 import { FileTree } from "./FileTree";
 /* 详情区怎么画、右边配什么面板、状态行写什么，**全在 kinds 注册表里**。
    这个文件从此不认识任何一种具体格式 —— 加 `.json` 时它一个字都没动（M8-14）。 */
 import { moduleFor, type ViewContext } from "../kinds";
+import { FileMore, ToolbarBar } from "../kinds/toolbar";
 import { kindDef } from "@shared/kinds";
 
 /** 工作台（S11 形制）：顶栏 40 · 页签 34 · 左会话 / 中画布 / 右从属面板列 · 底部状态行 24 */
@@ -39,7 +41,6 @@ export function Workbench({ project, host, layout, setLayout, onHome, onSettings
     });
   }, []);
   const [present, setPresent] = useState(false);
-  const [fileMenu, setFileMenu] = useState(false); const [fileQ, setFileQ] = useState("");
   const [sheet, setSheet] = useState<"newDraft" | null>(null);
   /* R5 让位规则（设计侧第六轮改的口径）：**看详情区的实际宽度，不看窗口宽度**。
      会话栏拖宽、目录列展开都会挤详情，而窗口宽度一点没变 —— 按窗口判会漏。
@@ -62,6 +63,7 @@ export function Workbench({ project, host, layout, setLayout, onHome, onSettings
       onOpenFile={(f) => { open(f); if (narrow) setLayout({ ...layout, tree: { ...layout.tree, open: false } }); }}
       onOpenDir={(d) => { open(d, true); if (narrow) setLayout({ ...layout, tree: { ...layout.tree, open: false } }); }}
       healthOf={(path) => store.drafts.find((d) => d.file === path)?.health ?? null}
+      drafts={store.drafts} indexed={store.indexed} onSpread={() => open("", true)}
       tick={store.lastEvent?.at ?? ""}
     />
   );
@@ -100,6 +102,12 @@ export function Workbench({ project, host, layout, setLayout, onHome, onSettings
       if (e.key === "Escape" && present) setPresent(false);
       if ((e.metaKey || e.ctrlKey) && e.key === "\\") { e.preventDefault(); setLayout({ ...layout, chatMode: layout.chatMode === "bar" ? "expanded" : "bar" }); }
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "b") { e.preventDefault(); setLayout({ ...layout, tree: { ...layout.tree, open: !layout.tree.open } }); }
+      /* ⌘P 转到文件：入口在目录列头，收起时先展开它，不然浮层挂在一个不存在的列上 */
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "p") {
+        e.preventDefault();
+        if (!layout.tree.open) setLayout({ ...layout, tree: { ...layout.tree, open: true } });
+        setTimeout(() => window.dispatchEvent(new CustomEvent("ud-goto-file")), layout.tree.open ? 0 : 60);
+      }
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "j") { e.preventDefault(); if (layout.chatMode === "bar") setLayout({ ...layout, chatMode: "expanded" }); setTimeout(() => document.getElementById("chatInput")?.focus(), 50); }
     };
     document.addEventListener("keydown", on); return () => document.removeEventListener("keydown", on);
@@ -107,7 +115,7 @@ export function Workbench({ project, host, layout, setLayout, onHome, onSettings
 
   /** 打开任意文件或目录。目录不进页签（它是一个位置，不是一份文件）。 */
   const open = (f: string, isDir = false) => {
-    setPicked(null); setFileMenu(false);
+    setPicked(null);
     setDirMode(isDir);
     store.select(isDir ? (f || "__root__") : f);
     if (isDir) return;
@@ -136,7 +144,7 @@ export function Workbench({ project, host, layout, setLayout, onHome, onSettings
     select: putSelection,
     ask: (text, sels) => { expandChat(); void chat.send(text, sels); },
     picked, setPicked,
-    ui: { activePanel: active, openPanel: setActive, expandChat, present: () => setPresent(true), toast },
+    ui: { activePanel: active, openPanel: setActive, expandChat, present: () => setPresent(true), closeFile: () => { if (file) closeTab(file); }, toast },
     ai: { supportsImage: chat.supportsImage, engineLabel: engineLabel(chat.caps, chat.channel, chat.model), reloadCaps: () => void chat.reloadCaps() },
     mem: {
       get: (k, d) => mem.get(`us.kind.${kind}.${k}`, d),
@@ -148,85 +156,129 @@ export function Workbench({ project, host, layout, setLayout, onHome, onSettings
      「换文件要清什么」由各模块自己用 useEffect 决定，比一刀切的 key 精确。 */
   const Wrap = mod.Provider ?? (({ children }: { ctx: ViewContext; children: React.ReactNode }) => <>{children}</>);
 
-  const filtered = store.drafts.filter((d) => !fileQ || `${d.title} ${d.file}`.toLowerCase().includes(fileQ.toLowerCase()));
 
   const rail = layout.chatMode === "expanded" ? <ChatRail chat={chat} selections={selections} onDropSelection={(i) => setSelections((xs) => xs.filter((_, j) => j !== i))} onClearSelections={() => setSelections([])} contextLabel={dirMode ? (dirRel || "这个目录") : (file ? draftTitle(file) : null)} width={layout.chatWidth} onResize={(w) => setLayout({ ...layout, chatWidth: w })} side={layout.chatSide} onCollapse={() => setChat({ chatMode: "bar" })} onSwapSide={() => setChat({ chatSide: layout.chatSide === "left" ? "right" : "left" })} /> : null;
   return (
     <div className="h-full flex flex-col">
-      <header className="h-10 px-3 flex items-center gap-3 border-b border-border bg-panel shrink-0 text-xs">
-        <button className="text-sm font-semibold hover:text-accent" onClick={onHome} title="回到项目列表">Umbra Studio</button>
-        <span className="text-border">|</span>
-        <span className="text-sm font-semibold truncate">{project.title || project.name}</span>
-        <span className="font-mono text-muted truncate max-w-[360px]" dir="rtl" title={project.dir}>{project.dir}</span>
+      {/* ═══ 顶栏 38px · 只放两类：「应用 / 项目」和「窗口布局」（设计侧第七轮）═══
+          判据是「点了它，变的是什么」：变的是整个项目或整扇窗的才配站在这儿。
+          项目路径从顶栏拿掉了 —— 它占 280px，却只是信息，没人点它，现在进项目菜单。 */}
+      <header className="h-[38px] px-2.5 flex items-center gap-1 border-b border-border bg-panel shrink-0 text-xs relative z-30">
+        <button className="flex items-center gap-2 h-[26px] px-2 rounded hover:bg-hover shrink-0" onClick={onHome} title="回到项目列表">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="text-accent shrink-0" aria-hidden="true">
+            <rect x="1.5" y="1.5" width="13" height="13" rx="3.2" stroke="currentColor" strokeWidth="1.4" />
+            <path d="M5 8.2h6M5 5.4h6M5 11h3.2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+          </svg>
+          <span className="font-bold tracking-tight">Umbra Studio</span>
+        </button>
+        <span className="text-border shrink-0">/</span>
+        <div className="relative min-w-0 flex">
+          <button className={`min-w-0 max-w-[420px] flex items-center gap-1.5 h-[26px] pl-2 pr-1.5 rounded hover:bg-hover ${menu ? "bg-hover" : ""}`}
+            onClick={() => setMenu((m) => !m)} aria-expanded={menu} aria-haspopup="menu" title={project.dir}>
+            <span className="font-semibold truncate">{project.title || project.name}</span>
+            <Glyph d={ICON.caretDown} size={11} stroke={1.6} className="text-muted" />
+          </button>
+          {menu && <>
+            <div className="fixed inset-0 z-40" onClick={() => setMenu(false)} />
+            <div role="menu" className="absolute top-[31px] left-0 z-[41] w-72 p-1 bg-panel border border-borderStrong rounded-lg shadow-2xl text-left">
+              {/* 路径在这儿，而且完整 —— 顶栏那份是截断的，真要复制路径反而不够用 */}
+              <div className="px-2 pt-1.5 pb-2 mb-1 border-b border-border grid gap-0.5">
+                <span className="font-semibold">{project.title || project.name}</span>
+                <span className="font-mono text-[11px] text-muted break-all leading-relaxed">{project.dir}</span>
+              </div>
+              {[
+                { label: "新建稿件", run: () => setSheet("newDraft") },
+                { label: "重建索引", run: () => void store.rebuildIndex() },
+                { label: "在访达中显示", run: () => void host.revealInFinder(project.dir).catch((e: Error) => toast("打开目录失败", e.message, "error")) },
+                { sep: true as const },
+                { label: "项目设置 · 外观", hint: "⌘,", run: onSettings },
+                { sep: true as const },
+                { label: "关闭项目", run: onHome },
+              ].map((mi, k) => mi.sep
+                ? <div key={k} className="h-px mx-1.5 my-1 bg-border" />
+                : <button key={k} className="w-full flex items-center gap-2 h-7 px-2 rounded hover:bg-hover text-left"
+                    onClick={() => { setMenu(false); mi.run!(); }}>
+                    <span className="flex-1 min-w-0 truncate">{mi.label}</span>
+                    {mi.hint && <span className="font-mono text-[11px] text-muted shrink-0">{mi.hint}</span>}
+                  </button>)}
+            </div>
+          </>}
+        </div>
         <span className="flex-1" />
         <span className={`text-[11px] ${store.wsState === "open" ? "text-muted" : "text-err"}`} title={store.lastEvent ? `最近事件 ${store.lastEvent.type} · ${store.lastEvent.at}` : "还没有事件"}>{store.wsState === "open" ? "" : "核心断开"}</span>
-        <div className="seg" title="会话栏：左 / 输入条 / 右（⌘\\ 切换展开与输入条）">
-          <button className={layout.chatSide === "left" && layout.chatMode === "expanded" ? "on" : ""} onClick={() => setChat({ chatSide: "left", chatMode: "expanded" })} title="在左">◧</button>
-          <button className={layout.chatMode === "bar" ? "on" : ""} onClick={() => setChat({ chatMode: "bar" })} title="收成输入条">▭</button>
-          <button className={layout.chatSide === "right" && layout.chatMode === "expanded" ? "on" : ""} onClick={() => setChat({ chatSide: "right", chatMode: "expanded" })} title="在右">◨</button>
-        </div>
-        <div className="relative"><button className="ib" onClick={() => setMenu((m) => !m)} title="更多">⋯</button>
-          {menu && <div className="menu" onMouseLeave={() => setMenu(false)}>
-            <button onClick={() => { setMenu(false); setSheet("newDraft"); }}>新建稿件</button>
-            <button onClick={() => { setMenu(false); void store.rebuildIndex(); }}>重建索引</button>
-            <button onClick={() => { setMenu(false); void host.revealInFinder(project.dir).catch((e: Error) => toast("打开目录失败", e.message, "error")); }}>在访达中显示项目目录</button>
-            <button onClick={() => { setMenu(false); onSettings(); }}>项目设置 · 外观</button>
-            <hr className="border-border my-1" />
-            <button onClick={() => { setMenu(false); onHome(); }}>关闭项目</button>
-          </div>}
+        {/* 窗口布局组：目录列在不在 · 会话栏在哪。**目录钮从页签条挪到这里** ——
+            它变的是窗口布局，和「会话在左还是右」同一类，不是「开着哪些文件」那一类。 */}
+        <div role="group" aria-label="窗口布局" className="flex items-center gap-0.5 p-0.5 bg-panel2 border border-border rounded shrink-0">
+          <button data-ud="tree-toggle" className={`w-[30px] h-6 grid place-items-center rounded-sm transition-colors ${layout.tree.open ? "bg-panel text-text shadow-sm" : "text-muted hover:text-text"}`}
+            onClick={() => setLayout({ ...layout, tree: { ...layout.tree, open: !layout.tree.open } })}
+            aria-pressed={layout.tree.open} title={`${layout.tree.open ? "收起" : "显示"}目录列（⌘B）`}>
+            <Glyph d={ICON.tree} />
+          </button>
+          <span className="w-px h-3.5 mx-0.5 bg-borderStrong" />
+          {([["left", ICON.chatLeft, "会话在左"], ["bar", ICON.chatBar, "会话收成输入条（⌘\\）"], ["right", ICON.chatRight, "会话在右"]] as const).map(([k, d, t]) => {
+            const on = k === "bar" ? layout.chatMode === "bar" : layout.chatMode === "expanded" && layout.chatSide === k;
+            return <button key={k} className={`w-[30px] h-6 grid place-items-center rounded-sm transition-colors ${on ? "bg-panel text-text shadow-sm" : "text-muted hover:text-text"}`}
+              onClick={() => setChat(k === "bar" ? { chatMode: "bar" } : { chatSide: k, chatMode: "expanded" })}
+              aria-pressed={on} title={t}><Glyph d={d} /></button>;
+          })}
         </div>
       </header>
       {/* Provider 要同时包住详情区和状态行（目录的「已选 3 项」在状态行读模块内部的勾选） */}
       <Wrap ctx={ctx} key={kind}>
-      <div className="flex-1 min-h-0 flex">
+      <div className="flex-1 min-h-0 flex relative">
         {layout.chatSide === "left" && rail}
+        {/* ═══ 常驻目录列（第六轮 6.1；M8-15 提到主体层）═══
+            **贴在详情左边，会话栏换边它不动** —— 目录是用来翻详情的，两者得挨着，
+            视线才不用跨过会话栏。
+            它现在**通栏**（顶栏下直达底部），页签条和文件工具栏只盖住详情列。
+            M8-11 时它在页签条下方，那时候页签条最左边有目录开关，通栏是对的；
+            第七轮把那颗钮挪进顶栏之后，再让页签条横跨目录列就说不通了 ——
+            **页签条讲的是「开着哪些文件」，和目录列没有关系。**
+            详情区太窄时（narrow）它让位成浮层，盖在详情上，选中文件或 Esc 就收。 */}
+        {layout.tree.open && (
+          narrow ? (
+            <>
+              <div className="absolute inset-0 z-20 bg-black/20" onMouseDown={() => setLayout({ ...layout, tree: { ...layout.tree, open: false } })} />
+              <aside className="absolute left-0 top-0 bottom-0 z-30 bg-panel border-r border-border shadow-2xl" style={{ width: 280 }}>{tree}</aside>
+            </>
+          ) : (
+            <aside className="relative shrink-0 border-r border-border bg-panel" style={{ width: layout.tree.width }}>
+              {tree}
+              {/* 拖右边缘改宽；双击回默认 240 */}
+              <div className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-accent/30"
+                onDoubleClick={() => setLayout({ ...layout, tree: { ...layout.tree, width: TREE_W.def } })}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  const x0 = e.clientX, w0 = layout.tree.width;
+                  const mv = (ev: MouseEvent) => setLayout({ ...layout, tree: { ...layout.tree, width: Math.min(TREE_W.max, Math.max(TREE_W.min, w0 + ev.clientX - x0)) } });
+                  const up = () => { document.removeEventListener("mousemove", mv); document.removeEventListener("mouseup", up); document.body.style.cursor = ""; };
+                  document.body.style.cursor = "col-resize";
+                  document.addEventListener("mousemove", mv); document.addEventListener("mouseup", up);
+                }} />
+            </aside>
+          )
+        )}
         <div className="flex-1 min-w-0 flex flex-col">
-          <div className="h-[34px] flex items-stretch border-b border-border bg-panel shrink-0 text-xs relative">
-            {/* 目录钮放在页签条**最左边** —— 那里本来就是详情区的起点，
-                所以展开前后目录都从同一个位置出来（设计侧第六轮 6.1 的理由）。
-                收起态整列收掉、不留 40px 图标轨：目录只有一样东西，留条轨就一颗钮，白占一列宽。 */}
-            <button className={`w-9 shrink-0 grid place-items-center border-r border-border hover:bg-hover ${layout.tree.open ? "text-accent" : "text-muted"}`}
-              onClick={() => setLayout({ ...layout, tree: { ...layout.tree, open: !layout.tree.open } })}
-              title={`${layout.tree.open ? "收起" : "展开"}目录（⌘B）`}>▤</button>
+          {/* ═══ 页签条 34px · 只管「开着哪些文件」（设计侧第七轮）═══
+              原来这条带上挤了三样不属于它的东西：目录列开关（→ 顶栏布局组）、
+              「▤ 目录」（→ 目录列头的「铺到详情区」）、「N 份稿 ▾」（→ 目录列头的「转到文件」）。
+              两个都叫「目录」的钮其实一个变布局、一个变导航，分开之后才说得清。 */}
+          <div className="h-[34px] flex items-stretch border-b border-border bg-panel shrink-0 text-xs">
             <div className="flex-1 min-w-0 flex overflow-x-auto">
               {tabs.map((t) => { const d = store.drafts.find((x) => x.file === t); const cur = t === file; return <div key={t} className={`group flex items-center gap-1.5 pl-3 pr-2 border-r border-border cursor-pointer whitespace-nowrap ${cur ? "bg-bg border-t-2 border-t-accent -mb-px" : "text-muted hover:text-text"}`} onClick={() => open(t)} title={t}><span className={`hdot ${d?.health ?? "unchecked"}`} /><span className={cur ? "font-semibold" : ""}>{draftTitle(t)}</span><button className="ib opacity-0 group-hover:opacity-100 text-[10px]" onClick={(e) => { e.stopPropagation(); closeTab(t); }} title="关闭">×</button></div>; })}
+              {tabs.length === 0 && <span className="px-3 self-center text-muted text-[11px]">还没打开文件 —— 从左边的目录里选一个</span>}
             </div>
-            <button className={`px-3 border-l border-border whitespace-nowrap ${dirMode ? "text-accent font-semibold" : "text-muted hover:text-text"}`} onClick={() => open("", true)} title="目录视图：这个项目里的所有文件">▤ 目录</button>
-            <button className="px-3 border-l border-border text-muted hover:text-text whitespace-nowrap" onClick={() => { setFileMenu((m) => !m); setFileQ(""); }} title="所有稿件">{store.drafts.length} 份稿 ▾</button>
-            {fileMenu && <div className="absolute right-0 top-[34px] z-30 w-[380px] max-h-[60vh] flex flex-col bg-panel border border-border rounded-b-lg shadow-2xl">
-              <input autoFocus value={fileQ} onChange={(e) => setFileQ(e.target.value)} placeholder="搜稿名、文件名…" className="m-2 h-8 px-3 rounded border border-border bg-bg outline-none focus:border-accent" onKeyDown={(e) => { if (e.key === "Escape") setFileMenu(false); }} />
-              <div className="flex-1 overflow-auto">{filtered.length ? filtered.map((d) => <button key={d.file} className={`w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-hover ${d.file === file ? "bg-accentSoft" : ""}`} onClick={() => open(d.file)}><span className={`hdot ${d.health}`} title={d.healthWhy} /><span className="truncate flex-1">{d.title}</span><span className="text-muted font-mono">{d.version ?? ""}</span><span className="text-muted">{d.elements ? `${d.elements} 元素` : ""}</span></button>) : <div className="p-3 text-muted">没有匹配的稿</div>}</div>
-              <div className="px-3 h-8 flex items-center gap-2 border-t border-border text-muted"><span>{store.indexed ? "" : "还没建索引"}</span><span className="flex-1" /><button className="btn sm" onClick={() => { setFileMenu(false); setSheet("newDraft"); }}>新建稿件</button></div>
-            </div>}
           </div>
-          <div className="flex-1 min-h-0 flex">
-            {/* 常驻目录列（设计侧第六轮 6.1）。**贴在详情左边，会话栏换边它不动** ——
-                目录是用来翻详情的，两者得挨着，视线才不用跨过会话栏。
-                详情区太窄时（narrow）它让位成浮层，盖在详情上，选中文件或 Esc 就收。 */}
-            {layout.tree.open && (
-              narrow ? (
-                <>
-                  <div className="absolute inset-0 z-20 bg-black/20" onMouseDown={() => setLayout({ ...layout, tree: { ...layout.tree, open: false } })} />
-                  <aside className="absolute left-0 top-0 bottom-0 z-30 bg-panel border-r border-border shadow-2xl" style={{ width: 280 }}>{tree}</aside>
-                </>
-              ) : (
-                <aside className="relative shrink-0 border-r border-border bg-panel" style={{ width: layout.tree.width }}>
-                  {tree}
-                  {/* 拖右边缘改宽；双击回默认 240 */}
-                  <div className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-accent/30"
-                    onDoubleClick={() => setLayout({ ...layout, tree: { ...layout.tree, width: TREE_W.def } })}
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      const x0 = e.clientX, w0 = layout.tree.width;
-                      const mv = (ev: MouseEvent) => setLayout({ ...layout, tree: { ...layout.tree, width: Math.min(TREE_W.max, Math.max(TREE_W.min, w0 + ev.clientX - x0)) } });
-                      const up = () => { document.removeEventListener("mousemove", mv); document.removeEventListener("mouseup", up); document.body.style.cursor = ""; };
-                      document.body.style.cursor = "col-resize";
-                      document.addEventListener("mousemove", mv); document.addEventListener("mouseup", up);
-                    }} />
-                </aside>
-              )
-            )}
-            <div ref={detailRef} className="flex-1 min-w-0 flex">
+          {/* ═══ 文件工具栏 34px · 只管「当前这份文件」（第七轮第四层）═══
+              **模块不声明 Toolbar 就不出这条带** —— 设计侧明确说代码和其他文件没有这一行，
+              不要给它留一条空横带。`⋯` 的公共尾巴由 `FileMore` 补，不用每个模块重复写。 */}
+          {(dirMode || file) && mod.Toolbar && (
+            <ToolbarBar>
+              <mod.Toolbar ctx={ctx} />
+              <FileMore ctx={ctx} items={mod.menu?.(ctx) ?? []} />
+            </ToolbarBar>
+          )}
+          <div ref={detailRef} className="flex-1 min-h-0 flex">
             {!dirMode && !file ? (
                 <div className="flex-1 flex flex-col items-center justify-center gap-2 text-muted text-xs text-center px-6 leading-relaxed bg-canvas">
                   <div className="text-2xl opacity-25">◧</div>
@@ -241,7 +293,6 @@ export function Workbench({ project, host, layout, setLayout, onHome, onSettings
                   {mod.Panels && panels.length > 0 && <mod.Panels ctx={ctx} />}
                 </>
               )}
-            </div>
           </div>
           {layout.chatMode === "bar" && (
             <div className="h-11 px-2 flex items-center gap-2 border-t border-border bg-panel shrink-0">

@@ -36,3 +36,4 @@ if (import.meta.env.DEV) {
 export { moduleFor, panelsOf, registered } from "./registry";
 export type { KindModule } from "./registry";
 export type { MenuItem, ViewContext } from "./context";
+export { FileMore, Seg, SizeBtn, ToolbarBar } from "./toolbar";

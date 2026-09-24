@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Core } from "../api/client";
-import type { FileEntry, Health, ListFilesResult } from "../api/types";
+import type { Draft, FileEntry, Health, ListFilesResult } from "../api/types";
+import { Glyph, ICON } from "../ui/Glyph";
 import { kindDef } from "@shared/kinds";
 
 /** 常驻目录列里的那棵树（M8-11，形制按设计侧第六轮的 S11 窄列 / S12）。
@@ -30,11 +31,19 @@ export interface TreeProps {
   healthOf: (path: string) => Health | null;
   /** 列头显示的项目名，点它回到根 */
   projectName: string;
+  /** 「转到文件」用的稿件表（⌘P）。列头上的这两颗钮都是**导航动作**，
+   *  第七轮把它们从页签条挪到这儿 —— 页签条只管「开着哪些文件」。 */
+  drafts: Draft[];
+  indexed: boolean;
+  /** 把目录铺到详情区（多选 / 网格 / 回收站都在那儿） */
+  onSpread: () => void;
   /** 文件变动的信号（传最近一次事件的时刻即可）：变了就把已展开的层重新拉一遍 */
   tick: string;
 }
 
-export function FileTree({ core, current, expanded, onExpandedChange, onOpenFile, onOpenDir, healthOf, projectName, tick }: TreeProps) {
+export function FileTree({ core, current, expanded, onExpandedChange, onOpenFile, onOpenDir, healthOf, projectName, drafts, indexed, onSpread, tick }: TreeProps) {
+  const [goto, setGoto] = useState(false);
+  const [q, setQ] = useState("");
   /* 每一层的内容按需拉，拉过就留在内存里。`children[path] === undefined` = 还没拉过，
      这和后端约定的「children 缺省表示未拉取、[] 表示空目录」是同一套语义。 */
   const [children, setChildren] = useState<Record<string, FileEntry[]>>({});
@@ -81,6 +90,11 @@ export function FileTree({ core, current, expanded, onExpandedChange, onOpenFile
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current]);
 
+  useEffect(() => {
+    const on = () => { setGoto(true); setQ(""); };
+    window.addEventListener("ud-goto-file", on); return () => window.removeEventListener("ud-goto-file", on);
+  }, []);
+
   const toggle = (path: string) => {
     const next = expSet.has(path) ? expanded.filter((x) => x !== path) : [...expanded, path];
     onExpandedChange(next);
@@ -125,14 +139,62 @@ export function FileTree({ core, current, expanded, onExpandedChange, onOpenFile
 
   return (
     <div className="flex flex-col h-full min-h-0">
-      <button className="h-9 px-3 flex items-center gap-1.5 shrink-0 text-xs font-semibold hover:text-accent"
-        onClick={() => onOpenDir("")} title="打开项目根">
-        <span className="text-muted">▤</span><span className="truncate">{projectName}</span>
-      </button>
+      {/* 列头：项目名（点回根）+ 两颗导航钮。钮常驻不 hover 才出 —— 键盘和触控都要够得着 */}
+      {/* 高度和分隔线都跟页签条对齐（34px + border-b）——
+          目录列通栏之后它和页签条并排，差 2px 或少一条线，那条横线就是断的 */}
+      <div className="h-[34px] pl-2.5 pr-1 flex items-center gap-1 shrink-0 text-xs relative border-b border-border">
+        <button className="min-w-0 flex-1 flex items-center gap-1.5 h-6 px-1 rounded font-semibold hover:bg-hover text-left"
+          onClick={() => onOpenDir("")} title="回到项目根">
+          <span className="text-muted shrink-0">{kindDef("dir").icon}</span><span className="truncate">{projectName}</span>
+        </button>
+        <button className="w-6 h-6 grid place-items-center rounded text-muted hover:bg-hover hover:text-text shrink-0"
+          onClick={() => { setGoto((g) => !g); setQ(""); }} title="转到文件（⌘P）" aria-label="转到文件">
+          <Glyph d={ICON.search} size={13} />
+        </button>
+        <button className="w-6 h-6 grid place-items-center rounded text-muted hover:bg-hover hover:text-text shrink-0"
+          onClick={onSpread} title="铺到详情区（多选 · 网格 · 回收站）" aria-label="铺到详情区">
+          <Glyph d={ICON.spread} size={13} />
+        </button>
+        {goto && <GotoFile q={q} setQ={setQ} drafts={drafts} indexed={indexed} current={current}
+          onPick={(f) => { setGoto(false); onOpenFile(f); }} onClose={() => setGoto(false)} />}
+      </div>
       <div className="flex-1 min-h-0 overflow-auto pb-2" role="tree">
         {children[""] === undefined ? <Loading depth={0} /> : rows("", 0)}
       </div>
     </div>
+  );
+}
+
+/** 「转到文件」浮层。原来是页签条右边那颗「N 份稿 ▾」——
+ *  按第七轮的分层，它变的是「在详情区看哪份文件」，属于导航，所以跟着目录列走。 */
+function GotoFile({ q, setQ, drafts, indexed, current, onPick, onClose }: {
+  q: string; setQ: (v: string) => void; drafts: Draft[]; indexed: boolean; current: string | null;
+  onPick: (file: string) => void; onClose: () => void;
+}) {
+  const kw = q.trim().toLowerCase();
+  const rows = drafts.filter((d) => !kw || `${d.title} ${d.file}`.toLowerCase().includes(kw));
+  return (
+    <>
+      <div className="fixed inset-0 z-40" onMouseDown={onClose} />
+      <div className="absolute left-1 right-1 top-[34px] z-[41] max-h-[60vh] flex flex-col bg-panel border border-borderStrong rounded-lg shadow-2xl overflow-hidden">
+        <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="转到文件…"
+          className="m-1.5 h-7 px-2 rounded border border-borderStrong bg-bg outline-none focus:border-accent text-xs"
+          onKeyDown={(e) => {
+            if (e.key === "Escape") { if (q) setQ(""); else onClose(); }
+            if (e.key === "Enter" && rows[0]) onPick(rows[0].file);
+          }} />
+        <div className="flex-1 overflow-auto pb-1">
+          {rows.length ? rows.map((d) => (
+            <button key={d.file} className={`w-full px-2 py-1 flex items-center gap-2 text-left hover:bg-hover ${d.file === current ? "bg-accentSoft" : ""}`} onClick={() => onPick(d.file)}>
+              <span className={`hdot ${d.health}`} title={d.healthWhy} />
+              <span className="truncate flex-1 text-xs">{d.title}</span>
+              <span className="text-muted font-mono text-[11px] shrink-0">{d.version ?? ""}</span>
+            </button>
+          )) : <div className="px-2 py-3 text-muted text-[11px] text-center">没有匹配的稿</div>}
+        </div>
+        {!indexed && <div className="px-2 h-7 flex items-center border-t border-border text-[11px] text-muted">还没建索引 —— 项目菜单里「重建索引」</div>}
+      </div>
+    </>
   );
 }
 

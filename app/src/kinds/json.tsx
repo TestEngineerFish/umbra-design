@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { ReadFileResult } from "../api/types";
 import type { ViewContext } from "./context";
 import type { KindModule } from "./registry";
+import { Seg } from "./toolbar";
 
 /** JSON（M8-14 新加的一种类型）。
  *
@@ -100,10 +101,28 @@ function whereFailed(text: string, err: unknown): { line: number; col: number; w
   return { line: 1, col: 1, why };
 }
 
-function View({ ctx }: { ctx: ViewContext }) {
+/** 这份 JSON 的全部状态。**住在 Provider 里**，因为 `View` 和 `Toolbar` 都要用它 ——
+ *  工具栏上的「结构 / 源码」切的是 View 的内容，「全折 / 全展」改的是 View 的折叠集，
+ *  而读数（多少行、第几行解析不过）算在这里最省事。 */
+interface JsonState {
+  text: string | null; why: string | null;
+  parsed: { ok: true; value: unknown } | { ok: false; line: number; col: number; why: string } | null;
+  rows: Row[];
+  view: "tree" | "source"; setView: (v: "tree" | "source") => void;
+  collapsed: Set<string>; setCollapsed: (s: Set<string>) => void;
+  hit: string | null; pick: (r: Row) => void;
+}
+const JsonCtx = createContext<JsonState | null>(null);
+const useJson = (): JsonState => {
+  const v = useContext(JsonCtx);
+  if (!v) throw new Error("json 的 Provider 没包上");
+  return v;
+};
+
+function Provider({ ctx, children }: { ctx: ViewContext; children: ReactNode }) {
   const [text, setText] = useState<string | null>(null);
   const [why, setWhy] = useState<string | null>(null);
-  const [view, setView] = useState<"tree" | "source">(() => ctx.mem.get("view", "tree" as "tree" | "source"));
+  const [view, setViewRaw] = useState<"tree" | "source">(() => ctx.mem.get("view", "tree" as "tree" | "source"));
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [hit, setHit] = useState<string | null>(null);
 
@@ -123,7 +142,7 @@ function View({ ctx }: { ctx: ViewContext }) {
   }, [text]);
   const rows = useMemo(() => (parsed?.ok ? flatten(parsed.value, collapsed).slice(1) : []), [parsed, collapsed]);
 
-  const setV = (v: "tree" | "source") => { setView(v); ctx.mem.set("view", v); };
+  const setView = (v: "tree" | "source") => { setViewRaw(v); ctx.mem.set("view", v); };
   /* 解析不过就没有树可看，自动停在源码那一档（但不写进记忆 —— 换个好文件要回到树） */
   const shown = parsed && !parsed.ok ? "source" : view;
 
@@ -137,26 +156,35 @@ function View({ ctx }: { ctx: ViewContext }) {
     ctx.ui.expandChat();
   };
 
+  return <JsonCtx.Provider value={{ text, why, parsed, rows, view: shown, setView, collapsed, setCollapsed, hit, pick }}>{children}</JsonCtx.Provider>;
+}
+
+function Toolbar() {
+  const { parsed, rows, text, view, setView, setCollapsed } = useJson();
+  return (
+    <>
+      <Seg label="视图" items={[
+        { label: "结构", active: view === "tree", onPick: () => setView("tree"), disabled: !parsed?.ok, title: parsed?.ok ? "结构：折叠、点一行把它带给 AI" : "解析不过，先在源码里改对" },
+        { label: "源码", active: view === "source", onPick: () => setView("source") },
+      ]} />
+      {parsed?.ok
+        ? <span className="text-muted font-mono text-[11px] tabular-nums">{rows.length} 行 · {(text ?? "").split("\n").length} 行源码</span>
+        : parsed && <span className="text-err text-[11px] truncate">第 {parsed.line} 行第 {parsed.col} 列解析不过</span>}
+      <span className="flex-1" />
+      {parsed?.ok && <Seg label="折叠" items={[
+        { label: "全折", active: false, onPick: () => setCollapsed(new Set(rows.filter((r) => r.count).map((r) => r.path))) },
+        { label: "全展", active: false, onPick: () => setCollapsed(new Set()) },
+      ]} />}
+    </>
+  );
+}
+
+function View() {
+  const { text, why, parsed, rows, view: shown, collapsed, setCollapsed, hit, pick } = useJson();
   if (why) return <div className="flex-1 grid place-items-center text-xs text-err bg-canvas">{why}</div>;
   if (text === null) return <div className="flex-1 grid place-items-center text-xs text-muted bg-canvas">读取中…</div>;
-
   return (
     <div className="flex-1 min-w-0 flex flex-col bg-canvas">
-      {/* 这条工具栏还在视图内部 —— 第七轮要把它上移到统一那一行（M8-15），到时候整条搬走 */}
-      <div className="h-[34px] px-2 flex items-center gap-2 border-b border-border bg-panel shrink-0 text-xs">
-        <div className="seg">
-          <button className={shown === "tree" ? "on" : ""} onClick={() => setV("tree")} disabled={!parsed?.ok} title={parsed?.ok ? "结构：折叠、点一行把它带给 AI" : "解析不过，先在源码里改对"}>结构</button>
-          <button className={shown === "source" ? "on" : ""} onClick={() => setV("source")}>源码</button>
-        </div>
-        {parsed?.ok
-          ? <span className="text-muted font-mono text-[11px]">{rows.length} 行 · {text.split("\n").length} 行源码</span>
-          : <span className="text-err text-[11px]">第 {parsed?.line} 行第 {parsed?.col} 列解析不过 · {parsed?.why}</span>}
-        <span className="flex-1" />
-        {parsed?.ok && <>
-          <button className="btn sm ghost" onClick={() => setCollapsed(new Set(rows.filter((r) => r.count).map((r) => r.path)))}>全折</button>
-          <button className="btn sm ghost" onClick={() => setCollapsed(new Set())}>全展</button>
-        </>}
-      </div>
       {shown === "tree" ? (
         <div className="flex-1 min-h-0 overflow-auto py-1 font-mono text-xs">
           {rows.map((r) => {
@@ -168,7 +196,7 @@ function View({ ctx }: { ctx: ViewContext }) {
                 style={{ paddingLeft: 6 + (r.depth - 1) * 16 }} title={r.path}>
                 <span className="w-4 shrink-0 text-[10px] text-muted grid place-items-center transition-transform"
                   style={{ transform: open ? "rotate(90deg)" : "none" }}
-                  onClick={(e) => { if (!branch) return; e.stopPropagation(); setCollapsed((c) => { const n = new Set(c); n.has(r.path) ? n.delete(r.path) : n.add(r.path); return n; }); }}>
+                  onClick={(e) => { if (!branch) return; e.stopPropagation(); const n = new Set(collapsed); n.has(r.path) ? n.delete(r.path) : n.add(r.path); setCollapsed(n); }}>
                   {branch && r.count ? "▶" : ""}
                 </span>
                 <span className="shrink-0 text-text2">{r.key}</span>
@@ -191,5 +219,8 @@ function View({ ctx }: { ctx: ViewContext }) {
 
 export const json: KindModule = {
   ids: ["json"],
-  View,
+  Provider, View, Toolbar,
+  menu: (ctx) => [
+    { label: "在浏览器中打开", run: () => void ctx.host.openExternal(`${ctx.project.url}${ctx.path.split("/").map(encodeURIComponent).join("/")}`) },
+  ],
 };
