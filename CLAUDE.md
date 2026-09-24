@@ -202,6 +202,7 @@ ClaudeDesign 的项目在云端，**只拥有被上传过的东西**。之前只
 | `npm --prefix app run build` | 编译新前端到 `app/dist`（`/__app/` 托管它） |
 | `npm --prefix server run selftest` | 静态回归（三层判据） |
 | `npm --prefix server run lifecycletest` | 生命周期回归（建/改/删/恢复全流程） |
+| `npm --prefix server run filetest` | 泛型文件层回归（第二条写入口：写前校验 / 快照 / 回退 / 引用改写） |
 | `npm --prefix server run rendertest` | 渲染回归（要浏览器） |
 | `npm --prefix server run ui -- <项目名>` | 起界面给人用 |
 | `npm --prefix server run outgoing` | 给设计侧打包 ui/（每份稿插 baseline 行），产出 `outgoing/UmbraStudio-ui-<时间>.zip`；**每一轮交办都要随附这个包**（`doc/00` §三十二） |

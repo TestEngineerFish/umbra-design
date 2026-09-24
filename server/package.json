@@ -21,7 +21,8 @@
     "rendertest": "node dist/rendertest.js",
     "agenttest": "node dist/agenttest.js",
     "incoming": "node dist/incoming.js",
-    "outgoing": "node dist/outgoing.js"
+    "outgoing": "node dist/outgoing.js",
+    "filetest": "node dist/filetest.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",

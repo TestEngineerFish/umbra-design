@@ -44,6 +44,7 @@ import { readFile } from "node:fs/promises";
 import { relative, sep } from "node:path";
 import { ToolError } from "./envelope.js";
 import { buildIndex, indexStatus, isToolPage } from "./indexpage.js";
+import { countTypes, listFiles, listSnapshotMeta, moveFile, readAnyFile, referencesOf, revertFile, trashFile, writeAnyFile } from "./files.js";
 import { runChatSend } from "./chat_run.js";
 import { updateProject, archiveProject, deleteProject, listProjectDirs, buildProject, createProject, createDraft } from "./project.js";
 import { listRecentProjects, touchProject } from "./workspace.js";
@@ -486,6 +487,55 @@ export async function handleApi(
       if (!s.indexExists) await buildIndex(target, s.url);   // 第一次打开：部署壳与令牌，否则 S2 / S6 / S8 全 404
       await touchProject(target.dir, target.name, target.title);
       json(reply, 200, { ok: true, data: { url: s.url, token: s.token, ws: `ws://127.0.0.1:${s.port}${API_PREFIX}ws`, name: target.name, title: target.title, dir: target.dir, app: s.url + "__app/" } });
+      return true;
+    }
+
+    /* ── M8：泛型文件（目录视图 / .md / 图片 / 通用文件卡都走这几条） ── */
+    if (route === "files" && req.method === "GET") {
+      json(reply, 200, { ok: true, data: await listFiles(p, url.searchParams.get("dir") ?? "") });
+      return true;
+    }
+    if (route === "file" && req.method === "GET") {
+      json(reply, 200, { ok: true, data: await readAnyFile(p, str(url.searchParams.get("path"), "path")) });
+      return true;
+    }
+    if (route === "file_write" && req.method === "POST") {
+      if (!originOk(req, ctx.port)) { json(reply, 403, { ok: false, errors: [{ code: "E_API_ORIGIN", message: "Origin 不是本服务" }] }); return true; }
+      const b = await readBody(req);
+      json(reply, 200, { ok: true, data: await writeAnyFile(p, str(b.path, "path"), typeof b.content === "string" ? b.content : "",
+        { expectSha256: typeof b.expectSha256 === "string" ? b.expectSha256 : undefined, origin: "人手改", note: typeof b.note === "string" ? b.note : undefined }) });
+      return true;
+    }
+    if (route === "file_versions" && req.method === "GET") {
+      const path = str(url.searchParams.get("path"), "path");
+      json(reply, 200, { ok: true, data: { path, snapshots: await listSnapshotMeta(p, path) } });
+      return true;
+    }
+    if (route === "file_revert" && req.method === "POST") {
+      if (!originOk(req, ctx.port)) { json(reply, 403, { ok: false, errors: [{ code: "E_API_ORIGIN", message: "Origin 不是本服务" }] }); return true; }
+      const b = await readBody(req);
+      json(reply, 200, { ok: true, data: await revertFile(p, str(b.path, "path"), str(b.version, "version")) });
+      return true;
+    }
+    if (route === "file_move" && req.method === "POST") {
+      if (!originOk(req, ctx.port)) { json(reply, 403, { ok: false, errors: [{ code: "E_API_ORIGIN", message: "Origin 不是本服务" }] }); return true; }
+      const b = await readBody(req);
+      json(reply, 200, { ok: true, data: await moveFile(p, str(b.from, "from"), str(b.to, "to")) });
+      return true;
+    }
+    if (route === "file_trash" && req.method === "POST") {
+      if (!originOk(req, ctx.port)) { json(reply, 403, { ok: false, errors: [{ code: "E_API_ORIGIN", message: "Origin 不是本服务" }] }); return true; }
+      const b = await readBody(req);
+      json(reply, 200, { ok: true, data: await trashFile(p, str(b.path, "path")) });
+      return true;
+    }
+    if (route === "file_refs" && req.method === "GET") {
+      const path = str(url.searchParams.get("path"), "path");
+      json(reply, 200, { ok: true, data: { path, referencedBy: await referencesOf(p, path) } });
+      return true;
+    }
+    if (route === "file_types" && req.method === "GET") {
+      json(reply, 200, { ok: true, data: { types: await countTypes(p) } });
       return true;
     }
 

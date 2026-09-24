@@ -2946,3 +2946,27 @@ S2 放在 `outgoing/手动拖入/S2-单稿预览壳.dc.html`，请用户拖进�
 2. **回车落盘发两次 `set_prop`**：`setBusy` 让 input `disabled`，disabled 会自动失焦 → `onBlur` 又提交一次；两个请求并发，后到的撞上已经变了的地址报 400。按行 `inFlight` 去重。旧前端没这个问题是因为它的输入框不 disabled。
 
 【实测】M7-7 扫测（`pwm77.mjs`，项目副本）：S2 嵌入后可见文字为空（只剩画布）· 点选 → 属性面板三组 15 行、标题 `PC 吐司.dc.html L29 <button>` · font-size 行 `px` 单位 + 两颗步进 · 改值盘上不变而覆盖层里有新值 · 回车 → 绿条 `已改 · v5 → v6`、盘上 19px · 撤销 → 19px 消失 · 锁定行 ? 说出 `onclick {{ onAction }} 引用` · 药丸 · 拖宽 380 → 440 且 `us.layout` 记住 · **R4 切稿时会话栏右边界 440 → 440 不动**。回归：`selftest` 零 error（含新增六条基准）· `lifecycletest` 全通 · `agenttest` 4/4 · `rendertest` 15/15 · 壳测试全过。
+
+## 五十八、M8-1 / M8-2：泛型文件层 —— 第二条写入口（2026-09-24）
+
+`.dc.html` 之外的文件（`.md`、图片、json、zip…）也要能列、能读、能改、能挪。`server/src/files.ts` 给它们一条**和 `write_draft` 对应的路**：
+
+    写前 sha256 校验（Q8）→ 存旧版快照 → 原子写 → 存新版快照 → 返回快照号
+
+**两条路不混**。`write_file` 见到 `.dc.html` 直接拒，fix 里写明那条路会做的五件事（归一化 / `@ds` / `__resources` / 节点地址 / 语义快照 + changelog）「这条路一样都不做」；`move_file` 同理指向 `move_draft`。反过来，普通文件**不归一化、不改编码、不动换行、不碰 frontmatter** —— 写进去什么样，盘上就什么样（H5）。
+
+快照放在同一个目录（`.umbrastudio/snapshots/<路径>/`），靠前缀分开：稿是 `v<N>.json`（语义快照），别的文件是 `s<N>.json`（原文 gzip + 元数据 `{ version, src, at, bytes, note }`）。`listVersions` 只认 `v<N>`，两套互不干扰。快照号 `s<N>` 是设计侧 S13 里用的那个形状。
+
+**其它几件**：
+- `listFiles(p, dir)` 列一层：目录在前、其余按更新时间倒序（S12 定的顺序），图片带从文件头读出的原始尺寸（PNG / GIF / WebP / JPEG 按段走到 SOFn / SVG 看 width·height 或 viewBox；读不出来就不给 —— 宁可没有，不可以给错的），文本带跳过 frontmatter 的第一行摘录，改过的带最新快照号。工具自己产的（索引页、壳页面、运行时副本、`.umbrastudio/`、`_ds-tool/`）不列。
+- `moveFile` 挪文件**并改写稿里指向它的 `href` / `src` / `url()`** —— S15 对用户的承诺就是那句「改名或移动会一并改写引用」，不做的话那句话是假的。改写经 `write_draft`，所以引用变了照样有语义快照可退。
+- `referencesOf` 只认出现在 `href` / `src` / `url()` 里的，正文里提到文件名不算引用（S15 的 `referencedBy: [{ file, line }]`）。
+- `countTypes` 给 S1 的 `project.types { dc, md, image, other }`。
+- 删除是进 `.umbrastudio/trash/<时间戳>/`，和稿一个语义。
+- 路径穿越的防法是把 `.` `..` 段整个吃掉，不是报错。
+
+**出口**：MCP 五个工具 `list_files / read_file / write_file / move_file / list_file_versions`（共 65 个）；HTTP 九条路由 `files / file / file_write / file_versions / file_revert / file_move / file_trash / file_refs / file_types`。
+
+**新回归 `npm --prefix server run filetest`**（19 条）。为什么单独一套：`write_draft` 那条被 selftest / rendertest / lifecycletest 从三个角度钉着，这一条一开始什么都没有 —— 而它管的三件事（写前校验别把别人的改动盖掉、旧版留得住、frontmatter 一个字节不许动）**出错都不会让页面白屏，只会安静地丢东西**。
+
+【实测】`filetest` 19 条全过：列一层 7 项 · png 1×1 / svg 48×24 · 摘录跳过 frontmatter · 读二进制不给正文但说原因 · 拒绝 `.dc.html` 并指路 · 写前校验通过后 s1 → s2 · 过期 sha 被拒且说清两边 · frontmatter 逐字节不变 · 回到 s1 后历史仍是 s1..s4 · `referencesOf` 给出文件与行号 · `move_file` 改写引用且被改的稿留下语义快照 · 删除进回收站 · `..` 被吃掉不写到父目录。其余回归：`selftest` 零 error · `lifecycletest` 全通 · `agenttest` 4/4 · `rendertest` 15/15。
