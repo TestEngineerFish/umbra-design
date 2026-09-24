@@ -25,18 +25,26 @@ export interface ChannelAConfig {
 /** 通道 B：Claude Code 子进程要指向的 Anthropic 兼容端点（GLM Coding Plan）。
  *  和通道 A 不是一个地址、不是一把 key —— 曾经复用 A 的配置，真跑之前必须拆开（doc/11 Q11）。 */
 export interface ChannelBConfig {
-  /** Anthropic 兼容端点，如 `https://open.bigmodel.cn/api/anthropic`。
-   *  **留空 = 用本机已登录的 Claude Code**（`claude` 子进程不覆盖 `ANTHROPIC_*`，走用户自己的订阅）。 */
+  /** 用哪个本地 CLI（M2-13）。缺省 `"claude"` —— 老配置没这个字段，照旧走 Claude Code。
+   *  能选哪些、各自差在哪看 `local_cli.ts` 的 `CLI_SPECS`；这台机器上装了哪些用 `detectLocalClis()` 扫。 */
+  cli?: "claude" | "cursor-agent" | "codex" | "gemini" | "opencode";
+  /** Anthropic 兼容端点，如 `https://open.bigmodel.cn/api/anthropic`。**只对 `cli: "claude"` 有意义。**
+   *  **留空 = 用本机已登录的 Claude Code**（子进程不覆盖 `ANTHROPIC_*`，走用户自己的订阅）。 */
   baseUrl: string;
   /** ⚠️ 密钥。`baseUrl` 留空时这里也留空。 */
   apiKey: string;
-  /** 自带端点时是端点的模型名（如 `glm-4.6`）；本机登录态时是 Claude Code 认的别名
-   *  （`sonnet` / `opus` / `haiku`）—— 默认给 `sonnet`，Opus 一条回复能吃掉几万 cache token。 */
+  /** 模型名，按所选 CLI 的叫法写（`CLI_SPECS[].modelHint` 有例子）。
+   *  Claude Code 本机登录态时是别名（`sonnet` / `opus` / `haiku`）—— 默认给 `sonnet`，
+   *  Opus 一条回复能吃掉几万 cache token。 */
   model: string;
+  /** 一轮最多花多少（美元）。只有报用量的 CLI 撑得住这个刹车（目前只有 Claude Code）。 */
+  maxBudgetUsd?: number;
 }
 
-/** 这条通道走的是本机 Claude Code 的登录态，还是自带的 Anthropic 兼容端点？ */
+/** 这条通道走的是 CLI 自己的登录态，还是我们给的 Anthropic 兼容端点？
+ *  只有 `cli: "claude"` 能给端点；别的 CLI 一律走它们自己的登录态。 */
 export function channelBUsesLocalLogin(cfg: ChannelBConfig): boolean {
+  if ((cfg.cli ?? "claude") !== "claude") return true;
   return !cfg.baseUrl.trim() || !cfg.apiKey.trim();
 }
 

@@ -3295,3 +3295,112 @@ ai_config 路由       channelB: { model: "sonnet", via: "local" }
 这条通道是黑盒子（子进程 + 它自带的 agent 循环），出问题时「解析不出来」和「它真没说」长得一样，
 没有原始流就只能猜 —— 这一轮的第 3、4 条就是靠它分开的。
 （注意别在 ESM 模块里用 `require` 记日志：会直接抛，还被 `catch` 吞掉，等于装了个坏仪器。）
+
+---
+
+## 六十五、M2-13 本地 CLI 通道：把装在这台机器上的 AI CLI 当通道用（2026-09-24）
+
+用户提的方向：项目设置里能选本地的 CLI（Claude / Codex / Cursor…），并且能扫环境里装了哪些。
+
+**结论：走得通，而且比接 API 更划算** —— 这些 CLI 走的是**登录态**而不是 API key，
+用户已经在付的订阅能直接用上。而且它们都自带 agent 循环、都能加载 MCP server，
+也就是说它们能用上我们那 66 件工具。
+
+这还顺带修正了 §64.1 的一半：**Cursor 的 API 接不进来，Cursor 的 CLI 完全可以。**
+「这家接不进来」和「这家的 API 接不进来」是两件事 —— 上一轮我把结论下得太宽了。
+
+### 65.1 五家的能力，差在三处
+
+| CLI | 非交互 | 结构化输出 | MCP 怎么接进去 | 非交互放行 | 报用量 | 实测 |
+| --- | --- | --- | --- | --- | --- | --- |
+| **Claude Code** | `-p` | `--output-format stream-json` | **`--mcp-config`（纯命令行，不落盘）** | `--allowed-tools mcp__umbrastudio` | ✅ | ✅ 跑通 |
+| **Cursor CLI** | `-p` | `--output-format stream-json` | 项目里的 `.cursor/mcp.json` | `--approve-mcps --force` | ❌ | ✅ 跑通 |
+| Codex CLI | `exec` | `--json` | `codex mcp add` → `~/.codex/config.toml` | `--ask-for-approval never` | ❌ | ⬜ 本机没装 |
+| Gemini CLI | `-p` | ❌ **只有纯文本** | `gemini mcp add` → 全局 settings | `--yolo` | ❌ | ⬜ |
+| opencode | `run` | `--format json` | 项目里的 `opencode.json` | — | ❌ | ⬜ |
+
+三处差异直接决定体验，界面上要照实标：
+
+1. **MCP 怎么接进去**。只有 Claude Code 能纯命令行给；别家都得落一个配置文件。
+   落在项目里（cursor）还能接受，但**动了用户的项目就要说一声** —— 会话里记一条系统消息，
+   而且**写的时候必须合并**：用户的 `.cursor/mcp.json` 里可能已经有别的 server，整份覆盖等于替他删掉。
+   解析不了那个文件就宁可这一轮跑不起来，也不覆盖。
+2. **输出有多结构化**。有 JSON 事件流才看得见工具行。Gemini 只有纯文本 —— 那一栏在界面上标「看不到工具行」。
+3. **报不报用量**。cursor-agent 的 result 事件里没有 usage，所以「这一轮多贵」是 `null`。
+   **空就写空，别编一个 0 出来。**
+
+### 65.2 实测里露出来的四个坑
+
+**① headless 模式会等 stdin。** `cursor-agent -p` 第一次实测干等 240 秒 ——
+它跟 `claude -p` 一样在等标准输入。`stdio: ["ignore", ...]`（= /dev/null）才对。
+命令行手测时要 `< /dev/null`，不然会误判成「这条路不通」。
+
+**② cursor-agent 的工具调用不在 assistant 里。** 它有独立的 `tool_call/started` 与
+`tool_call/completed` 事件，MCP 调用的参数在 `tool_call.mcpToolCall.args`。
+内置工具（它自己的搜索之类）的 `tool_call` 是**空对象** `{}`，只有 MCP 调用才有 `mcpToolCall` ——
+不判这个会往工具行里塞一堆空条目。
+
+**③ MCP 工具名的前缀不一样。** Claude Code 是 `mcp__umbrastudio__read_file`，
+cursor-agent 是 `umbrastudio-read_file`。剥前缀的正则要认两种（`/^umbrastudio[-_]+/`）。
+
+**④ 可用模型是按账号来的，写死一定过时。** 我照 `--help` 把 `sonnet-4` 写进 `modelHint`，
+真跑被顶回来：
+
+```
+Cannot use this model: sonnet-4.
+Available models: auto, composer-2.5, cursor-grok-4.5-high, grok-4.7-low, …
+```
+
+所以加了 `listCliModels()`：能问就问（cursor-agent 有 `--list-models`，实测列出 31 个），
+界面上给 datalist 而不是让人猜。问不出来（claude 没这条命令、opencode 的 `models` 子命令自己会崩）
+就老实回空数组 —— **列不出来不是错误，只是没有清单**。
+解析时要剥两种脏东西：ANSI 光标控制符，以及它显示名里真的塞了的零宽字符。
+
+### 65.3 结构：`channel_b.ts` 退役，只留一处实现
+
+原来通道 B 的实现硬编码 `spawn("claude", ...)`。现在抽成 `local_cli.ts`：
+`CLI_SPECS`（五家的能力描述）+ `detectLocalClis()`（扫）+ `runLocalCli()`（起一轮）+ 各家的 `parse`。
+`channel_b.ts` **删掉**，内容全进 `local_cli.ts` —— 留着会分叉，而分叉的那一份迟早说谎。
+
+`verified` 字段是纪律：**只有在这台机器上真跑通过才是 true。** 按文档写出来的适配器一律 false，
+界面上标「没实测过」，出错时在 `fix` 里说清「这个适配器没验过，请把 `UMBRASTUDIO_CHANNEL_B_LOG` 的原始输出发来」。
+一个装得像验过的适配器比没有更糟。
+
+### 65.4 配置放在哪：全局存，项目设置里改
+
+用户说的是「项目的配置中」。实现上分两层：
+
+- **存在全局**（`STATE_ROOT/.umbrastudio/ai_config.json` 的 `channelB`）——
+  CLI 是装在机器上的，登录态也属于机器，不是项目的属性（`11` Q7 的同一条理）。
+- **在 S8 项目设置的面板里改** —— 用户看到的就是那个界面，诉求满足。
+
+写入路由 `POST ai_channel_b` **只放行非密钥字段**（`cli` / `model` / `maxBudgetUsd`）。
+`baseUrl` 与 `apiKey` 不从这条路进也不从这条路出，只在 `ai_config.json` 里手改。
+换 CLI 时把端点清掉 —— 那两个字段只对 Claude Code 有意义，留着会让 `via`
+这个读数说谎（显示 endpoint 而那个 CLI 根本不看它）。
+
+**没有加 MCP 工具 `detect_local_clis`**：每加一件工具都会让每一轮 agent 的 prompt 变大，
+而这件事只有界面需要。HTTP 路由够了。
+
+### 65.5 读数
+
+```
+扫描（detectLocalClis）
+  ✓ claude        2.1.281                 MCP:flag            events  已实测
+  ✓ cursor-agent  2026.09.23-86fc751      MCP:workspace-file  events  已实测
+  · codex         (没装)                  MCP:global-config   events  未实测
+  ✓ gemini        0.1.21                  MCP:global-config   text    未实测
+  ✓ opencode      1.1.36                  MCP:workspace-file  events  未实测
+
+通道 B 走 claude         15.9 s · 4 轮 · ToolSearch → read_file → write_file
+                         usage prompt 8319 / completion 688 · 改对
+通道 B 走 cursor-agent   26.8 s · 3 轮 · read_file → write_file · usage null（它不报）
+                         两处都改对（颜色 + 圆角）· .cursor/mcp.json 只加了 umbrastudio 这一项
+listCliModels            cursor-agent 31 个 · claude / opencode 0 个（没这条命令 / 它自己崩）
+回归                     selftest 零 error · lifecycletest 全通 · filetest 19/19
+                         agenttest 4/4 · rendertest 15/15
+```
+
+**要用户自己做的一步**：`cursor-agent login`（浏览器授权，用他的 Cursor 订阅）。
+这一轮的实测是拿 `CURSOR_API_KEY` 跑的 —— 那把 key 能用，但**按量计费和订阅是两笔账**，
+想用订阅额度就得 login。Codex 本机没装，装了以后那个适配器还需要一次实测才能把 `verified` 翻成 true。

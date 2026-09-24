@@ -96,7 +96,8 @@ function originOk(req: IncomingMessage, port: number): boolean {
 
 export interface ApiCtx { project: Project | null; token: string; port: number }
 /** hub 服务（桌面壳的首页，不属于任何项目）只有这几条路由；其余都要项目上下文 */
-const GLOBAL_ROUTES = new Set(["projects", "open_project", "create_project", "inspect_dir", "reveal_dir"]);
+/* `local_clis` 在这里面：扫这台机器装了什么 CLI 跟打开哪个项目无关，首页也该能扫。 */
+const GLOBAL_ROUTES = new Set(["projects", "open_project", "create_project", "inspect_dir", "reveal_dir", "local_clis", "local_cli_models"]);
 
 /** 作业化会话的中断句柄：jobId → AbortController（作业活在进程里，这张表也是） */
 const chatAborts = new Map<string, AbortController>();
@@ -505,6 +506,60 @@ export async function handleApi(
       json(reply, 200, { ok: true, data: await probeImageSupport(b.channel === "c" ? "c" : "a") });
       return true;
     }
+    /* 这台机器上装了哪些 AI CLI（M2-13）。**只回答「装了没」，不回答「登录了没」** ——
+       判登录得真发一次请求，那要花钱也要花时间，不该塞在一个列清单的接口里。 */
+    if (route === "local_clis" && req.method === "GET") {
+      const { detectLocalClis } = await import("./local_cli.js");
+      const rows = await detectLocalClis();
+      json(reply, 200, { ok: true, data: { clis: rows, installed: rows.filter((r) => r.installed).length } });
+      return true;
+    }
+    /* 改通道 B 用哪个本地 CLI（M2-13）。
+       **只放行非密钥字段**：cli / model / maxBudgetUsd。`baseUrl` 与 `apiKey` 原样保留，
+       不从这条路进也不从这条路出 —— 密钥属于机器，只在 ai_config.json 里手改（`11` Q7）。 */
+    /* 问某个 CLI 有哪些模型可用。可用模型是**按账号**来的，写死在文档里一定过时 ——
+       实测填 `sonnet-4` 被 cursor-agent 顶回来：Available models: auto, composer-2.5, … */
+    if (route === "local_cli_models" && req.method === "GET") {
+      const { listCliModels, CLI_SPECS } = await import("./local_cli.js");
+      const cli = url.searchParams.get("cli") ?? "";
+      if (!CLI_SPECS.some((x) => x.id === cli)) {
+        json(reply, 400, { ok: false, errors: [{ code: "E_BAD_INPUT", message: `不认识的 CLI：${cli}` }] });
+        return true;
+      }
+      const models = await listCliModels(cli as Parameters<typeof listCliModels>[0]);
+      json(reply, 200, { ok: true, data: { cli, models } });
+      return true;
+    }
+    if (route === "ai_channel_b" && req.method === "POST") {
+      const b = await readBody(req) as { cli?: string; model?: string; maxBudgetUsd?: number };
+      const { getAiConfig, setAiConfig } = await import("./ai_config.js");
+      const { CLI_SPECS } = await import("./local_cli.js");
+      const cfg = await getAiConfig();
+      const cur = cfg.channelB ?? { baseUrl: "", apiKey: "", model: "sonnet" };
+      const cli = b.cli ?? cur.cli ?? "claude";
+      const spec = CLI_SPECS.find((x) => x.id === cli);
+      if (!spec) {
+        json(reply, 400, { ok: false, errors: [{ code: "E_BAD_INPUT", message: `不认识的 CLI：${cli}`,
+          fix: `能选的是：${CLI_SPECS.map((x) => x.id).join(" / ")}` }] });
+        return true;
+      }
+      const model = (b.model ?? "").trim() || cur.model || "";
+      if (!model) {
+        json(reply, 400, { ok: false, errors: [{ code: "E_BAD_INPUT", message: "模型名不能空", fix: `${spec.label} 的写法例如：${spec.modelHint}` }] });
+        return true;
+      }
+      /* 换了 CLI 就把端点清掉：那两个字段只对 Claude Code 有意义，留着会让「走的是登录态还是端点」
+         这个判断说谎（`via` 会显示 endpoint 而实际上那个 CLI 根本不看它）。 */
+      const keepEndpoint = cli === "claude";
+      await setAiConfig({ ...cfg, channelB: {
+        cli: spec.id, model,
+        baseUrl: keepEndpoint ? cur.baseUrl : "",
+        apiKey: keepEndpoint ? cur.apiKey : "",
+        maxBudgetUsd: b.maxBudgetUsd ?? cur.maxBudgetUsd,
+      } });
+      json(reply, 200, { ok: true, data: { cli: spec.id, model, label: spec.label, verified: spec.verified, note: spec.note } });
+      return true;
+    }
     if (route === "ai_config" && req.method === "GET") {
       // 只给模型名与「吃不吃图」，**不回显 key**（密钥属于机器，`11` Q7）
       const { getAiConfig, channelSupportsImage, channelBUsesLocalLogin } = await import("./ai_config.js");
@@ -512,7 +567,11 @@ export async function handleApi(
       const one = (c: { model: string; supportsImage?: boolean } | null | undefined) => c ? { model: c.model, supportsImage: channelSupportsImage(c) } : null;
       /* 通道 B 多报一个 via：「本机已登录的 Claude Code」和「别家 Anthropic 兼容端点」
          在界面上得分得清 —— 分不清就会把不是 Anthropic 形状的端点填进来（2026-09-24 真发生过）。 */
-      const b = cfg.channelB ? { ...one(cfg.channelB)!, via: channelBUsesLocalLogin(cfg.channelB) ? "local" as const : "endpoint" as const } : null;
+      const b = cfg.channelB ? {
+        ...one(cfg.channelB)!,
+        via: channelBUsesLocalLogin(cfg.channelB) ? "local" as const : "endpoint" as const,
+        cli: cfg.channelB.cli ?? "claude",
+      } : null;
       json(reply, 200, { ok: true, data: { channelA: one(cfg.channelA), channelB: b, channelC: one(cfg.channelC), defaultChannel: cfg.defaultChannel } });
       return true;
     }

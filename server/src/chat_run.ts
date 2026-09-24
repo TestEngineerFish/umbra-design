@@ -20,7 +20,7 @@ import { getAiConfig, setAiConfig, channelSupportsImage, getChannelA, getChannel
 import { chat, type ToolDef, type ToolCall, type ChatMessage } from "./provider.js";
 import { createChat, loadChat, saveChat, listChats, deleteChat, addMessage, type ChatSession, type ChatEntry } from "./chat.js";
 import { findBrowser, renderCheck } from "./render.js";
-import { channelBRun, type ChannelBConfig } from "./channel_b.js";
+import { runLocalCli, specOf } from "./local_cli.js";
 import {
   changesSince, diffDrafts, listVersions, projectChangesSince, readSnapshot,
   resolveSnapshot, toMarkdown,
@@ -596,13 +596,9 @@ export async function runChatSend(p: Project, a: ChatSendArgs): Promise<Envelope
     }
   } catch { /* 忽略 */ }
 
-  const bCfg = await getChannelB();  // 通道 B 自己的端点（Anthropic 兼容），不和 A 共用（doc/11 Q11）
-  const ccConfig: ChannelBConfig = {
-    baseUrl: bCfg.baseUrl,
-    apiKey: bCfg.apiKey,
-    model: bCfg.model,
-    mcpServerPath: join(TOOL_ROOT, "server", "dist", "index.js"),
-  };
+  const bCfg = await getChannelB();  // 通道 B 自己的配置，不和 A 共用（doc/11 Q11）
+  const bCli = bCfg.cli ?? "claude";
+  const bSpec = specOf(bCli);
 
   /* 通道 B 的系统提示。
      **第一句必须是当前项目的绝对路径** —— 通道 B 的工具跑在独立的 MCP server 进程里，
@@ -630,7 +626,19 @@ export async function runChatSend(p: Project, a: ChatSendArgs): Promise<Envelope
   if (filesContext) bSystemParts.push("", "### 用户选中的文件", filesContext);
   if (rangeContext) bSystemParts.push("", "### 用户选中的一段文字", rangeContext, "", "只改这一段，其余不动。");
 
-  const ccResult = await channelBRun(ccConfig, message, bSystemParts.join("\n"), 240000);
+  const ccResult = await runLocalCli({
+    cli: bCli,
+    model: bCfg.model,
+    mcpServerPath: join(TOOL_ROOT, "server", "dist", "index.js"),
+    cwd: p.dir,
+    prompt: message,
+    systemPrompt: bSystemParts.join("\n"),
+    timeoutMs: 240000,
+    maxBudgetUsd: bCfg.maxBudgetUsd,
+    baseUrl: bCfg.baseUrl,
+    apiKey: bCfg.apiKey,
+    logFile: process.env.UMBRASTUDIO_CHANNEL_B_LOG,
+  });
 
   /* 把结果存入会话。**要拿 addMessage 的返回值覆盖 session** ——
      它写的是盘上的文件，内存里这个 `session` 是请求开始时读的旧对象，
@@ -644,7 +652,16 @@ export async function runChatSend(p: Project, a: ChatSendArgs): Promise<Envelope
     ? { promptTokens: ccResult.usage.inputTokens, completionTokens: ccResult.usage.outputTokens, totalTokens: ccResult.usage.inputTokens + ccResult.usage.outputTokens }
     : null;
 
-  const diagsB = ccResult.error ? [err(X.IO, p.rel, { kind: "key", name: "channel-b" }, ccResult.error)] : [];
+  const diagsB = ccResult.error
+    ? [err(X.IO, p.rel, { kind: "key", name: "channel-b" }, `${bSpec.label}：${ccResult.error}`,
+        bSpec.verified ? undefined : { fix: `这个 CLI 的适配器还没在真机上验过（${bSpec.note}）。要看它到底吐了什么：UMBRASTUDIO_CHANNEL_B_LOG=<文件> 再跑一次` })]
+    : [];
+  /* 为了让 CLI 认得我们的 MCP server，有些 CLI 要在项目里落一个配置文件（cursor 的 .cursor/mcp.json）。
+     **动了用户的项目就要说一声** —— 悄悄写文件是最招人烦的那种「贴心」。 */
+  if (ccResult.wroteFiles.length) {
+    await addMessage(p.dir, session.id, { role: "system",
+      content: `为了让 ${bSpec.label} 认得 Umbra 的工具，在这个项目里写了 ${ccResult.wroteFiles.join("、")}（只加了 umbrastudio 这一项，你原有的其它 MCP server 没动）。` });
+  }
 
   // ── 审计本次 AI 会话对稿件的变更（M2-9，通道 B） ──
   const changesB: Array<{ path: string; from: string; to: string; counts: Record<string, number>; summary: string }> = [];

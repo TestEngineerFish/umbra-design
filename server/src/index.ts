@@ -26,7 +26,6 @@ import { getAiConfig, setAiConfig, getChannelA, getChannelB, type AiConfig } fro
 import { chat, type ToolDef, type ToolCall, type ChatMessage } from "./provider.js";
 import { createChat, loadChat, saveChat, listChats, deleteChat, addMessage, type ChatSession, type ChatEntry } from "./chat.js";
 import { findBrowser, renderCheck } from "./render.js";
-import { channelBRun, type ChannelBConfig } from "./channel_b.js";
 import { runChatSend } from "./chat_run.js";
 import { listComments } from "./comments.js";
 import {

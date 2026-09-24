@@ -45,3 +45,25 @@ export function timeAgo(iso: string | null | undefined): string {
   if (s < 86400 * 30) return `${Math.floor(s / 86400)} 天前`; return new Date(iso).toLocaleDateString();
 }
 export const HEALTH_LABEL: Record<Health, string> = { ok: "通过", warn: "有提醒", error: "有错误", unchecked: "未体检" };
+
+/** 这台机器上一个 AI CLI 的状态（M2-13，服务端 local_cli.ts 的 CliStatus）。
+ *  `verified` 是「在真机上跑通过没有」—— 界面要照实标，别让没验过的看着像验过。 */
+export interface CliStatus {
+  id: "claude" | "cursor-agent" | "codex" | "gemini" | "opencode";
+  label: string;
+  bin: string;
+  installed: boolean;
+  path: string | null;
+  version: string | null;
+  /** MCP 怎么接进去：命令行给（干净）/ 往项目写文件 / 要你自己配全局 */
+  mcpVia: "flag" | "workspace-file" | "global-config";
+  /** events 才看得见工具行，text 只有最后一段话 */
+  output: "events" | "text";
+  reportsUsage: boolean;
+  verified: boolean;
+  modelHint: string;
+  loginHint: string;
+  note: string;
+  /** 有这个才问得出「有哪些模型可用」（cursor-agent 有，claude 没有） */
+  listModelsArgs?: string[];
+}
