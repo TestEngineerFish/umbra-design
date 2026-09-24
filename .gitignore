@@ -50,6 +50,10 @@ pnpm-debug.log*
 #    2026-09-24 就是这么把两把 API key 提进公开仓库的。
 .umbradesign/
 .ud-probe/
+
+# 截图：给我看问题用的，不进仓库
+screenshot/
+screenshots/
 *.log
 
 # 环境与密钥
