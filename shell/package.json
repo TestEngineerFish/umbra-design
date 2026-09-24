@@ -6,7 +6,13 @@
   "main": "main.mjs",
   "scripts": {
     "start": "electron .",
-    "dist": "electron-builder --mac --arm64 --dir"
+    "dist": "electron-builder --mac --arm64",
+    "dist:mac": "electron-builder --mac",
+    "dist:win": "electron-builder --win",
+    "dist:all": "electron-builder --mac --win",
+    "dist:dir": "electron-builder --mac --arm64 --dir",
+    "packtest": "node packtest.mjs",
+    "shelltest": "node shelltest.mjs"
   },
   "devDependencies": {
     "electron": "^44.0.0",
@@ -31,7 +37,15 @@
       },
       {
         "from": "../server/node_modules",
-        "to": "core/server/node_modules"
+        "to": "core/server/node_modules",
+        "filter": [
+          "**/*",
+          "!typescript/**",
+          "!@types/**",
+          "!.bin/**",
+          "!**/*.md",
+          "!**/*.map"
+        ]
       },
       {
         "from": "../server/package.json",
@@ -40,6 +54,13 @@
       {
         "from": "../runtime",
         "to": "core/runtime"
+      },
+      {
+        "from": "../doc",
+        "to": "core/doc",
+        "filter": [
+          "*.md"
+        ]
       },
       {
         "from": "../ui",
@@ -52,33 +73,47 @@
       {
         "from": "../app/dist",
         "to": "core/app/dist"
-      },
-      {
-        "from": "../fixtures",
-        "to": "core/fixtures"
       }
     ],
     "mac": {
       "target": [
         {
-          "target": "dir",
+          "target": "dmg",
           "arch": [
-            "arm64"
+            "arm64",
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64",
+            "x64"
           ]
         }
       ],
       "category": "public.app-category.developer-tools",
-      "identity": null
+      "identity": null,
+      "darkModeSupport": true
     },
     "win": {
       "target": [
-        "dir"
+        {
+          "target": "zip",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
       ]
     },
     "linux": {
       "target": [
         "dir"
       ]
-    }
+    },
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
+    "compression": "normal",
+    "afterPack": "./afterPack.cjs"
   }
 }

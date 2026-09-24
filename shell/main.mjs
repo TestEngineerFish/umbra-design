@@ -15,6 +15,11 @@ const CORE_DIST = join(CORE_ROOT, "server", "dist");
 const IS_MCP = process.argv.includes("--mcp");
 
 app.setName("Umbra Studio");
+/* 可写状态（ai_config / workspace / projects / .archived）不能落在 .app 里：
+   ad-hoc 签名的 app 内容一被改动，下次启动就被 macOS 判「已损坏」（M9-4 实测的第一条缺陷）。
+   核心读 UMBRASTUDIO_STATE_DIR，没设时退回自己的根 —— 开发模式什么都不变。
+   注意 setName 要在前面：getPath("userData") 用 app 名做目录名。 */
+if (app.isPackaged && !process.env.UMBRASTUDIO_STATE_DIR) process.env.UMBRASTUDIO_STATE_DIR = app.getPath("userData");
 if (!app.requestSingleInstanceLock()) { app.quit(); process.exit(0); }
 app.commandLine.appendSwitch("remote-debugging-port", "0");
 for (const f of ["disable-background-networking", "disable-component-update", "disable-sync", "no-first-run", "no-pings"]) app.commandLine.appendSwitch(f);

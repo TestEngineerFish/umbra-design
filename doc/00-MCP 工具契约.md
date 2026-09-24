@@ -3099,3 +3099,105 @@ S2 放在 `outgoing/手动拖入/S2-单稿预览壳.dc.html`，请用户拖进�
 - 回归：`filetest` 19/19 · `selftest` 零 error · `lifecycletest` 全通 · `agenttest` 4/4 · `rendertest` 15/15。
 
 **另记**：DeepSeek（通道 A）在这一轮测试里又用完了（余额 -0.47）。agent 循环每轮 prompt 上万 token，十几轮就把 10 块花掉了。日常走订阅的 C 更合适；A 现在只是降级时的后备，后备本身也空着这件事，得让用户知道。
+
+---
+
+## 六十三、M9-4：三平台打包 —— 一次逼出三条「开发模式下永远测不出来」的缺陷（2026-09-24）
+
+`electron-builder` 的 target 从 `dir` 换成 dmg / zip，出四份产物。**但这一条真正的工作不是加 target，
+是打包版第一次把 `TOOL_ROOT` 的双重身份拆开** —— 开发时它既是只读资产的根也是可写状态的根，
+两者恰好重合，所以下面三条缺陷在 `npm start` 下一条都碰不到。
+
+### 63.1 缺陷一：可写状态写进了 `.app` 内部
+
+`TOOL_ROOT = resolve(server/dist, "..", "..")`。开发时 = 仓库根；打包后 = `Contents/Resources/core`。
+于是 `ai_config.json`（**用户的 API key**）、`workspace.json`（最近打开）、`projects/`、`.archived/`
+全落在 .app 内部。两条硬后果：
+
+1. `identity: null` 打出来的是 ad-hoc 签名，**.app 内容被改动一次，下次启动就被 macOS 判「已损坏」** ——
+   写进去的 key 等于写完就自毁。
+2. 装在 `/Applications` 或 Windows 的 `Program Files` 还要再叠一层写权限问题。
+
+**修法**：`project.ts` 分出 `STATE_ROOT`。只读资产（`runtime/` `ui/` `app/dist` `doc/`）仍看 `TOOL_ROOT`；
+可写状态看 `STATE_ROOT`，它读 `UMBRASTUDIO_STATE_DIR`，没设时退回 `TOOL_ROOT`。
+壳在 `app.isPackaged` 时把它指到 `app.getPath("userData")`。**开发模式一行行为都不变**，这也是为什么
+selftest / lifecycletest / filetest 在改前改后读数完全一样 —— 它们测不到这条，得在产物上测。
+
+### 63.2 缺陷二：`doc/` 没进包，`get_syntax_guide` 必然失败
+
+`chat_run.ts` 的 `get_syntax_guide` 从 `TOOL_ROOT/doc` 读 `03-渲染与交互逻辑.md` 与 `06-写稿规则.md`
+给 AI 看。`extraResources` 里没有 `doc/` —— 打包版里这件工具一调就是「文件不存在」。
+补进 `extraResources`（只带顶层 `*.md`）。
+
+### 63.3 缺陷三：签名不自洽，用户下载后双击是「已损坏」
+
+这条最硬，因为它让产物在别人机器上**根本打不开**，而本机双击却是好的（本机构建的文件没有
+quarantine 属性，走不到 Gatekeeper 那一步）。实测过程：
+
+```
+$ codesign -dv "Umbra Studio.app"
+CodeDirectory flags=0x20002(adhoc,linker-signed)   ← Electron 二进制出厂自带的
+Info.plist=not bound                               ← 不覆盖我们塞进 Resources 的 core/
+
+$ xattr -w com.apple.quarantine "0081;…;Safari;" app && spctl -a -vvv app
+app: code has no resources but signature indicates they must be present
+```
+
+`identity: null` 下 electron-builder 跳过签名，剩下的 linker 签名只签了那个可执行文件。
+签名声称有资源但资源没被签 → 校验直接失败 → 用户看到的是**「已损坏，移到废纸篓」，右键打开也救不回来**。
+
+**修法**：`afterPack.cjs` 补一次完整 ad-hoc 签名（`codesign --force --deep --sign -`），签完自己验一次。
+
+| | 签名校验 | 用户下载后双击 |
+| --- | --- | --- |
+| 修之前 | `code has no resources but signature…` | 「已损坏，移到废纸篓」—— 右键打开也不行 |
+| 修之后 | 自洽 | 「无法验证开发者」—— 右键「打开」或系统设置里放行即可 |
+
+`spctl` 仍然 `rejected`，这是**预期**：ad-hoc 没有 Apple 证书也没公证。要免掉这一步得买开发者证书
+走 `notarytool`，那是 M9-5。**这条写下来是为了下次别有人把它当缺陷再查一遍。**
+
+### 63.4 `packtest.mjs`：跟 shelltest 问的是两个不同的问题
+
+`shelltest` 跑源码，问「壳的逻辑对不对」；`packtest` 跑产物，问「换台机器还能不能用」。
+做法是把 .app **拷到一个跟仓库毫无关系的目录**，配一个全新的 userData，再跑一遍主流程 ——
+若壳或核心还偷偷指着仓库，这里就会露。四关：
+
+1. **结构**（离线）：该在的 12 项都在；不该在的 4 项都不在（`typescript` `@types` `fixtures` `ui/_incoming`）；签名自洽
+2. **换地方真跑**：启动 → 首页 → 打开一个**从没建过索引**的目录 → 体检
+3. **写过一轮之后**：状态落在 userData、`.app` 内部零状态文件、**签名仍然自洽**
+4. **当 MCP server 起**（`--mcp`）：秘书接入那条路，66 件工具 + 一次真调用；单实例锁
+
+两条判据的写法值得记：
+
+- **体检认 `alive` + `browser.from`**。只认 alive 不够 —— 这台机器上恰好装着 Chrome，
+  体检走系统 Chrome 也会 alive。`browser.from === "UMBRASTUDIO_CDP"` 才证明用的是自带 Chromium。
+- **「签名仍然自洽」这条在第一关之前是假判据**。修好补签之前基线就是「不自洽」，
+  跑前跑后都不自洽，量到「一致」等于什么都没量到（`04` §2.7 那个坑的同一形状：
+  分不清「世界是零」还是「仪器是零」）。先把基线校准成「自洽」，第三关才开始说明问题。
+
+这一轮自己也写错过三次判据，都记在脚本注释里：硬编码稿数（67 是 `find` 数的文件，
+57 是 `listDrafts` 过滤掉工具页后的稿，两个定义不同）；`/\d+ 份稿/` 把加载中的「0 份稿」当通过；
+单实例那条忘了先起一个实例（没人持锁时第二个进程就是第一个，不退出才对）。
+
+### 63.5 读数
+
+```
+产物（electron-builder 26 · Electron 44.4.5 · compression normal）
+  mac arm64   dmg 127 MB · zip 134 MB · .app 330 MB
+  mac x64     dmg 129 MB · zip 135 MB · .app 336 MB
+  win x64     zip 152 MB · 解开 413 MB
+  win arm64   zip 153 MB
+瘦身：extraResources 排掉 typescript(23M) / @types / fixtures → .app 353 MB → 330 MB
+
+packtest
+  mac arm64  34/34   启动 1464 ms · 体检 alive · 24 节点 · 1430 ms · browser.from=UMBRASTUDIO_CDP
+  mac x64    34/34   启动 53829 ms · 体检 5709 ms   ← Rosetta 翻译开销，不代表真 Intel 机
+  win x64    17/17   结构关（这台机器跑不了 .exe）
+  win arm64  17/17   结构关
+  MCP：66 件工具 · initialize 711 ms · list_projects 的项目根在 userData
+回归：selftest 零 error · lifecycletest 全通 · filetest 19/19 · agenttest 4/4 · rendertest 15/15
+```
+
+**还没验的**（诚实记下来）：① win 真机第一次跑（M9-6）；② 真 Intel Mac（本机只能靠 Rosetta）；
+③ 一台**没装 Node** 的机器 —— 本机有 Node，这一条本机无论怎么测都测不到，
+不过 `app.isPackaged` 分支下核心只用 Electron 自带的 Node，判据上不需要外部 Node。

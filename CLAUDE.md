@@ -69,7 +69,10 @@ npm --prefix server run ui -- Umbra_design
 S1 稿件索引那一页仍在 `index.dc.html`，只是不再当入口。
 
 桌面壳（Electron，M9-2）：`npm --prefix shell install`（Electron 二进制走 npmmirror，见 `shell/.npmrc`）→ `npm --prefix shell start`。
-壳测试：`node shell/shelltest.mjs`（先把里面的 `<scratchpad>` 换成放测试项目副本的目录）。打包：`npm --prefix shell run dist`。
+壳测试：`node shell/shelltest.mjs`（先把里面的 `<scratchpad>` 换成放测试项目副本的目录）。
+打包：`npm --prefix shell run dist:all` → `shell/out/` 出四份（mac arm64/x64 · win x64/arm64）。
+**打包产物要单独验**：`npm --prefix shell run packtest` —— 它把 .app 拷到仓库外、配一个全新 userData
+再跑一遍，问的是「换台机器还能不能用」。这一类缺陷开发模式下测不出来，M9-4 一次逼出三条（`doc/00` §六十三）。
 
 当 MCP 用（给别的模型客户端）：
 
@@ -83,18 +86,22 @@ claude mcp add umbrastudio -- node <仓库绝对路径>/server/dist/index.js
 
 ## 4. 下一步做什么
 
-转向 Umbra Studio 的依据 `doc/18`，决策 `doc/11` Q18–Q29，条目 `doc/12` M7–M10。**2026-09-24 起顺序以 `doc/12` §〇.2 为准**，
-要点：M7-1 / M9-1 / M7-9 已完成，Q26 定了换 Electron，所以**新前端直接在 Electron 壳里平移，不在 Tauri 上做两遍**：
+转向 Umbra Studio 的依据 `doc/18`，决策 `doc/11` Q18–Q33，条目 `doc/12` M7–M10。**顺序以 `doc/12` §〇.2 为准。**
+**M7 / M8 / M9-1..4 全部完成**（`00` §五十二–§六十三）：新前端 + host adapter + HTTP/WS + 布局引擎、
+旧 vanilla 前端已删、第一批类型（目录 / `.md` / 图片）三件套闭环、Electron 壳 + 自带 Chromium 体检 + 四份打包产物。
 
-1. ~~M7-2 新前端骨架 + M7-3 host adapter + M7-4 核心侧 HTTP / WS~~ ✅（`00` §五十二）
-2. ~~M9-2 Electron 壳~~ ✅（`00` §五十三；Tauri 已删）
-3. ~~M7-5 / M7-6 平移现有能力~~ ✅（`00` §五十五；方式 ② 真调 AI 等 DeepSeek 充值后复跑）
-4. M7-7 布局引擎 → M7-8 旧前端退役 → M8 加类型
+下一步两条，按这个顺序：
 
-每做完一条更新 `doc/12` 的状态与进度表，读数写进 `doc/00`。设计侧第四轮已发（`00` §五十一），交回后走 `incoming`。
+1. **M9-6 win 真机第一次跑** —— 把 `shell/out/Umbra Studio-0.1.0-win-x64.zip` 解到一台 Windows 上走
+   `01` 第 35 条的流程。**需要用户有 Windows 机器**，我这边只验到结构（`00` §63.5）
+2. **M10** 第二批类型 + 秘书接入（`11` Q27 / Q29）。Web 版用户已说不排期
+
+每做完一条更新 `doc/12` 的状态与进度表，读数写进 `doc/00`。设计侧第五轮已收完并入，下一轮尚无交办。
 
 **纪律**：前端只有 `app/` 一份（旧 vanilla 前端已于 M7-8 删除）。
 key 只放 `.umbrastudio/ai_config.json`，**不进仓库、不写进任何文档**。
+核心里**只读资产看 `TOOL_ROOT`，可写状态看 `STATE_ROOT`** —— 打包后前者在 `.app` 里（只读），
+后者在 userData。新加会落盘的东西时想清楚是哪一类，混了在开发模式下测不出来（`00` §63.1）。
 通道：**A** 直连 OpenAI 兼容端点（按量）· **B** Claude Code 子进程 · **C** 火山方舟 Agent Plan 订阅（OpenAI 兼容，`…/api/plan/v1`）。
 默认走 `defaultChannel`；C 遇到额度类错误且这一轮没调过工具时自动退回 A（`11` Q33，`00` §六十二）。
 
@@ -209,7 +216,9 @@ ClaudeDesign 的项目在云端，**只拥有被上传过的东西**。之前只
 | `npm --prefix server run ui -- <项目名>` | 起界面给人用 |
 | `npm --prefix server run outgoing` | 给设计侧打包 ui/（每份稿插 baseline 行），产出 `outgoing/UmbraStudio-ui-<时间>.zip`；**每一轮交办都要随附这个包**（`doc/00` §三十二） |
 | `npm --prefix server run incoming` | 接设计侧交回来的稿（`ui/_incoming/`），先查底稿（正确 / 过时 / 不明），再查合法性与接线标记；加 `-- --apply` 把过关的稿并入 `ui/` |
-| `npm --prefix shell start` / `run dist` | 起 Electron 壳 / 打包（`doc/00` §五十三）；`node shell/shelltest.mjs` 用 Playwright `_electron` 走一遍壳的主流程 |
+| `npm --prefix shell start` / `run dist` | 起 Electron 壳 / 打包 mac arm64（`doc/00` §五十三、§六十三）；`run dist:all` 出四份产物（mac arm64/x64 dmg+zip、win x64/arm64 zip） |
+| `npm --prefix shell run shelltest` | 壳的**源码**测试：Playwright `_electron` 走一遍主流程（先把里面的 `<scratchpad>` 换成放测试项目副本的目录） |
+| `npm --prefix shell run packtest` | 打包**产物**测试：把 .app 拷到仓库外 + 全新 userData 再跑一遍（`doc/00` §63.4）。带参数验别的产物：`node shell/packtest.mjs shell/out/win-unpacked` |
 
 ---
 
@@ -234,11 +243,33 @@ ClaudeDesign 的项目在云端，**只拥有被上传过的东西**。之前只
 
 ---
 
-## 9. 当前状态一句话（2026-09-23）
+## 9. 当前状态一句话（2026-09-24）
 
-**2026-09-24：M7-1 改名已执行（`00` §四十九，仓库 GitHub 侧已是 `umbra-studio`）；M9-1 壳 spike 两条都过（`00` §五十，Q26 回填：换 Electron，下一步 M9-2）；M7-9 第四轮已发给设计侧（`00` §五十一），等它交回；**M7-2 / M7-3 / M7-4 完成**（`00` §五十二：`app/` 骨架、host adapter browser 实现、事件总线 + WS）；**M9-2 / M9-3 完成**（`00` §五十三：Electron 壳 + 自带 Chromium 体检，Tauri 已删；打包产物本机可开，干净机器与三平台是 M9-4）。**M7-5 / M7-6 完成**（`00` §五十五：新前端已有旧前端全部能力，S11 形制；DeepSeek 402 余额不足，AI 回合未真跑）。**M7 全部完成**（`00` §五十七：布局引擎 R1–R5、属性面板搬进 React、旧 vanilla 前端删除；顺带修了两条真缺陷 —— 子目录稿 `@ds` 展开 404、属性面板重复提交）。**M8 进行中**：泛型文件层（第二条写入口，`00` §五十八）、目录视图 / 多选进会话 / 通用文件卡（§五十九）已完成，`.md` 三件套（§六十）与图片（§六十一）也完成 —— **M8 十条全部做完**。
-`01` 第 29 / 30 / 31 / 32 条全部通过。**下一步 M9-4 三平台打包，或 M10（第二批类型 / 秘书接入 / Web 版，`11` Q27 / Q29 —— 用户已定先做 PC，Web 不排期）**。
-⚠️ 一条实测结论：**`deepseek-chat` 能看图**（有图 / 无图对照，`00` §六十一之一）。通道吃不吃图一律用 `probe_image_support` 探，别按模型名猜（`11` Q32）。** **2026-09-23 夜：转向 Umbra Studio 目录工作台。** `01` 整篇重写、`12` 新立 M7–M10 共 31 条（78 / 113）、`11` Q18–Q29 拍板、`08` §三之三 + `14` 第四轮给设计侧的委托已写好。代码一行未动，下一步从 M7-1 改名开始。以下是转向前的状态，仍然有效：
+**2026-09-24 一整天的进展，按批**（每批读数在 `doc/00` 对应章节）：
+
+| 批 | 做了什么 | 章节 |
+| --- | --- | --- |
+| M7-1 | 改名 UmbraDesign → Umbra Studio（格式与协议级标识不改） | §四十九 |
+| M9-1 / M9-2 / M9-3 | 壳 spike → Q26 定 Electron → Electron 壳 + 自带 Chromium 跑体检；Tauri 已删 | §五十、§五十三 |
+| M7-2..M7-8 | `app/` 新前端（Vite+React+TS+Tailwind）、host adapter、事件总线 + WS、平移全部能力、布局引擎 R1–R5、**旧 vanilla 前端删除** | §五十二、§五十五、§五十七 |
+| M7-9 + 设计侧 | 第四轮（S11）与第五轮（S12–S15 + S1/S9）都已收完并入，零 blocking | §五十一、§五十六 |
+| M8-1..M8-10 | 泛型文件层（**第二条写入口** `write_file`）、目录视图、多选进会话、通用文件卡、`.md` 三件套、图片视图 + 圈选给 AI | §五十八–§六十一 |
+| 通道 C | 火山方舟 Agent Plan 订阅，与 A 同形走同一条 agent 循环；额度用完自动退回 A | §六十二 |
+| M9-4 | 三平台打包：mac arm64/x64 dmg+zip、win x64/arm64 zip；**一次逼出三条打包版才会炸的缺陷**（可写状态写进 `.app`、`doc/` 没进包、签名不自洽导致下载后「已损坏」）；新增 `packtest` | §六十三 |
+
+**进度 101 / 114。** 回归读数：`selftest` 零 error · `lifecycletest` 全通 · `filetest` 19/19 ·
+`agenttest` 4/4 · `rendertest` 15/15 · `packtest` mac arm64 34/34 · mac x64 34/34 · win 各 17/17（结构关）。
+`01` 第 29–33 条通过，第 36 条部分达成（win 真机与真 Intel Mac 未验）。
+
+**下一步**：M9-6 win 真机第一次跑（要用户有 Windows 机器），然后 M10（第二批类型 / 秘书接入；Web 版不排期）。
+
+⚠️ **AI 通道的钱**：agent 循环每一步都要重发「工具表 + 系统提示 + 全部历史」，一轮八步就等于把上下文
+发八次 —— 这是 2026-09-24 一天烧掉 10 元 DeepSeek 的原因（46 个 AI 回合 / 73 个模型回复步数）。
+验收类测试一律走**通道 C 订阅**；通道 A 的模型已从 `deepseek-chat`（已下架的旧别名）换成 `deepseek-flash`。
+别拿真 AI 回合当回归 —— `agenttest` 是打桩的，不花钱。
+⚠️ 一条实测结论：**`deepseek-chat` 能看图**（有图 / 无图对照，`00` §六十一之一）。通道吃不吃图一律用 `probe_image_support` 探，别按模型名猜（`11` Q32）。
+
+以下是 2026-09-23 转向当天及之前的状态，仍然有效（转向的依据在 `doc/18`，拍板在 `doc/11` Q18–Q29）：
 
 M0 / M1 已验收；M3 外壳能跑，**应用前端 UI-1..UI-8 已按设计侧裁决落地**；界面十屏全部可渲染、演示态可切，
 S1 索引过期 / S2 版本弹层 / S6 版本对比**接真数据并实测**；**通道 A 已真跑通**，通道 B 等套餐续订。

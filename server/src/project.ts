@@ -15,9 +15,22 @@ import { emit } from "./events.js";
 import { err, ToolError } from "./envelope.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-/** 工具自身的根：server/dist/.. → server/.. → Umbra Studio/ */
+/** 工具自身的根：server/dist/.. → server/.. → Umbra Studio/
+ *  **只读资产**看这里：`runtime/`、`ui/`、`app/dist`、`doc/`。
+ *  打包后它是 `<app>/Contents/Resources/core`，本来就该只读。 */
 export const TOOL_ROOT = resolve(HERE, "..", "..");
 export const RUNTIME_DIR = join(TOOL_ROOT, "runtime");
+
+/** **可写状态**看这里：`ai_config.json`、`workspace.json`、`projects/`、`.archived/`。
+ *
+ *  开发时它等于 `TOOL_ROOT`，一切照旧。打包后必须分开，两条硬理由（M9-4 实测）：
+ *  ① `identity: null` 打出来的是 ad-hoc 签名，**.app 内容被改过一次，下次启动就被 macOS 判「已损坏」** ——
+ *     把用户的 key 写进 .app 等于写完就自毁；② 装在 `/Applications` 或 Windows 的 `Program Files`
+ *     还要再叠一层写权限问题。壳在 `app.isPackaged` 时把这个环境变量指到 `userData`。
+ */
+export const STATE_ROOT = process.env.UMBRASTUDIO_STATE_DIR
+  ? resolve(process.env.UMBRASTUDIO_STATE_DIR)
+  : TOOL_ROOT;
 
 /** 项目 / 工具自己的配置目录名（M7-1 改名，`11` Q28）。旧名 `.umbradesign/` 的项目第一次打开时自动拷成新名，旧目录不删。 */
 export const UD_DIRNAME = ".umbrastudio";
@@ -34,7 +47,7 @@ export async function migrateUdDir(dir: string): Promise<boolean> {
   await cp(oldDir, newDir, { recursive: true });
   return true;
 }
-migrateUdDirSync(TOOL_ROOT);   // 工具自己的 ai_config / workspace / outgoing 记录
+migrateUdDirSync(STATE_ROOT);   // 工具自己的 ai_config / workspace / outgoing 记录
 
 export interface ProjectConfig {
   name: string;
@@ -71,7 +84,7 @@ export function projectsRoot(): string {
   const flag = process.argv.indexOf("--projects-root");
   if (flag >= 0 && process.argv[flag + 1]) return resolve(process.argv[flag + 1] as string);
   if (process.env.UMBRASTUDIO_PROJECTS_ROOT) return resolve(process.env.UMBRASTUDIO_PROJECTS_ROOT);
-  return join(TOOL_ROOT, "projects");
+  return join(STATE_ROOT, "projects");
 }
 
 /** 诊断里的 file 字段：相对项目根的路径，始终用 / 分隔 */
@@ -722,7 +735,7 @@ export async function archiveProject(
   const { mkdir } = await import("node:fs/promises");
   const { existsSync } = await import("node:fs");
 
-  const dest = archiveDir ?? join(TOOL_ROOT, ".archived");
+  const dest = archiveDir ?? join(STATE_ROOT, ".archived");
   await mkdir(dest, { recursive: true });
 
   const destPath = join(dest, basename(p.dir));
