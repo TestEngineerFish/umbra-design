@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { History } from "./History";
 import { SELECTION_ICON, type ChatMessage, type Selection, type ToolCall } from "../api/types";
 import type { ChatStore } from "./useChat";
 import { renderMd, renderMdInline } from "../ui/markdown";
@@ -10,8 +11,16 @@ export function ChatRail({ chat, selections, onDropSelection, onClearSelections,
   /* 状态行要一眼看出**现在谁在干活**。通道 B 光写「通道 B · sonnet」不够 ——
      真正动手的是 Codex 还是 Cursor 得说出来（2026-09-24 用户实测提的）。
      model 可能是空的（留空 = 用那个 CLI 自己的默认），空就不显示，不写「undefined」。 */
+  const [history, setHistory] = useState(false);
+  const [engineMenu, setEngineMenu] = useState(false);
+  /* 顶栏显示的标题：当前这条会话的名字。列表里找得到就用列表的（它带着"用户起的还是我们猜的"），
+     找不到（刚开的新会话还没进列表）就退回一句话。 */
+  const curTitle = chat.sessions.find((x) => x.id === chat.sessionId)?.title || (chat.sessionId ? "这条会话" : "新会话");
   const cap = chat.caps?.[chat.channel];
-  const who = [`通道 ${chat.channel.toUpperCase()}`, chat.channel === "b" ? cap?.cliLabel : null, chat.model || null]
+  /* 状态行格式由设计侧第六轮定：**引擎名 · 模型（有的话）· 计费方式**。
+     不再写「通道 A/B/C」—— 那个词对用户没有任何意义（他脱口而出的是「模式」）。
+     引擎名由服务端给，前端不抄第二份映射表。 */
+  const who = [cap?.engine ?? `通道 ${chat.channel.toUpperCase()}`, chat.model || null, cap?.billing]
     .filter(Boolean).join(" · ");
   const usage = chat.usage
     ? (chat.usage.totalCostUSD != null ? `${who} · $${Number(chat.usage.totalCostUSD).toFixed(3)}` : `${who} · ${(chat.usage.totalTokens ?? 0).toLocaleString()} tokens`)
@@ -20,21 +29,53 @@ export function ChatRail({ chat, selections, onDropSelection, onClearSelections,
     <aside className="relative flex flex-col bg-panel border-border shrink-0 min-h-0" style={{ width }}>
       <Grip onResize={onResize} width={width} side={side} />
       <div className="h-11 px-3 flex items-center gap-2 border-b border-border shrink-0">
-        <div className="min-w-0 flex-1"><div className="text-sm font-semibold leading-4">会话</div><div className="text-[11px] text-muted truncate">{chat.sessionId ? `${chat.sessionId.slice(0, 8)} · ${chat.messages.filter((m) => m.role === "user").length} 条` : "新会话"}</div></div>
-        <div className="seg" title={chat.model ? `当前：${chat.model}` : undefined}>
-          {(["a", "b", "c"] as const).map((c) => (
-            <button key={c} className={chat.channel === c ? "on" : ""} onClick={() => chat.pickChannel(c)}
-              title={c === "a" ? "通道 A：直连 OpenAI 兼容端点（按量计费）"
-                : c === "b" ? (chat.caps?.b?.via === "local"
-                    ? `通道 B：本机已登录的 Claude Code（${chat.caps.b.model}）—— 用你自己的订阅，不额外花钱，但和你自己的 Claude Code 会话共用同一份窗口配额`
-                    : "通道 B：Claude Code 子进程，指向你自己配的 Anthropic 兼容端点")
-                : "通道 C：订阅额度那条（优先用它，额度用完自动退回 A）"}>{c.toUpperCase()}</button>
-          ))}
+        {/* 入口就是标题（后面一个 ▾）—— 不另加「历史」按钮：顶栏已经有返回、新会话、引擎三样了 */}
+        <button className="min-w-0 flex-1 text-left group" onClick={() => setHistory((h) => !h)} title={history ? "回到这条会话" : "看历史会话"}>
+          <div className="text-sm font-semibold leading-4 flex items-center gap-1">
+            {history ? <><span className="text-[11px]">‹</span>历史会话</> : <>
+              <span className="truncate">{curTitle}</span>
+              <span className="text-[10px] text-muted group-hover:text-accent shrink-0">▾</span>
+            </>}
+          </div>
+          <div className="text-[11px] text-muted truncate">
+            {history ? `${chat.sessions.length} 条` : (chat.sessionId ? `${who} · ${chat.messages.filter((m) => m.role === "user").length} 条` : "新会话")}
+          </div>
+        </button>
+        {/* 引擎选择器。
+            **不能三个平铺** —— 换成引擎名之后「DeepSeek / Claude Code / 火山方舟」加起来
+            远超 380px 的会话栏，实测会把左边的标题挤成竖排一列（2026-09-24 截图抓到）。
+            所以收成一个下拉：平时只显示当前引擎，点开按**谁在付钱**分组（设计侧第六轮 6.4 的分法）。
+            ⚠️ 分组选择器的形制设计侧这一轮没画，这里是从简的临时实现，等它定稿再调。 */}
+        <div className="relative shrink-0">
+          <button data-ud="engine" className="btn sm ghost max-w-[130px] flex items-center gap-1" onClick={() => setEngineMenu((v) => !v)}
+            title={cap?.billing ? `${cap.engine} · ${cap.billing}` : "选引擎"}>
+            <span className="truncate">{cap?.engine ?? chat.channel.toUpperCase()}</span>
+            <span className="text-[9px] text-muted shrink-0">▾</span>
+          </button>
+          {engineMenu && (
+            <div className="absolute right-0 top-8 z-30 w-[220px] bg-panel border border-border rounded-lg shadow-2xl overflow-hidden text-xs">
+              {(["b", "a", "c"] as const).map((c) => {
+                const k = chat.caps?.[c];
+                if (!k) return null;
+                return (
+                  <button key={c} className={`w-full text-left px-3 py-2 hover:bg-hover flex flex-col gap-0.5 ${chat.channel === c ? "bg-accentSoft" : ""}`}
+                    onClick={() => { chat.pickChannel(c); setEngineMenu(false); }}>
+                    <span className="flex items-center gap-1.5">
+                      <span className={`font-semibold ${chat.channel === c ? "text-accent" : ""}`}>{k.engine ?? c.toUpperCase()}</span>
+                      {k.model && <span className="text-muted font-mono text-[11px] truncate">{k.model}</span>}
+                    </span>
+                    <span className="text-[11px] text-muted">{k.group ?? ""}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
         <button className="ib" onClick={chat.newSession} title="新会话">＋</button>
         <button className="ib" onClick={onSwapSide} title="换边">⇄</button>
         <button className="ib" onClick={onCollapse} title="收成输入条">—</button>
       </div>
+      {history ? <History chat={chat} onClose={() => setHistory(false)} /> : <>
       <div ref={body} className="flex-1 min-h-0 overflow-auto px-3 py-3 flex flex-col gap-3">
         {chat.messages.length === 0 && chat.notes.length === 0 && !chat.running && (
           <div className="m-auto text-center text-xs text-muted leading-relaxed px-4"><b className="text-text">直接说要改什么</b><br />比如「把这个按钮改成 danger 态」。<br />AI 走唯一写入口落盘，改动可审、可回退。{contextLabel ? "" : <><br />先选一个文件，AI 会优先看它。</>}</div>
@@ -46,6 +87,8 @@ export function ChatRail({ chat, selections, onDropSelection, onClearSelections,
         {chat.running && <div className="flex gap-2"><span className="mt-1 w-2 h-2 rounded-full border border-accent border-r-transparent animate-spin shrink-0" /><span className="text-xs text-muted">正在读稿、调工具、落盘…</span></div>}
       </div>
       {selections.length > 0 && <Pills selections={selections} onDrop={onDropSelection} onClear={onClearSelections} />}
+      </>}
+      {/* 输入区在历史模式下也留着 —— 打字就等于「在当前这条会话里继续说」，不必先退出历史 */}
       <div className="px-3 pb-2 flex gap-2 items-end shrink-0">
         <textarea id="chatInput" rows={2} value={chat.input} onChange={(e) => chat.setInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void chat.send(); } if (e.key === "Escape" && chat.running) void chat.interrupt(); }}
           placeholder={selections.length ? "对选中的说…（「这里字号大一点」）" : contextLabel ? (/^[\u4e00-\u9fa5]/.test(contextLabel) ? `对${contextLabel}说…` : `对 ${contextLabel} 说…`) : "输入消息… ⏎ 发送"} className="flex-1 min-h-[40px] max-h-40 px-3 py-2 rounded border border-border bg-bg text-xs outline-none focus:border-accent resize-y" />

@@ -2,7 +2,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Core } from "../api/client";
 import type { ChatMessage, ChatNote, ChatSessionRow, ChatUsage, Selection } from "../api/types";
 
-interface Cap { model: string; supportsImage: boolean; via?: "local" | "endpoint"; cli?: string; cliLabel?: string }
+interface Cap {
+  model: string; supportsImage: boolean; via?: "local" | "endpoint"; cli?: string; cliLabel?: string;
+  /** 界面上叫什么（服务端给，前端不另抄一份映射）：DeepSeek / Claude Code / 火山方舟 */
+  engine?: string;
+  /** 谁在付钱 */
+  billing?: "本机订阅" | "按量" | "订阅端点";
+  group?: string;
+}
 import { mem } from "../layout/layout";
 import { pickChannel as pickChannelShared } from "./channel";
 import { toast } from "../ui/Toast";
@@ -24,16 +31,32 @@ export function useChat(core: Core, dir: string, ctx: { selectedDraft: string | 
   const job = useRef<string | null>(null);
   const ctxRef = useRef(ctx); ctxRef.current = ctx;
 
+  /** 拉会话列表（历史面板与顶栏都用它） */
+  const reloadSessions = useCallback(async () => {
+    const r = await core.get<{ sessions: ChatSessionRow[] }>("chat_list").catch(() => null);
+    const list = r?.data?.sessions ?? [];
+    setSessions(list);
+    return list;
+  }, [core]);
+
+  /** 切到某一条历史会话 */
+  const openSession = useCallback(async (id: string) => {
+    const g = await core.get<{ id: string; messages: ChatMessage[]; channel?: "a" | "b" | "c" }>("chat_get?session=" + encodeURIComponent(id)).catch(() => null);
+    if (!g?.data) { toast("这条会话打不开", undefined, "error"); return; }
+    setSessionId(g.data.id); setMessages(g.data.messages ?? []); setNotes([]); setUsage(null);
+    if (g.data.channel) setChannel(g.data.channel);
+  }, [core]);
+
   const load = useCallback(async () => {
     setSessionId(null); setMessages([]); setNotes([]); setUsage(null);
-    const r = await core.get<{ sessions: ChatSessionRow[] }>("chat_list").catch(() => null);
-    const list = r?.data?.sessions ?? []; setSessions(list);
+    const list = await reloadSessions();
+    /* 进项目自动接上**最近说过话的那条**。列表里已经滤掉了空会话（后端做的），
+       所以这里接到的一定是有内容的。 */
     if (list.length) {
       const latest = list.slice().sort((a, b) => (b.updatedAt ?? "").localeCompare(a.updatedAt ?? ""))[0]!;
-      const g = await core.get<{ id: string; messages: ChatMessage[]; channel?: "a" | "b" | "c" }>("chat_get?session=" + encodeURIComponent(latest.id)).catch(() => null);
-      if (g?.data) { setSessionId(g.data.id); setMessages(g.data.messages ?? []); if (g.data.channel) setChannel(g.data.channel); }
+      await openSession(latest.id);
     }
-  }, [core]);
+  }, [reloadSessions, openSession]);
   useEffect(() => { void load(); }, [load, dir]);
   const reloadCaps = useCallback(async () => {
     const r = await core.get<{ channelA?: Cap | null; channelB?: Cap | null; channelC?: Cap | null; defaultChannel?: "a" | "b" | "c" }>("ai_config").catch(() => null);
@@ -47,6 +70,26 @@ export function useChat(core: Core, dir: string, ctx: { selectedDraft: string | 
     }
   }, [core]);
   useEffect(() => { void reloadCaps(); }, [reloadCaps]);
+
+  const renameSession = useCallback(async (id: string, title: string) => {
+    const r = await core.post<{ title: string; titled: boolean }>("chat_rename", { session: id, title });
+    if (!r.ok) { toast("改名没成", r.errors?.[0]?.message, "error"); return; }
+    await reloadSessions();
+  }, [core, reloadSessions]);
+
+  /** 删一条会话。**真删** —— 界面上的「已删除 · 撤销」由调用方自己维持一小段时间，
+   *  离开列表时才调到这里（设计侧第六轮：删除不弹确认框，行塌成一行可撤销）。 */
+  const deleteSession = useCallback(async (id: string) => {
+    const r = await core.post("chat_delete", { session: id });
+    if (!r.ok) { toast("删不掉", r.errors?.[0]?.message, "error"); return; }
+    const list = await reloadSessions();
+    if (id === sessionId) {
+      // 删掉的正是当前这条：接上剩下里最近的，没有就变成新会话
+      const next = list.slice().sort((a, b) => (b.updatedAt ?? "").localeCompare(a.updatedAt ?? ""))[0];
+      if (next) await openSession(next.id);
+      else { setSessionId(null); setMessages([]); setNotes([]); setUsage(null); }
+    }
+  }, [core, reloadSessions, openSession, sessionId]);
 
   const newSession = useCallback(() => { setSessionId(null); setMessages([]); setNotes([]); setUsage(null); }, []);
   const pickChannel = useCallback((c: "a" | "b" | "c") => { setChannel(c); pickChannelShared(c); }, []);
@@ -123,6 +166,7 @@ export function useChat(core: Core, dir: string, ctx: { selectedDraft: string | 
   }, [core, notes]);
 
   return { channel, pickChannel, sessions, sessionId, messages, notes, usage, running, input, setInput, send, interrupt, revert, newSession, reload: load,
+    openSession, renameSession, deleteSession, reloadSessions,
     model: caps[channel]?.model ?? "", supportsImage: caps[channel]?.supportsImage ?? false, caps, reloadCaps };
 }
 export type ChatStore = ReturnType<typeof useChat>;

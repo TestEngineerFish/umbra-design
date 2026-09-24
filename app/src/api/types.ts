@@ -29,7 +29,15 @@ export interface ShellState { selectOn: boolean; preset: number; zoom: number; d
 
 export interface ToolCall { id: string; function?: { name?: string; arguments?: string } }
 export interface ChatMessage { role: "user" | "assistant" | "tool" | "system"; content: string; timestamp?: string; toolCalls?: ToolCall[]; toolCallId?: string; toolName?: string }
-export interface ChatSessionRow { id: string; title?: string; updatedAt?: string; channel?: string }
+export interface ChatSessionRow {
+  id: string; updatedAt?: string; channel?: string; model?: string; msgCount?: number;
+  /** 能看的名字：用户起的，或首条用户消息截出来的（服务端算好） */
+  title: string;
+  /** true = 用户起的；false = 我们猜的（界面可以显示得淡一点） */
+  titled?: boolean;
+  /** channel b 下具体哪个本机 CLI */
+  tool?: string;
+}
 export interface ChatNote { kind: "change" | "err"; idx: number; path?: string; from?: string; to?: string; summary?: string; reverted?: boolean; text?: string }
 export interface ChatUsage { totalTokens?: number; totalCostUSD?: number }
 

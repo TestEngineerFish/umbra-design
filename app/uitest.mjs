@@ -65,6 +65,41 @@ ok(await tree.count() > 0, "⌘B 展开回来");
    只剩一个展开的三角、底下空空如也，是 2026-09-24 真出过的缺陷。 */
 ok(await rowsNow() >= nExpanded, "⌘B 往返后，之前展开的子目录内容还在", `${await rowsNow()} 行（收起前 ${nExpanded} 行）`);
 
+console.log("\n会话历史与引擎名（M8-11 下 / M8-13 · 设计侧第六轮 6.3 / 6.4）");
+/* 引擎名：钮上和状态行都不该再出现「通道 A/B/C」 */
+const railText = await pg.locator("aside").first().innerText();
+ok(!/通道\s*[ABC]\b/.test(railText), "会话栏里没有「通道 A/B/C」字样了");
+ok(/DeepSeek|Claude Code|火山方舟|Codex|Cursor/.test(railText), "显示的是引擎名", (railText.match(/DeepSeek|Claude Code|火山方舟|Codex|Cursor/g) ?? []).slice(0,3).join(" / "));
+/* 标题不能被引擎选择器挤掉 —— 三个引擎名平铺时它被压成了竖排一列（真出过） */
+const titleBox = await pg.locator('aside button[title="看历史会话"]').first().boundingBox();
+ok((titleBox?.width ?? 0) > 120, "顶栏标题没被挤扁", `标题宽 ${Math.round(titleBox?.width ?? 0)} px`);
+/* 引擎下拉：点开能看到按计费方式分的三组 */
+/* 用 data-ud 精确定位。**别用文字匹配** —— 状态行里也有引擎名，
+   按文字找会先命中标题按钮，点下去进的是历史模式，而后面的分组判据会被
+   会话行里的「本机工具」蒙对（2026-09-24 真出过这个假阳性）。 */
+const engBtn = pg.locator('aside button[data-ud="engine"]').first();
+if (await engBtn.count()) {
+  await engBtn.click(); await pg.waitForTimeout(500);
+  const menu = await pg.locator("aside").first().innerText();
+  const groups = menu.match(/本机 · 用你已有的订阅|API · 按量计费|订阅端点/g) ?? [];
+  ok(groups.length >= 2, "引擎下拉按计费方式分组", groups.join(" / ") || "（一个组名都没匹配到）");
+  await engBtn.click(); await pg.waitForTimeout(300);   // 关掉下拉，别挡住后面的点击
+} else ok(false, "没找到引擎选择器");
+
+/* 历史入口：点顶栏标题整栏换成列表 */
+/* 用 title 属性定位，别用 ▾ —— 进了历史之后标题变成「‹ 历史会话」，那个箭头就没了 */
+const title = pg.locator('aside button[title="看历史会话"]').first();
+if (await title.count()) {
+  await title.click(); await pg.waitForTimeout(900);
+  const t2 = await pg.locator("aside").first().innerText();
+  ok(/历史会话/.test(t2), "点标题后整栏换成历史列表");
+  ok(/今天|昨天|本周|更早|还没有会话/.test(t2), "历史按日期分组", (t2.match(/今天|昨天|本周|更早/g) ?? []).join(" "));
+  // 输入区在历史模式下仍然在（打字 = 在当前会话继续说）
+  ok(await pg.locator("#chatInput").count() > 0, "历史模式下输入框仍在");
+  await pg.locator('aside button[title="回到这条会话"]').first().click(); await pg.waitForTimeout(700);
+  ok(!/历史会话/.test(await pg.locator("aside").first().innerText()), "再点标题回到会话");
+} else ok(false, "没找到顶栏的标题入口（▾）");
+
 console.log("\n控制台");
 ok(errs.length === 0, "零 error（已排除解析期的模板洞噪声）", errs[0] ?? "");
 

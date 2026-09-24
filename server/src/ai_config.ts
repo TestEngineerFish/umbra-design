@@ -121,3 +121,41 @@ export async function getOpenAiChannel(ch: "a" | "c"): Promise<ChannelAConfig> {
 export function looksLikeQuotaProblem(error: string): boolean {
   return /(quota|exceed|insufficient|balance|欠费|余额|额度|用完|超出|限流|rate.?limit|too many requests|\b429\b|\b402\b)/i.test(error);
 }
+
+/* ── 「引擎」的显示名与计费方式（M8-13，设计侧第六轮 6.4） ──
+ *
+ * 用户原话：「只显示了选择的通道（**这里应该是模式**）」—— 说明「通道 A/B/C」这个词
+ * 没向他传达任何东西。设计侧定了叫**「引擎」**（指「这一轮由谁来干活」），
+ * 理由是它同时涵盖工具（Claude Code / Codex）和模型（DeepSeek），而「模型」「工具」
+ * 都只能涵盖一边；**不用「模式」是因为 Claude Code 和 Codex 自己就有 plan/ask/auto，会撞车**。
+ *
+ * 显示名一律由服务端给，前端不再抄一份 id→名字 的表 —— 抄第二份迟早对不上。
+ */
+
+/** 从端点地址认出是谁家。认不出就退回模型名，再不行才说「自定义端点」。 */
+function vendorOf(baseUrl: string, model: string): string {
+  const u = (baseUrl || "").toLowerCase();
+  if (u.includes("deepseek")) return "DeepSeek";
+  if (u.includes("bigmodel") || u.includes("zhipu")) return "智谱";
+  if (u.includes("volces") || u.includes("ark")) return "火山方舟";
+  if (u.includes("moonshot")) return "Moonshot";
+  if (u.includes("dashscope") || u.includes("aliyun")) return "通义";
+  if (u.includes("openai")) return "OpenAI";
+  if (u.includes("anthropic")) return "Anthropic";
+  return model.split(/[-/]/)[0] || "自定义端点";
+}
+
+export interface EngineView {
+  /** 界面上显示的引擎名：DeepSeek / Claude Code / 火山方舟 … */
+  engine: string;
+  /** 谁在付钱 —— 设计侧按这个把选择器分三组 */
+  billing: "本机订阅" | "按量" | "订阅端点";
+  /** 分组标题（选择器用） */
+  group: "本机 · 用你已有的订阅" | "API · 按量计费" | "订阅端点";
+}
+
+export function engineView(cfg: AiConfig, ch: "a" | "b" | "c", cliLabel?: string): EngineView {
+  if (ch === "b") return { engine: cliLabel || "本机 CLI", billing: "本机订阅", group: "本机 · 用你已有的订阅" };
+  if (ch === "c") return { engine: vendorOf(cfg.channelC?.baseUrl ?? "", cfg.channelC?.model ?? ""), billing: "订阅端点", group: "订阅端点" };
+  return { engine: vendorOf(cfg.channelA?.baseUrl ?? "", cfg.channelA?.model ?? ""), billing: "按量", group: "API · 按量计费" };
+}
