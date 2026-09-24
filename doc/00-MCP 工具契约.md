@@ -3404,3 +3404,57 @@ listCliModels            cursor-agent 31 个 · claude / opencode 0 个（没这
 **要用户自己做的一步**：`cursor-agent login`（浏览器授权，用他的 Cursor 订阅）。
 这一轮的实测是拿 `CURSOR_API_KEY` 跑的 —— 那把 key 能用，但**按量计费和订阅是两笔账**，
 想用订阅额度就得 login。Codex 本机没装，装了以后那个适配器还需要一次实测才能把 `verified` 翻成 true。
+
+### 65.6 补测：Codex CLI 与 Cursor 登录态（2026-09-24 晚）
+
+用户 `cursor-agent login` 与 `codex login` 都做完了，两条都补测。
+
+**Codex 原来标的三件事全错了，实测全部翻过来**：
+
+| 原来按文档写的 | 实测 |
+| --- | --- |
+| `mcpVia: global-config`（要用户自己 `codex mcp add`） | **`flag`** —— `-c` 能临时注入，不碰用户的 `~/.codex/config.toml` |
+| `reportsUsage: false` | **true** —— `turn.completed` 带 `input_tokens` / `cached_input_tokens` / `output_tokens` / `reasoning_output_tokens` |
+| `verified: false` | **true** |
+
+它的事件流是五家里最干净的：`item.completed` 里 `item.type === "mcp_tool_call"`，
+带 `server` / `tool` / `arguments` / `result` / `error`，不用像 cursor 那样从两层嵌套里掏。
+
+**三个参数是实测挣出来的，每个都有反例：**
+
+1. **MCP 注入必须写成分开的 dotted path。**
+   `-c mcp_servers.x.command="node" -c 'mcp_servers.x.args=["..."]'` 有效；
+   `-c 'mcp_servers.x={command="node",args=[...]}'` 这种 inline table **被静默忽略** ——
+   跑起来一切正常，只是那台 server 根本不在，模型回一句「没有可用的 umbrastudio 工具」。
+   `codex -c ... mcp list` 能在跑之前验证覆盖进没进去，这是个好探针。
+2. **`--approve-for-me`，不是 `-c approval_policy=never`。**
+   后者是「从不批准」而**不是**「无需询问」—— MCP 调用直接不可用。实测那一轮它绕去用
+   shell 命令翻文件，最后报「当前环境未授权使用 Umbrastudio」。
+   也**不需要** `--dangerously-bypass-approvals-and-sandbox`：我们的写入走 MCP server
+   那个独立进程，不受 codex 沙箱约束，没必要为了改稿去关掉它的沙箱。
+3. **`--ignore-user-config`。** 不加的话它把用户全局的 MCP server 一起拉进来 ——
+   实测拉进了 ChatGPT app 那几台，工具表白白大 **3 万 token**（input 163045 → 130098），
+   而且**它会用错工具**：那一轮它拿别人的 `js` 工具去改文件。登录态不受影响（auth 走 `CODEX_HOME`）。
+
+**顺带一条界面缺陷**（真开浏览器才看出来的，纪律⑤）：`local_clis` 加进了 `GLOBAL_ROUTES`，
+但 `ai_config` / `ai_channel_b` 漏了。首页打开设置用的是 hub 句柄，hub 不属于任何项目 ——
+于是 CLI 列表出得来、**当前配置读不到**：模型框空着、选中项退回默认值，看着像「没配过」。
+四条一起补进全局路由（这几件事本来就跟打开哪个项目无关）。
+
+**另外**：模型名现在允许留空 = 用这个 CLI 自己的默认。硬要用户填反而容易填错
+（`sonnet-4` 被 cursor 顶回来那次就是）。
+
+**读数**
+
+```
+通道 B 走 codex（端到端）      33.4 s · read_file → write_file · usage prompt 7662 / completion 381 · 两处都改对
+通道 B 走 cursor-agent（登录态，不给 API key）
+                              29.1 s · read_file → write_file · usage null · 两处都改对 · 快照 s1→s2
+界面（真开浏览器）             五家都列出来 · 三绿「已实测」两黄「没实测过」· 能力标签与实测一致
+                              切到 Cursor → placeholder 变它的写法 → 「列一下」→ 31 个模型进 datalist
+回归                          selftest 零 error · lifecycletest 全通 · filetest 19/19
+                              agenttest 4/4 · rendertest 15/15
+```
+
+**还没验的**：Gemini 与 opencode（用户说先不动，够用了）。它们的 `verified` 仍是 false，界面照实标。
+

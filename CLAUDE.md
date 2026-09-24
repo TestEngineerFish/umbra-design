@@ -106,10 +106,11 @@ key 只放 `.umbrastudio/ai_config.json`，**不进仓库、不写进任何文�
 默认走 `defaultChannel`；C 遇到额度类错误且这一轮没调过工具时自动退回 A（`11` Q33，`00` §六十二）。
 **通道 B = 本地 CLI 这一类**（`11` Q34 / Q35，`00` §六十四、§六十五）：`channelB.cli` 选哪个，
 缺省 `claude`。这些 CLI 走**登录态**而不是 API key —— 用户已经在付的订阅能直接用上。
-实测跑通的只有 `claude` 与 `cursor-agent`；`codex` / `gemini` / `opencode` 按文档写、标 `verified:false`，
+实测跑通的是 `claude` / `cursor-agent` / `codex` 三家；`gemini` / `opencode` 按文档写、标 `verified:false`，
 **别把没验过的说成验过了**。`cli: "claude"` 且 `baseUrl`/`apiKey` 都填了才是走自配的 Anthropic 端点。
 能力不齐要照实说：gemini 只有纯文本（看不到工具行）、cursor-agent 不报用量、
 cursor / opencode 要往项目里落一个 MCP 配置文件（**写的时候必须合并，别覆盖用户已有的 server**）。
+**按文档写的适配器字段一律当没验过** —— codex 那三个字段实测全是错的（`00` §65.6）。
 调不通时先 `UMBRASTUDIO_CHANNEL_B_LOG=<文件>` 把原始事件流落盘再看 —— 这类通道是黑盒，猜不出来。
 
 ---
@@ -264,7 +265,7 @@ ClaudeDesign 的项目在云端，**只拥有被上传过的东西**。之前只
 | 通道 C | 火山方舟 Agent Plan 订阅，与 A 同形走同一条 agent 循环；额度用完自动退回 A | §六十二 |
 | M9-4 | 三平台打包：mac arm64/x64 dmg+zip、win x64/arm64 zip；**一次逼出三条打包版才会炸的缺陷**（可写状态写进 `.app`、`doc/` 没进包、签名不自洽导致下载后「已损坏」）；新增 `packtest` | §六十三 |
 | 通道 B | 用本机已登录的 Claude Code 打通（用户的 Cursor Pro **接不进来**：Cloud Agent API 没有 chat/completions 也没有 messages，实测都 404）。顺带修五条，其中「硬编码工具名单过时」和通道 A 是同一个病 | §六十四 |
-| M2-13 | 通道 B 抽成**本地 CLI 这一类**：扫环境、选 CLI、问可用模型。claude 与 cursor-agent 实测跑通 —— 这修正了上一条的一半：**Cursor 的 API 接不进来，CLI 完全可以** | §六十五 |
+| M2-13 | 通道 B 抽成**本地 CLI 这一类**：扫环境、选 CLI、问可用模型。claude / cursor-agent / codex 三家实测跑通 —— 这修正了上一条的一半：**Cursor 的 API 接不进来，CLI 完全可以** | §六十五 |
 
 **进度 103 / 115。** 回归读数：`selftest` 零 error · `lifecycletest` 全通 · `filetest` 19/19 ·
 `agenttest` 4/4 · `rendertest` 15/15 · `packtest` mac arm64 34/34 · mac x64 34/34 · win 各 17/17（结构关）。

@@ -91,7 +91,7 @@ export const CLI_SPECS: readonly CliSpec[] = [
     verified: true,
     listModelsArgs: ["--list-models"],
     modelHint: "auto / composer-2.5（按账号，点「列一下」看真实清单）",
-    loginHint: "终端跑 cursor-agent login（浏览器授权，用你的 Cursor 订阅）；或设 CURSOR_API_KEY",
+    loginHint: "终端跑 cursor-agent login（浏览器授权，用你的 Cursor 订阅）；已登录就直接能用",
     note: "MCP 要在项目里放 .cursor/mcp.json —— 我们会写这一个键，你原有的别的 server 不动。不报 token 用量。",
   },
   {
@@ -99,13 +99,14 @@ export const CLI_SPECS: readonly CliSpec[] = [
     label: "Codex CLI",
     bin: "codex",
     versionArgs: ["--version"],
-    mcpVia: "global-config",
+    // `-c mcp_servers.<名>.<键>=<值>` 能临时注入，不碰你的 ~/.codex/config.toml（实测，§65.6）
+    mcpVia: "flag",
     output: "events",
-    reportsUsage: false,
-    verified: false,
-    modelHint: "gpt-5-codex / o4-mini",
+    reportsUsage: true,
+    verified: true,
+    modelHint: "留空用它自己的默认；或填 gpt-5-codex 这类",
     loginHint: "终端跑 codex login（ChatGPT 账号授权，用你的订阅）",
-    note: "【没实测】按文档：codex exec --json --cd <目录>。MCP 要先 codex mcp add 写进 ~/.codex/config.toml，我们不替你改全局配置 —— 你自己加一次即可。",
+    note: "事件流最干净（mcp_tool_call 带 server/tool/arguments/result）。跑的时候不加载你的全局配置 —— 只有 Umbra 这一台 MCP，省下三万 token 的无关工具表。",
   },
   {
     id: "gemini",
@@ -281,7 +282,7 @@ async function build(o: CliRunOptions): Promise<Built> {
           "--print",
           // stream-json 才有 tool_use 事件；json 只吐一个最终对象（`00` §64.3 第 3 条）
           "--output-format", "stream-json", "--verbose",
-          "--model", o.model,
+          ...(o.model.trim() ? ["--model", o.model.trim()] : []),
           "--system-prompt", o.systemPrompt,
           // 只用我们这一台 MCP server：不加的话会继承用户整套环境（实测 54 台）
           "--strict-mcp-config",
@@ -303,7 +304,7 @@ async function build(o: CliRunOptions): Promise<Built> {
         args: [
           "--print",
           "--output-format", "stream-json",
-          "--model", o.model,
+          ...(o.model.trim() ? ["--model", o.model.trim()] : []),
           // headless 下必须自动批准，否则等一个永远不会来的确认
           "--approve-mcps", "--force",
           "--workspace", o.cwd,
@@ -313,17 +314,30 @@ async function build(o: CliRunOptions): Promise<Built> {
       };
     }
     case "codex": {
-      return {
-        wroteFiles: [],
-        env: cleanEnv,
-        args: [
-          "exec", "--json",
-          "--cd", o.cwd,
-          "--model", o.model,
-          "--ask-for-approval", "never",
-          `${o.systemPrompt}\n\n---\n\n${o.prompt}`,
-        ],
-      };
+      /* 三个参数都是实测挣出来的（§65.6）：
+         - `--ignore-user-config`：不加载用户的 ~/.codex/config.toml。不加的话它会把用户全局的
+           MCP server 一起拉进来（实测拉进了 ChatGPT app 那几台），工具表白白大三万 token，
+           而且**它会用错工具** —— 那次它拿别人的 `js` 工具去改文件，最后报「未授权使用 Umbrastudio」。
+           登录态不受影响（auth 走 CODEX_HOME，不在这份 config 里）。
+         - `--approve-for-me`：自动审批 + workspace-write 沙箱。
+           **别用 `-c approval_policy=never`** —— 那是「从不批准」不是「无需询问」，
+           MCP 调用会直接不可用（这个语义陷阱实测踩过）。
+           也不需要 `--dangerously-bypass-approvals-and-sandbox`：我们的写入走 MCP server
+           那个独立进程，不受 codex 沙箱约束，所以没必要为了改稿去关掉它的沙箱。
+         - MCP 注入必须写成**分开的 dotted path**。`-c 'mcp_servers.x={command=...}'`
+           这种 inline table 形式会被**静默忽略**，跑起来像通了其实没有那台 server。 */
+      const args = [
+        "exec", "--json",
+        "--skip-git-repo-check",   // 用户的项目目录未必是 git 仓库
+        "--ignore-user-config",
+        "--approve-for-me",
+        "-C", o.cwd,
+        "-c", `mcp_servers.${MCP_NAME}.command="node"`,
+        "-c", `mcp_servers.${MCP_NAME}.args=${JSON.stringify([o.mcpServerPath])}`,
+      ];
+      if (o.model.trim()) args.push("--model", o.model.trim());
+      args.push(`${o.systemPrompt}\n\n---\n\n${o.prompt}`);
+      return { wroteFiles: [], env: cleanEnv, args };
     }
     case "gemini": {
       return {
@@ -457,11 +471,58 @@ function parseText(label: string, stdout: string, code: number | null, stderr: s
   };
 }
 
+/** Codex CLI 的 `exec --json`。事件形状是五家里最干净的（实测 §65.6）：
+ *  `item.completed` 里 `item.type === "mcp_tool_call"` 带 `server` / `tool` / `arguments` / `result` / `error`，
+ *  `agent_message` 带 `text`，`turn.completed` 带 usage。 */
+function parseCodex(stdout: string, code: number | null, stderr: string): Parsed {
+  const toolCalls: CliRunResult["toolCalls"] = [];
+  const texts: string[] = [];
+  let usage: Parsed["usage"] = null;
+  let failed: string | null = null;
+  let sawTurn = false;
+  for (const line of stdout.split("\n")) {
+    const t = line.trim(); if (!t.startsWith("{")) continue;
+    let j: any; try { j = JSON.parse(t); } catch { continue; }
+    if (j.type === "item.completed") {
+      const it = j.item ?? {};
+      if (it.type === "mcp_tool_call" && it.tool) {
+        // server 是我们自己那台才算 —— 用户全局配的别家工具不该混进工具行
+        if (!it.server || it.server === MCP_NAME) toolCalls.push({ name: String(it.tool), input: it.arguments ?? {} });
+      } else if (it.type === "agent_message" && it.text?.trim()) texts.push(it.text.trim());
+    } else if (j.type === "turn.completed") {
+      sawTurn = true;
+      const u = j.usage ?? {};
+      /* cached_input_tokens 是**包含在** input_tokens 里的，要减掉才是这一轮真正新处理的
+         （实测 input 130098 里有 110336 是缓存命中）。codex 不报折算金额，所以 cost 只能是 0。 */
+      usage = {
+        inputTokens: Math.max(0, Number(u.input_tokens ?? 0) - Number(u.cached_input_tokens ?? 0)),
+        outputTokens: Number(u.output_tokens ?? 0) + Number(u.reasoning_output_tokens ?? 0),
+        totalCostUSD: 0,
+      };
+    } else if (j.type === "turn.failed") {
+      sawTurn = true;
+      failed = String(j.error?.message ?? j.error ?? "没说原因").slice(0, 300);
+    }
+  }
+  const result = texts.join("\n\n");
+  return {
+    ok: code === 0 && !failed && !!result,
+    result,
+    usage,
+    toolCalls,
+    numTurns: toolCalls.length,   // codex 不报轮数，用工具调用数当近似 —— 是近似就别装成精确
+    error: failed ? `Codex CLI：${failed}`
+      : code !== 0 ? `Codex CLI 退出码 ${code}${stderr ? `：${stderr.slice(0, 300)}` : ""}`
+      : !sawTurn ? `Codex CLI 没给出 turn.completed${stderr ? `：${stderr.slice(0, 300)}` : ""}`
+      : result ? null : "Codex CLI 跑完了但没说话",
+  };
+}
+
 function parse(cli: CliId, stdout: string, code: number | null, stderr: string): Parsed {
   switch (cli) {
     case "claude": return parseClaude(stdout, code, stderr);
     case "cursor-agent": return parseCursor(stdout, code, stderr);
-    case "codex": return parseNdjsonGeneric("Codex CLI", stdout, code, stderr);
+    case "codex": return parseCodex(stdout, code, stderr);
     case "opencode": return parseNdjsonGeneric("opencode", stdout, code, stderr);
     case "gemini": return parseText("Gemini CLI", stdout, code, stderr);
   }

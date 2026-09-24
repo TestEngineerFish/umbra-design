@@ -96,8 +96,12 @@ function originOk(req: IncomingMessage, port: number): boolean {
 
 export interface ApiCtx { project: Project | null; token: string; port: number }
 /** hub 服务（桌面壳的首页，不属于任何项目）只有这几条路由；其余都要项目上下文 */
-/* `local_clis` 在这里面：扫这台机器装了什么 CLI 跟打开哪个项目无关，首页也该能扫。 */
-const GLOBAL_ROUTES = new Set(["projects", "open_project", "create_project", "inspect_dir", "reveal_dir", "local_clis", "local_cli_models"]);
+/* 这几条跟「打开了哪个项目」无关，首页也要能用：
+   扫机器上的 CLI、问它有哪些模型、读写 AI 通道配置（配置本来就是全局的）。
+   漏一条的后果很实在 —— `ai_config` 一开始没放进来，首页打开设置时读不到通道 B 的当前配置，
+   模型框空着、选中项退回默认值，看着像「没配过」。 */
+const GLOBAL_ROUTES = new Set(["projects", "open_project", "create_project", "inspect_dir", "reveal_dir",
+  "local_clis", "local_cli_models", "ai_config", "ai_channel_b"]);
 
 /** 作业化会话的中断句柄：jobId → AbortController（作业活在进程里，这张表也是） */
 const chatAborts = new Map<string, AbortController>();
@@ -543,11 +547,9 @@ export async function handleApi(
           fix: `能选的是：${CLI_SPECS.map((x) => x.id).join(" / ")}` }] });
         return true;
       }
-      const model = (b.model ?? "").trim() || cur.model || "";
-      if (!model) {
-        json(reply, 400, { ok: false, errors: [{ code: "E_BAD_INPUT", message: "模型名不能空", fix: `${spec.label} 的写法例如：${spec.modelHint}` }] });
-        return true;
-      }
+      /* 模型名允许空 —— 空就是「用这个 CLI 自己的默认」，各家都有默认，
+         硬要用户填反而容易填错（实测把 cursor 的 `sonnet-4` 填进去直接被顶回来）。 */
+      const model = b.model !== undefined ? b.model.trim() : (cur.model ?? "");
       /* 换了 CLI 就把端点清掉：那两个字段只对 Claude Code 有意义，留着会让「走的是登录态还是端点」
          这个判断说谎（`via` 会显示 endpoint 而实际上那个 CLI 根本不看它）。 */
       const keepEndpoint = cli === "claude";
