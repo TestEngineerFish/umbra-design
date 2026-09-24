@@ -5,7 +5,7 @@ labels: [type:bug, from:radar, p1]
 <!-- fp: review/umbra-studio/app/src/workbench/PropsPanel.tsx#commit-double-submit -->
 来源：扫测 ｜ 证据：Playwright 请求日志同一步里两条 `→ set_prop`，一条 200 一条 400（`E_DRAFT_NOT_FOUND`）
 发现方式：M7-7 扫测收尾时统计控制台错误，发现一条对不上的 400，逐请求打印时序抓到。【确证】
-状态：已修 · commit c4481f0
+状态：已修 · commit a44e6d1
 
 ### 位置
 `app/src/workbench/PropsPanel.tsx` 的行编辑：`onKeyDown` 的 Enter 与 `onBlur` 都调 `commit()`。

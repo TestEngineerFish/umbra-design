@@ -5,7 +5,7 @@ labels: [type:bug, from:radar, p1]
 <!-- fp: review/umbra-studio/server/src/project.ts#ds-alias-relative-depth -->
 来源：扫测 ｜ 证据：server/src/project.ts `expandDsAlias`（改前 `${pre}${p.dsDir}/`，不看稿在哪）；Playwright 控制台 `HTTP404 /PC 端/_ds/…/tokens/colors.css`
 发现方式：M7-7 的 Playwright 扫测里切到子目录的稿，响应日志抓到 404。【确证】
-状态：已修 · commit c4481f0
+状态：已修 · commit a44e6d1
 
 ### 位置
 `expandDsAlias(p, src)` 把稿里的 `@ds/…` 展开成 `p.dsDir + "/…"`，而 `dsDir` 是**相对项目根**的（`_ds/<设计系统 id>`）。稿在项目根时对；稿在子目录（`PC 端/PC 吐司.dc.html`）时，浏览器按稿自己的位置解析，去要 `/PC 端/_ds/…`。
