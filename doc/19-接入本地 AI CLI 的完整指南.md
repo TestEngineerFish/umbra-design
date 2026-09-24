@@ -32,7 +32,7 @@
 **互动小说 / 内容生成类的项目多半是 A 类。** 如果你只是要"给设定生成一段剧情"，
 不要碰 MCP —— 那是给"AI 要自己动手改东西"准备的。
 
-A 类看 §三，B 类看 §四，两类都要看 §五的坑和 §六的验证。
+A 类看 §三，B 类看 §四，两类都要看 §五的坑和 §六的验证 —— 其中 §5.1 / §5.2 / §5.11 **A 类也躲不开**。
 
 ---
 
@@ -354,7 +354,7 @@ def strip_prefix(name: str, mcp_name: str) -> str:
 
 ---
 
-## 五、十个坑（全部实测踩过）
+## 五、十一个坑（全部实测踩过）
 
 ### 5.1 headless 模式会等 stdin ⭐ 最容易误判
 
@@ -364,22 +364,33 @@ def strip_prefix(name: str, mcp_name: str) -> str:
 - 代码里：`stdin=subprocess.DEVNULL`
 - 命令行手测：`< /dev/null`
 
-### 5.2 环境变量会串台
+### 5.2 环境变量会串台 —— 要清**两族**，不是一族
 
-如果你的服务**本身就跑在某个 AI CLI 里**（比如被 Claude Code 起着），
-父进程里可能已经有 `ANTHROPIC_BASE_URL` / `ANTHROPIC_API_KEY`。
-子进程继承过去，就会把这一轮**串到别人的端点上**。
+如果你的服务**本身就跑在某个 AI CLI 里**（比如被 Claude Code 起着，开发时几乎必然如此），
+父进程里有两族脏变量，**两族都要清**：
 
-想用登录态时，**一个都不能留，连空串都不行**（设了空的 base url 会让它去请求空地址）：
+**① `ANTHROPIC_*`** —— 子进程继承过去会把这一轮**串到别人的端点上**。
+想用登录态时一个都不能留，**连空串都不行**（设了空的 base url 会让它去请求空地址）。
+
+**② `CLAUDE_CODE_*`** —— 【2026-09-24 Inkwell 那边实测发现，本文原来漏了这一族】
+【实测】父进程里有 **8 个**，其中三个是要命的：
+
+```
+CLAUDE_CODE_SESSION_ID          父会话的身份
+CLAUDE_CODE_MESSAGING_SOCKET    父会话的消息通道
+CLAUDE_CODE_MESSAGING_TOKEN     那条通道的令牌
+（还有 SSE_PORT / ENTRYPOINT / EXECPATH / CHILD_SESSION / SESSION_ATTENDED）
+```
+
+子进程继承了它们，**就不再是干净的一轮，而是带着别人的会话身份在跑**。
 
 ```python
-def clean_env(cli: str) -> dict:
-    env = dict(os.environ)
-    if cli == "claude":
-        for k in list(env):
-            if k.startswith("ANTHROPIC_"):
-                del env[k]
-    return env
+import os, re
+
+DIRTY = re.compile(r"^(ANTHROPIC_|CLAUDE_CODE_)")
+
+def clean_env() -> dict:
+    return {k: v for k, v in os.environ.items() if not DIRTY.match(k)}
 ```
 
 ### 5.3 子进程会继承用户整套环境 ⭐ 又慢又贵又会用错工具
@@ -460,6 +471,35 @@ Cursor / opencode 要在工作目录落 MCP 配置。两条铁律：
 - Claude Code：`input_tokens + cache_creation_input_tokens`，**不加** `cache_read_input_tokens`
 - Codex：`input_tokens - cached_input_tokens`（它的 cached 是**含在** input 里的）
 - 要权威金额就看 Claude Code 的 `total_cost_usd`
+
+### 5.11 `--system-prompt` 会让 prompt 缓存**整个失效** ⭐ 每轮多花钱
+
+【2026-09-24 Inkwell 那边先发现，我们随后复现】Claude Code 的 `--system-prompt`
+替换掉默认系统提示，**前缀一变，prompt 缓存就全不命中**。
+
+【实测】同一个最小 prompt，只差这一个参数：
+
+| | cache_read | cache_creation | 金额 |
+| --- | --- | --- | --- |
+| 不带 `--system-prompt` | **18639** | 28109 | $0.1162 |
+| 带 `--system-prompt` | **0** | 35692 | $0.1428 |
+
+缓存读取直接打到零，全部变成缓存写入。Inkwell 那边基线更小，差距更夸张（$0.046 → $0.109，翻倍）。
+
+**怎么办：把系统提示并进 user 消息**，别用这个参数：
+
+```python
+args += ["--", f"{system_prompt}\n\n---\n\n{prompt}"]
+```
+
+**约束力会不会变弱？实测不会。** 两条证据：
+
+1. `cursor-agent` 和 `codex` **本来就没有 `--system-prompt`**，一直是并进 prompt 的，
+   它们照样严格遵守了「`project` 参数传这个绝对路径」这类硬约束
+2. 我们把 Claude Code 也改成并进 prompt 之后重跑：4 轮、
+   `ToolSearch → read_file → write_file`、两处修改都正确，行为没有任何退化
+
+顺带一个好处：三家统一成一种做法，代码里少一处分叉。
 
 ---
 

@@ -266,9 +266,18 @@ interface Built {
 async function build(o: CliRunOptions): Promise<Built> {
   const spec = specOf(o.cli);
   const localLogin = !o.baseUrl?.trim() || !o.apiKey?.trim();
-  /* 本机登录态时**一个 ANTHROPIC_* 都不能留**，连空串都不行：设了空 base url 会让它去请求空地址，
-     而父进程里已有的（Umbra 自己可能正被 Claude Code 起着）会把这一轮串到别人的端点上。 */
-  const cleanEnv = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("ANTHROPIC_")));
+  /* 起子进程前要**清掉两族环境变量**，都是「父进程可能正被某个 AI CLI 起着」引出来的：
+   *
+   * ① `ANTHROPIC_*` —— 一个都不能留，连空串都不行：设了空 base url 会让它去请求空地址，
+   *    父进程里已有的会把这一轮串到别人的端点上。
+   * ② `CLAUDE_CODE_*` —— 【2026-09-24 由 Inkwell 那边实测发现，我们原来漏了】
+   *    Umbra 被 Claude Code 起着时，父进程里有 8 个这种变量，其中
+   *    `CLAUDE_CODE_SESSION_ID` / `CLAUDE_CODE_MESSAGING_SOCKET` / `CLAUDE_CODE_MESSAGING_TOKEN`
+   *    是**父会话的身份与消息通道**。子进程继承了它们，就不再是干净的一轮，
+   *    而是带着别人的会话身份在跑。
+   */
+  const DIRTY = /^(ANTHROPIC_|CLAUDE_CODE_)/;
+  const cleanEnv = Object.fromEntries(Object.entries(process.env).filter(([k]) => !DIRTY.test(k)));
 
   switch (o.cli) {
     case "claude": {
@@ -283,7 +292,14 @@ async function build(o: CliRunOptions): Promise<Built> {
           // stream-json 才有 tool_use 事件；json 只吐一个最终对象（`00` §64.3 第 3 条）
           "--output-format", "stream-json", "--verbose",
           ...(o.model.trim() ? ["--model", o.model.trim()] : []),
-          "--system-prompt", o.systemPrompt,
+          /* **不用 `--system-prompt`**，把系统提示并进 prompt。
+           * 【实测 2026-09-24，线索来自 Inkwell 那边】这个参数会让 **prompt 缓存整个失效**：
+           *   不带：cache_read 18639 · cache_creation 28109 · $0.1162
+           *   带：  cache_read     0 · cache_creation 35692 · $0.1428
+           * 它替换了默认系统提示，前缀一变缓存就全不命中。
+           * 证据表明并进 prompt 一样管用：cursor-agent 与 codex 本来就没有这个参数，
+           * 我们一直是并进去的，它们照样严格遵守了「project 传绝对路径」这类约束。
+           * 三家统一成一种做法，也少一处分叉。 */
           // 只用我们这一台 MCP server：不加的话会继承用户整套环境（实测 54 台）
           "--strict-mcp-config",
           // 不继承用户 settings：hook 会往系统提示里灌东西
@@ -292,7 +308,7 @@ async function build(o: CliRunOptions): Promise<Built> {
           "--mcp-config", mcpFile,
           // server 级放行，别写工具名单 —— 名单会过时（`00` §64.3 第 2 条）
           "--allowed-tools", `mcp__${MCP_NAME}`,
-          "--", o.prompt,
+          "--", `${o.systemPrompt}\n\n---\n\n${o.prompt}`,
         ],
       };
     }
