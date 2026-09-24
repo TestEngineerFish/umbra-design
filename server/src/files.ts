@@ -87,10 +87,19 @@ export interface ListFilesResult {
   entries: FileEntry[];
   /** 这一层里非目录文件的类型分布，给「自动网格」与 S1 的类型统计用 */
   types: { dc: number; md: number; image: number; other: number };
+  /** 这一层实际有多少项（截断之前）。界面用它显示「还有 N 项」 */
+  total: number;
+  /** entries 是不是被截断过 */
+  truncated: boolean;
 }
 
 /** 列一层目录（不递归）。目录在前，其余按更新时间倒序 —— 和 S12 定的顺序一致。 */
-export async function listFiles(p: Project, dirRel = ""): Promise<ListFilesResult> {
+/** 一次最多返回多少条。超出的不传 —— 一个几千项的目录全传回去，
+ *  光 JSON 就几 MB，而屏幕上一次也看不了那么多。设计侧第六轮定的口径：
+ *  先给 200 条，末尾让界面显示「还有 N 项 · 全部显示」。 */
+export const LIST_PAGE = 200;
+
+export async function listFiles(p: Project, dirRel = "", limit = LIST_PAGE): Promise<ListFilesResult> {
   const abs = safeJoin(p, dirRel);
   if (!existsSync(abs) || !statSync(abs).isDirectory()) {
     throw new ToolError(err(X.IO, dirRel || ".", { kind: "path", name: dirRel },
@@ -123,7 +132,11 @@ export async function listFiles(p: Project, dirRel = ""): Promise<ListFilesResul
     entries.push(entry);
   }
   entries.sort((a, b) => (a.isDir === b.isDir ? b.updatedAt.localeCompare(a.updatedAt) : a.isDir ? -1 : 1));
-  return { dir: dirRel, entries, types };
+  /* 截断**在排序之后** —— 先截再排的话，给出去的 200 条就不是「最该先看的 200 条」，
+     而是 readdir 碰巧先读到的那些。 */
+  const total = entries.length;
+  const page = limit > 0 && total > limit ? entries.slice(0, limit) : entries;
+  return { dir: dirRel, entries: page, types, total, truncated: page.length < total };
 }
 
 /** 整个项目的类型统计（S1 的 `project.types`）。 */

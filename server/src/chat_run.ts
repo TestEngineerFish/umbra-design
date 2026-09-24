@@ -339,6 +339,8 @@ export async function runChatSend(p: Project, a: ChatSendArgs): Promise<Envelope
       projectId: p.name,
       channel: ch,
       model: (ch === "c" ? cfgAll.channelC?.model : ch === "b" ? cfgAll.channelB?.model : cfgAll.channelA?.model) ?? "unknown",
+      // 本地 CLI 那条要记下具体是谁（claude / codex / cursor-agent），不然历史里只剩「本机工具」
+      ...(ch === "b" ? { tool: cfgAll.channelB?.cli ?? "claude" } : {}),
     });
   }
 

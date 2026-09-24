@@ -386,7 +386,27 @@ export async function handleApi(
     }
 
     if (route === "chat_list" && req.method === "GET") {
-      json(reply, 200, { ok: true, data: await listChats(p.dir) });
+      const r = await listChats(p.dir);
+      /* **空会话不进历史**（设计侧第六轮定的规矩）：会话是「点了新建」就建的，
+         真发出第一条消息才算数。不滤掉的话，用户每点一次「＋」列表里就多一条空壳，
+         很快就被占满。这里滤显示，盘上的文件不动 —— 删文件是另一回事，得用户说了算。 */
+      json(reply, 200, { ok: true, data: { sessions: r.sessions.filter((x) => x.msgCount > 0) } });
+      return true;
+    }
+    if (route === "chat_rename" && req.method === "POST") {
+      const b = await readBody(req) as { session?: string; title?: string };
+      const { renameChat } = await import("./chat.js");
+      const sid = str(b.session, "session");
+      const s2 = await renameChat(p.dir, sid, String(b.title ?? ""));
+      json(reply, 200, { ok: true, data: { id: s2.id, title: s2.title ?? "", titled: !!s2.title } });
+      return true;
+    }
+    if (route === "chat_delete" && req.method === "POST") {
+      const b = await readBody(req) as { session?: string };
+      const { deleteChat } = await import("./chat.js");
+      const sid = str(b.session, "session");
+      await deleteChat(p.dir, sid);
+      json(reply, 200, { ok: true, data: { id: sid, deleted: true } });
       return true;
     }
     if (route === "chat_get" && req.method === "GET") {
@@ -584,7 +604,9 @@ export async function handleApi(
 
     /* ── M8：泛型文件（目录视图 / .md / 图片 / 通用文件卡都走这几条） ── */
     if (route === "files" && req.method === "GET") {
-      json(reply, 200, { ok: true, data: await listFiles(p, url.searchParams.get("dir") ?? "") });
+      /* limit=0 表示「全部给我」——「还有 N 项 · 全部显示」那个入口点下去时用 */
+      const lim = url.searchParams.has("limit") ? Number(url.searchParams.get("limit")) : undefined;
+      json(reply, 200, { ok: true, data: await listFiles(p, url.searchParams.get("dir") ?? "", Number.isFinite(lim) ? lim! : undefined) });
       return true;
     }
     if (route === "file" && req.method === "GET") {
