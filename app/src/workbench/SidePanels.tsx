@@ -4,14 +4,15 @@ import { HEALTH_LABEL, timeAgo, type Picked } from "../api/types";
 import { PANEL_TITLE, type PanelId } from "../layout/layout";
 import type { ProjectStore } from "../store/project";
 import { toast } from "../ui/Toast";
+import { PropsPanel } from "./PropsPanel";
 
 /** 从属面板列（S11 第 1 题的定稿）：40 px 图标轨常驻 + 面板体，同一时刻只开一个；图片 / 目录整列不出现。
- *  属性面板是 Q30 过渡态：S2 自带的面板铺进这一格（Canvas 把 iframe 向右多铺 panelWidth），这里只画空框和提示。 */
+ *  属性面板（M7-7）已是 React 的 PropsPanel，S2 嵌入时只留画布。 */
 const ICON: Record<PanelId, string> = { props: "⚙", diagnostics: "⚠", changes: "⟲", comments: "✎", outline: "≡", info: "ⓘ" };
 export const PANEL_WIDTH = 340;
 
-export function SidePanels({ core, store, file, picked, panels, active, setActive, narrow, onSendToAI }: {
-  core: Core; store: ProjectStore; file: string; picked: Picked | null; panels: PanelId[]; active: PanelId | null; setActive: (p: PanelId | null) => void; narrow: boolean;
+export function SidePanels({ core, store, file, picked, onPicked, panels, active, setActive, narrow, onSendToAI }: {
+  core: Core; store: ProjectStore; file: string; picked: Picked | null; onPicked: (p: Picked | null) => void; panels: PanelId[]; active: PanelId | null; setActive: (p: PanelId | null) => void; narrow: boolean;
   onSendToAI: (text: string, picked: Picked) => void;
 }) {
   const badge: Partial<Record<PanelId, number>> = { diagnostics: store.diags.filter((d) => d.level === "error" || d.level === "warning").length, comments: store.comments.filter((c) => !c.resolved).length };
@@ -19,7 +20,7 @@ export function SidePanels({ core, store, file, picked, panels, active, setActiv
     <section className={`bg-panel border-border flex flex-col min-h-0 ${narrow ? "fixed top-[86px] bottom-6 right-10 z-40 w-[320px] shadow-2xl border-l" : "shrink-0 border-l"}`} style={narrow ? undefined : { width: PANEL_WIDTH }}>
       <header className="h-9 px-3 flex items-center gap-2 border-b border-border text-xs font-semibold shrink-0">{PANEL_TITLE[active]}{badge[active] ? <span className="badge">{badge[active]}</span> : null}<span className="flex-1" /><button className="ib" onClick={() => setActive(null)} title="收起">›</button></header>
       <div className="flex-1 min-h-0 overflow-auto text-xs">
-        {active === "props" && (picked ? null : <div className="p-4 text-muted leading-relaxed">开「点选」后点稿里的元素，属性在这里改（字面量直接改，洞会说明来源）。</div>)}
+        {active === "props" && <PropsPanel core={core} file={file} picked={picked} onPicked={onPicked} writeTick={store.lastEvent?.type === "write" ? store.lastEvent.at : ""} onWritten={() => { void store.fetchDrafts(); void store.fetchDiagnostics(file); void store.fetchChanges(file); }} />}
         {active === "diagnostics" && <Diagnostics store={store} />}
         {active === "changes" && <Changes core={core} store={store} file={file} />}
         {active === "comments" && <Comments core={core} store={store} file={file} onSendToAI={onSendToAI} />}

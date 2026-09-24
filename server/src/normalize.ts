@@ -9,7 +9,7 @@
 import { copyFile, mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
-import { RUNTIME_DIR, expandDsAlias, type Project } from "./project.js";
+import { RUNTIME_DIR, expandDsAlias, fixDsDepth, type Project } from "./project.js";
 import { NODE_ATTR, stampNodes } from "./nodeid.js";
 
 export const MARK_OPEN = "<!-- umbradesign:resources -->";
@@ -63,13 +63,18 @@ function templateRange(src: string): [number, number] {
   return [start, close < 0 ? src.length : close];
 }
 
-export function prepareForDisk(p: Project, content: string) {
+export function prepareForDisk(p: Project, content: string, relPath?: string) {
   const steps: string[] = [];
   let out = normalizeSource(content);
   steps.push("归一化（UTF-8 无 BOM / LF / 末尾单换行）");
 
-  const expanded = expandDsAlias(p, out);
+  // relPath 决定 @ds 展开出来的相对深度（子目录里的稿要 ../）
+  const depth = relPath ? relPath.split("/").length - 1 : 0;
+  const expanded = expandDsAlias(p, out, relPath);
   if (expanded !== out) { out = expanded; steps.push(`@ds → ${p.dsDir}`); }
+  // 存量稿：上一版展开时没算深度，盘上留着指向 /<子目录>/_ds/… 的死链
+  const fixed = fixDsDepth(p, out, depth);
+  if (fixed !== out) { out = fixed; steps.push(`修正 @ds 相对深度（子目录稿，补 ${"../".repeat(depth)}）`); }
 
   const r = injectResources(out);
   out = r.out;

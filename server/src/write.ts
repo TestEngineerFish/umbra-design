@@ -89,7 +89,7 @@ export async function writeDraft(
   }
 
   // ① 归一化 + @ds 展开 + __resources 注入
-  const prep = prepareForDisk(p, content);
+  const prep = prepareForDisk(p, content, relPath);
 
   // ② 落盘即校验（校验的是**改写后**的内容，也就是真正会落盘的那份）
   const { diags, stats } = validateDraft(p, relPath, prep.content, relPath);

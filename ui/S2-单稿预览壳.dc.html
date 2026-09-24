@@ -857,6 +857,17 @@ class Component extends DCLogic {
           else if (m.cmd === "theme") { this.setState({ draftTheme: m.value === "dark" ? "dark" : "light" }); this.pushDraftTheme(); }
           else if (m.cmd === "recheck") this.recheck();
           else if (m.cmd === "clear") { this.clearPreview(); this.setState({ picked: null, slots: null, previewing: null, previewSlot: null }); }
+          /* M7-7：属性面板搬进应用（Q30 第二步）。应用改值时的实时预览、落盘后的刷新都经这里转给桥 —— 桥在内层 iframe，应用够不着。 */
+          else if (m.cmd === "preview-style") { const v = m.value || {}; const pk = this.state.picked; if (pk) this.postFrame("preview-style", { node: pk.node, prop: v.prop, value: v.value }); }
+          else if (m.cmd === "clear-style") this.clearPreview();
+          else if (m.cmd === "highlight") this.postFrame("highlight", m.value);
+          else if (m.cmd === "applied") {
+            // 应用已经 set_prop 落盘：撤覆盖层、换成新地址、重载内层稿、稍后高亮并把新选中回报上去
+            const pk = this.state.picked; const next = pk ? Object.assign({}, pk, { node: (m.value && m.value.node) || pk.node }) : null;
+            this.clearPreview(); this.setState({ picked: next, previewing: null, previewSlot: null });
+            const f = this.frameRef && this.frameRef.current; if (f && f.contentWindow) f.contentWindow.location.reload();
+            if (next) setTimeout(() => { this.postFrame("highlight", next.node); this.tellParent("picked", next); }, 700);
+          }
           return;
         }
         if (!m || m.source !== "umbradesign") return;
@@ -1384,7 +1395,7 @@ class Component extends DCLogic {
     const dead = mode === "dead";
     const missing = mode === "missing";
     const unchecked = mode === "unchecked";
-    const railOpen = s.rail && !narrow && (!EMBED || !!(s.slots && s.slots.slots && s.slots.slots.length));   // 嵌入时只在选中节点后才开面板
+    const railOpen = s.rail && !narrow && !EMBED;   // 嵌入时面板归应用（M7-7，Q30 第二步），壳只留画布
 
     /* LIVE 时诊断来自接口，不再用演示数据。拉到之前 live 是 null —— 那时显示
        「正在读」而不是演示条目，宁可空着也不拿假数据冒充（§19.3 的教训）。 */

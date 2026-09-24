@@ -9,11 +9,10 @@ const SHELL0: ShellState = { selectOn: false, preset: 0, zoom: 1, draftTheme: "l
 
 /** 画布：一条工具栏（ClaudeDesign 式，§四十八）+ S2 嵌入壳 iframe（编辑）/ 稿本身（预览）/ 源码只读。
  *  iframe 只在换稿 / 换档时重建；其它状态变化不碰它（就地编辑的内层 iframe 会被卸掉，§四十三 踩过）。 */
-export function Canvas({ url, store, file, picked, onPicked, mode, setMode, onPresent, panelWidth, onOpenPanel, unresolved }: {
+export function Canvas({ url, store, file, picked, onPicked, mode, setMode, onPresent, onOpenPanel, unresolved }: {
   url: string; store: ProjectStore; file: string; picked: Picked | null; onPicked: (p: Picked | null) => void;
   mode: PreviewMode; setMode: (m: PreviewMode) => void; onPresent: () => void;
-  /** 属性面板由 S2 自带（Q30 过渡态）：面板体打开且选中了节点时 iframe 向右多铺这么宽 */
-  panelWidth: number; onOpenPanel: (id: "comments" | "changes" | "diagnostics") => void; unresolved: number;
+  onOpenPanel: (id: "comments" | "changes" | "diagnostics") => void; unresolved: number;
 }) {
   const frame = useRef<HTMLIFrameElement>(null);
   const [shell, setShell] = useState<ShellState>(SHELL0);
@@ -48,7 +47,6 @@ export function Canvas({ url, store, file, picked, onPicked, mode, setMode, onPr
   const note = shell.editHint || shell.checkNote || (shell.apiErr ? "出错：" + shell.apiErr : "") || (shell.busy ? "落盘中…" : "");
   const openBrowser = () => window.open(`${url}${encodeURIComponent(file).replace(/%2F/g, "/")}`, "_blank");
   const compare = () => window.open(`${url}${encodeURIComponent("S6-版本对比.dc.html")}?file=${encodeURIComponent(file)}`, "_blank");
-  const extend = mode === "shell" && picked ? panelWidth : 0;
   return (
     <div className="flex-1 min-w-0 flex flex-col bg-canvas relative">
       <div className="h-10 px-2 flex items-center gap-1.5 border-b border-border bg-panel shrink-0 text-xs">
@@ -80,7 +78,7 @@ export function Canvas({ url, store, file, picked, onPicked, mode, setMode, onPr
       </div>
       {mode === "code" ? <CodeView src={store.source && store.source.file === file ? store.source : null} picked={picked} /> : (
         <div className="flex-1 min-h-0 relative">
-          <iframe ref={frame} key={src} src={src} title={file} sandbox="allow-scripts allow-same-origin allow-forms allow-popups" className="absolute inset-y-0 left-0 border-0 bg-panel" style={{ width: `calc(100% + ${extend}px)`, height: "100%" }} />
+          <iframe ref={frame} key={src} src={src} title={file} data-shell={mode === "shell" ? "1" : undefined} sandbox="allow-scripts allow-same-origin allow-forms allow-popups" className="absolute inset-0 w-full h-full border-0 bg-panel" />
         </div>
       )}
     </div>

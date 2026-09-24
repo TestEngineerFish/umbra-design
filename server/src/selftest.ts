@@ -15,6 +15,7 @@ import { basename, join, relative, sep } from "node:path";
 import { buildProject, listDrafts, listProjectDirs, loadProject, projectsRoot, TOOL_ROOT } from "./project.js";
 import { getIcon, getToken, listComponents, listIcons, searchTokens } from "./assets.js";
 import { validateDraft } from "./validate.js";
+import { prepareForDisk } from "./normalize.js";
 
 const name = process.argv[2] ?? "umbra";
 const bar = (s: string) => console.log("\n" + "─".repeat(4) + " " + s + " " + "─".repeat(Math.max(0, 62 - s.length)));
@@ -165,11 +166,40 @@ const uiErr = await uiBlock();
 finish(fxBad, unknown.length, uiErr);
 
 
+/** 落盘归一化的基准：@ds 展开要按**稿所在目录**算相对深度。
+ *  钉的是 2026-09-24 犯过的错 —— 展开时不管稿在哪，一律贴相对项目根的 `_ds/…`，
+ *  子目录里的稿于是去要 `/<子目录>/_ds/…`，404，token 全部失效（`00` §五十七）。
+ *  四种情形各钉一条：根 / 子目录 × 稿里写 @ds / 盘上已是展开过的 _ds。 */
+function dsDepthBlock(): number {
+  bar("落盘归一化 —— @ds 相对深度");
+  const p = { ...fxP, dsDir: "_ds/x", dsAlias: "@ds" };
+  const href = (s: string) => (/href="([^"]*)"/.exec(s) ?? [])[1] ?? "(没有)";
+  const cases: Array<{ rel: string; src: string; want: string; why: string }> = [
+    { rel: "a.dc.html", src: `<link href="@ds/t.css">`, want: "_ds/x/t.css", why: "根目录的稿：展开成相对项目根的路径" },
+    { rel: "子/a.dc.html", src: `<link href="@ds/t.css">`, want: "../_ds/x/t.css", why: "子目录的稿：要补 ../，否则浏览器去要 /子/_ds/…" },
+    { rel: "子/深/a.dc.html", src: `<link href="@ds/t.css">`, want: "../../_ds/x/t.css", why: "两层子目录：补两个 ../" },
+    { rel: "子/a.dc.html", src: `<link href="_ds/x/t.css">`, want: "../_ds/x/t.css", why: "存量稿：上一版展开错的路径，再落一次盘要修好" },
+    { rel: "a.dc.html", src: `<link href="_ds/x/t.css">`, want: "_ds/x/t.css", why: "根目录的存量稿：不该被动" },
+    { rel: "子/a.dc.html", src: `<link href="../_ds/x/t.css">`, want: "../_ds/x/t.css", why: "已经对的不该被再补一层" },
+  ];
+  let bad = 0;
+  for (const c of cases) {
+    const got = href(prepareForDisk(p, c.src, c.rel).content);
+    const ok = got === c.want;
+    if (!ok) bad++;
+    console.log(`  ${ok ? "✓" : "✗"} ${c.rel.padEnd(14)} ${c.src.slice(6, 40).padEnd(28)} → ${got}${ok ? "" : `（该是 ${c.want}）`}`);
+    if (!ok) console.log(`      钉的是：${c.why}`);
+  }
+  console.log(bad ? `  ✗ ${bad} 条没过` : `  ✓ ${cases.length} 条全过`);
+  return bad;
+}
+
 /** 工具自己的界面稿。它们不在 projects/ 下，原来整块没被回归覆盖 ——
  *  而这几份恰恰是改得最勤的（每个批次都动）。判据比语料更严：
  *  **一条 error 都不许有**，因为这几份是我们自己写的，没有「稿的历史问题」可推。
  *  import 以 ui/ 为基准解析（S7 引 IconGlyph），所以这里用 ui/ 当 dir。 */
 async function uiBlock(): Promise<number> {
+  fxBad += dsDepthBlock();
   bar("工具界面稿 ui/");
   const uiDir = join(TOOL_ROOT, "ui");
   const uiP = { ...fxP, dir: uiDir };

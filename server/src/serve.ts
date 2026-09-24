@@ -26,10 +26,13 @@ const MIME: Record<string, string> = {
 
 interface Running { server: Server; port: number; dir: string; startedAt: string; hits: number; token: string; project: Project; wss: WebSocketServer | null; watcher: FSWatcher | null; unsubscribe: (() => void) | null }
 
-/** 新前端（app/dist，M7-2）；没 build 过就退回旧前端 server/ui/index.html，命令行提示去 build。 */
+/** 前端构建产物（`app/`，M7-2；M7-8 起是唯一的前端）。没 build 过就只能提示去 build。 */
 const APP_DIST = resolve(TOOL_ROOT, "app", "dist");
-const LEGACY_UI = resolve(TOOL_ROOT, "server", "ui");
 export function appDistReady(): boolean { return existsSync(resolve(APP_DIST, "index.html")); }
+const NO_BUILD_PAGE = `<!doctype html><meta charset="utf-8"><title>Umbra Studio</title>`
+  + `<body style="margin:0;display:grid;place-items:center;height:100vh;font:13px/1.7 -apple-system,BlinkMacSystemFont,'PingFang SC',sans-serif;background:#f6f7f9;color:#191c21">`
+  + `<div style="text-align:center"><p style="font-weight:620">前端还没构建</p>`
+  + `<p style="color:#79818d">在仓库根跑一次：<code style="font-family:ui-monospace,Menlo,monospace">npm --prefix app install &amp;&amp; npm --prefix app run build</code></p></div>`;
 
 function serveStatic(root: string, rel: string, reply: import("node:http").ServerResponse): boolean {
   const f = resolve(root, "." + normalize(rel));
@@ -84,26 +87,18 @@ function makeServer(dir: string | null, onHit: () => void, api: () => ApiCtx | n
     let raw: string;
     try { raw = decodeURIComponent((req.url ?? "/").split("?")[0] as string); }
     catch { raw = "/"; }
-    /* /__app/ —— 应用前端本体由本服务托管：和稿同源，令牌注入（doc/00 §四十六）。
-       M7-2 起是 app/dist（Vite 构建产物）；没 build 过退回旧前端。旧前端另挂在 /__legacy/ 直到 M7-8 退役。 */
+    /* /__app/ —— 应用前端本体由本服务托管：和稿同源，令牌注入（doc/00 §四十六）。 */
     const c = api();
-    const boot = (front: "app" | "legacy") => c ? `<script>window.__UD_APP=${JSON.stringify({ url: `http://127.0.0.1:${c.port}/`, token: c.token, name: c.project?.name ?? null, title: c.project?.title ?? null, dir: c.project?.dir ?? null, ws: `ws://127.0.0.1:${c.port}${API_PREFIX}ws`, front, hub: !c.project })};</script>` : "";
     const useApp = appDistReady();
     if (raw === "/__app" || raw === "/__app/" || raw === "/__app/index.html" || (useApp && raw.startsWith("/__app/") && !existsSync(resolve(APP_DIST, "." + normalize(raw.slice("/__app".length)))))) {
+      reply.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
+      if (!useApp) { reply.end(NO_BUILD_PAGE); return; }
       // SPA：/__app/ 下任何不是静态文件的路径都回 index.html（前端自己按路径分页）
-      const html = readFileSync(useApp ? resolve(APP_DIST, "index.html") : resolve(LEGACY_UI, "index.html"), "utf8");
-      reply.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
-      reply.end(html.replace(/<head>/i, "<head>" + boot(useApp ? "app" : "legacy")));
+      const boot = c ? `<script>window.__UD_APP=${JSON.stringify({ url: `http://127.0.0.1:${c.port}/`, token: c.token, name: c.project?.name ?? null, title: c.project?.title ?? null, dir: c.project?.dir ?? null, ws: `ws://127.0.0.1:${c.port}${API_PREFIX}ws`, hub: !c.project })};</script>` : "";
+      reply.end(readFileSync(resolve(APP_DIST, "index.html"), "utf8").replace(/<head>/i, "<head>" + boot));
       return;
     }
-    if (raw.startsWith("/__app/") && serveStatic(useApp ? APP_DIST : LEGACY_UI, raw.slice("/__app".length), reply)) return;
-    if (raw === "/__legacy" || raw === "/__legacy/" || raw === "/__legacy/index.html") {
-      const html = readFileSync(resolve(LEGACY_UI, "index.html"), "utf8");
-      reply.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
-      reply.end(html.replace(/<head>/i, "<head>" + boot("legacy")));
-      return;
-    }
-    if (raw.startsWith("/__legacy/") && serveStatic(LEGACY_UI, raw.slice("/__legacy".length), reply)) return;
+    if (raw.startsWith("/__app/") && serveStatic(APP_DIST, raw.slice("/__app".length), reply)) return;
     if (raw === "/" || raw.endsWith("/")) raw += "index.dc.html";
     if (dir === null) {   // hub：没有项目目录，只有 /__app/ 与全局 API
       reply.writeHead(302, { location: "/__app/home" }); reply.end(); return;

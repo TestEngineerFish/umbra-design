@@ -1,14 +1,15 @@
-import { useEffect, useRef } from "react";
-import type { ChatMessage, Picked, ToolCall } from "../api/types";
+import { useEffect, useRef, useState } from "react";
+import { SELECTION_ICON, type ChatMessage, type Selection, type ToolCall } from "../api/types";
 import type { ChatStore } from "./useChat";
 
 /** 会话栏，形制按 S9：用户句右对齐；一个 AI 回合共用一根左栏，文本与工具行按出现顺序排；变更卡带回退；「已选中」药丸紧挨输入框上方 */
-export function ChatRail({ chat, picked, onClearPicked, selectedDraft, onCollapse, onSwapSide, width }: { chat: ChatStore; picked: Picked | null; onClearPicked: () => void; selectedDraft: string | null; onCollapse: () => void; onSwapSide: () => void; width: number }) {
+export function ChatRail({ chat, selections, onDropSelection, onClearSelections, selectedDraft, onCollapse, onSwapSide, width, onResize, side }: { chat: ChatStore; selections: Selection[]; onDropSelection: (i: number) => void; onClearSelections: () => void; selectedDraft: string | null; onCollapse: () => void; onSwapSide: () => void; width: number; onResize: (w: number) => void; side: "left" | "right" }) {
   const body = useRef<HTMLDivElement>(null);
   useEffect(() => { if (body.current) body.current.scrollTop = body.current.scrollHeight; }, [chat.messages, chat.notes, chat.running]);
   const usage = chat.usage ? (chat.usage.totalCostUSD != null ? `通道 B · $${Number(chat.usage.totalCostUSD).toFixed(3)}` : `通道 ${chat.channel.toUpperCase()} · ${(chat.usage.totalTokens ?? 0).toLocaleString()} tokens`) : `通道 ${chat.channel.toUpperCase()}`;
   return (
-    <aside className="flex flex-col bg-panel border-border shrink-0 min-h-0" style={{ width }}>
+    <aside className="relative flex flex-col bg-panel border-border shrink-0 min-h-0" style={{ width }}>
+      <Grip onResize={onResize} width={width} side={side} />
       <div className="h-11 px-3 flex items-center gap-2 border-b border-border shrink-0">
         <div className="min-w-0 flex-1"><div className="text-sm font-semibold leading-4">会话</div><div className="text-[11px] text-muted truncate">{chat.sessionId ? `${chat.sessionId.slice(0, 8)} · ${chat.messages.filter((m) => m.role === "user").length} 条` : "新会话"}</div></div>
         <div className="seg">{(["a", "b"] as const).map((c) => <button key={c} className={chat.channel === c ? "on" : ""} onClick={() => chat.pickChannel(c)} title={c === "a" ? "直连 OpenAI 兼容端点" : "Claude Code 子进程"}>{c.toUpperCase()}</button>)}</div>
@@ -26,12 +27,10 @@ export function ChatRail({ chat, picked, onClearPicked, selectedDraft, onCollaps
         ) : <div key={i} className="text-xs text-err px-1">{n.text}</div>)}
         {chat.running && <div className="flex gap-2"><span className="mt-1 w-2 h-2 rounded-full border border-accent border-r-transparent animate-spin shrink-0" /><span className="text-xs text-muted">正在读稿、调工具、落盘…</span></div>}
       </div>
-      {picked && (
-        <div className="mx-3 mb-2 flex items-center gap-2 rounded border border-accent bg-accentSoft px-2 h-7 text-[11px] shrink-0"><span className="font-semibold text-accent">已选中</span><span className="font-mono truncate">{picked.tag ? `<${picked.tag}> ` : ""}{picked.file} · {picked.node}</span><span className="flex-1" /><button className="ib" onClick={onClearPicked} title="不带这个节点">×</button></div>
-      )}
+      {selections.length > 0 && <Pills selections={selections} onDrop={onDropSelection} onClear={onClearSelections} />}
       <div className="px-3 pb-2 flex gap-2 items-end shrink-0">
         <textarea id="chatInput" rows={2} value={chat.input} onChange={(e) => chat.setInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void chat.send(); } if (e.key === "Escape" && chat.running) void chat.interrupt(); }}
-          placeholder={picked ? "对这个节点说…（「这里字号大一点」）" : selectedDraft ? `对 ${selectedDraft} 说…` : "输入消息… ⏎ 发送"} className="flex-1 min-h-[40px] max-h-40 px-3 py-2 rounded border border-border bg-bg text-xs outline-none focus:border-accent resize-y" />
+          placeholder={selections.length ? "对选中的说…（「这里字号大一点」）" : selectedDraft ? `对 ${selectedDraft} 说…` : "输入消息… ⏎ 发送"} className="flex-1 min-h-[40px] max-h-40 px-3 py-2 rounded border border-border bg-bg text-xs outline-none focus:border-accent resize-y" />
         {chat.running ? <button className="btn danger" onClick={() => void chat.interrupt()}>中断</button> : <button className="btn primary" onClick={() => void chat.send()} disabled={!chat.input.trim()}>发送</button>}
       </div>
       <div className="px-3 h-6 flex items-center text-[11px] text-muted border-t border-border shrink-0"><span>{usage}</span><span className="flex-1" /><span>{chat.running ? "运行中" : chat.sessions.length ? `${chat.sessions.length} 个会话` : ""}</span></div>
@@ -60,4 +59,42 @@ function ToolRow({ tc, raw }: { tc: ToolCall; raw?: string }) {
   let ok = true, res = "…";
   if (raw !== undefined) { try { const r = JSON.parse(raw) as { ok?: boolean; version?: string; written?: boolean; error?: string }; ok = r.ok !== false; res = ok ? (r.version ?? (r.written === false ? "未落盘" : "ok")) : (r.error ?? "error"); } catch { res = String(raw).slice(0, 40); } }
   return <div className={`grid grid-cols-[auto_minmax(0,1fr)_auto] gap-2 items-baseline text-[11px] font-mono ${ok ? "text-text2" : "text-err"}`} title={`${args}\n→ ${String(raw ?? "").slice(0, 400)}`}><span className="font-semibold">{name}</span><span className="truncate text-muted">{args}</span><span>{res}</span></div>;
+}
+
+/** 「已选中」药丸（S9 第五轮）：紧挨输入框上方，自动换行，每颗带 ×，两颗及以上多一个「全部清掉」 */
+function Pills({ selections, onDrop, onClear }: { selections: Selection[]; onDrop: (i: number) => void; onClear: () => void }) {
+  return (
+    <div className="mx-3 mb-2 flex flex-wrap items-center gap-1 shrink-0">
+      {selections.map((s, i) => (
+        <span key={i} className="inline-flex items-center gap-1 h-6 pl-1.5 pr-1 rounded border border-accent bg-accentSoft text-[11px] max-w-full" title={s.detail}>
+          <span className="text-accent shrink-0">{SELECTION_ICON[s.kind]}</span>
+          <span className="font-mono font-semibold text-accent shrink-0">{s.kind}</span>
+          <span className="truncate">{s.label}</span>
+          <button className="ib w-4 h-4 text-[10px]" onClick={() => onDrop(i)} title="不带这一项">×</button>
+        </span>
+      ))}
+      {selections.length > 1 && <button className="text-[11px] text-muted hover:text-text px-1" onClick={onClear}>全部清掉</button>}
+    </div>
+  );
+}
+
+/** 会话栏与预览之间那条可拖的线（S11 的 chatWidth）。
+ *  ⚠️ 拖动时必须在整页盖一层遮罩：预览是 iframe，鼠标一进它的地盘，mousemove 就被 iframe 吃掉，
+ *  父页面再也收不到 —— 宽度会卡在鼠标刚离开会话栏的那一刻【实测 2026-09-24】。 */
+function Grip({ onResize, width, side }: { onResize: (w: number) => void; width: number; side: "left" | "right" }) {
+  const [dragging, setDragging] = useState(false);
+  const start = (e: React.MouseEvent) => {
+    e.preventDefault();
+    const x0 = e.clientX, w0 = width, dir = side === "right" ? -1 : 1;
+    setDragging(true);
+    const move = (ev: MouseEvent) => onResize(Math.max(300, Math.min(560, w0 + dir * (ev.clientX - x0))));
+    const up = () => { setDragging(false); document.removeEventListener("mousemove", move); document.removeEventListener("mouseup", up); };
+    document.addEventListener("mousemove", move); document.addEventListener("mouseup", up);
+  };
+  return (
+    <>
+      <div onMouseDown={start} className={`absolute top-0 bottom-0 ${side === "right" ? "left-0 -translate-x-1/2" : "right-0 translate-x-1/2"} w-1 z-20 cursor-col-resize hover:bg-accent/40`} title="拖动调整会话栏宽度" />
+      {dragging && <div className="fixed inset-0 z-50 cursor-col-resize" />}
+    </>
+  );
 }

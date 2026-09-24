@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Core } from "../api/client";
-import type { ChatMessage, ChatNote, ChatSessionRow, ChatUsage, Picked } from "../api/types";
+import type { ChatMessage, ChatNote, ChatSessionRow, ChatUsage, Selection } from "../api/types";
 import { mem } from "../layout/layout";
 import { toast } from "../ui/Toast";
 
 /** AI 会话（M2-12 / §四十）：作业化 —— chat_send async 拿 jobId，每 1.2 s 拉一次会话正文与作业状态；WS 的 chat 事件到了也拉一次 */
-export function useChat(core: Core, dir: string, ctx: { selectedDraft: string | null; picked: Picked | null; afterChanges: () => void }) {
+export function useChat(core: Core, dir: string, ctx: { selectedDraft: string | null; selections: Selection[]; afterChanges: () => void }) {
   const [channel, setChannel] = useState<"a" | "b">(() => mem.get("us.chatChannel", "a"));
   const [sessions, setSessions] = useState<ChatSessionRow[]>([]);
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -32,17 +32,19 @@ export function useChat(core: Core, dir: string, ctx: { selectedDraft: string | 
   const newSession = useCallback(() => { setSessionId(null); setMessages([]); setNotes([]); setUsage(null); }, []);
   const pickChannel = useCallback((c: "a" | "b") => { setChannel(c); mem.set("us.chatChannel", c); }, []);
 
-  const send = useCallback(async (textIn?: string, pickedIn?: Picked | null) => {
+  const send = useCallback(async (textIn?: string, selIn?: Selection[]) => {
     const text = (textIn ?? input).trim();
     if (!text || running) return;
-    const picked = pickedIn === undefined ? ctxRef.current.picked : pickedIn;
+    const sels = selIn ?? ctxRef.current.selections;
+    const node = sels.find((s) => s.kind === "node")?.ref;
     setInput(""); setRunning(true);
     setMessages((m) => m.concat([{ role: "user", content: text, timestamp: new Date().toISOString() }]));
     try {
       const body: Record<string, unknown> = { message: text, channel, async: true };
       if (sessionId) body.sessionId = sessionId;
       if (ctxRef.current.selectedDraft) body.contextFile = ctxRef.current.selectedDraft;
-      if (picked?.node) { body.selectedNodeFile = picked.file; body.selectedNodeAddress = picked.node; }
+      // 后端今天只认一个节点上下文；别的四种选择项随 M8 的类型接入（S9 的药丸形制已经能显示它们）
+      if (node?.node) { body.selectedNodeFile = node.file; body.selectedNodeAddress = node.node; }
       const started = await core.post<{ jobId: string; sessionId?: string }>("chat_send", body);
       if (!started.ok || !started.data) throw new Error(started.errors?.[0]?.message ?? "起作业失败");
       job.current = started.data.jobId; const sid = started.data.sessionId ?? sessionId!; setSessionId(sid);

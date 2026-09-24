@@ -3,7 +3,9 @@
 /** 托管本页的核心：属于某个项目（name/dir 有值）或是桌面壳的 hub（hub=true，只有全局路由） */
 export interface Boot { url: string; token: string; name: string | null; title: string | null; dir: string | null; ws: string; front: "app" | "legacy"; hub?: boolean }
 export interface ProjectHandle { url: string; token: string; ws: string; name: string; title: string; dir: string }
-export interface Envelope<T = unknown> { ok: boolean; data?: T; errors?: { code?: string; message: string }[] }
+/** 信封里的一条诊断：`fix` 是给人看的改法，比 message 更可操作（doc/00 §二） */
+export interface Err { code?: string; message: string; fix?: string; level?: string }
+export interface Envelope<T = unknown> { ok: boolean; data?: T; errors?: Err[] }
 export interface UdEvent { type: "hello" | "job" | "chat" | "write" | "fs"; projectDir: string | null; payload: unknown; at: string }
 
 declare global { interface Window { __UD_APP?: Boot } }

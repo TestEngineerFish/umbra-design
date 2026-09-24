@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Core, type ProjectHandle } from "../api/client";
-import { draftTitle, HEALTH_LABEL, type Picked } from "../api/types";
+import { draftTitle, HEALTH_LABEL, type Picked, type Selection } from "../api/types";
 import { ChatRail } from "../chat/ChatRail";
 import { useChat } from "../chat/useChat";
 import type { HostAdapter } from "../host";
@@ -9,14 +9,24 @@ import { useProject } from "../store/project";
 import { NewDraftSheet } from "../sheets/Sheets";
 import { toast } from "../ui/Toast";
 import { Canvas, Present, type PreviewMode } from "./Canvas";
-import { PANEL_WIDTH, SidePanels } from "./SidePanels";
+import { SidePanels } from "./SidePanels";
 
 /** 工作台（S11 形制）：顶栏 40 · 页签 34 · 左会话 / 中画布 / 右从属面板列 · 底部状态行 24 */
 export function Workbench({ project, host, layout, setLayout, onHome, onSettings }: { project: ProjectHandle; host: HostAdapter; layout: LayoutState; setLayout: (l: LayoutState) => void; onHome: () => void; onSettings: () => void }) {
   const core = useMemo(() => new Core(project.url, project.token, project.ws), [project]);
   const store = useProject(core, project.dir);
   const [tabs, setTabs] = useState<string[]>(() => mem.get(`us.tabs.${project.dir}`, []));
-  const [picked, setPicked] = useState<Picked | null>(null);
+  const [picked, setPickedRaw] = useState<Picked | null>(null);
+  /* 选中的节点有两个去处：属性面板（picked，一次只有一个 —— 桥就是单选）与会话的药丸（selections，可多颗）。
+     × 掉药丸不该把属性面板也关掉，所以分开存。 */
+  const [selections, setSelections] = useState<Selection[]>([]);
+  const setPicked = useCallback((p: Picked | null) => {
+    setPickedRaw(p);
+    setSelections((xs) => {
+      const rest = xs.filter((x) => x.kind !== "node");
+      return p ? [...rest, { kind: "node" as const, label: `${p.tag ? `<${p.tag}> ` : ""}${draftTitle(p.file)} · ${p.node}`, detail: `${p.file} › ${p.node}`, ref: { file: p.file, node: p.node } }] : rest;
+    });
+  }, []);
   const [mode, setMode] = useState<PreviewMode>(() => mem.get("us.previewMode", "shell"));
   const [present, setPresent] = useState(false);
   const [fileMenu, setFileMenu] = useState(false); const [fileQ, setFileQ] = useState("");
@@ -28,7 +38,7 @@ export function Workbench({ project, host, layout, setLayout, onHome, onSettings
   const panels = panelsFor(kind);
   const active: PanelId | null = panels.length ? (layout.panelByKind[kind] === undefined ? panels[0]! : (layout.panelByKind[kind] && panels.includes(layout.panelByKind[kind]!) ? layout.panelByKind[kind]! : null)) : null;
   const setActive = useCallback((p: PanelId | null) => setLayout({ ...layout, panelByKind: { ...layout.panelByKind, [kind]: p } }), [layout, setLayout, kind]);
-  const chat = useChat(core, project.dir, { selectedDraft: file, picked, afterChanges: () => { void store.fetchDrafts(); if (file) { void store.fetchDiagnostics(file); void store.fetchChanges(file); } } });
+  const chat = useChat(core, project.dir, { selectedDraft: file, selections, afterChanges: () => { void store.fetchDrafts(); if (file) { void store.fetchDiagnostics(file); void store.fetchChanges(file); } } });
 
   // 进项目：自动开上次看的稿（没有就第一份）
   useEffect(() => { host.setTitle(project.title || project.name); }, [host, project]);
@@ -54,14 +64,17 @@ export function Workbench({ project, host, layout, setLayout, onHome, onSettings
     setTabs((t) => { const n = t.includes(f) ? t : [...t, f]; mem.set(`us.tabs.${project.dir}`, n); return n; });
   };
   const closeTab = (f: string) => { const n = tabs.filter((x) => x !== f); setTabs(n); mem.set(`us.tabs.${project.dir}`, n); if (file === f) { const next = n[n.length - 1] ?? null; if (next) open(next); else store.select(null); } };
-  const sendToAI = (text: string, p: Picked) => { setPicked(p); if (layout.chatMode === "bar") setLayout({ ...layout, chatMode: "expanded" }); void chat.send(text, p); };
+  const sendToAI = (text: string, p: Picked) => {
+    setPicked(p);
+    if (layout.chatMode === "bar") setLayout({ ...layout, chatMode: "expanded" });
+    void chat.send(text, [{ kind: "node", label: `${p.tag ? `<${p.tag}> ` : ""}${draftTitle(p.file)} · ${p.node}`, detail: `${p.file} › ${p.node}`, ref: { file: p.file, node: p.node } }]);
+  };
   const setChat = (patch: Partial<LayoutState>) => setLayout({ ...layout, ...patch });
   const draft = file ? store.drafts.find((d) => d.file === file) : undefined;
   const unresolved = store.comments.filter((c) => !c.resolved).length;
   const filtered = store.drafts.filter((d) => !fileQ || `${d.title} ${d.file}`.toLowerCase().includes(fileQ.toLowerCase()));
 
-  const rail = layout.chatMode === "expanded" ? <ChatRail chat={chat} picked={picked} onClearPicked={() => setPicked(null)} selectedDraft={file} width={layout.chatWidth} onCollapse={() => setChat({ chatMode: "bar" })} onSwapSide={() => setChat({ chatSide: layout.chatSide === "left" ? "right" : "left" })} /> : null;
-  const panelOpen = !!file && !!active && !narrow;
+  const rail = layout.chatMode === "expanded" ? <ChatRail chat={chat} selections={selections} onDropSelection={(i) => setSelections((xs) => xs.filter((_, j) => j !== i))} onClearSelections={() => setSelections([])} selectedDraft={file} width={layout.chatWidth} onResize={(w) => setLayout({ ...layout, chatWidth: w })} side={layout.chatSide} onCollapse={() => setChat({ chatMode: "bar" })} onSwapSide={() => setChat({ chatSide: layout.chatSide === "left" ? "right" : "left" })} /> : null;
   return (
     <div className="h-full flex flex-col">
       <header className="h-10 px-3 flex items-center gap-3 border-b border-border bg-panel shrink-0 text-xs">
@@ -102,14 +115,14 @@ export function Workbench({ project, host, layout, setLayout, onHome, onSettings
             </div>}
           </div>
           <div className="flex-1 min-h-0 flex">
-            {file ? <Canvas url={project.url} store={store} file={file} picked={picked} onPicked={setPicked} mode={mode} setMode={(m) => { setMode(m); mem.set("us.previewMode", m); }} onPresent={() => setPresent(true)} panelWidth={panelOpen && active === "props" ? PANEL_WIDTH : 0} onOpenPanel={(p) => setActive(p)} unresolved={unresolved} />
+            {file ? <Canvas url={project.url} store={store} file={file} picked={picked} onPicked={setPicked} mode={mode} setMode={(m) => { setMode(m); mem.set("us.previewMode", m); }} onPresent={() => setPresent(true)} onOpenPanel={(p) => setActive(p)} unresolved={unresolved} />
               : <div className="flex-1 flex items-center justify-center text-muted text-xs text-center px-6 leading-relaxed bg-canvas">{store.drafts.length ? "从右上角「N 份稿」里选一份" : <>这个项目还没有稿<br /><button className="btn sm mt-3" onClick={() => setSheet("newDraft")}>新建稿件</button></>}</div>}
-            {file && panels.length > 0 && <SidePanels core={core} store={store} file={file} picked={picked} panels={panels} active={active} setActive={setActive} narrow={narrow} onSendToAI={sendToAI} />}
+            {file && panels.length > 0 && <SidePanels core={core} store={store} file={file} picked={picked} onPicked={setPicked} panels={panels} active={active} setActive={setActive} narrow={narrow} onSendToAI={sendToAI} />}
           </div>
           {layout.chatMode === "bar" && (
             <div className="h-11 px-2 flex items-center gap-2 border-t border-border bg-panel shrink-0">
               <button className="ib" onClick={() => setChat({ chatMode: "expanded" })} title="展开会话栏">◧</button>
-              {picked && <span className="flex items-center gap-1 rounded border border-accent bg-accentSoft px-2 h-6 text-[11px] font-mono"><span className="text-accent font-semibold">node</span>{picked.tag ? `<${picked.tag}>` : picked.node}<button className="ib text-[10px]" onClick={() => setPicked(null)}>×</button></span>}
+              {selections.map((s, i) => <span key={i} className="flex items-center gap-1 rounded border border-accent bg-accentSoft px-2 h-6 text-[11px] font-mono shrink-0" title={s.detail}><span className="text-accent font-semibold">{s.kind}</span><span className="truncate max-w-[160px]">{s.label}</span><button className="ib w-4 h-4 text-[10px]" onClick={() => setSelections((xs) => xs.filter((_, j) => j !== i))}>×</button></span>)}
               <input id="chatInput" value={chat.input} onChange={(e) => chat.setInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") void chat.send(); }} placeholder={chat.running ? "AI 正在跑…" : file ? `对 ${draftTitle(file)} 说…` : "说要改什么…"} className="flex-1 h-8 px-3 rounded border border-border bg-bg text-xs outline-none focus:border-accent" />
               {chat.running ? <button className="btn sm danger" onClick={() => void chat.interrupt()}>中断</button> : <button className="btn sm primary" onClick={() => void chat.send()} disabled={!chat.input.trim()}>发送</button>}
             </div>

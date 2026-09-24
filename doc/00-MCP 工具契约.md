@@ -2929,3 +2929,20 @@ S2 放在 `outgoing/手动拖入/S2-单稿预览壳.dc.html`，请用户拖进�
 **它问的四件，都定了**（回执 `uploads/25`）：① `outline[].line` **计入 frontmatter**，行号 = 文件真实行号（和源码视图、会话里的 `L9–12` 同一坐标系）；② 快照弹层采纳 `snapshots: [{ version, src, at }]`；③ `referencedBy[]` 采纳 `{ file, line? }`；④ 第 3 题采纳（默认列表；图片 ≥ 60% 且 ≥ 6 张自动网格；`layout.viewByDir` 记手动选择）。S1 的 `project.types { dc, md, image, other }` 由索引算；S9 的 `selections[]` 照它的形状接。
 
 这一轮设计侧没有欠项；M7-9 到此收口，S12–S15 的接线随 M8 做。
+
+## 五十七、M7-7 布局引擎 · M7-8 旧前端退役 · 两条落盘 / 编辑缺陷（2026-09-24）
+
+**M7-7 布局引擎 R1–R5 完整版**
+- **属性面板搬进 React**（Q30 第二步做完）：`app/src/workbench/PropsPanel.tsx` 照 S7 形制重写 —— 三组 style / attr / text；数字行带单位与步进（px 1 / Shift 10，% 5 / 25，其余 0.1 / 1，↑↓ 也走同一档）；颜色行带色板，候选**只从这份稿自己声明的 CSS 变量**来（`cssvars`），对上设计系统 token 的把路径标在候选里；可改项边敲边预览（只改 iframe 里那张覆盖样式，不落盘），回车 / 失焦 / 步进才 `set_prop`；落盘后绿条停三秒「已改 · 上一版 → 新版 · 撤销」；失败留在那一行、可重试；地址失效时说人话（「回预览里重新点一下那个元素」）而不是把给 MCP 看的 fix 原样抛出来。
+- **S2 嵌入模式只剩画布**：`railOpen` 在 `EMBED` 时恒假；新增四条父窗口指令 `preview-style / clear-style / highlight / applied` —— 桥在内层 iframe 里，应用够不着，必须由 S2 转发。
+- **会话栏可拖宽**（S11 的 `chatWidth`，300–560）。拖动时**必须在整页盖一层遮罩**：预览是 iframe，鼠标一进它的地盘 `mousemove` 就被 iframe 吃掉，宽度会卡在鼠标离开会话栏的那一刻【实测踩到】。
+- **「已选中」药丸泛化五种**（S9 第五轮定的 `selections: [{ kind, label, detail }]`）：可多颗、自动换行、每颗带 ×、两颗以上多一个「全部清掉」。`node` 由 S2 点选桥来；另外四种（`range / region / files / dir`）等 M8 的类型接入。属性面板认的 `picked` 与会话要带的 `selections` **分开存** —— × 掉药丸不该把属性面板一起关掉。
+- R3 的记忆键改成设计侧定的 `panelByKind`。
+
+**M7-8 旧前端退役**：删 `server/ui/`（1729 行 vanilla）与 `/__legacy/` 路由；没 build 过 `app/` 时 `/__app/` 给一句「在仓库根跑 npm --prefix app run build」。前端从此只有一份。
+
+**两条缺陷**（`issues/2026-09-24/01`、`02`，都已修）：
+1. **`@ds` 展开不看稿在哪**：子目录里的稿展开成相对项目根的 `_ds/…`，浏览器去要 `/<子目录>/_ds/…` → 404，token 全部失效、颜色全错而页面照画。`expandDsAlias` 加 `relPath` 按深度补 `../`；存量稿由 `fixDsDepth` 在唯一写入口上收拾。`selftest` 加六条基准钉住（根 / 一层 / 两层 × `@ds` / 已展开 / 已经对的）。【实测】落盘前子目录解析 404 → `writeDraft` 一次 → 200。
+2. **回车落盘发两次 `set_prop`**：`setBusy` 让 input `disabled`，disabled 会自动失焦 → `onBlur` 又提交一次；两个请求并发，后到的撞上已经变了的地址报 400。按行 `inFlight` 去重。旧前端没这个问题是因为它的输入框不 disabled。
+
+【实测】M7-7 扫测（`pwm77.mjs`，项目副本）：S2 嵌入后可见文字为空（只剩画布）· 点选 → 属性面板三组 15 行、标题 `PC 吐司.dc.html L29 <button>` · font-size 行 `px` 单位 + 两颗步进 · 改值盘上不变而覆盖层里有新值 · 回车 → 绿条 `已改 · v5 → v6`、盘上 19px · 撤销 → 19px 消失 · 锁定行 ? 说出 `onclick {{ onAction }} 引用` · 药丸 · 拖宽 380 → 440 且 `us.layout` 记住 · **R4 切稿时会话栏右边界 440 → 440 不动**。回归：`selftest` 零 error（含新增六条基准）· `lifecycletest` 全通 · `agenttest` 4/4 · `rendertest` 15/15 · 壳测试全过。

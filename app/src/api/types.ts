@@ -13,6 +13,11 @@ export interface VersionMeta { src?: string; time?: string; summary?: string; no
 export interface ChangesData { file: string; versions: string[]; versionMeta: Record<string, VersionMeta>; diff?: { changes: Array<{ level?: string; at?: string; message?: string; target?: string; kind?: string }> } }
 export interface SourceData { file: string; source: string; lines: number; bytes: number }
 export interface Picked { file: string; node: string; tag: string }
+/** 带进会话的选择项（S9 第五轮：五种）。`node` 来自 S2 点选桥；其余四种随 M8 的类型接入。
+ *  `ref` 是给后端的定位信息：node 走 selectedNodeFile / selectedNodeAddress，别的类型 M8 再定。 */
+export type SelectionKind = "node" | "range" | "region" | "files" | "dir";
+export interface Selection { kind: SelectionKind; label: string; detail: string; ref?: { file?: string; node?: string } }
+export const SELECTION_ICON: Record<SelectionKind, string> = { node: "⌖", range: "≡", region: "▢", files: "⧉", dir: "▤" };
 export interface ShellState { selectOn: boolean; preset: number; zoom: number; draftTheme: "light" | "dark"; picked: boolean; busy: boolean; editHint: string | null; checkNote: string | null; apiErr: string | null }
 
 export interface ToolCall { id: string; function?: { name?: string; arguments?: string } }

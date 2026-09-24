@@ -185,13 +185,31 @@ export function draftPath(p: Project, path: string): string {
 }
 
 /** @ds 别名 → 真实相对路径。落盘时用（00 §3.2）。 */
-export function expandDsAlias(p: Project, src: string): string {
+export function expandDsAlias(p: Project, src: string, relPath?: string): string {
   if (!p.dsDir) return src;
   const a = p.dsAlias;
+  /* `dsDir` 是相对**项目根**的。稿在子目录时不能原样贴上去 —— 浏览器会按稿自己的位置解析，
+     `PC 端/x.dc.html` 里的 `_ds/…` 会去要 `/PC 端/_ds/…`，404，token 全部失效【实测 2026-09-24】。
+     所以按稿所在目录补 `../`。relPath 不给时退回旧行为（等于把稿当在根目录）。 */
+  const depth = relPath ? relPath.split("/").length - 1 : 0;
+  const prefix = "../".repeat(depth) + p.dsDir;
   // 只替换出现在 href/src 属性值开头的别名，避免动到正文里的字面量
-  return src.replace(
+  const out = src.replace(
     new RegExp(`((?:href|src)\\s*=\\s*["'])${a.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/`, "g"),
-    (_m, pre: string) => `${pre}${p.dsDir}/`
+    (_m, pre: string) => `${pre}${prefix}/`
+  );
+  return out;   // 存量稿里已经展开过的错路径由 normalize 的 fixDsDepth 收拾，这里只管别名
+}
+
+/** 存量稿修正：上一版展开出的 `_ds/…` 没算子目录深度，盘上留着一批指向 `/<子目录>/_ds/…` 的死链。
+ *  条件收得很窄 —— 只认「正好等于 dsDir 开头、且前面没有 ../」的那一种，也就是我们自己写出来的形状。
+ *  经唯一写入口再落一次盘就修好；steps 里会记一句。 */
+export function fixDsDepth(p: Project, src: string, depth: number): string {
+  if (!p.dsDir || depth <= 0) return src;
+  const up = "../".repeat(depth);
+  return src.replace(
+    new RegExp(`((?:href|src)\\s*=\\s*["'])${p.dsDir.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/`, "g"),
+    (_m, pre: string) => `${pre}${up}${p.dsDir}/`
   );
 }
 

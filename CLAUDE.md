@@ -64,8 +64,8 @@ npm --prefix server run rendertest   # 渲染回归：真开浏览器（没 Chro
 npm --prefix server run ui -- Umbra_design
 ```
 
-起本地 http、建索引、打开浏览器里的**应用页面**（`/__app/` = `app/dist` 新前端骨架，功能平移中；
-旧前端在 `/__legacy/`，功能齐全，M7-8 退役），然后停在前台（回车重跑索引，Ctrl-C 退出）。
+起本地 http、建索引、打开浏览器里的**应用页面**（`/__app/` = `app/dist`），然后停在前台
+（回车重跑索引，Ctrl-C 退出）。前端没 build 过会给一句提示。
 S1 稿件索引那一页仍在 `index.dc.html`，只是不再当入口。
 
 桌面壳（Electron，M9-2）：`npm --prefix shell install`（Electron 二进制走 npmmirror，见 `shell/.npmrc`）→ `npm --prefix shell start`。
@@ -93,7 +93,7 @@ claude mcp add umbrastudio -- node <仓库绝对路径>/server/dist/index.js
 
 每做完一条更新 `doc/12` 的状态与进度表，读数写进 `doc/00`。设计侧第四轮已发（`00` §五十一），交回后走 `incoming`。
 
-**纪律**：旧 vanilla 前端 `server/ui/index.html` **不再加任何功能**；新功能全进 `app/`。
+**纪律**：前端只有 `app/` 一份（旧 vanilla 前端已于 M7-8 删除）。
 key 只放 `.umbrastudio/ai_config.json`，**不进仓库、不写进任何文档**。
 
 ---
