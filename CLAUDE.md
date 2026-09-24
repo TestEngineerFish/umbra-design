@@ -230,6 +230,26 @@ ClaudeDesign 的项目在云端，**只拥有被上传过的东西**。之前只
 
 ---
 
+## 7.5 装了哪些 skill（2026-09-24）
+
+| skill | 什么时候用 | 为什么装它 |
+| --- | --- | --- |
+| `claude-design-sync` | 和 ClaudeDesign 往来 | 本项目的设计侧协议（`doc/14` §零） |
+| `brainstorming` | **动手做新功能 / 改形制之前** | 它逼着先问清意图、写回理解、拿到确认再动手。用户 2026-09-24 明说过「重构和页面设计不要直接开工」 |
+| `writing-plans` | 有了方案，要拆成可执行的步骤 | ⚠️ 它默认把计划写进 `docs/superpowers/plans/` —— **本项目不这么放**，计划进 `doc/12 待办清单`，读数进 `doc/00` |
+| `verification-before-completion` | 声称"做完了/修好了"之前 | 「Evidence before claims」，和本文 §6 纪律⑤ 是同一条，措辞更狠：没在这条消息里跑过验证命令，就不能说它通过 |
+| `refactor-advisor` | 要重构时 | 扫坏味道 + 分级。它的「按 git 变更频率排优先级」是我们原来没有的角度 |
+
+**没装的，以及为什么**（免得下次有人再查一遍）：
+`frontend-design`（视觉方向该走 ClaudeDesign，不是自己画）· `webapp-testing`（Python Playwright，
+我们是 Node 且已有 `packtest.mjs`）· `skill-creator` / `writing-skills`（都是 100 KB 以上的
+skill 评测框架，写一份项目规范用不着）· `brainstorming` 的 `scripts/`（25 KB 的可视化服务器，会在用户机器上起服务）。
+
+**这些 skill 都不知道本项目的规矩** —— 唯一写入口、判活只认 1+1、不许误报、设计侧协议、
+tokens 从哪来。那部分靠本文 §6 的六条纪律，skill 只是补上它们没覆盖的方法论。
+
+---
+
 ## 8. 交活的规矩
 
 1. **你自己提交，不用给用户贴 commit 文本。** 一件事做完、回归过了就提交一次，小步走；
