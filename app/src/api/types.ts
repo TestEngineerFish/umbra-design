@@ -20,7 +20,10 @@ export interface Selection { kind: SelectionKind; label: string; detail: string;
 export const SELECTION_ICON: Record<SelectionKind, string> = { node: "⌖", range: "≡", region: "▢", files: "⧉", dir: "▤" };
 
 /** 泛型文件层（M8，server/src/files.ts 的返回形状） */
-export type FileKindS = "dir" | "dc" | "md" | "image" | "code" | "html" | "other";
+/** 后端返回的 kind。**和前端是同一个类型** —— 出处在 `@shared/kinds`。
+ *  留 `FileKindS` 这个名字只是为了不改一堆 import；新代码直接用 `FileKind`。 */
+export type { FileKind } from "@shared/kinds";
+export type FileKindS = import("@shared/kinds").FileKind;
 export interface FileEntry { path: string; name: string; kind: FileKindS; isDir: boolean; size: number; updatedAt: string; count?: number; width?: number; height?: number; excerpt?: string; snapshot?: string }
 export interface ListFilesResult { dir: string; entries: FileEntry[]; types: { dc: number; md: number; image: number; other: number } }
 export interface ReadFileResult { path: string; kind: FileKindS; size: number; updatedAt: string; sha256: string; content: string | null; why?: string; lines?: number; snapshot?: string; width?: number; height?: number }

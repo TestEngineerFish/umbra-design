@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Core } from "../api/client";
 import type { FileEntry, Health, ListFilesResult } from "../api/types";
+import { kindDef } from "@shared/kinds";
 
 /** 常驻目录列里的那棵树（M8-11，形制按设计侧第六轮的 S11 窄列 / S12）。
  *
@@ -13,7 +14,7 @@ import type { FileEntry, Health, ListFilesResult } from "../api/types";
  */
 const INDENT = 16, ROW_H = 28;
 
-const ICON: Record<string, string> = { dir: "▸", dc: "◧", md: "≡", image: "▣", code: "⟨⟩", html: "◻", other: "▢" };
+/* 图标问 `@shared/kinds`，这里不留第二张表（M8-14） */
 
 export interface TreeProps {
   core: Core;
@@ -106,7 +107,7 @@ export function FileTree({ core, current, expanded, onExpandedChange, onOpenFile
           <span className="w-4 shrink-0 text-[10px] text-muted grid place-items-center transition-transform"
             style={{ transform: e.isDir && open ? "rotate(90deg)" : "none" }}>{e.isDir ? "▶" : ""}</span>
           <span className={`w-[14px] shrink-0 text-center text-[13px] ${isCur ? "text-accent" : e.kind === "dc" ? "text-accent" : "text-muted"}`}>
-            {e.isDir ? "▤" : ICON[e.kind] ?? "▢"}
+            {kindDef(e.isDir ? "dir" : e.kind).icon}
           </span>
           <span className="truncate flex-1 text-xs leading-none">{e.name}</span>
           {/* 「通过」不挂点（设计侧口径：只有该看的才出现）。

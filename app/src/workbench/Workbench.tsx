@@ -1,22 +1,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Core, type ProjectHandle } from "../api/client";
-import { draftTitle, HEALTH_LABEL, type Picked, type Selection } from "../api/types";
+import { draftTitle, type Picked, type Selection } from "../api/types";
 import { ChatRail } from "../chat/ChatRail";
 import { useChat } from "../chat/useChat";
 import type { HostAdapter } from "../host";
-import { TREE_W, kindOf, mem, panelsFor, type LayoutState, type PanelId } from "../layout/layout";
-
-const KIND_LABEL: Record<string, string> = { dir: "目录", dc: "设计稿", md: "Markdown", image: "图片", code: "代码", html: "网页", other: "其他" };
+import { TREE_W, kindOf, mem, type LayoutState, type PanelId } from "../layout/layout";
+import { engineLabel } from "../chat/channel";
 import { useProject } from "../store/project";
 import { NewDraftSheet } from "../sheets/Sheets";
 import { toast } from "../ui/Toast";
-import { Canvas, Present, type PreviewMode } from "./Canvas";
-import { DirView } from "./DirView";
+import { Present } from "./Canvas";
 import { FileTree } from "./FileTree";
-import { FileCard } from "./FileCard";
-import { ImageView } from "./ImageView";
-import { MarkdownView, type Outline } from "./MarkdownView";
-import { SidePanels } from "./SidePanels";
+/* 详情区怎么画、右边配什么面板、状态行写什么，**全在 kinds 注册表里**。
+   这个文件从此不认识任何一种具体格式 —— 加 `.json` 时它一个字都没动（M8-14）。 */
+import { moduleFor, type ViewContext } from "../kinds";
+import { kindDef } from "@shared/kinds";
 
 /** 工作台（S11 形制）：顶栏 40 · 页签 34 · 左会话 / 中画布 / 右从属面板列 · 底部状态行 24 */
 export function Workbench({ project, host, layout, setLayout, onHome, onSettings }: { project: ProjectHandle; host: HostAdapter; layout: LayoutState; setLayout: (l: LayoutState) => void; onHome: () => void; onSettings: () => void }) {
@@ -25,8 +23,10 @@ export function Workbench({ project, host, layout, setLayout, onHome, onSettings
   const [tabs, setTabs] = useState<string[]>(() => mem.get(`us.tabs.${project.dir}`, []));
   /** 当前打开的是目录时，file 是目录路径（"" = 项目根），dirMode 为真 */
   const [dirMode, setDirMode] = useState(false);
-  const [dirSel, setDirSel] = useState<string[]>([]);
-  const [outline, setOutline] = useState<Outline[]>([]);
+  /* 曾经在这里的三样 state 已经搬进各自的格式模块：
+     `dirSel` → `kinds/dir.tsx`（只有目录用）、`outline` → `kinds/md.tsx`（只有 Markdown 用）、
+     `mode`（预览模式）→ `kinds/dc.tsx`（只有设计稿用）。
+     它们留在这儿的代价不只是乱：改一个目录的勾选，整个工作台跟着重渲染。 */
   const [picked, setPickedRaw] = useState<Picked | null>(null);
   /* 选中的节点有两个去处：属性面板（picked，一次只有一个 —— 桥就是单选）与会话的药丸（selections，可多颗）。
      × 掉药丸不该把属性面板也关掉，所以分开存。 */
@@ -38,7 +38,6 @@ export function Workbench({ project, host, layout, setLayout, onHome, onSettings
       return p ? [...rest, { kind: "node" as const, label: `${p.tag ? `<${p.tag}> ` : ""}${draftTitle(p.file)} · ${p.node}`, detail: `${p.file} › ${p.node}`, ref: { file: p.file, node: p.node } }] : rest;
     });
   }, []);
-  const [mode, setMode] = useState<PreviewMode>(() => mem.get("us.previewMode", "shell"));
   const [present, setPresent] = useState(false);
   const [fileMenu, setFileMenu] = useState(false); const [fileQ, setFileQ] = useState("");
   const [sheet, setSheet] = useState<"newDraft" | null>(null);
@@ -51,7 +50,8 @@ export function Workbench({ project, host, layout, setLayout, onHome, onSettings
   const [menu, setMenu] = useState(false);
   const file = store.selected;
   const kind = dirMode ? "dir" : kindOf(file);
-  const panels = panelsFor(kind);
+  const mod = moduleFor(kind);
+  const panels = [...(mod.panels ?? [])];
   const active: PanelId | null = panels.length ? (layout.panelByKind[kind] === undefined ? panels[0]! : (layout.panelByKind[kind] && panels.includes(layout.panelByKind[kind]!) ? layout.panelByKind[kind]! : null)) : null;
   const setActive = useCallback((p: PanelId | null) => setLayout({ ...layout, panelByKind: { ...layout.panelByKind, [kind]: p } }), [layout, setLayout, kind]);
   /* 树本体抽出来：常驻列和窄窗浮层用的是同一棵，别写两遍 */
@@ -72,7 +72,12 @@ export function Workbench({ project, host, layout, setLayout, onHome, onSettings
   useEffect(() => { host.setTitle(project.title || project.name); }, [host, project]);
   useEffect(() => {
     if (store.selected) return;
-    if (!store.drafts.length) { open("", true); return; }   // 不含任何 .dc.html 的普通目录：直接进目录视图（`01` 第 25 条）
+    /* 【M8-11 之后改了】以前这里会自动 `open("", true)` 进目录视图。
+       那是**常驻目录列出现之前**的做法：那时候详情区不铺目录，用户就没有导航。
+       现在左边一直有树，详情区再铺一份同样的内容就是重复 ——
+       用户实测提的：「预览页面如果没有选中任何文件或者目录时，不应显示目录列表」。
+       所以这里什么都不做，让详情区停在占位态。 */
+    if (!store.drafts.length) return;
     const last = mem.get<string | null>(`us.lastDraft.${project.dir}`, null);
     const pick = store.drafts.find((d) => d.file === last) ?? store.drafts[0];
     if (pick) open(pick.file);
@@ -81,23 +86,28 @@ export function Workbench({ project, host, layout, setLayout, onHome, onSettings
      监听 window.resize 只能捕捉前者。 */
   useEffect(() => {
     const el = detailRef.current; if (!el) return;
-    const ro = new ResizeObserver(([e]) => setDetailW(e!.contentRect.width));
+    /* **两处都是踩出来的**（M8-14）：
+       ① 依赖里要有 kind —— 格式模块的 Provider 按 kind 挂载，换格式时这个 div 会重建，
+          依赖写 `[]` 的话观察器还绑在**已经卸载的旧节点**上，从此再也量不到真宽度。
+       ② 0 要忽略 —— 节点卸载的那一瞬会报一次宽度 0，而 0 < 480 就是 narrow，
+          于是从属面板弹出它的全屏遮罩，整个界面点不动了。这条是 uitest 抓到的：
+          它报「有个 fixed inset-0 的遮罩拦住了点击」，人眼看截图只会觉得"暗了一点"。 */
+    const ro = new ResizeObserver(([e]) => { const w = e!.contentRect.width; if (w > 0) setDetailW(w); });
     ro.observe(el); return () => ro.disconnect();
-  }, []);
+  }, [kind]);
   useEffect(() => {
     const on = (e: KeyboardEvent) => {
       if (e.key === "Escape" && present) setPresent(false);
-      if (e.key === "Escape" && !present && dirSel.length) setDirSel([]);
       if ((e.metaKey || e.ctrlKey) && e.key === "\\") { e.preventDefault(); setLayout({ ...layout, chatMode: layout.chatMode === "bar" ? "expanded" : "bar" }); }
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "b") { e.preventDefault(); setLayout({ ...layout, tree: { ...layout.tree, open: !layout.tree.open } }); }
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "j") { e.preventDefault(); if (layout.chatMode === "bar") setLayout({ ...layout, chatMode: "expanded" }); setTimeout(() => document.getElementById("chatInput")?.focus(), 50); }
     };
     document.addEventListener("keydown", on); return () => document.removeEventListener("keydown", on);
-  }, [present, layout, setLayout, dirSel.length]);
+  }, [present, layout, setLayout]);
 
   /** 打开任意文件或目录。目录不进页签（它是一个位置，不是一份文件）。 */
   const open = (f: string, isDir = false) => {
-    setPicked(null); setFileMenu(false); setDirSel([]);
+    setPicked(null); setFileMenu(false);
     setDirMode(isDir);
     store.select(isDir ? (f || "__root__") : f);
     if (isDir) return;
@@ -106,26 +116,38 @@ export function Workbench({ project, host, layout, setLayout, onHome, onSettings
   };
   const dirRel = dirMode ? (file === "__root__" ? "" : (file ?? "")) : "";
   const closeTab = (f: string) => { const n = tabs.filter((x) => x !== f); setTabs(n); mem.set(`us.tabs.${project.dir}`, n); if (file === f) { const next = n[n.length - 1] ?? null; if (next) open(next); else store.select(null); } };
-  /* 目录视图里选中若干文件 → 一颗 files 药丸带进会话（M8-4，`01` 第 32 条） */
-  useEffect(() => {
-    const on = (e: Event) => {
-      const paths = (e as CustomEvent<string[]>).detail ?? [];
-      if (!paths.length) return;
-      if (layout.chatMode === "bar") setLayout({ ...layout, chatMode: "expanded" });
-      setSelections((xs) => [...xs.filter((x) => x.kind !== "files"), { kind: "files", label: paths.length === 1 ? (paths[0]!.split("/").pop() ?? paths[0]!) : `${paths.length} 个文件`, detail: paths.join("\n") }]);
-      setTimeout(() => document.getElementById("chatInput")?.focus(), 50);
-    };
-    window.addEventListener("ud-send-files", on); return () => window.removeEventListener("ud-send-files", on);
-  }, [layout, setLayout]);
 
-  const sendToAI = (text: string, p: Picked) => {
-    setPicked(p);
-    if (layout.chatMode === "bar") setLayout({ ...layout, chatMode: "expanded" });
-    void chat.send(text, [{ kind: "node", label: `${p.tag ? `<${p.tag}> ` : ""}${draftTitle(p.file)} · ${p.node}`, detail: `${p.file} › ${p.node}`, ref: { file: p.file, node: p.node } }]);
-  };
   const setChat = (patch: Partial<LayoutState>) => setLayout({ ...layout, ...patch });
-  const draft = file ? store.drafts.find((d) => d.file === file) : undefined;
-  const unresolved = store.comments.filter((c) => !c.resolved).length;
+  const expandChat = useCallback(() => { if (layout.chatMode === "bar") setLayout({ ...layout, chatMode: "expanded" }); }, [layout, setLayout]);
+  /** 同一类选区只留一颗 —— 选区是「当前选的那一块」，不是历史记录 */
+  const putSelection = useCallback((k: Selection["kind"], sel: Selection | null) => {
+    setSelections((xs) => [...xs.filter((x) => x.kind !== k), ...(sel ? [sel] : [])]);
+    if (sel) expandChat();
+  }, [expandChat]);
+
+  /** 交给格式模块的能力面（`kinds/context.ts` 是这份契约的出处）。
+   *  工作台到这里为止 —— 下面它只负责把 View / Panels / Status 摆到对的位置，
+   *  再也不知道「dc 要 picked、md 要 outline、图片要问吃不吃图」这些事。 */
+  const ctx: ViewContext = {
+    core, host, project, store,
+    path: dirMode ? dirRel : (file ?? ""),
+    kind, narrow,
+    open,
+    select: putSelection,
+    ask: (text, sels) => { expandChat(); void chat.send(text, sels); },
+    picked, setPicked,
+    ui: { activePanel: active, openPanel: setActive, expandChat, present: () => setPresent(true), toast },
+    ai: { supportsImage: chat.supportsImage, engineLabel: engineLabel(chat.caps, chat.channel, chat.model), reloadCaps: () => void chat.reloadCaps() },
+    mem: {
+      get: (k, d) => mem.get(`us.kind.${kind}.${k}`, d),
+      set: (k, v) => mem.set(`us.kind.${kind}.${k}`, v),
+    },
+  };
+  /* Provider **按 kind 挂载**（`key={kind}`）：换格式时上一种的状态跟着卸载，
+     换文件时不重建 —— 否则每换一份稿 Canvas 的 iframe 都要重挂一次，会闪。
+     「换文件要清什么」由各模块自己用 useEffect 决定，比一刀切的 key 精确。 */
+  const Wrap = mod.Provider ?? (({ children }: { ctx: ViewContext; children: React.ReactNode }) => <>{children}</>);
+
   const filtered = store.drafts.filter((d) => !fileQ || `${d.title} ${d.file}`.toLowerCase().includes(fileQ.toLowerCase()));
 
   const rail = layout.chatMode === "expanded" ? <ChatRail chat={chat} selections={selections} onDropSelection={(i) => setSelections((xs) => xs.filter((_, j) => j !== i))} onClearSelections={() => setSelections([])} contextLabel={dirMode ? (dirRel || "这个目录") : (file ? draftTitle(file) : null)} width={layout.chatWidth} onResize={(w) => setLayout({ ...layout, chatWidth: w })} side={layout.chatSide} onCollapse={() => setChat({ chatMode: "bar" })} onSwapSide={() => setChat({ chatSide: layout.chatSide === "left" ? "right" : "left" })} /> : null;
@@ -154,6 +176,8 @@ export function Workbench({ project, host, layout, setLayout, onHome, onSettings
           </div>}
         </div>
       </header>
+      {/* Provider 要同时包住详情区和状态行（目录的「已选 3 项」在状态行读模块内部的勾选） */}
+      <Wrap ctx={ctx} key={kind}>
       <div className="flex-1 min-h-0 flex">
         {layout.chatSide === "left" && rail}
         <div className="flex-1 min-w-0 flex flex-col">
@@ -203,15 +227,20 @@ export function Workbench({ project, host, layout, setLayout, onHome, onSettings
               )
             )}
             <div ref={detailRef} className="flex-1 min-w-0 flex">
-            {dirMode ? <DirView core={core} dirRel={dirRel} selected={dirSel} onSelectionChange={setDirSel} onOpen={open} />
-              : !file ? <div className="flex-1 flex items-center justify-center text-muted text-xs text-center px-6 leading-relaxed bg-canvas">从上面的页签或目录里选一个文件</div>
-              : kind === "dc" ? <Canvas url={project.url} store={store} file={file} picked={picked} onPicked={setPicked} mode={mode} setMode={(m) => { setMode(m); mem.set("us.previewMode", m); }} onPresent={() => setPresent(true)} onOpenPanel={(p) => setActive(p)} unresolved={unresolved} />
-              : kind === "md" ? <MarkdownView core={core} path={file} writeTick={String(store.fileTick(file))} onWritten={() => void store.fetchDrafts()} onOutline={setOutline} onSelection={(s) => { if (!s) { setSelections((xs) => xs.filter((x) => x.kind !== "range")); return; } if (layout.chatMode === "bar") setLayout({ ...layout, chatMode: "expanded" }); setSelections((xs) => [...xs.filter((x) => x.kind !== "range"), s]); }} />
-              : kind === "image" ? <ImageView core={core} path={file} supportsImage={chat.supportsImage} channelLabel={`通道 ${chat.channel.toUpperCase()}${chat.model ? ` · ${chat.model}` : ""}`}
-                  onProbed={() => void chat.reloadCaps()}
-                  onSelection={(s) => { if (!s) { setSelections((xs) => xs.filter((x) => x.kind !== "region")); return; } if (layout.chatMode === "bar") setLayout({ ...layout, chatMode: "expanded" }); setSelections((xs) => [...xs.filter((x) => x.kind !== "region"), s]); }} />
-              : <FileCard core={core} host={host} path={file} onOpen={open} />}
-            {file && panels.length > 0 && <SidePanels core={core} store={store} file={file} picked={picked} onPicked={setPicked} panels={panels} active={active} setActive={setActive} narrow={narrow} onSendToAI={sendToAI} outline={outline} />}
+            {!dirMode && !file ? (
+                <div className="flex-1 flex flex-col items-center justify-center gap-2 text-muted text-xs text-center px-6 leading-relaxed bg-canvas">
+                  <div className="text-2xl opacity-25">◧</div>
+                  <div><b className="text-text2">从左边的目录里选一个文件</b></div>
+                  <div className="text-[11px]">
+                    双击目录能在这里以它为根打开{layout.tree.open ? "" : "；⌘B 展开目录列"}
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <mod.View ctx={ctx} />
+                  {mod.Panels && panels.length > 0 && <mod.Panels ctx={ctx} />}
+                </>
+              )}
             </div>
           </div>
           {layout.chatMode === "bar" && (
@@ -226,12 +255,14 @@ export function Workbench({ project, host, layout, setLayout, onHome, onSettings
         {layout.chatSide === "right" && rail}
       </div>
       <footer className="h-6 px-3 flex items-center gap-3 border-t border-border bg-panel shrink-0 text-[11px] text-muted font-mono">
-        {dirMode ? <><span className="truncate">{dirRel || "项目根"}</span><span>·</span><span>目录</span>{dirSel.length > 0 && <><span>·</span><span>已选 {dirSel.length} 项</span></>}</>
-          : file ? <><span className="truncate">{file}</span><span>·</span><span>{kind === "dc" ? (draft?.kind === "component" ? "组件稿" : "设计稿") : KIND_LABEL[kind]}</span>{draft && kind === "dc" && <><span>·</span><span>{draft.version ?? "—"}</span><span>·</span><span>{draft.elements ?? "—"} 元素</span><span>·</span><span title={draft.healthWhy}>{HEALTH_LABEL[draft.health]}</span></>}</>
+        {/* 中间这几段由格式模块给（`Status`）—— 以前这里有一条「dc 写版本和元素数、
+            目录写已选几项、其余查一张 KIND_LABEL 表」的分叉，第四种格式一来就撑不住了 */}
+        {dirMode || file ? <><span className="truncate">{dirMode ? (dirRel || "项目根") : file}</span><span>·</span>{mod.Status ? <mod.Status ctx={ctx} /> : <span>{kindDef(kind).label}</span>}</>
           : <span>没有打开的文件</span>}
         <span className="flex-1" />
         <span>会话在{layout.chatMode === "bar" ? "输入条" : layout.chatSide === "left" ? "左" : "右"} · {layout.chatWidth} px</span>
       </footer>
+      </Wrap>
       {present && file && <Present url={project.url} file={file} onStop={() => setPresent(false)} />}
       {sheet === "newDraft" && <NewDraftSheet core={core} current={file} onClose={() => setSheet(null)} onCreated={async (f) => { await store.fetchDrafts(); open(f); }} />}
     </div>

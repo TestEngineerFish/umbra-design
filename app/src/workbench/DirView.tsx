@@ -3,14 +3,15 @@ import type { Core } from "../api/client";
 import { timeAgo, type FileEntry, type ListFilesResult } from "../api/types";
 import { mem } from "../layout/layout";
 import { toast } from "../ui/Toast";
+import { kindDef } from "@shared/kinds";
 
 /** 目录视图（S12 形制，M8-3 / M8-4）。
  *  默认列表；**非目录文件里图片 ≥ 60% 且 ≥ 6 张**时自动切网格，并在视图开关旁说明为什么是网格。
  *  手动切过一次，这个目录就记住手动的选择，不再自动判断（`viewByDir`，设计侧第五轮定的键名）。
  *  勾选框常驻（平时压到 55% 透明度）—— hover 才出现的话，键盘和触控都用不了。 */
 const AUTO_MIN = 6, AUTO_SHARE = 0.6;
-const KIND_LABEL: Record<string, string> = { dir: "目录", dc: "设计稿", md: "Markdown", image: "图片", code: "代码", html: "网页", other: "其他" };
-const KIND_ICON: Record<string, string> = { dir: "▤", dc: "◧", md: "≡", image: "▣", code: "⟨⟩", html: "◻", other: "▢" };
+/* 名字和图标都问 `@shared/kinds` —— 以前这里、`FileTree` 里各有一张表，
+   新加一种类型得记着改两处，漏一处的症状是「目录列表里有图标，树里是个 ▢」（M8-14）。 */
 
 export function DirView({ core, dirRel, onOpen, onSelectionChange, selected }: {
   core: Core; dirRel: string; onOpen: (path: string, isDir: boolean) => void;
@@ -92,10 +93,10 @@ function Table({ rows, selected, onToggle, onOpen }: { rows: FileEntry[]; select
         <div key={e.path} className={`grid grid-cols-[32px_minmax(0,1fr)_84px_96px_104px_132px] gap-x-3 items-center min-h-[44px] px-3 border-b border-border last:border-0 cursor-pointer hover:bg-hover ${selected.includes(e.path) ? "bg-accentSoft" : ""}`} onClick={() => onOpen(e.path, e.isDir)}>
           <input type="checkbox" checked={selected.includes(e.path)} onClick={(ev) => ev.stopPropagation()} onChange={() => onToggle(e.path)} className={`w-3.5 h-3.5 accent-[var(--tool-accent)] ${any ? "" : "opacity-55"}`} />
           <div className="min-w-0 pr-3 flex items-center gap-2">
-            <span className={`shrink-0 ${e.kind === "dc" ? "text-accent" : "text-muted"}`}>{KIND_ICON[e.kind]}</span>
+            <span className={`shrink-0 ${e.kind === "dc" ? "text-accent" : "text-muted"}`}>{e.isDir ? kindDef("dir").icon : kindDef(e.kind).icon}</span>
             <div className="min-w-0"><div className="font-semibold truncate">{e.name}</div>{e.excerpt && <div className="text-[11px] text-muted truncate font-mono">{e.excerpt}</div>}</div>
           </div>
-          <span className="text-muted">{KIND_LABEL[e.kind]}</span>
+          <span className="text-muted">{kindDef(e.kind).label}</span>
           <span className="text-right font-mono text-muted">{e.isDir ? "—" : fmtSize(e.size)}</span>
           <span className="text-muted">{timeAgo(e.updatedAt)}</span>
           <span className="font-mono text-[11px] text-muted truncate">{reading(e)}</span>
@@ -116,7 +117,7 @@ function Grid({ core, rows, dirRel, selected, onToggle, onOpen }: { core: Core; 
             {e.kind === "image" ? <img src={`${core.url}${e.path.split("/").map(encodeURIComponent).join("/")}`} alt="" className="max-h-full max-w-full object-contain" style={{ background: "repeating-conic-gradient(var(--tool-panel-2) 0 25%, transparent 0 50%) 50% / 16px 16px" }} />
               : e.kind === "md" ? <div className="p-3 text-[11px] text-muted leading-relaxed line-clamp-5 w-full">{e.excerpt || "（空）"}</div>
               : e.kind === "dc" ? <div className="w-full h-full" style={{ background: "repeating-linear-gradient(135deg, var(--tool-panel-2) 0 8px, var(--tool-panel) 8px 16px)" }} />
-              : <div className="flex flex-col items-center gap-1 text-muted"><span className="text-2xl">{KIND_ICON[e.kind]}</span><span className="text-[11px] font-mono uppercase">{e.isDir ? `${e.count ?? 0} 项` : (e.name.split(".").pop() ?? "")}</span></div>}
+              : <div className="flex flex-col items-center gap-1 text-muted"><span className="text-2xl">{e.isDir ? kindDef("dir").icon : kindDef(e.kind).icon}</span><span className="text-[11px] font-mono uppercase">{e.isDir ? `${e.count ?? 0} 项` : (e.name.split(".").pop() ?? "")}</span></div>}
           </div>
           <div className="px-2.5 py-2"><div className="text-xs font-semibold truncate">{e.name}</div><div className="text-[11px] text-muted truncate font-mono">{e.isDir ? `${e.count ?? 0} 项` : reading(e) || fmtSize(e.size)}</div></div>
         </li>

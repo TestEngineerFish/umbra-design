@@ -100,6 +100,41 @@ if (await title.count()) {
   ok(!/历史会话/.test(await pg.locator("aside").first().innerText()), "再点标题回到会话");
 } else ok(false, "没找到顶栏的标题入口（▾）");
 
+/* ── 格式注册表（M8-14）──
+   这一轮把「每种文件怎么看」从 Workbench 的一条三元链搬进 `app/src/kinds/` 的独立模块。
+   要守住的不是某个像素，而是**三个环节各自还通**：视图（View）、面板（Panels）、状态行（Status）。
+   哪一环断了，症状都是「这种文件打开后少了点东西」，而截图上很难一眼看出少了什么。 */
+console.log("\n格式注册表：每种文件的视图 / 面板 / 状态行（M8-14）");
+const footText = () => pg.locator("footer").innerText();
+const openByName = async (suffix) => {
+  const row = pg.locator('[role="treeitem"]').filter({ hasText: suffix }).first();
+  if (!(await row.count())) return false;
+  await row.click(); await pg.waitForTimeout(1200);
+  return true;
+};
+
+/* 设计稿：属性面板（dc 模块的 Panels）。它是唯一有五个面板的格式 */
+if (await openByName(".dc.html")) {
+  ok(/设计稿|组件稿/.test(await footText()), "设计稿：状态行写类型和读数", (await footText()).split("\n").slice(0, 5).join(" · "));
+  ok(await pg.locator('text=属性').count() > 0, "设计稿：右侧属性面板在");
+} else ok(false, "项目里没有 .dc.html，测不了设计稿");
+
+/* Markdown：大纲。**这一条最该测** —— 大纲原来是 Workbench 的一个 state，
+   现在住在 md 模块自己的 Provider 里（View 产出、Panels 消费）。
+   接错了的症状是「右边那一列空着」，静态检查抓不到。 */
+if (await openByName(".md")) {
+  ok(/Markdown/.test(await footText()), "Markdown：状态行写类型");
+  ok(await pg.locator('text=大纲').count() > 0, "Markdown：大纲面板在（它跨了 View 与 Panels 两处）");
+} else ok(false, "项目里没有 .md，测不了 Markdown");
+
+/* JSON：M8-14 新加的一种。**它存在就是「加一种格式只需新增一个文件」的证据** */
+if (await openByName(".json")) {
+  const t = await pg.locator("footer").innerText();
+  ok(/JSON/.test(t), "JSON：状态行写 JSON（新格式的 Status 接上了）");
+  const bodyTxt = await pg.locator("main, body").first().innerText();
+  ok(/结构/.test(bodyTxt) && /源码/.test(bodyTxt), "JSON：结构 / 源码两档都在");
+} else console.log("  – 项目里没有 .json，跳过新格式那一条（不算通过）");
+
 console.log("\n控制台");
 ok(errs.length === 0, "零 error（已排除解析期的模板洞噪声）", errs[0] ?? "");
 

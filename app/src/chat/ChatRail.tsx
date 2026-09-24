@@ -3,6 +3,7 @@ import { History } from "./History";
 import { SELECTION_ICON, type ChatMessage, type Selection, type ToolCall } from "../api/types";
 import type { ChatStore } from "./useChat";
 import { renderMd, renderMdInline } from "../ui/markdown";
+import { engineLabel } from "./channel";
 
 /** 会话栏，形制按 S9：用户句右对齐；一个 AI 回合共用一根左栏，文本与工具行按出现顺序排；变更卡带回退；「已选中」药丸紧挨输入框上方 */
 export function ChatRail({ chat, selections, onDropSelection, onClearSelections, contextLabel, onCollapse, onSwapSide, width, onResize, side }: { chat: ChatStore; selections: Selection[]; onDropSelection: (i: number) => void; onClearSelections: () => void; contextLabel: string | null; onCollapse: () => void; onSwapSide: () => void; width: number; onResize: (w: number) => void; side: "left" | "right" }) {
@@ -20,8 +21,7 @@ export function ChatRail({ chat, selections, onDropSelection, onClearSelections,
   /* 状态行格式由设计侧第六轮定：**引擎名 · 模型（有的话）· 计费方式**。
      不再写「通道 A/B/C」—— 那个词对用户没有任何意义（他脱口而出的是「模式」）。
      引擎名由服务端给，前端不抄第二份映射表。 */
-  const who = [cap?.engine ?? `通道 ${chat.channel.toUpperCase()}`, chat.model || null, cap?.billing]
-    .filter(Boolean).join(" · ");
+  const who = engineLabel(chat.caps, chat.channel, chat.model);
   const usage = chat.usage
     ? (chat.usage.totalCostUSD != null ? `${who} · $${Number(chat.usage.totalCostUSD).toFixed(3)}` : `${who} · ${(chat.usage.totalTokens ?? 0).toLocaleString()} tokens`)
     : who;

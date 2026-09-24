@@ -24,31 +24,25 @@ import { isToolPage } from "./indexpage.js";
 import { writeAtomic } from "./normalize.js";
 import { listDrafts, type Project } from "./project.js";
 
-export type FileKind = "dir" | "dc" | "md" | "image" | "code" | "html" | "other";
+/* 类型联合也只有一份（`shared/kinds.ts`）。这儿曾经自己写了一遍，
+   加 `json` 时它没跟上，编译器当场就抓出来了 —— 这正是统一的用处。 */
+export type { FileKind };
 
-const IMAGE_EXT = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".avif", ".bmp", ".ico"]);
-const CODE_EXT = new Set([".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".json", ".css", ".scss", ".yaml", ".yml", ".toml", ".sh", ".py", ".rs", ".go", ".sql", ".txt", ".xml", ".svg"]);
 /** 文本文件的上限：超过就只给元数据，不把整份塞进响应 */
 export const TEXT_MAX = 2 * 1024 * 1024;
 
-export function kindOf(rel: string, isDir = false): FileKind {
-  if (isDir) return "dir";
-  const name = basename(rel).toLowerCase();
-  if (name.endsWith(".dc.html")) return "dc";
-  const ext = extname(name);
-  if (ext === ".md" || ext === ".markdown") return "md";
-  if (IMAGE_EXT.has(ext) && ext !== ".svg") return "image";
-  if (ext === ".svg") return "image";          // svg 既是图片也是代码，按图片看（可无损缩放）
-  if (ext === ".html" || ext === ".htm") return "html";
-  if (CODE_EXT.has(ext)) return "code";
-  return "other";
-}
+/** 文件类型认定走 `shared/kinds.ts` 那一份唯一出处（M8-14）。
+ *  以前这里有一份扩展名映射、前端 `layout.ts` 里还有一份，两份今天一致纯属运气 ——
+ *  没有任何机制保证下次加扩展名时两边都会改。现在只有一处。 */
+/* 文件类型的认定**只有一份**，在 `shared/kinds.ts` —— 前端 `app/` 也 import 同一份
+   （`@shared/kinds`）。以前前后端各写一套 `kindOf`，两边迟早判不一样。
+   注意是 import 进来再 re-export：`export {} from` 只转发，本模块内部还是取不到这个名字。 */
+import { kindOf, isTextualPath, type FileKind } from "./shared/kinds.js";
+export { kindOf };
 
 /** 这个扩展名的内容能不能当文本读 */
-export function isTextual(rel: string): boolean {
-  const k = kindOf(rel);
-  return k === "md" || k === "code" || k === "html" || k === "dc" || extname(rel).toLowerCase() === ".svg";
-}
+/** 是不是文本 —— 走 shared 那一份（`.svg` 是图片但也是文本，只看 kind 会误判） */
+export function isTextual(rel: string): boolean { return isTextualPath(rel); }
 
 export function sha256(s: string | Buffer): string {
   return createHash("sha256").update(s).digest("hex");

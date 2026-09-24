@@ -98,6 +98,9 @@ claude mcp add umbrastudio -- node <仓库绝对路径>/server/dist/index.js
 
 每做完一条更新 `doc/12` 的状态与进度表，读数写进 `doc/00`。设计侧第五轮已收完并入，下一轮尚无交办。
 
+**加一种文件格式怎么做**（M8-14 的注册表，`00` §七十一）：① `server/src/shared/kinds.ts` 加一条 `KindDef`（前后端同时生效）② `app/src/kinds/<它>.tsx` 写 `View` / `Toolbar` / `Panels` / `menu` / `Status` ③ `app/src/kinds/index.ts` 数组里加一行。**`Workbench.tsx` 不要动** —— 要是不得不动它，说明抽象没抽对。
+分界线用设计侧第七轮那条判据：**点了它，变的是什么** —— 变项目 / 布局 / 导航 / 会话的归工作台，变这份文件的归格式模块。
+
 **纪律**：前端只有 `app/` 一份（旧 vanilla 前端已于 M7-8 删除）。
 key 只放 `.umbrastudio/ai_config.json`，**不进仓库、不写进任何文档**。
 核心里**只读资产看 `TOOL_ROOT`，可写状态看 `STATE_ROOT`** —— 打包后前者在 `.app` 里（只读），
@@ -203,8 +206,8 @@ ClaudeDesign 的项目在云端，**只拥有被上传过的东西**。之前只
 | 目录 | 是什么 | 进仓库 |
 | --- | --- | --- |
 | `doc/` | 需求、契约、规则、实测、路线图、待办 | ✅ |
-| `server/` | MCP server + 本地 API + WS + CLI（Node + TS） | ✅（`dist/` 除外） |
-| `app/` | 新前端（Vite + React + TS + Tailwind）；`src/host/` 是唯一碰壳的目录 | ✅（`dist/`、`node_modules/` 除外） |
+| `server/` | MCP server + 本地 API + WS + CLI（Node + TS）；**`src/shared/` 是前后端共用的纯 TS**（只有类型认定，不许 import 任何东西） | ✅（`dist/` 除外） |
+| `app/` | 新前端（Vite + React + TS + Tailwind）；`src/host/` 是唯一碰壳的目录；**`src/kinds/` 一个文件格式一个模块**（M8-14） | ✅（`dist/`、`node_modules/` 除外） |
 | `shell/` | Electron 桌面壳：主进程起核心、preload 挂 `window.umbraHost`、`shelltest.mjs` | ✅（`node_modules/`、`out/` 除外） |
 | `runtime/` | `support.js` + 两个 React UMD，**刻意 vendor** | ✅ |
 | `ui/` | 工具自己的界面稿（S1–S10、IconGlyph）；`ui/_incoming/` 是收设计侧稿的暂存处，不进仓库 | ✅ |

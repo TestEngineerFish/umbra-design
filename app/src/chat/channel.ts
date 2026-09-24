@@ -19,3 +19,13 @@ export function pickChannel(c: ChannelId): void {
   mem.set("us.chatChannel", c);
   window.dispatchEvent(new CustomEvent("ud-pick-channel", { detail: c }));
 }
+
+/** 界面上怎么称呼「此刻在用哪个引擎」：**引擎名 · 模型（有的话）· 计费方式**（设计侧第六轮 6.4）。
+ *
+ *  引擎名由服务端给（`caps[channel].engine`），前端**不抄第二份映射表** ——
+ *  抄了就会出现「会话栏说 Claude Code、图片视图说通道 B」这种两处各写一遍的老毛病。
+ *  第六轮改名时图片视图那一处就是漏的，M8-14 收进来。 */
+export function engineLabel(caps: Record<string, { engine?: string; billing?: string } | undefined> | null | undefined, channel: ChannelId, model?: string): string {
+  const cap = caps?.[channel];
+  return [cap?.engine ?? `引擎 ${channel.toUpperCase()}`, model || null, cap?.billing].filter(Boolean).join(" · ");
+}

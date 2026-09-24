@@ -2,7 +2,12 @@
  *  M7-7 才做完整布局引擎，这里只放三态 + 按类型记忆。 */
 export type ChatSide = "left" | "right";
 export type ChatMode = "expanded" | "bar";
-export type FileKind = "dc" | "md" | "image" | "dir" | "code" | "html" | "other";
+/* 文件类型的认定在 `@shared/kinds`（前后端同一份）。这里只转发，不再写第二套 ——
+   以前 `layout.ts` 和 `server/src/files.ts` 各有一个 `kindOf`，
+   而且两边的扩展名表没有任何机制保证一致，今天碰巧一样纯属运气（M8-14）。 */
+import type { FileKind } from "@shared/kinds";
+export { kindOf } from "@shared/kinds";
+export type { FileKind };
 export type PanelId = "props" | "diagnostics" | "changes" | "comments" | "outline" | "info";
 export interface LayoutState {
   chatSide: ChatSide; chatMode: ChatMode; chatWidth: number;
@@ -36,21 +41,8 @@ export function loadLayout(): LayoutState {
   } catch { return DEFAULT; }
 }
 export function saveLayout(s: LayoutState): void { try { localStorage.setItem(KEY, JSON.stringify(s)); } catch { /* 隐私模式 */ } }
-export function kindOf(file: string | null): FileKind {
-  if (!file) return "dir";
-  if (/\.dc\.html$/i.test(file)) return "dc";
-  if (/\.md$/i.test(file)) return "md";
-  if (/\.(png|jpe?g|webp|gif|svg)$/i.test(file)) return "image";
-  if (/\.html?$/i.test(file)) return "html";
-  if (/\.(ts|tsx|js|mjs|css|json|py|rs|go|sh)$/i.test(file)) return "code";
-  return "other";
-}
-/** R1：按类型决定有哪些从属面板 */
-export function panelsFor(kind: FileKind): PanelId[] {
-  if (kind === "dc") return ["props", "diagnostics", "changes", "comments", "info"];
-  if (kind === "md") return ["outline"];
-  return [];
-}
+/* R1「按类型决定有哪些从属面板」搬去 `kinds/registry.ts` 的 `panelsOf()` 了 ——
+   那里每种格式自己声明，不再在这里写一串 if。 */
 export const PANEL_TITLE: Record<PanelId, string> = { props: "属性", diagnostics: "诊断", changes: "变更", comments: "评论", outline: "大纲", info: "稿件信息" };
 export function applyTheme(t: LayoutState["theme"]): void {
   const dark = t === "dark" || (t === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
