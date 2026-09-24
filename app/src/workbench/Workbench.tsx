@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Core, type ProjectHandle } from "../api/client";
 import { draftTitle, HEALTH_LABEL, type Picked, type Selection } from "../api/types";
 import { ChatRail } from "../chat/ChatRail";
 import { useChat } from "../chat/useChat";
 import type { HostAdapter } from "../host";
-import { kindOf, mem, panelsFor, type LayoutState, type PanelId } from "../layout/layout";
+import { TREE_W, kindOf, mem, panelsFor, type LayoutState, type PanelId } from "../layout/layout";
 
 const KIND_LABEL: Record<string, string> = { dir: "目录", dc: "设计稿", md: "Markdown", image: "图片", code: "代码", html: "网页", other: "其他" };
 import { useProject } from "../store/project";
@@ -12,6 +12,7 @@ import { NewDraftSheet } from "../sheets/Sheets";
 import { toast } from "../ui/Toast";
 import { Canvas, Present, type PreviewMode } from "./Canvas";
 import { DirView } from "./DirView";
+import { FileTree } from "./FileTree";
 import { FileCard } from "./FileCard";
 import { ImageView } from "./ImageView";
 import { MarkdownView, type Outline } from "./MarkdownView";
@@ -41,13 +42,30 @@ export function Workbench({ project, host, layout, setLayout, onHome, onSettings
   const [present, setPresent] = useState(false);
   const [fileMenu, setFileMenu] = useState(false); const [fileQ, setFileQ] = useState("");
   const [sheet, setSheet] = useState<"newDraft" | null>(null);
-  const [narrow, setNarrow] = useState(() => window.innerWidth < 1100);
+  /* R5 让位规则（设计侧第六轮改的口径）：**看详情区的实际宽度，不看窗口宽度**。
+     会话栏拖宽、目录列展开都会挤详情，而窗口宽度一点没变 —— 按窗口判会漏。
+     详情区 < 480px 时依次让位：① 从属面板改抽屉 ② 还不够，目录列改浮层。 */
+  const detailRef = useRef<HTMLDivElement>(null);
+  const [detailW, setDetailW] = useState(9999);
+  const narrow = detailW < 480;
   const [menu, setMenu] = useState(false);
   const file = store.selected;
   const kind = dirMode ? "dir" : kindOf(file);
   const panels = panelsFor(kind);
   const active: PanelId | null = panels.length ? (layout.panelByKind[kind] === undefined ? panels[0]! : (layout.panelByKind[kind] && panels.includes(layout.panelByKind[kind]!) ? layout.panelByKind[kind]! : null)) : null;
   const setActive = useCallback((p: PanelId | null) => setLayout({ ...layout, panelByKind: { ...layout.panelByKind, [kind]: p } }), [layout, setLayout, kind]);
+  /* 树本体抽出来：常驻列和窄窗浮层用的是同一棵，别写两遍 */
+  const tree = (
+    <FileTree core={core} current={dirMode ? null : file} projectName={project.name}
+      expanded={layout.tree.expanded}
+      onExpandedChange={(ex) => setLayout({ ...layout, tree: { ...layout.tree, expanded: ex } })}
+      onOpenFile={(f) => { open(f); if (narrow) setLayout({ ...layout, tree: { ...layout.tree, open: false } }); }}
+      onOpenDir={(d) => { open(d, true); if (narrow) setLayout({ ...layout, tree: { ...layout.tree, open: false } }); }}
+      healthOf={(path) => store.drafts.find((d) => d.file === path)?.health ?? null}
+      tick={store.lastEvent?.at ?? ""}
+    />
+  );
+
   const chat = useChat(core, project.dir, { selectedDraft: dirMode ? null : file, selections, afterChanges: () => { void store.fetchDrafts(); if (file) { void store.fetchDiagnostics(file); void store.fetchChanges(file); } } });
 
   // 进项目：自动开上次看的稿（没有就第一份）
@@ -59,12 +77,19 @@ export function Workbench({ project, host, layout, setLayout, onHome, onSettings
     const pick = store.drafts.find((d) => d.file === last) ?? store.drafts[0];
     if (pick) open(pick.file);
   }, [store.drafts]);   // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { const on = () => setNarrow(window.innerWidth < 1100); window.addEventListener("resize", on); return () => window.removeEventListener("resize", on); }, []);
+  /* 用 ResizeObserver 量详情区自己 —— 它能同时捕捉「窗口变了」和「旁边的列变宽了」。
+     监听 window.resize 只能捕捉前者。 */
+  useEffect(() => {
+    const el = detailRef.current; if (!el) return;
+    const ro = new ResizeObserver(([e]) => setDetailW(e!.contentRect.width));
+    ro.observe(el); return () => ro.disconnect();
+  }, []);
   useEffect(() => {
     const on = (e: KeyboardEvent) => {
       if (e.key === "Escape" && present) setPresent(false);
       if (e.key === "Escape" && !present && dirSel.length) setDirSel([]);
       if ((e.metaKey || e.ctrlKey) && e.key === "\\") { e.preventDefault(); setLayout({ ...layout, chatMode: layout.chatMode === "bar" ? "expanded" : "bar" }); }
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "b") { e.preventDefault(); setLayout({ ...layout, tree: { ...layout.tree, open: !layout.tree.open } }); }
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "j") { e.preventDefault(); if (layout.chatMode === "bar") setLayout({ ...layout, chatMode: "expanded" }); setTimeout(() => document.getElementById("chatInput")?.focus(), 50); }
     };
     document.addEventListener("keydown", on); return () => document.removeEventListener("keydown", on);
@@ -133,6 +158,12 @@ export function Workbench({ project, host, layout, setLayout, onHome, onSettings
         {layout.chatSide === "left" && rail}
         <div className="flex-1 min-w-0 flex flex-col">
           <div className="h-[34px] flex items-stretch border-b border-border bg-panel shrink-0 text-xs relative">
+            {/* 目录钮放在页签条**最左边** —— 那里本来就是详情区的起点，
+                所以展开前后目录都从同一个位置出来（设计侧第六轮 6.1 的理由）。
+                收起态整列收掉、不留 40px 图标轨：目录只有一样东西，留条轨就一颗钮，白占一列宽。 */}
+            <button className={`w-9 shrink-0 grid place-items-center border-r border-border hover:bg-hover ${layout.tree.open ? "text-accent" : "text-muted"}`}
+              onClick={() => setLayout({ ...layout, tree: { ...layout.tree, open: !layout.tree.open } })}
+              title={`${layout.tree.open ? "收起" : "展开"}目录（⌘B）`}>▤</button>
             <div className="flex-1 min-w-0 flex overflow-x-auto">
               {tabs.map((t) => { const d = store.drafts.find((x) => x.file === t); const cur = t === file; return <div key={t} className={`group flex items-center gap-1.5 pl-3 pr-2 border-r border-border cursor-pointer whitespace-nowrap ${cur ? "bg-bg border-t-2 border-t-accent -mb-px" : "text-muted hover:text-text"}`} onClick={() => open(t)} title={t}><span className={`hdot ${d?.health ?? "unchecked"}`} /><span className={cur ? "font-semibold" : ""}>{draftTitle(t)}</span><button className="ib opacity-0 group-hover:opacity-100 text-[10px]" onClick={(e) => { e.stopPropagation(); closeTab(t); }} title="关闭">×</button></div>; })}
             </div>
@@ -145,6 +176,33 @@ export function Workbench({ project, host, layout, setLayout, onHome, onSettings
             </div>}
           </div>
           <div className="flex-1 min-h-0 flex">
+            {/* 常驻目录列（设计侧第六轮 6.1）。**贴在详情左边，会话栏换边它不动** ——
+                目录是用来翻详情的，两者得挨着，视线才不用跨过会话栏。
+                详情区太窄时（narrow）它让位成浮层，盖在详情上，选中文件或 Esc 就收。 */}
+            {layout.tree.open && (
+              narrow ? (
+                <>
+                  <div className="absolute inset-0 z-20 bg-black/20" onMouseDown={() => setLayout({ ...layout, tree: { ...layout.tree, open: false } })} />
+                  <aside className="absolute left-0 top-0 bottom-0 z-30 bg-panel border-r border-border shadow-2xl" style={{ width: 280 }}>{tree}</aside>
+                </>
+              ) : (
+                <aside className="relative shrink-0 border-r border-border bg-panel" style={{ width: layout.tree.width }}>
+                  {tree}
+                  {/* 拖右边缘改宽；双击回默认 240 */}
+                  <div className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-accent/30"
+                    onDoubleClick={() => setLayout({ ...layout, tree: { ...layout.tree, width: TREE_W.def } })}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      const x0 = e.clientX, w0 = layout.tree.width;
+                      const mv = (ev: MouseEvent) => setLayout({ ...layout, tree: { ...layout.tree, width: Math.min(TREE_W.max, Math.max(TREE_W.min, w0 + ev.clientX - x0)) } });
+                      const up = () => { document.removeEventListener("mousemove", mv); document.removeEventListener("mouseup", up); document.body.style.cursor = ""; };
+                      document.body.style.cursor = "col-resize";
+                      document.addEventListener("mousemove", mv); document.addEventListener("mouseup", up);
+                    }} />
+                </aside>
+              )
+            )}
+            <div ref={detailRef} className="flex-1 min-w-0 flex">
             {dirMode ? <DirView core={core} dirRel={dirRel} selected={dirSel} onSelectionChange={setDirSel} onOpen={open} />
               : !file ? <div className="flex-1 flex items-center justify-center text-muted text-xs text-center px-6 leading-relaxed bg-canvas">从上面的页签或目录里选一个文件</div>
               : kind === "dc" ? <Canvas url={project.url} store={store} file={file} picked={picked} onPicked={setPicked} mode={mode} setMode={(m) => { setMode(m); mem.set("us.previewMode", m); }} onPresent={() => setPresent(true)} onOpenPanel={(p) => setActive(p)} unresolved={unresolved} />
@@ -154,6 +212,7 @@ export function Workbench({ project, host, layout, setLayout, onHome, onSettings
                   onSelection={(s) => { if (!s) { setSelections((xs) => xs.filter((x) => x.kind !== "region")); return; } if (layout.chatMode === "bar") setLayout({ ...layout, chatMode: "expanded" }); setSelections((xs) => [...xs.filter((x) => x.kind !== "region"), s]); }} />
               : <FileCard core={core} host={host} path={file} onOpen={open} />}
             {file && panels.length > 0 && <SidePanels core={core} store={store} file={file} picked={picked} onPicked={setPicked} panels={panels} active={active} setActive={setActive} narrow={narrow} onSendToAI={sendToAI} outline={outline} />}
+            </div>
           </div>
           {layout.chatMode === "bar" && (
             <div className="h-11 px-2 flex items-center gap-2 border-t border-border bg-panel shrink-0">

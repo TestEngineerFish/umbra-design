@@ -9,10 +9,32 @@ export interface LayoutState {
   /** 每种类型上次打开的从属面板；null = 收起（R3） */
   panelByKind: Partial<Record<FileKind, PanelId | null>>;
   theme: "system" | "light" | "dark";
+  /** 常驻目录列（M8-11，设计侧第六轮 6.1）。键名按它给的 `layout.tree`。
+   *  `expanded` 存的是相对路径，和 S12 宽区共用同一份 —— 两边展开的层级要一致。 */
+  tree: { open: boolean; width: number; expanded: string[] };
 }
+
+/** 目录列的宽度边界（设计侧定的）：默认 240，拖拽范围 200–360，双击边缘回默认 */
+export const TREE_W = { def: 240, min: 200, max: 360 } as const;
 const KEY = "us.layout";
-const DEFAULT: LayoutState = { chatSide: "left", chatMode: "expanded", chatWidth: 380, panelByKind: { dc: "props", md: "outline" }, theme: "system" };
-export function loadLayout(): LayoutState { try { const v = JSON.parse(localStorage.getItem(KEY) ?? "null") ?? {}; return { ...DEFAULT, ...v, panelByKind: { ...DEFAULT.panelByKind, ...(v.panelByKind ?? {}) } }; } catch { return DEFAULT; } }
+const DEFAULT: LayoutState = { chatSide: "left", chatMode: "expanded", chatWidth: 380, panelByKind: { dc: "props", md: "outline" }, theme: "system", tree: { open: true, width: TREE_W.def, expanded: [] } };
+export function loadLayout(): LayoutState {
+  try {
+    const v = JSON.parse(localStorage.getItem(KEY) ?? "null") ?? {};
+    return {
+      ...DEFAULT, ...v,
+      panelByKind: { ...DEFAULT.panelByKind, ...(v.panelByKind ?? {}) },
+      /* tree 要逐键兜底：老用户的 localStorage 里没有这一项，
+         直接用 v.tree 会得到 undefined，界面上就崩在 layout.tree.open 上。
+         宽度也钳一下 —— 存过界的值（换过边界、手改过）不能让列宽失控。 */
+      tree: {
+        open: v.tree?.open ?? DEFAULT.tree.open,
+        width: Math.min(TREE_W.max, Math.max(TREE_W.min, Number(v.tree?.width) || TREE_W.def)),
+        expanded: Array.isArray(v.tree?.expanded) ? v.tree.expanded.filter((x: unknown) => typeof x === "string") : [],
+      },
+    };
+  } catch { return DEFAULT; }
+}
 export function saveLayout(s: LayoutState): void { try { localStorage.setItem(KEY, JSON.stringify(s)); } catch { /* 隐私模式 */ } }
 export function kindOf(file: string | null): FileKind {
   if (!file) return "dir";

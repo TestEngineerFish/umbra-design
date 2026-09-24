@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -p . --noEmit && vite build",
-    "check": "tsc -p . --noEmit"
+    "check": "tsc -p . --noEmit",
+    "uitest": "node uitest.mjs"
   },
   "dependencies": {
     "react": "^18.3.1",
