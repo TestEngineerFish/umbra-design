@@ -16,7 +16,7 @@ export interface Picked { file: string; node: string; tag: string }
 /** 带进会话的选择项（S9 第五轮：五种）。`node` 来自 S2 点选桥；其余四种随 M8 的类型接入。
  *  `ref` 是给后端的定位信息：node 走 selectedNodeFile / selectedNodeAddress，别的类型 M8 再定。 */
 export type SelectionKind = "node" | "range" | "region" | "files" | "dir";
-export interface Selection { kind: SelectionKind; label: string; detail: string; ref?: { file?: string; node?: string } }
+export interface Selection { kind: SelectionKind; label: string; detail: string; ref?: { file?: string; node?: string }; /** region 药丸：裁出来的那一块（data URL），通道支持图片时随消息发过去 */ image?: string }
 export const SELECTION_ICON: Record<SelectionKind, string> = { node: "⌖", range: "≡", region: "▢", files: "⧉", dir: "▤" };
 
 /** 泛型文件层（M8，server/src/files.ts 的返回形状） */

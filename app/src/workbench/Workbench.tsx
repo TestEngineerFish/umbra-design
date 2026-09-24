@@ -13,6 +13,7 @@ import { toast } from "../ui/Toast";
 import { Canvas, Present, type PreviewMode } from "./Canvas";
 import { DirView } from "./DirView";
 import { FileCard } from "./FileCard";
+import { ImageView } from "./ImageView";
 import { MarkdownView, type Outline } from "./MarkdownView";
 import { SidePanels } from "./SidePanels";
 
@@ -148,6 +149,9 @@ export function Workbench({ project, host, layout, setLayout, onHome, onSettings
               : !file ? <div className="flex-1 flex items-center justify-center text-muted text-xs text-center px-6 leading-relaxed bg-canvas">从上面的页签或目录里选一个文件</div>
               : kind === "dc" ? <Canvas url={project.url} store={store} file={file} picked={picked} onPicked={setPicked} mode={mode} setMode={(m) => { setMode(m); mem.set("us.previewMode", m); }} onPresent={() => setPresent(true)} onOpenPanel={(p) => setActive(p)} unresolved={unresolved} />
               : kind === "md" ? <MarkdownView core={core} path={file} writeTick={store.lastEvent?.type === "write" ? store.lastEvent.at : ""} onWritten={() => void store.fetchDrafts()} onOutline={setOutline} onSelection={(s) => { if (!s) { setSelections((xs) => xs.filter((x) => x.kind !== "range")); return; } if (layout.chatMode === "bar") setLayout({ ...layout, chatMode: "expanded" }); setSelections((xs) => [...xs.filter((x) => x.kind !== "range"), s]); }} />
+              : kind === "image" ? <ImageView core={core} path={file} supportsImage={chat.supportsImage} channelLabel={`通道 ${chat.channel.toUpperCase()}${chat.model ? ` · ${chat.model}` : ""}`}
+                  onProbed={() => void chat.reloadCaps()}
+                  onSelection={(s) => { if (!s) { setSelections((xs) => xs.filter((x) => x.kind !== "region")); return; } if (layout.chatMode === "bar") setLayout({ ...layout, chatMode: "expanded" }); setSelections((xs) => [...xs.filter((x) => x.kind !== "region"), s]); }} />
               : <FileCard core={core} host={host} path={file} onOpen={open} />}
             {file && panels.length > 0 && <SidePanels core={core} store={store} file={file} picked={picked} onPicked={setPicked} panels={panels} active={active} setActive={setActive} narrow={narrow} onSendToAI={sendToAI} outline={outline} />}
           </div>

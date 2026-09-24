@@ -1170,6 +1170,18 @@ server.registerTool("get_ai_config", {
   return envelope({ channelA: mask(cfg.channelA), channelB: mask(cfg.channelB), defaultChannel: cfg.defaultChannel }, [], {});
 }));
 
+server.registerTool("probe_image_support", {
+  title: "探一次通道吃不吃图",
+  description: [
+    "现场造一张随机纯色小图发给通道 A，问它什么颜色。答对了就把 supportsImage 记成 true，否则 false。",
+    "为什么不靠模型名猜：deepseek-chat 文档没写多模态，实测它能看图（doc/00 §六十一）。按名字猜一定有误判。",
+  ].join("\n"),
+  inputSchema: {},
+}, async () => run(async () => {
+  const { probeImageSupport } = await import("./ai_probe.js");
+  return envelope(await probeImageSupport("a"), [], {});
+}));
+
 server.registerTool("set_ai_config", {
   title: "设置 AI 配置",
   description: [

@@ -16,7 +16,7 @@ import { getComponent, getIcon, getToken, listComponents, listIcons, searchToken
 import { validateDraft } from "./validate.js";
 import { patchDraft, writeDraft } from "./write.js";
 import { missingRuntime } from "./normalize.js";
-import { getAiConfig, setAiConfig, getChannelA, getChannelB, type AiConfig } from "./ai_config.js";
+import { getAiConfig, setAiConfig, channelSupportsImage, getChannelA, getChannelB, type AiConfig } from "./ai_config.js";
 import { chat, type ToolDef, type ToolCall, type ChatMessage } from "./provider.js";
 import { createChat, loadChat, saveChat, listChats, deleteChat, addMessage, type ChatSession, type ChatEntry } from "./chat.js";
 import { findBrowser, renderCheck } from "./render.js";
@@ -56,6 +56,8 @@ export interface ChatSendArgs {
   selectedFiles?: string[];
   /** `.md` 里选中的一段（M8-8，`01` 第 30 条）：label 是「路径 L9-12」，text 是那一段原文 */
   selectedRange?: { label: string; text: string };
+  /** 图片上圈的一块（M8-10，`01` 第 31 条）：坐标一句话 + 备注 + 裁出来那块的 data URL */
+  selectedRegion?: { label: string; note: string; image: string | null };
   /** 应用前端里当前正在看的稿（没选中节点时的弱上下文）：进系统提示，不进用户那句 */
   contextFile?: string;
   /** 作业化调用时的中断信号（本地 API chat_interrupt 触发）：通道 A 的 agent 循环在下一步前停下 */
@@ -305,7 +307,7 @@ function sanitizeHistory(msgs: ChatMessage[]): ChatMessage[] {
 
 /** chat_send：加载/新建会话 → 选中节点上下文 → 通道 A agent 循环或通道 B 子进程 → 审计变更。返回信封。 */
 export async function runChatSend(p: Project, a: ChatSendArgs): Promise<Envelope<any>> {
-  const { message, sessionId, channel, selectedNodeFile, selectedNodeAddress, selectedFiles, selectedRange, contextFile, abortSignal } = a;
+  const { message, sessionId, channel, selectedNodeFile, selectedNodeAddress, selectedFiles, selectedRange, selectedRegion, contextFile, abortSignal } = a;
   const ch = channel ?? "a";
 
   // 加载或新建会话
@@ -371,9 +373,18 @@ export async function runChatSend(p: Project, a: ChatSendArgs): Promise<Envelope
     rangeContext = [`【当前选中的一段】${selectedRange.label}`, "```", selectedRange.text.slice(0, 4000), "```"].join("\n");
   }
 
+  /* ── 图片圈选（M8-10）：坐标与备注一律发（文字通道也读得懂）；**图只在通道支持时发**。
+     不支持还硬发，对面要么报错要么把 base64 当文本吞进去烧 token —— 两种都比说一句「这个通道看不了图」差。 ── */
+  let canSeeImage = false;
+  let regionContext: string | null = null;
+  if (selectedRegion?.label) {
+    regionContext = [`【用户在图上圈了一块】${selectedRegion.label}`, selectedRegion.note ? `他说：${selectedRegion.note}` : ""].filter(Boolean).join("\n");
+  }
+
   // 通道 A：跑 agent 循环
   if (ch === "a") {
     const providerCfg = await getChannelA();
+    canSeeImage = channelSupportsImage(providerCfg);
 
     // ── 记录循环前各稿的版本（用于审计变更） ──
     const draftVersionsBefore: Map<string, string> = new Map();
@@ -445,10 +456,32 @@ export async function runChatSend(p: Project, a: ChatSendArgs): Promise<Envelope
       systemParts.push("", "### 用户选中的一段文字", rangeContext, "",
         "用户说「这段」时就是指它，**不要再问是哪一段**。改法：先 read_file 拿到全文与 sha256，把这一段替换掉、其余一个字都不动，再 write_file 带上那个 sha256。不要重写整份文档。");
     }
+    if (regionContext) {
+      systemParts.push("", "### 用户在图上圈的区域", regionContext, "",
+        canSeeImage
+          ? [
+              "随这条消息发过去的**只有圈中的那一块**，不是整张图 —— 别拿它描述整张图长什么样。",
+              "坐标是原图像素，原点在左上角：x 向右增大，y 向下增大。回答时引用坐标，别只说「这里」。",
+            ].join("\n")
+          : "**你看不到图**（当前通道不支持图片），只有坐标和他的话。别猜图上画的是什么；需要看图就直说「这个通道看不了图，换一个能看图的模型」。");
+    }
 
     /* 语言约束放最后一条：模型对系统提示末尾的指令更听话。
        放开头时 DeepSeek 仍会用英文写「I'll start by reading the file.」这类过渡句【实测 2026-09-24】。 */
     systemParts.push("", "### 语言", "所有回复一律用简体中文，包括「我先读一下文件」这类过渡句和工具调用前后的说明。不要用英文写给用户看的句子。");
+
+    /* 图片只在通道支持时才随消息发。history 的最后一条是用户那句话，把图挂在它上面。 */
+    if (canSeeImage && selectedRegion?.image) {
+      for (let i = history.length - 1; i >= 0; i--) {
+        const m = history[i]!;
+        if (m.role !== "user" || typeof m.content !== "string") continue;
+        m.content = [
+          { type: "text", text: m.content },
+          { type: "image_url", image_url: { url: selectedRegion.image } },
+        ];
+        break;
+      }
+    }
 
     const result = await chat(providerCfg, {
       systemPrompt: systemParts.join("\n"),
@@ -460,7 +493,7 @@ export async function runChatSend(p: Project, a: ChatSendArgs): Promise<Envelope
          界面轮询 chat_get 才能边跑边看到工具行长出来；中断时已跑的步骤也都留在会话里。 */
       onReply: async (reply) => {
         await addMessage(p.dir, session!.id, {
-          role: "assistant", content: reply.content ?? "",
+          role: "assistant", content: typeof reply.content === "string" ? reply.content : (reply.content ?? []).map((x) => x.type === "text" ? x.text : "[图片]").join(""),
           ...(reply.tool_calls ? { toolCalls: reply.tool_calls } : {}),
         });
       },

@@ -21,9 +21,14 @@ export interface ToolDef {
   };
 }
 
+/** 多模态的一段（OpenAI 兼容形状）。只有通道明确支持图片时才会出现 —— 见 ai_config.channelSupportsImage */
+export type ContentPart =
+  | { type: "text"; text: string }
+  | { type: "image_url"; image_url: { url: string } };
+
 export interface ChatMessage {
   role: "system" | "user" | "assistant" | "tool";
-  content: string | null;
+  content: string | ContentPart[] | null;
   tool_calls?: ToolCall[];
   tool_call_id?: string;
   name?: string;

@@ -404,6 +404,10 @@ export async function handleApi(
         selectedRange: b.selectedRange && typeof b.selectedRange === "object"
           ? { label: String((b.selectedRange as Record<string, unknown>).label ?? ""), text: String((b.selectedRange as Record<string, unknown>).text ?? "") }
           : undefined,
+        selectedRegion: b.selectedRegion && typeof b.selectedRegion === "object"
+          ? { label: String((b.selectedRegion as Record<string, unknown>).label ?? ""), note: String((b.selectedRegion as Record<string, unknown>).note ?? ""),
+              image: typeof (b.selectedRegion as Record<string, unknown>).image === "string" ? String((b.selectedRegion as Record<string, unknown>).image) : null }
+          : undefined,
         selectedNodeFile: typeof b.selectedNodeFile === "string" ? b.selectedNodeFile : undefined,
         selectedNodeAddress: typeof b.selectedNodeAddress === "string" ? b.selectedNodeAddress : undefined,
         contextFile: typeof b.contextFile === "string" ? b.contextFile : undefined,
@@ -491,6 +495,21 @@ export async function handleApi(
       if (!s.indexExists) await buildIndex(target, s.url);   // 第一次打开：部署壳与令牌，否则 S2 / S6 / S8 全 404
       await touchProject(target.dir, target.name, target.title);
       json(reply, 200, { ok: true, data: { url: s.url, token: s.token, ws: `ws://127.0.0.1:${s.port}${API_PREFIX}ws`, name: target.name, title: target.title, dir: target.dir, app: s.url + "__app/" } });
+      return true;
+    }
+
+    if (route === "ai_probe_image" && req.method === "POST") {
+      if (!originOk(req, ctx.port)) { json(reply, 403, { ok: false, errors: [{ code: "E_API_ORIGIN", message: "Origin 不是本服务" }] }); return true; }
+      const { probeImageSupport } = await import("./ai_probe.js");
+      json(reply, 200, { ok: true, data: await probeImageSupport("a") });
+      return true;
+    }
+    if (route === "ai_config" && req.method === "GET") {
+      // 只给模型名与「吃不吃图」，**不回显 key**（密钥属于机器，`11` Q7）
+      const { getAiConfig, channelSupportsImage } = await import("./ai_config.js");
+      const cfg = await getAiConfig();
+      const one = (c: { model: string; supportsImage?: boolean } | null) => c ? { model: c.model, supportsImage: channelSupportsImage(c) } : null;
+      json(reply, 200, { ok: true, data: { channelA: one(cfg.channelA), channelB: one(cfg.channelB), defaultChannel: cfg.defaultChannel } });
       return true;
     }
 

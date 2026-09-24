@@ -7,6 +7,8 @@ import { toast } from "../ui/Toast";
 /** AI 会话（M2-12 / §四十）：作业化 —— chat_send async 拿 jobId，每 1.2 s 拉一次会话正文与作业状态；WS 的 chat 事件到了也拉一次 */
 export function useChat(core: Core, dir: string, ctx: { selectedDraft: string | null; selections: Selection[]; afterChanges: () => void }) {
   const [channel, setChannel] = useState<"a" | "b">(() => mem.get("us.chatChannel", "a"));
+  /** 当前通道的模型名与它吃不吃图（M8-10：不支持时圈选入口禁用并说明原因） */
+  const [caps, setCaps] = useState<{ a?: { model: string; supportsImage: boolean }; b?: { model: string; supportsImage: boolean } }>({});
   const [sessions, setSessions] = useState<ChatSessionRow[]>([]);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -28,6 +30,11 @@ export function useChat(core: Core, dir: string, ctx: { selectedDraft: string | 
     }
   }, [core]);
   useEffect(() => { void load(); }, [load, dir]);
+  const reloadCaps = useCallback(async () => {
+    const r = await core.get<{ channelA?: { model: string; supportsImage: boolean } | null; channelB?: { model: string; supportsImage: boolean } | null }>("ai_config").catch(() => null);
+    if (r?.data) setCaps({ a: r.data.channelA ?? undefined, b: r.data.channelB ?? undefined });
+  }, [core]);
+  useEffect(() => { void reloadCaps(); }, [reloadCaps]);
 
   const newSession = useCallback(() => { setSessionId(null); setMessages([]); setNotes([]); setUsage(null); }, []);
   const pickChannel = useCallback((c: "a" | "b") => { setChannel(c); mem.set("us.chatChannel", c); }, []);
@@ -50,6 +57,9 @@ export function useChat(core: Core, dir: string, ctx: { selectedDraft: string | 
       // range 药丸（.md 选中一段，M8-8）：把路径、行范围、原文一起带过去
       const range = sels.find((s) => s.kind === "range");
       if (range) { const [head, ...rest] = range.detail.split("\n"); body.selectedRange = { label: head, text: rest.join("\n") }; }
+      // region 药丸（图片圈选，M8-10）：坐标 + 备注 + 裁出来的那一块
+      const region = sels.find((s) => s.kind === "region");
+      if (region) { const [head, ...rest] = region.detail.split("\n"); body.selectedRegion = { label: head, note: rest.join("\n"), image: region.image ?? null }; }
       const started = await core.post<{ jobId: string; sessionId?: string }>("chat_send", body);
       if (!started.ok || !started.data) throw new Error(started.errors?.[0]?.message ?? "起作业失败");
       job.current = started.data.jobId; const sid = started.data.sessionId ?? sessionId!; setSessionId(sid);
@@ -93,6 +103,7 @@ export function useChat(core: Core, dir: string, ctx: { selectedDraft: string | 
     else toast("回退失败", r.errors?.[0]?.message, "error");
   }, [core, notes]);
 
-  return { channel, pickChannel, sessions, sessionId, messages, notes, usage, running, input, setInput, send, interrupt, revert, newSession, reload: load };
+  return { channel, pickChannel, sessions, sessionId, messages, notes, usage, running, input, setInput, send, interrupt, revert, newSession, reload: load,
+    model: caps[channel]?.model ?? "", supportsImage: caps[channel]?.supportsImage ?? false, reloadCaps };
 }
 export type ChatStore = ReturnType<typeof useChat>;
