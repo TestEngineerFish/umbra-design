@@ -44,7 +44,12 @@ pnpm-debug.log*
 
 # 工具运行产物
 .umbrastudio/
-.umbradesign/   # 旧名，迁移后留着
+# 旧名，迁移后本地留着（不进仓库）
+# ⚠️ 注释必须**单独一行**：gitignore 不认行尾注释，写成 `.umbradesign/  # 说明`
+#    的话整串（含空格和 #）才是模式，等于这条规则完全失效 ——
+#    2026-09-24 就是这么把两把 API key 提进公开仓库的。
+.umbradesign/
+.ud-probe/
 *.log
 
 # 环境与密钥
