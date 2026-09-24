@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- umbradesign:resources -->
+<script>window.__resources = {
+    "https://unpkg.com/react@18.3.1/umd/react.production.min.js": "./react.production.min.js",
+    "https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js": "./react-dom.production.min.js"
+  };</script>
+<!-- /umbradesign:resources -->
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="./_ds-tool/tokens.css">
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; }
+  body { background: var(--tool-bg); }
+  * { box-sizing: border-box; }
+  a { color: var(--tool-accent); text-decoration: none; }
+  a:hover { color: var(--tool-accent-hover); text-decoration: underline; }
+  input, button, textarea { font: inherit; color: inherit; }
+</style>
+</helmet>
+
+<div data-tool-theme="{{ theme }}" style="height: 100vh; display: flex; flex-direction: column; background: var(--tool-bg); color: var(--tool-text); font-family: var(--tool-sans); font-size: 13px; -webkit-font-smoothing: antialiased;">
+
+  <sc-if value="{{ showDemoBar }}" hint-placeholder-val="{{ true }}">
+  <div style="flex: none; display: flex; align-items: center; gap: 8px; padding: 8px 16px; flex-wrap: wrap; font-size: 12px; background: var(--tool-panel-2); border-bottom: 1px solid var(--tool-border);">
+    <span style="font-size: 11px; color: var(--tool-muted); flex: none;">演示态</span>
+    <sc-for list="{{ demoStates }}" as="st" hint-placeholder-count="5">
+      <button type="button" onClick="{{ st.pick }}" title="{{ st.name }}" aria-pressed="{{ st.active }}" style="display: inline-flex; align-items: center; gap: 5px; height: 23px; padding: 0 9px 0 6px; border-radius: var(--tool-radius-sm); border: 1px solid; cursor: pointer; font-size: 11px; white-space: nowrap; transition: background .13s ease, border-color .13s ease, color .13s ease; background: {{ st.bg }}; border-color: {{ st.bd }}; color: {{ st.fg }};" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">
+        <span style="font-family: var(--tool-mono); opacity: 0.6;">{{ st.n }}</span>
+        <span style="font-weight: {{ st.fw }};">{{ st.short }}</span>
+      </button>
+    </sc-for>
+    <span style="color: var(--tool-border-strong); flex: none;">·</span>
+    <span style="color: var(--tool-muted); min-width: 0;">{{ demoNote }}</span>
+  </div>
+  </sc-if>
+
+  <!-- 工具条：文件读数 · 缩放 · 圈选 -->
+  <div style="flex: none; height: 40px; display: flex; align-items: center; gap: 10px; padding: 0 12px 0 16px; background: var(--tool-panel); border-bottom: 1px solid var(--tool-border); position: relative; z-index: 3;">
+    <span style="color: var(--tool-text-2); display: grid;"><dc-import name="IconGlyph" d="M2.5 3h11v10h-11zM2.5 11l3.2-3.2 2.8 2.8 1.8-1.8 3.2 3.2M10.6 5.8h.1" size="14" hint-size="14px,14px"></dc-import></span>
+    <span style="font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;" title="{{ path }}">{{ fileName }}</span>
+    <span style="font-family: var(--tool-mono); font-size: 11px; color: var(--tool-muted); white-space: nowrap; font-variant-numeric: tabular-nums;">{{ metaLabel }}</span>
+    <sc-if value="{{ isVector }}" hint-placeholder-val="{{ false }}">
+      <span title="矢量图按 viewBox 渲染，放大不会糊" style="display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 7px; border-radius: var(--tool-radius-sm); border: 1px solid var(--tool-ok-border); background: var(--tool-ok-soft); color: var(--tool-ok); font-size: 11px; font-weight: 560; white-space: nowrap;">矢量 · 可无损缩放</span>
+    </sc-if>
+    <span style="flex: 1;"></span>
+
+    <div role="group" aria-label="缩放" style="display: flex; align-items: center; border: 1px solid var(--tool-border); border-radius: var(--tool-radius); overflow: hidden; flex: none;">
+      <button type="button" onClick="{{ zoomOut }}" title="缩小（−）" style="width: 28px; height: 26px; display: grid; place-items: center; border: 0; background: var(--tool-panel); color: var(--tool-text-2); cursor: pointer;" style-hover="background: var(--tool-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: -2px;">
+        <dc-import name="IconGlyph" d="M4 8h8" size="12" hint-size="12px,12px"></dc-import>
+      </button>
+      <button type="button" onClick="{{ zoomFit }}" title="适配窗口（0）" style="min-width: 52px; height: 26px; padding: 0 8px; border: 0; border-left: 1px solid var(--tool-border); border-right: 1px solid var(--tool-border); background: var(--tool-panel); font-family: var(--tool-mono); font-size: 11px; color: var(--tool-text); cursor: pointer; font-variant-numeric: tabular-nums;" style-hover="background: var(--tool-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: -2px;">{{ zoomLabel }}</button>
+      <button type="button" onClick="{{ zoomIn }}" title="放大（+）" style="width: 28px; height: 26px; display: grid; place-items: center; border: 0; background: var(--tool-panel); color: var(--tool-text-2); cursor: pointer;" style-hover="background: var(--tool-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: -2px;">
+        <dc-import name="IconGlyph" d="M4 8h8M8 4v8" size="12" hint-size="12px,12px"></dc-import>
+      </button>
+    </div>
+
+    <div style="position: relative; flex: none;">
+      <button type="button" onClick="{{ toggleTool }}" disabled="{{ toolDisabled }}" aria-pressed="{{ toolOn }}" title="{{ toolTitle }}" style="display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 11px; border-radius: var(--tool-radius); border: 1px solid; font-size: 12px; font-weight: 560; transition: background .13s ease, border-color .13s ease, color .13s ease; background: {{ toolBg }}; border-color: {{ toolBd }}; color: {{ toolFg }}; cursor: {{ toolCursor }};" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">
+        <dc-import name="IconGlyph" d="M2.5 5V2.5H5M11 2.5h2.5V5M13.5 11v2.5H11M5 13.5H2.5V11" size="13" hint-size="13px,13px"></dc-import>
+        圈选
+        <kbd style="font-family: var(--tool-mono); font-size: 10px; opacity: 0.7;">R</kbd>
+      </button>
+      <!-- 禁用态的说明：演示态里常驻，实际是 hover / focus 时出现 -->
+      <sc-if value="{{ toolDisabled }}" hint-placeholder-val="{{ false }}">
+        <div role="tooltip" style="position: absolute; top: 34px; right: 0; width: 240px; padding: 8px 10px; border-radius: var(--tool-radius); background: var(--tool-text); color: var(--tool-panel); font-size: 12px; line-height: 1.5; box-shadow: var(--tool-shadow-2);">
+          当前大脑通道不支持图片（{{ channelName }}）。换一个支持图片的通道后就能圈选。
+        </div>
+      </sc-if>
+    </div>
+  </div>
+
+  <!-- 画布 -->
+  <div style="flex: 1 1 0; min-height: 0; overflow: auto; display: flex; padding: 32px; background: repeating-conic-gradient(var(--tool-panel-2) 0 25%, var(--tool-panel) 0 50%) 0 0 / 16px 16px;">
+    <div ref="{{ imgRef }}" onMouseDown="{{ onDown }}" onMouseMove="{{ onMove }}" onMouseUp="{{ onUp }}" style="position: relative; flex: none; margin: auto; width: {{ imgW }}; max-width: {{ imgMaxW }}; aspect-ratio: {{ ratio }}; background: {{ imgBg }}; border: 1px solid var(--tool-border-strong); box-shadow: var(--tool-shadow-2); cursor: {{ canvasCursor }}; user-select: none;">
+      <div style="position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none;">
+        <span style="font-family: var(--tool-mono); font-size: 11px; color: var(--tool-muted); background: var(--tool-panel); border: 1px solid var(--tool-border); border-radius: var(--tool-radius-sm); padding: 3px 8px;">{{ imgLabel }}</span>
+      </div>
+
+      <sc-if value="{{ hasRegion }}" hint-placeholder-val="{{ false }}">
+        <div style="position: absolute; left: {{ rgL }}; top: {{ rgT }}; width: {{ rgW }}; height: {{ rgH }}; border: 1.5px {{ rgStyle }} var(--tool-accent); background: rgba(58, 73, 207, 0.12); pointer-events: none;">
+          <span style="position: absolute; left: -1px; bottom: calc(100% + 4px); font-family: var(--tool-mono); font-size: 10px; line-height: 16px; padding: 0 5px; border-radius: 3px; background: var(--tool-accent); color: var(--tool-on-accent); white-space: nowrap; font-variant-numeric: tabular-nums;">{{ rgLabel }}</span>
+          <sc-if value="{{ rgDone }}" hint-placeholder-val="{{ false }}">
+            <span style="position: absolute; left: -4px; top: -4px; width: 7px; height: 7px; background: var(--tool-panel); border: 1.5px solid var(--tool-accent);"></span>
+            <span style="position: absolute; right: -4px; top: -4px; width: 7px; height: 7px; background: var(--tool-panel); border: 1.5px solid var(--tool-accent);"></span>
+            <span style="position: absolute; left: -4px; bottom: -4px; width: 7px; height: 7px; background: var(--tool-panel); border: 1.5px solid var(--tool-accent);"></span>
+            <span style="position: absolute; right: -4px; bottom: -4px; width: 7px; height: 7px; background: var(--tool-panel); border: 1.5px solid var(--tool-accent);"></span>
+          </sc-if>
+        </div>
+      </sc-if>
+
+      <!-- 圈完：备注卡贴在框下方 -->
+      <sc-if value="{{ showNote }}" hint-placeholder-val="{{ false }}">
+        <div onMouseDown="{{ stop }}" style="position: absolute; left: {{ rgL }}; top: {{ noteTop }}; width: 260px; padding: 10px; display: grid; gap: 8px; background: var(--tool-panel); border: 1px solid var(--tool-border-strong); border-radius: var(--tool-radius-lg); box-shadow: var(--tool-shadow-2); cursor: default;">
+          <textarea rows="2" value="{{ note }}" onChange="{{ onNote }}" placeholder="想问这块什么？（可留空）" style="width: 100%; padding: 6px 8px; border: 1px solid var(--tool-border-strong); border-radius: var(--tool-radius); background: var(--tool-panel); resize: none; line-height: 1.5; outline: none;" style-focus="border-color: var(--tool-accent); box-shadow: 0 0 0 3px var(--tool-accent-soft);"></textarea>
+          <div style="display: flex; gap: 6px; justify-content: flex-end;">
+            <button type="button" onClick="{{ clearRegion }}" style="height: 24px; padding: 0 9px; border: 1px solid var(--tool-border-strong); border-radius: var(--tool-radius-sm); background: var(--tool-panel); font-size: 11px; cursor: pointer;" style-hover="background: var(--tool-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">重圈</button>
+            <button type="button" onClick="{{ sendRegion }}" style="height: 24px; padding: 0 10px; border: 0; border-radius: var(--tool-radius-sm); background: var(--tool-accent); color: var(--tool-on-accent); font-size: 11px; font-weight: 560; cursor: pointer;" style-hover="background: var(--tool-accent-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">带进会话 ⏎</button>
+          </div>
+        </div>
+      </sc-if>
+    </div>
+  </div>
+
+  <!-- 会话输入条（示意 S11 收起态） -->
+  <sc-if value="{{ hasPill }}" hint-placeholder-val="{{ false }}">
+    <div style="flex: none; display: flex; align-items: center; gap: 8px; padding: 6px 8px; background: var(--tool-panel); border-top: 1px solid var(--tool-border);">
+      <span title="{{ note }}" style="flex: 0 1 auto; min-width: 0; display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 7px; border-radius: var(--tool-radius-sm); border: 1px solid var(--tool-accent-border); background: var(--tool-accent-soft); color: var(--tool-accent); font-size: 11px;">
+        <dc-import name="IconGlyph" d="M2.5 5V2.5H5M11 2.5h2.5V5M13.5 11v2.5H11M5 13.5H2.5V11" size="12" hint-size="12px,12px"></dc-import>
+        <span style="font-family: var(--tool-mono); font-weight: 600;">region</span>
+        <span style="font-family: var(--tool-mono); color: var(--tool-text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ pillLabel }}</span>
+      </span>
+      <input type="text" value="{{ note }}" onChange="{{ onNote }}" placeholder="说点什么… ⏎ 发送" style="flex: 1 1 0; min-width: 120px; height: 30px; padding: 0 10px; border: 1px solid var(--tool-border-strong); border-radius: var(--tool-radius); background: var(--tool-panel); outline: none;" style-focus="border-color: var(--tool-accent); box-shadow: 0 0 0 3px var(--tool-accent-soft);">
+    </div>
+  </sc-if>
+
+  <div style="flex: none; height: 24px; display: flex; align-items: center; gap: 10px; padding: 0 12px; font-size: 11px; color: var(--tool-muted); background: var(--tool-panel); border-top: 1px solid var(--tool-border);">
+    <span>{{ hint }}</span>
+    <span style="flex: 1;"></span>
+    <span>只看、缩放、圈选；不做图像编辑</span>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;theme&quot;: {&quot;editor&quot;: &quot;enum&quot;, &quot;options&quot;: [&quot;跟随外层&quot;, &quot;dark&quot;], &quot;default&quot;: &quot;跟随外层&quot;, &quot;tsType&quot;: &quot;'dark'|null&quot;, &quot;section&quot;: &quot;工具皮肤&quot;}}">
+const PNG = {
+  path: "uploads/首页截图.png",
+  format: "png", width: 1440, height: 900, size: 812004,
+  zoom: "fit",
+  region: { x: 120, y: 640, w: 210, h: 44 },
+  note: "这个按钮的颜色是什么",
+  channel: { name: "DeepSeek 直连", supportsImage: true }
+};
+const SVG = { path: "uploads/logo.svg", format: "svg", width: 240, height: 64, size: 3180, zoom: 2, region: null, note: "",
+  channel: { name: "DeepSeek 直连", supportsImage: true } };
+const DEMOS = [
+  { n: 1, short: "默认", name: "默认（适配窗口）", note: "适配窗口；圈选按 R 或点按钮", d: Object.assign({}, PNG, { region: null, note: "" }) },
+  { n: 2, short: "圈选中", name: "圈选中（拖出一个框）", note: "虚线框 + 实时尺寸（原图像素）；在图上拖一下试试", d: Object.assign({}, PNG, { note: "" }), dragging: true },
+  { n: 3, short: "带备注", name: "圈选完带备注", note: "框定稿 + 备注卡；会话里出 region 药丸", d: PNG, done: true },
+  { n: 4, short: "不支持图片", name: "supportsImage: false", note: "圈选禁用，说明常驻（实际 hover / focus 出现）",
+    d: Object.assign({}, PNG, { region: null, note: "", channel: { name: "Claude Code headless", supportsImage: false } }) },
+  { n: 5, short: "svg", name: "svg", note: "标明矢量；默认 200%，继续放大也不糊", d: SVG }
+];
+const ZOOMS = [0.25, 0.5, 1, 2, 4];
+function size(b) { return b < 1024 ? b + " B" : b < 1048576 ? Math.round(b / 1024) + " KB" : (b / 1048576).toFixed(1) + " MB"; }
+
+class Component extends DCLogic {
+  imgRef = React.createRef();
+  state = { demo: 1, zoom: null, region: undefined, tool: null, drag: null, sent: null, note: null };
+
+  componentDidMount() {
+    this.onKey = (e) => {
+      const tag = (e.target && e.target.tagName) || "";
+      if (tag === "INPUT" || tag === "TEXTAREA") return;
+      if (e.key === "r" || e.key === "R") this.toggleTool();
+      if (e.key === "Escape") this.setState({ tool: false, drag: null });
+      if (e.key === "0") this.setState({ zoom: "fit" });
+    };
+    document.addEventListener("keydown", this.onKey);
+  }
+  componentWillUnmount() { document.removeEventListener("keydown", this.onKey); }
+
+  data() { return DEMOS[this.state.demo - 1].d; }
+  toolOn() { const dm = DEMOS[this.state.demo - 1]; return this.state.tool !== null ? this.state.tool : !!dm.dragging; }
+  toggleTool() { if (!this.data().channel.supportsImage) return; this.setState({ tool: !this.toolOn() }); }
+
+  pt(e) {
+    const el = this.imgRef.current, d = this.data();
+    if (!el) return null;
+    const r = el.getBoundingClientRect();
+    const cx = Math.max(0, Math.min(r.width, e.clientX - r.left)), cy = Math.max(0, Math.min(r.height, e.clientY - r.top));
+    return { x: Math.round(cx / r.width * d.width), y: Math.round(cy / r.height * d.height) };
+  }
+
+  renderVals() {
+    const s = this.state;
+    const dm = DEMOS[s.demo - 1];
+    const d = dm.d;
+    const zoom = s.zoom !== null ? s.zoom : d.zoom;
+    const on = this.toolOn();
+    const can = d.channel.supportsImage;
+    let region = s.region !== undefined ? s.region : d.region;
+    if (s.drag) {
+      const a = s.drag.a, b = s.drag.b;
+      region = { x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), w: Math.abs(a.x - b.x), h: Math.abs(a.y - b.y) };
+    }
+    const dragging = !!s.drag || (dm.dragging && s.region === undefined && !!region);
+    const done = !!region && !dragging && (s.region !== undefined || dm.done);
+    const note = s.note !== null ? s.note : d.note;
+    const pct = (v, t) => (v / t * 100).toFixed(3) + "%";
+    const base = d.path.split("/").pop();
+    const sent = s.sent !== null ? s.sent : !!dm.done;
+
+    return {
+      theme: this.props.theme === "dark" ? "dark" : null,
+      showDemoBar: true,
+      demoNote: dm.note,
+      demoStates: DEMOS.map((m) => {
+        const a = m.n === s.demo;
+        return { n: m.n, name: m.name, short: m.short, active: a, fw: a ? "600" : "400",
+          bg: a ? "var(--tool-accent)" : "var(--tool-panel)", bd: a ? "var(--tool-accent)" : "var(--tool-border-strong)",
+          fg: a ? "var(--tool-on-accent)" : "var(--tool-text-2)",
+          pick: () => this.setState({ demo: m.n, zoom: null, region: undefined, tool: null, drag: null, sent: null, note: null }) };
+      }),
+      path: d.path, fileName: base,
+      metaLabel: d.format.toUpperCase() + " · " + d.width + "×" + d.height + " · " + size(d.size),
+      isVector: d.format === "svg",
+      zoomLabel: zoom === "fit" ? "适配" : Math.round(zoom * 100) + "%",
+      zoomFit: () => this.setState({ zoom: "fit" }),
+      zoomIn: () => { const z = zoom === "fit" ? 0.5 : zoom; const i = ZOOMS.indexOf(z); this.setState({ zoom: ZOOMS[Math.min(ZOOMS.length - 1, i + 1)] }); },
+      zoomOut: () => { const z = zoom === "fit" ? 0.5 : zoom; const i = ZOOMS.indexOf(z); this.setState({ zoom: ZOOMS[Math.max(0, i - 1)] }); },
+      imgRef: this.imgRef,
+      imgW: zoom === "fit" ? "min(100%, calc((100vh - 190px) * " + (d.width / d.height).toFixed(4) + "))" : Math.round(d.width * zoom) + "px",
+      imgMaxW: "none",
+      ratio: d.width + " / " + d.height,
+      imgBg: d.format === "svg" ? "transparent" : "repeating-linear-gradient(135deg, var(--tool-panel-2) 0 10px, var(--tool-panel-3) 10px 20px)",
+      imgLabel: d.format === "svg" ? base + " · viewBox 0 0 " + d.width + " " + d.height : base + " · " + d.width + "×" + d.height,
+      canvasCursor: on ? "crosshair" : "default",
+
+      toggleTool: () => this.toggleTool(),
+      toolOn: on,
+      toolDisabled: !can,
+      toolTitle: can ? "圈选一块区域发给 AI（R）" : "当前大脑通道不支持图片",
+      toolBg: !can ? "var(--tool-panel-2)" : on ? "var(--tool-accent-soft)" : "var(--tool-panel)",
+      toolBd: !can ? "var(--tool-border)" : on ? "var(--tool-accent)" : "var(--tool-border-strong)",
+      toolFg: !can ? "var(--tool-muted)" : on ? "var(--tool-accent)" : "var(--tool-text)",
+      toolCursor: can ? "pointer" : "not-allowed",
+      channelName: d.channel.name,
+
+      onDown: (e) => { if (!on || !can) return; const p = this.pt(e); if (p) this.setState({ drag: { a: p, b: p }, sent: false }); },
+      onMove: (e) => { if (!s.drag) return; const p = this.pt(e); if (p) this.setState({ drag: { a: s.drag.a, b: p } }); },
+      onUp: () => { if (!s.drag) return; const r = region; this.setState({ drag: null, region: r && r.w > 4 && r.h > 4 ? r : null, tool: false, note: "" }); },
+      stop: (e) => e.stopPropagation(),
+
+      hasRegion: !!region,
+      rgL: region ? pct(region.x, d.width) : "0",
+      rgT: region ? pct(region.y, d.height) : "0",
+      rgW: region ? pct(region.w, d.width) : "0",
+      rgH: region ? pct(region.h, d.height) : "0",
+      rgStyle: dragging ? "dashed" : "solid",
+      rgLabel: region ? (dragging ? region.w + "×" + region.h : "(" + region.x + "," + region.y + ") " + region.w + "×" + region.h) : "",
+      rgDone: done,
+      noteTop: region ? "calc(" + pct(region.y + region.h, d.height) + " + 8px)" : "0",
+      showNote: done && !sent,
+      note: note,
+      onNote: (e) => this.setState({ note: e.target.value }),
+      clearRegion: () => this.setState({ region: null, tool: true, sent: false }),
+      sendRegion: () => this.setState({ sent: true }),
+      hasPill: done && sent,
+      pillLabel: region ? base + " (" + region.x + "," + region.y + " " + region.w + "×" + region.h + ")" : "",
+      hint: !can ? "圈选不可用 · " + d.channel.name : on ? "拖出一个框 · Esc 取消" : "R 圈选 · 0 适配 · +/− 缩放"
+    };
+  }
+}
+</script>
+</body>
+</html>

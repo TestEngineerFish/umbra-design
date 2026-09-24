@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- umbradesign:resources -->
+<script>window.__resources = {
+    "https://unpkg.com/react@18.3.1/umd/react.production.min.js": "./react.production.min.js",
+    "https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js": "./react-dom.production.min.js"
+  };</script>
+<!-- /umbradesign:resources -->
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="./_ds-tool/tokens.css">
+<style>
+  html, body { margin: 0; padding: 0; }
+  body { background: var(--tool-bg); }
+  * { box-sizing: border-box; }
+  a { color: var(--tool-accent); text-decoration: none; }
+  a:hover { color: var(--tool-accent-hover); text-decoration: underline; }
+  button { font: inherit; color: inherit; }
+</style>
+</helmet>
+
+<div data-tool-theme="{{ theme }}" style="min-height: 100vh; display: flex; flex-direction: column; background: var(--tool-canvas); color: var(--tool-text); font-family: var(--tool-sans); font-size: 13px; -webkit-font-smoothing: antialiased;">
+
+  <sc-if value="{{ showDemoBar }}" hint-placeholder-val="{{ true }}">
+  <div style="display: flex; align-items: center; gap: 8px; padding: 8px 16px; flex-wrap: wrap; font-size: 12px; background: var(--tool-panel-2); border-bottom: 1px solid var(--tool-border);">
+    <span style="font-size: 11px; color: var(--tool-muted); flex: none;">演示态</span>
+    <sc-for list="{{ demoStates }}" as="st" hint-placeholder-count="3">
+      <button type="button" onClick="{{ st.pick }}" title="{{ st.name }}" aria-pressed="{{ st.active }}" style="display: inline-flex; align-items: center; gap: 5px; height: 23px; padding: 0 9px 0 6px; border-radius: var(--tool-radius-sm); border: 1px solid; cursor: pointer; font-size: 11px; white-space: nowrap; transition: background .13s ease, border-color .13s ease, color .13s ease; background: {{ st.bg }}; border-color: {{ st.bd }}; color: {{ st.fg }};" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">
+        <span style="font-family: var(--tool-mono); opacity: 0.6;">{{ st.n }}</span>
+        <span style="font-weight: {{ st.fw }};">{{ st.short }}</span>
+      </button>
+    </sc-for>
+    <span style="color: var(--tool-border-strong); flex: none;">·</span>
+    <span style="color: var(--tool-muted); min-width: 0;">{{ demoNote }}</span>
+  </div>
+  </sc-if>
+
+  <div style="flex: 1 1 0; display: grid; place-items: center; padding: 40px 20px;">
+    <div style="width: 100%; max-width: 520px; background: var(--tool-panel); border: 1px solid var(--tool-border); border-radius: var(--tool-radius-lg); box-shadow: var(--tool-shadow-1); overflow: hidden;">
+
+      <div style="display: flex; align-items: center; gap: 14px; padding: 18px 20px; border-bottom: 1px solid var(--tool-border);">
+        <span style="width: 52px; height: 52px; flex: none; display: grid; place-items: center; gap: 0; border-radius: var(--tool-radius); background: var(--tool-panel-2); border: 1px solid var(--tool-border); color: var(--tool-text-2);">
+          <dc-import name="IconGlyph" d="M4 2h5.4L12 4.6V14H4zM9.4 2v2.6H12" size="24" stroke="1.2" hint-size="24px,24px"></dc-import>
+        </span>
+        <div style="min-width: 0; display: grid; gap: 3px;">
+          <div style="font-size: 16px; font-weight: 620; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="{{ path }}">{{ fileName }}</div>
+          <div style="font-family: var(--tool-mono); font-size: 11px; color: var(--tool-muted);">{{ mime }}</div>
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 8px 14px; padding: 14px 20px; font-size: 12px;">
+        <span style="color: var(--tool-muted);">大小</span>
+        <span style="font-family: var(--tool-mono); font-variant-numeric: tabular-nums;" title="{{ sizeExact }}">{{ sizeLabel }}</span>
+        <span style="color: var(--tool-muted);">修改</span>
+        <span title="{{ updatedAt }}">{{ updatedLabel }}</span>
+        <span style="color: var(--tool-muted);">位置</span>
+        <span style="font-family: var(--tool-mono); word-break: break-all; color: var(--tool-text-2);">{{ path }}</span>
+      </div>
+
+      <div style="padding: 12px 20px 14px; border-top: 1px solid var(--tool-border);">
+        <div style="display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px;">
+          <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.04em; color: var(--tool-muted);">被引用</span>
+          <span style="font-family: var(--tool-mono); font-size: 11px; color: var(--tool-muted);">{{ refCount }}</span>
+        </div>
+        <sc-if value="{{ noRefs }}" hint-placeholder-val="{{ true }}">
+          <div style="font-size: 12px; color: var(--tool-text-2); line-height: 1.55;">没有稿件引用它，改名、移动、删除都不影响任何稿。</div>
+        </sc-if>
+        <sc-if value="{{ hasRefs }}" hint-placeholder-val="{{ false }}">
+          <div style="display: grid; gap: 2px; margin: 0 -8px;">
+            <sc-for list="{{ refs }}" as="r" hint-placeholder-count="2">
+              <a href="#" style="display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 8px; border-radius: var(--tool-radius-sm); color: var(--tool-text); text-decoration: none;" style-hover="background: var(--tool-hover); text-decoration: none;">
+                <span style="color: var(--tool-accent); display: grid;"><dc-import name="IconGlyph" d="M2.5 3h11v10h-11zM2.5 5.8h11M5.2 8.4h5.6M5.2 10.6h3.4" size="13" hint-size="13px,13px"></dc-import></span>
+                <span style="flex: 1 1 0; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ r.file }}</span>
+                <span style="flex: none; font-family: var(--tool-mono); font-size: 11px; color: var(--tool-muted);">{{ r.at }}</span>
+              </a>
+            </sc-for>
+          </div>
+          <div style="margin-top: 8px; font-size: 12px; color: var(--tool-warn); line-height: 1.55;">改名或移动时会一并改写这几处引用；删除会让它们变成 404。</div>
+        </sc-if>
+      </div>
+
+      <div style="padding: 12px 20px 16px; border-top: 1px solid var(--tool-border); display: grid; gap: 8px;">
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <sc-for list="{{ actions }}" as="a" hint-placeholder-count="4">
+            <button type="button" disabled="{{ a.disabled }}" title="{{ a.title }}" style="height: 28px; padding: 0 12px; border-radius: var(--tool-radius); border: 1px solid; font-size: 12px; transition: background .13s ease; background: {{ a.bg }}; border-color: {{ a.bd }}; color: {{ a.fg }}; cursor: {{ a.cursor }};" style-hover="border-color: var(--tool-text-2);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">{{ a.label }}</button>
+          </sc-for>
+        </div>
+        <sc-if value="{{ hasDisabledWhy }}" hint-placeholder-val="{{ false }}">
+          <div style="font-size: 12px; color: var(--tool-muted); line-height: 1.55;">{{ disabledWhy }}</div>
+        </sc-if>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;theme&quot;: {&quot;editor&quot;: &quot;enum&quot;, &quot;options&quot;: [&quot;跟随外层&quot;, &quot;dark&quot;], &quot;default&quot;: &quot;跟随外层&quot;, &quot;tsType&quot;: &quot;'dark'|null&quot;, &quot;section&quot;: &quot;工具皮肤&quot;}}">
+const ZIP = {
+  path: "备份.zip", kind: "other", mime: "application/zip",
+  size: 20480000, updatedAt: "2026-09-01T08:00:00+08:00",
+  referencedBy: [],
+  actions: ["改名", "移动", "在访达中显示", "删除"]
+};
+/* 态 ②：referencedBy 的每项提议写成 { file, line }，line 可缺 */
+const FONT = {
+  path: "assets/fonts/品牌字体-Medium.woff2", kind: "other", mime: "font/woff2",
+  size: 48620, updatedAt: "2026-09-19T15:20:00+08:00",
+  referencedBy: [{ file: "PC 端/日志.dc.html", line: 14 }, { file: "Components/窗口骨架.dc.html", line: 9 }],
+  actions: ["改名", "移动", "在访达中显示", "删除"]
+};
+const DEMOS = [
+  { n: 1, short: "无引用", name: "无引用", note: "没有专用预览器的文件：元数据 + 引用 + 四个动作", d: ZIP },
+  { n: 2, short: "被引用", name: "被稿件引用", note: "列出引用方（点开跳到那一行）；改名 / 移动会改写引用", d: FONT },
+  { n: 3, short: "Web 版", name: "Web 版 · 访达不可用", note: "「在访达中显示」禁用，原因写在按钮下面，不藏在 hover 里", d: ZIP, web: true }
+];
+const NOW = new Date("2026-09-24T10:00:00+08:00").getTime();
+function size(b) { return b < 1024 ? b + " B" : b < 1048576 ? (b / 1024).toFixed(1) + " KB" : (b / 1048576).toFixed(1) + " MB"; }
+
+class Component extends DCLogic {
+  state = { demo: 1 };
+
+  renderVals() {
+    const s = this.state;
+    const dm = DEMOS[s.demo - 1];
+    const d = dm.d;
+    const days = Math.round((NOW - Date.parse(d.updatedAt)) / 864e5);
+    const why = dm.web ? "Web 版打不开本机的访达。在桌面版里可用；要拿到文件可以用「移动」或直接下载。" : "";
+    return {
+      theme: this.props.theme === "dark" ? "dark" : null,
+      showDemoBar: true,
+      demoNote: dm.note,
+      demoStates: DEMOS.map((m) => {
+        const a = m.n === s.demo;
+        return { n: m.n, name: m.name, short: m.short, active: a, fw: a ? "600" : "400",
+          bg: a ? "var(--tool-accent)" : "var(--tool-panel)", bd: a ? "var(--tool-accent)" : "var(--tool-border-strong)",
+          fg: a ? "var(--tool-on-accent)" : "var(--tool-text-2)", pick: () => this.setState({ demo: m.n }) };
+      }),
+      path: d.path,
+      fileName: d.path.split("/").pop(),
+      mime: d.mime,
+      sizeLabel: size(d.size),
+      sizeExact: d.size.toLocaleString("en-US") + " 字节",
+      updatedAt: d.updatedAt,
+      updatedLabel: new Date(d.updatedAt).toLocaleString("zh-CN", { hour12: false }) + "（" + days + " 天前）",
+      refCount: String(d.referencedBy.length),
+      noRefs: d.referencedBy.length === 0,
+      hasRefs: d.referencedBy.length > 0,
+      refs: d.referencedBy.map((r) => ({ file: r.file, at: r.line != null ? "L" + r.line : "" })),
+      actions: d.actions.map((a) => {
+        const off = dm.web && a === "在访达中显示";
+        const danger = a === "删除";
+        return { label: a, disabled: off, title: off ? "Web 版不可用" : a,
+          bg: off ? "var(--tool-panel-2)" : "var(--tool-panel)",
+          bd: off ? "var(--tool-border)" : danger ? "var(--tool-err-border)" : "var(--tool-border-strong)",
+          fg: off ? "var(--tool-muted)" : danger ? "var(--tool-err)" : "var(--tool-text)",
+          hover: off ? "var(--tool-panel-2)" : danger ? "var(--tool-err-soft)" : "var(--tool-hover)",
+          cursor: off ? "not-allowed" : "pointer" };
+      }),
+      hasDisabledWhy: !!why,
+      disabledWhy: why
+    };
+  }
+}
+</script>
+</body>
+</html>

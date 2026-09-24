@@ -143,6 +143,25 @@ body { background: var(--tool-bg); font-family: 'DC', sans-serif; font-size: 13p
 
   <!-- ═══ 输入区 ═══ -->
   <div style="padding: 12px 16px; border-top: 1px solid var(--tool-border); background: var(--tool-panel);">
+    <!-- 「已选中」药丸（第四轮）：从「节点」泛化为五种 node / range / region / files / dir。
+         一次可带多个，紧挨输入框上方（S11 定的位置）；完整 detail 挂 title，每颗带 ×。 -->
+    <sc-if value="{{ hasSelections }}" hint-placeholder-val="{{ false }}">
+      <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px;">
+        <sc-for list="{{ selections }}" as="p" hint-placeholder-count="2">
+          <span title="{{ p.detail }}" style="display: inline-flex; align-items: center; gap: 6px; max-width: 100%; height: 22px; padding: 0 4px 0 7px; border-radius: var(--tool-radius-sm); border: 1px solid var(--tool-accent-border); background: var(--tool-accent-soft); color: var(--tool-accent); font-size: 11px;">
+            <dc-import name="IconGlyph" d="{{ p.icon }}" size="12" hint-size="12px,12px"></dc-import>
+            <span style="flex: none; font-family: var(--tool-mono); font-weight: 600;">{{ p.kind }}</span>
+            <span style="min-width: 0; font-family: var(--tool-mono); color: var(--tool-text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ p.label }}</span>
+            <button type="button" onClick="{{ p.remove }}" title="不带这一项" style="flex: none; width: 16px; height: 16px; display: grid; place-items: center; border: 0; background: transparent; color: var(--tool-muted); border-radius: 3px; cursor: pointer;" style-hover="background: var(--tool-panel); color: var(--tool-text);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">
+              <dc-import name="IconGlyph" d="M4.4 4.4l7.2 7.2M11.6 4.4l-7.2 7.2" size="10" stroke="1.6" hint-size="10px,10px"></dc-import>
+            </button>
+          </span>
+        </sc-for>
+        <sc-if value="{{ manySelections }}" hint-placeholder-val="{{ false }}">
+          <button type="button" onClick="{{ clearSelections }}" style="height: 22px; padding: 0 7px; border: 0; background: transparent; color: var(--tool-muted); font-size: 11px; cursor: pointer; border-radius: var(--tool-radius-sm);" style-hover="background: var(--tool-hover); color: var(--tool-text);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">全部清掉</button>
+        </sc-if>
+      </div>
+    </sc-if>
     <div style="display: flex; gap: 8px; align-items: flex-end;">
       <textarea ref="{{ inputRef }}" onInput="{{ onInput }}" onKeyDown="{{ onKey }}" rows="1" style="flex: 1 1 0; padding: 8px 12px; font-size: 13px; border: 1px solid var(--tool-border-strong); border-radius: var(--tool-radius); background: var(--tool-panel); color: var(--tool-text); resize: none; font-family: inherit; line-height: 1.5; max-height: 120px; box-sizing: border-box;" style-focus="border-color: var(--tool-accent); outline: none; box-shadow: 0 0 0 2px var(--tool-accent-soft);" placeholder="输入消息… ⏎ 发送"></textarea>
       <!-- 一个控件位，两种状态：跑着就是「中断」，否则是「发送」。 -->
@@ -179,15 +198,37 @@ const DEMOS = [
   { n: 4, short: "中断", name: "运行中可中断", note: "显示中断按钮" },
   { n: 5, short: "空会话", name: "空会话 + 引导", note: "还没有消息" },
   { n: 6, short: "通道B", name: "使用通道 B（Claude Code）", note: "显示调用次数而非 token" },
-  { n: 7, short: "选中节点", name: "选中节点后发给 AI", note: "消息中包含节点上下文" }
+  { n: 7, short: "选中节点", name: "选中节点后发给 AI", note: "输入框上方一颗 node 药丸；发出后消息里记一行带了什么" },
+  { n: 8, short: "五种药丸", name: "一次带多个上下文", note: "node / range / region / files / dir 各一颗，可逐个 ×，也可全部清掉" }
 ];
+
+/* 「已选中」五种（第四轮）。键：selections: [{ kind, label, detail }] */
+const SEL_KIND = {
+  node: "M4 2.8l8.4 4.4-3.6 1-1.8 3.4z",
+  range: "M2 4.5v7M4.5 4h9M4.5 6.7h9M4.5 9.4h9M4.5 12h5.5",
+  region: "M2.5 5V2.5H5M11 2.5h2.5V5M13.5 11v2.5H11M5 13.5H2.5V11",
+  files: "M5.4 4.6h6.8V14H5.4zM3.4 12V2h6.4",
+  dir: "M2 4.4c0-.5.4-.9.9-.9h3.2l1.5 1.6h5.5c.5 0 .9.4.9.9v6.6c0 .5-.4.9-.9.9H2.9c-.5 0-.9-.4-.9-.9z"
+};
+const DEMO_SEL = {
+  7: [{ kind: "node", label: "重试按钮", detail: "PC 端/日志.dc.html › n42 · L245 · style.fontSize = '12px'" }],
+  8: [
+    { kind: "node", label: "button.primary", detail: "PC 端/日志.dc.html › n42" },
+    { kind: "range", label: "需求.md L9–12", detail: "最近 7 天 …" },
+    { kind: "region", label: "首页截图.png (120,640 210×44)", detail: "这个按钮的颜色是什么" },
+    { kind: "files", label: "2 个文件", detail: "需求.md、首页截图.png" },
+    { kind: "dir", label: "PC 端/", detail: "6 项" }
+  ]
+};
 
 class Component extends DCLogic {
 /* ref 用类字段建：renderVals 首次渲染就会被调用，
    那时 componentDidMount 还没跑，ref 会是 undefined。 */
   inputRef = React.createRef();
 
-  state = { demo: 1, channel: "a", input: "" };
+  state = { demo: 1, channel: "a", input: "", sel: null };
+
+  selections() { return this.state.sel || DEMO_SEL[this.state.demo] || []; }
 
   goBack() {}
 
@@ -229,7 +270,13 @@ class Component extends DCLogic {
       usageTip = "订阅制，不按 token 计费 · Claude Code headless";
     }
 
+    const sels = this.selections();
     return {
+      hasSelections: sels.length > 0,
+      manySelections: sels.length > 1,
+      selections: sels.map((p, i) => ({ kind: p.kind, label: p.label, detail: p.detail, icon: SEL_KIND[p.kind] || "M0 0",
+        remove: () => this.setState({ sel: sels.filter((_, j) => j !== i) }) })),
+      clearSelections: () => this.setState({ sel: [] }),
       showDemoBar: true,
       demoNote: demo.note,
       goBack: () => this.goBack(),
@@ -271,7 +318,7 @@ class Component extends DCLogic {
         fg: s.demo === d.n ? "white" : "var(--tool-text)",
         bd: s.demo === d.n ? "var(--tool-accent)" : "var(--tool-border)",
         fw: s.demo === d.n ? "560" : "400",
-        pick: () => this.setState({ demo: d.n, input: "" })
+        pick: () => this.setState({ demo: d.n, input: "", sel: null })
       }))
     };
   }
@@ -283,7 +330,7 @@ class Component extends DCLogic {
         { isUser: true, content: demo === 7 ? "把这个按钮的字号调大一点" : "把日志行的行高调一下，现在太挤了" }
       ];
       if (demo === 7) {
-        msgs.splice(1, 0, { isSystem: true, content: "📎 已选中节点：「重试按钮」L245 · style.fontSize = '12px'" });
+        msgs.splice(1, 0, { isSystem: true, content: "上一条带了 1 项：node · 重试按钮 L245" });
       }
       msgs.push({
         isAi: true, content: "好的，我来改一下行高。找到日志行的样式了，在 L131，line-height 从 20px 改成 22px。",
@@ -343,7 +390,7 @@ class Component extends DCLogic {
         }
       ];
     }
-    if (demo === 5) {
+    if (demo === 5 || demo === 8) {
       return [
         { isSystem: true, content: "会话已创建 · 通道 A · 选择模型后开始对话" }
       ];

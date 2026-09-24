@@ -37,7 +37,7 @@
           <rect x="1.5" y="1.5" width="13" height="13" rx="3.2" stroke="currentColor" stroke-width="1.4"></rect>
           <path d="M5 8.2h6M5 5.4h6M5 11h3.2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"></path>
         </svg>
-        <span style="font-weight: 620; letter-spacing: -0.01em;">UmbraDesign</span>
+        <span style="font-weight: 620; letter-spacing: -0.01em;">Umbra Studio</span>
       </div>
       <div style="width: 1px; height: 18px; background: var(--tool-border); flex: none;"></div>
 
@@ -56,7 +56,13 @@
             <sc-for list="{{ recentProjects }}" as="rp" hint-placeholder-count="3">
               <div onClick="{{ rp.pick }}" style="display: flex; align-items: center; gap: 8px; padding: 7px 12px; cursor: pointer; transition: background .13s ease; background: {{ rp.bg }};" style-hover="background: var(--tool-hover);">
                 <span style="width: 6px; height: 6px; flex: none; border-radius: 999px; background: {{ rp.dot }};"></span>
-                <span style="flex: 1 1 0; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13px;">{{ rp.name }}</span>
+                <!-- 类型统计（第四轮）：没有 .dc.html 的目录也是合法项目，所以四类都列，0 也写出来 -->
+                <div style="flex: 1 1 0; min-width: 0;">
+                  <div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13px;">{{ rp.name }}</div>
+                  <sc-if value="{{ rp.hasTypes }}" hint-placeholder-val="{{ true }}">
+                    <div title="{{ rp.typesTitle }}" style="font-family: var(--tool-mono); font-size: 10px; color: var(--tool-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums;">{{ rp.typesLabel }}</div>
+                  </sc-if>
+                </div>
                 <sc-if value="{{ rp.existsNeg }}" hint-placeholder-val="{{ true }}">
                   <span style="font-size: 10px; color: var(--tool-muted); flex: none;">找不到</span>
                 </sc-if>
@@ -66,6 +72,12 @@
             <div onClick="{{ onNewProject }}" style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; cursor: pointer; transition: background .13s ease;" style-hover="background: var(--tool-hover);">
               <svg width="13" height="13" viewBox="0 0 16 16" fill="none" style="flex: none; color: var(--tool-accent);" aria-hidden="true"><path d="M8 3.6v8.8M3.6 8h8.8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path></svg>
               <span style="font-size: 13px; color: var(--tool-accent); font-weight: 560;">新建项目</span>
+            </div>
+            <!-- 打开任意目录（第四轮）：不要求有 project.json 或 .dc.html，打开即成项目 -->
+            <div onClick="{{ onOpenDir }}" style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; cursor: pointer; transition: background .13s ease;" style-hover="background: var(--tool-hover);">
+              <dc-import name="IconGlyph" d="M2 4.4c0-.5.4-.9.9-.9h3.2l1.5 1.6h5.5c.5 0 .9.4.9.9v6.6c0 .5-.4.9-.9.9H2.9c-.5 0-.9-.4-.9-.9z" size="13" color="var(--tool-accent)" hint-size="13px,13px"></dc-import>
+              <span style="flex: 1; font-size: 13px; color: var(--tool-accent); font-weight: 560;">打开任意目录…</span>
+              <kbd style="font-family: var(--tool-mono); font-size: 10px; color: var(--tool-muted);">⌘O</kbd>
             </div>
             <div style="border-top: 1px solid var(--tool-border);"></div>
             <!-- 回收站从顶栏挨到这里（设计侧 §2.5）。口径：
@@ -245,6 +257,25 @@
                 </div>
               </sc-for>
             </div>
+          </div>
+        </div>
+      </sc-if>
+
+      <!-- 没有 .dc.html 的目录（第四轮）：合法项目，不是空项目。给类型统计 + 去目录视图的路 -->
+      <sc-if value="{{ isNoDrafts }}" hint-placeholder-val="{{ false }}">
+        <div style="padding: 64px 20px; display: grid; place-items: center;">
+          <div style="max-width: 520px; text-align: center; display: grid; gap: 10px; justify-items: center;">
+            <div style="font-size: 20px; font-weight: 620; letter-spacing: -0.01em;">这个目录里没有稿</div>
+            <div style="color: var(--tool-text-2); line-height: 1.65;">它仍是一个项目：Markdown、图片和其他文件都能在目录视图里打开、带进会话。要稿的话，让 AI 在这里写第一份 <span style="font-family: var(--tool-mono); font-size: 12px;">.dc.html</span>。</div>
+            <div style="display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; margin: 4px 0 6px;">
+              <sc-for list="{{ typeChips }}" as="tc" hint-placeholder-count="4">
+                <span style="display: inline-flex; align-items: baseline; gap: 5px; height: 24px; padding: 0 9px; align-items: center; border-radius: var(--tool-radius-sm); border: 1px solid var(--tool-border); background: var(--tool-panel); font-size: 12px; color: {{ tc.fg }};">
+                  <span>{{ tc.label }}</span>
+                  <span style="font-family: var(--tool-mono); font-variant-numeric: tabular-nums;">{{ tc.count }}</span>
+                </span>
+              </sc-for>
+            </div>
+            <a href="./S12-目录视图.dc.html" style="display: inline-flex; align-items: center; height: 30px; padding: 0 14px; border-radius: var(--tool-radius); background: var(--tool-accent); color: var(--tool-on-accent); font-size: 12px; font-weight: 560; text-decoration: none;" style-hover="background: var(--tool-accent-hover); text-decoration: none;" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">{{ openDirLabel }}</a>
           </div>
         </div>
       </sc-if>
@@ -597,8 +628,21 @@ const DEMOS = [
   { n: 12, short: "新建稿件", name: "新建稿件弹窗", note: "选来源（空白/组件/模板/复制）、填稿名" },
   { n: 13, short: "回收站", name: "回收站有稿件", note: "3 份被删的稿，显示删除时间和引用数" },
   { n: 14, short: "索引过期", name: "索引过期横幅", note: "M4-6：build_index 之后又有文件被改过，至少 3 份过期" },
-  { n: 15, short: "行内撤销", name: "删除后行内撤销", note: "删除不弹确认：那一行塌成「已移到回收站 · 撤销」，5 秒后消失（演示态里停住不走）" }
+  { n: 15, short: "行内撤销", name: "删除后行内撤销", note: "删除不弹确认：那一行塌成「已移到回收站 · 撤销」，5 秒后消失（演示态里停住不走）" },
+  { n: 16, short: "没有稿的目录", name: "打开的目录里没有 .dc.html", note: "第四轮：合法项目，不是空项目 —— 给类型统计和去目录视图的路；项目下拉里有「打开任意目录」" }
 ];
+
+/* 类型统计（第四轮）。键名按 08 §三之三：{ dc, md, image, other }。
+   真数据读 project.types / recent[].types，缺字段就不显示这一行。 */
+const TYPE_LABEL = [["dc", "稿"], ["md", "md"], ["image", "图"], ["other", "其他"]];
+const TYPE_NAME = { dc: "设计稿", md: "Markdown", image: "图片", other: "其他" };
+const typesLabel = (t) => TYPE_LABEL.map(([k, w]) => (t[k] || 0) + " " + w).join(" · ");
+const typesTitle = (t) => TYPE_LABEL.map(([k]) => TYPE_NAME[k] + " " + (t[k] || 0)).join("，");
+const DEMO_TYPES = {
+  "Umbra_design": { dc: 22, md: 5, image: 40, other: 3 },
+  "Umbra_design_next": { dc: 4, md: 2, image: 0, other: 1 },
+  "竞品截图": { dc: 0, md: 5, image: 40, other: 3 }
+};
 
 /* 行内撤销的停留时长。和 S2 / S7 的撤销条对齐口径：它们是 3 秒（改一个值），
    这里给 5 秒 —— 删的是整份稿，读那一行字要多一眼。 */
@@ -767,7 +811,7 @@ class Component extends DCLogic {
   rawPool() {
     if (LIVE) return (LIVE.drafts || []).slice();   // 真实数据，演示态一律不参与
     const d = this.state.demo;
-    if (d === 3) return [];
+    if (d === 3 || d === 16) return [];
     if (d === 5) return BASE.map((r) => Object.assign({}, r, { health: "unchecked", healthWhy: "还没跑过 render_check", checkedAt: null, renderMs: null, nodeCount: null, thumb: null, diagnostics: { errors: 0, warnings: 0 } }));
     if (d === 6) return BASE.slice();
     if (d === 7) {
@@ -858,8 +902,11 @@ class Component extends DCLogic {
     const demo = DEMOS[s.demo - 1];
     const showLimit = this.props.showLimitBadge !== false;
     const configBroken = s.demo === 8;
+    const curTypes = LIVE ? (LIVE.project && LIVE.project.types) || null : (s.demo === 16 ? DEMO_TYPES["竞品截图"] : DEMO_TYPES["Umbra_design"]);
+    const isNoDrafts = LIVE ? !!(curTypes && curTypes.dc === 0) : s.demo === 16;
     const isEmptyProject = s.demo === 3;
-    const isNoResult = !isEmptyProject && !configBroken && rowsData.length === 0;
+    const isNoResult = !isEmptyProject && !isNoDrafts && !configBroken && rowsData.length === 0;
+    const fileTotal = curTypes ? TYPE_LABEL.reduce((n, [k]) => n + (curTypes[k] || 0), 0) : 0;
 
     const counts = { ok: 0, warn: 0, error: 0, unchecked: 0 };
     pool.forEach((r) => { counts[r.health] = (counts[r.health] || 0) + 1; });
@@ -942,8 +989,8 @@ class Component extends DCLogic {
 
     return {
       theme: this.props.theme === "dark" ? "dark" : null,
-      projectTitle: configBroken ? "项目未识别" : (LIVE ? LIVE.project.title : "Umbra 私人 AI 助手"),
-      projectName: configBroken ? "?" : ((LIVE ? LIVE.project.name : "umbra") + " · " + pool.length + " 份稿"),
+      projectTitle: configBroken ? "项目未识别" : (LIVE ? LIVE.project.title : s.demo === 16 ? "竞品截图" : "Umbra 私人 AI 助手"),
+      projectName: configBroken ? "?" : ((LIVE ? LIVE.project.name : s.demo === 16 ? "shots" : "umbra") + " · " + pool.length + " 份稿"),
       showDemoBar: !LIVE,
       barRef: this.barRef,
       filterTop: this.state.barH + "px",
@@ -1022,15 +1069,20 @@ class Component extends DCLogic {
       overLimitDetail: hardOver.length ? "超限的稿落盘会被拒。按顶层 section 或 dc-import 边界拆开。" : "还能落盘，但已经是拆稿的信号了。",
       isEmptyProject: isEmptyProject,
       isNoResult: isNoResult,
-      showList: !isEmptyProject && !isNoResult && view === "list",
-      showWall: !isEmptyProject && !isNoResult && view === "wall",
+      showList: !isEmptyProject && !isNoDrafts && !isNoResult && view === "list",
+      showWall: !isEmptyProject && !isNoDrafts && !isNoResult && view === "wall",
+      isNoDrafts: isNoDrafts,
+      typeChips: curTypes ? TYPE_LABEL.map(([k]) => ({ label: TYPE_NAME[k], count: String(curTypes[k] || 0), fg: curTypes[k] ? "var(--tool-text)" : "var(--tool-muted)" })) : [],
+      openDirLabel: "在目录视图里看全部 " + fileTotal + " 个文件",
+      /* 接线：LIVE 下由应用弹系统目录选择器，这里只留口子 */
+      onOpenDir: () => {},
       rows: rows,
       emptySteps: [
         { n: "1", title: "放一份 .dc.html 进项目目录", body: "文件名就是稿名，中文和空格都行。工具扫目录，不需要注册。" },
         { n: "2", title: "跑一次渲染体检", body: "拿到元素数、节点数、渲染耗时和缩略图 —— 这一屏的每一列都来自它。" },
         { n: "3", title: "配上设计系统", body: "在 project.json 里指向 tokens 与图标目录，S5 的检索就能用了。" }
       ],
-      footerCount: isEmptyProject ? "0 份稿" : rows.length === pool.length ? pool.length + " 份稿" : "筛出 " + rows.length + " / " + pool.length + " 份稿",
+      footerCount: isEmptyProject || isNoDrafts ? "0 份稿" : rows.length === pool.length ? pool.length + " 份稿" : "筛出 " + rows.length + " / " + pool.length + " 份稿",
       footerScan: staleList.length
         ? "上次扫目录 " + scanAt + " · 之后 " + staleList.length + " 份稿改过，读数未刷新"
         : LIVE
@@ -1045,8 +1097,9 @@ class Component extends DCLogic {
       recentProjects: [
         { name: "Umbra_design", exists: true, existsNeg: false, bg: s.demo === 10 ? "var(--tool-accent-soft)" : "transparent", dot: "var(--tool-ok)", pick: () => {} },
         { name: "Umbra_design_next", exists: true, existsNeg: false, bg: "transparent", dot: "var(--tool-ok)", pick: () => {} },
+        { name: "竞品截图", exists: true, existsNeg: false, bg: "transparent", dot: "var(--tool-ok)", pick: () => this.setState({ demo: 16 }) },
         { name: "旧项目_已删除", exists: false, existsNeg: true, bg: "transparent", dot: "var(--tool-muted)", pick: () => {} }
-      ],
+      ].map((rp) => { const t = DEMO_TYPES[rp.name]; return Object.assign(rp, { hasTypes: !!t, typesLabel: t ? typesLabel(t) : "", typesTitle: t ? typesTitle(t) : "" }); }),
 
       // ── 新建稿件弹窗 ──
       showNewDraft: s.demo === 12,

@@ -2917,3 +2917,15 @@ S2 放在 `outgoing/手动拖入/S2-单稿预览壳.dc.html`，请用户拖进�
 **补跑（DeepSeek 充值后，同日）**：新前端里选中按钮节点 → 「把这个按钮的字号改成 17px，只改这一处」→ AI 调 `validate_draft` + `set_prop`，变更卡「1 处取值变更（v3 → v4）」→ 稿里出现 17px → 点「回退到 v3」→ v5，内容与改前逐字节一致（节点地址除外）。**`01` 第 21–23 条在新前端通过。** 第一次跑时 AI 回 `written:false`：稿里已是 13px，它没改就没有变更卡 —— 这是正确行为，不是缺陷。
 
 **踩到的两处**：① 窄窗抽屉的遮罩把图标轨也盖住，点不到 —— 图标轨提到 `z-40`；② `changes` 路由的 `versionMeta` 键是 `src / time / summary`，第一版按 `origin / at` 读，列出来全空。
+
+## 五十六、设计侧第五轮收稿：S12–S15 新屏 + S1 / S9 改动，全部并入（2026-09-24）
+
+回复归档 `doc/_archive/24`。六份稿 `read_file` 取回，字节数与云端逐一一致；`incoming`：S1（底稿 1431，接线 4/4，1088 → 1142 行，renderVals 70 → 74 键）、S9（底稿 0255，371 → 419 行）底稿正确、零 error；S12 / S13 / S14 / S15 新文件零 error。`--apply` 并入后 `inject-resources` 补 `__resources`（IconGlyph / S7 仍不动）。
+
+【实测】断网逐份体检：S1 1054 节点 · S9 151 · S12 218 · S13 139 · S14 87 · S15 78，全部 alive、控制台零条、零洞、零 404。`selftest` 零 error（16 份界面稿）· `rendertest` 15/15。
+
+**质感四条**（`doc/14`）逐屏看过的判断：六屏都过。S12 读数列按类型换内容、勾选框常驻压透明度；S13 frontmatter 收成一行、大纲按右侧一列；S14 圈选真能拖、不支持时原因常显；S15 一张卡，禁用项原因写在按钮下；S1 / S9 改动都是增量。没有为了填空加的装饰。
+
+**它问的四件，都定了**（回执 `uploads/25`）：① `outline[].line` **计入 frontmatter**，行号 = 文件真实行号（和源码视图、会话里的 `L9–12` 同一坐标系）；② 快照弹层采纳 `snapshots: [{ version, src, at }]`；③ `referencedBy[]` 采纳 `{ file, line? }`；④ 第 3 题采纳（默认列表；图片 ≥ 60% 且 ≥ 6 张自动网格；`layout.viewByDir` 记手动选择）。S1 的 `project.types { dc, md, image, other }` 由索引算；S9 的 `selections[]` 照它的形状接。
+
+这一轮设计侧没有欠项；M7-9 到此收口，S12–S15 的接线随 M8 做。

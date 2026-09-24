@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- umbradesign:resources -->
+<script>window.__resources = {
+    "https://unpkg.com/react@18.3.1/umd/react.production.min.js": "./react.production.min.js",
+    "https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js": "./react-dom.production.min.js"
+  };</script>
+<!-- /umbradesign:resources -->
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="./_ds-tool/tokens.css">
+<style>
+  html, body { margin: 0; padding: 0; }
+  body { background: var(--tool-bg); }
+  * { box-sizing: border-box; }
+  a { color: var(--tool-accent); text-decoration: none; }
+  a:hover { color: var(--tool-accent-hover); text-decoration: underline; }
+  input, button { font: inherit; color: inherit; }
+</style>
+</helmet>
+
+<div data-tool-theme="{{ theme }}" style="min-height: 100vh; display: flex; flex-direction: column; background: var(--tool-bg); color: var(--tool-text); font-family: var(--tool-sans); font-size: 13px; -webkit-font-smoothing: antialiased;">
+
+  <sc-if value="{{ showDemoBar }}" hint-placeholder-val="{{ true }}">
+  <div style="display: flex; align-items: center; gap: 8px; padding: 8px 16px; flex-wrap: wrap; font-size: 12px; background: var(--tool-panel-2); border-bottom: 1px solid var(--tool-border);">
+    <span style="font-size: 11px; color: var(--tool-muted); flex: none;">演示态</span>
+    <sc-for list="{{ demoStates }}" as="st" hint-placeholder-count="5">
+      <button type="button" onClick="{{ st.pick }}" title="{{ st.name }}" aria-pressed="{{ st.active }}" style="display: inline-flex; align-items: center; gap: 5px; height: 23px; padding: 0 9px 0 6px; border-radius: var(--tool-radius-sm); border: 1px solid; cursor: pointer; font-size: 11px; white-space: nowrap; transition: background .13s ease, border-color .13s ease, color .13s ease; background: {{ st.bg }}; border-color: {{ st.bd }}; color: {{ st.fg }};" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">
+        <span style="font-family: var(--tool-mono); opacity: 0.6;">{{ st.n }}</span>
+        <span style="font-weight: {{ st.fw }};">{{ st.short }}</span>
+      </button>
+    </sc-for>
+    <span style="color: var(--tool-border-strong); flex: none;">·</span>
+    <span style="color: var(--tool-muted); min-width: 0;">{{ demoNote }}</span>
+  </div>
+  </sc-if>
+
+  <!-- 工具条：路径 · 筛选 · 视图 -->
+  <div style="position: sticky; top: 0; z-index: 3; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 20px; background: var(--tool-panel); border-bottom: 1px solid var(--tool-border);">
+    <div style="display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 13px;">
+      <span style="color: var(--tool-muted); display: grid;"><dc-import name="IconGlyph" d="M2 4.4c0-.5.4-.9.9-.9h3.2l1.5 1.6h5.5c.5 0 .9.4.9.9v6.6c0 .5-.4.9-.9.9H2.9c-.5 0-.9-.4-.9-.9z" size="14" hint-size="14px,14px"></dc-import></span>
+      <a href="#" style="color: var(--tool-text-2);">umbra</a>
+      <span style="color: var(--tool-border-strong);">/</span>
+      <span style="font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ dirName }}</span>
+      <span style="font-family: var(--tool-mono); font-size: 11px; color: var(--tool-muted); white-space: nowrap;">{{ countLabel }}</span>
+    </div>
+    <span style="flex: 1;"></span>
+    <div role="group" aria-label="筛选" style="display: flex; padding: 2px; gap: 2px; background: var(--tool-panel-2); border: 1px solid var(--tool-border); border-radius: var(--tool-radius); flex: none;">
+      <sc-for list="{{ filters }}" as="f" hint-placeholder-count="2">
+        <button type="button" onClick="{{ f.pick }}" aria-pressed="{{ f.active }}" style="padding: 3px 10px; border: 0; border-radius: var(--tool-radius-sm); cursor: pointer; font-size: 12px; transition: background .13s ease, color .13s ease; background: {{ f.bg }}; color: {{ f.fg }}; font-weight: {{ f.fw }}; box-shadow: {{ f.sh }};" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">{{ f.label }}</button>
+      </sc-for>
+    </div>
+    <sc-if value="{{ showAuto }}" hint-placeholder-val="{{ false }}">
+      <span title="图片占多数的目录自动用网格；手动切一次就记住这个目录的选择" style="font-size: 11px; color: var(--tool-muted); white-space: nowrap;">{{ autoLabel }}</span>
+    </sc-if>
+    <div role="group" aria-label="视图" style="display: flex; padding: 2px; gap: 2px; background: var(--tool-panel-2); border: 1px solid var(--tool-border); border-radius: var(--tool-radius); flex: none;">
+      <sc-for list="{{ views }}" as="v" hint-placeholder-count="2">
+        <button type="button" onClick="{{ v.pick }}" aria-pressed="{{ v.active }}" title="{{ v.title }}" style="width: 30px; height: 24px; display: grid; place-items: center; border: 0; border-radius: var(--tool-radius-sm); cursor: pointer; transition: background .13s ease, color .13s ease; background: {{ v.bg }}; color: {{ v.fg }}; box-shadow: {{ v.sh }};" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">
+          <dc-import name="IconGlyph" d="{{ v.icon }}" size="14" hint-size="14px,14px"></dc-import>
+        </button>
+      </sc-for>
+    </div>
+    <a href="#" style="display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--tool-muted);">
+      <dc-import name="IconGlyph" d="M3.6 4.4h8.8M5.2 4.4V3.2c0-.7.5-1.2 1.2-1.2h3.2c.7 0 1.2.5 1.2 1.2v1.2M4.4 4.4l.6 8.4c0 .7.6 1.2 1.2 1.2h5.6c.6 0 1.2-.5 1.2-1.2L13.6 4.4" size="13" hint-size="13px,13px"></dc-import>
+      回收站 <span style="font-family: var(--tool-mono);">{{ trashCount }}</span>
+    </a>
+  </div>
+
+  <sc-if value="{{ onlyDrafts }}" hint-placeholder-val="{{ false }}">
+    <div style="display: flex; align-items: center; gap: 8px; padding: 8px 20px; font-size: 12px; color: var(--tool-text-2); background: var(--tool-accent-soft); border-bottom: 1px solid var(--tool-accent-border);">
+      <span>只看稿件：这就是原来的 S1 稿件索引，读数、筛选、行内操作都在那一屏。</span>
+      <span style="flex: 1;"></span>
+      <a href="./S1-稿件索引.dc.html" style="font-weight: 560;">打开完整索引</a>
+    </div>
+  </sc-if>
+
+  <div style="flex: 1 1 0; padding: 14px 20px 80px;">
+
+    <sc-if value="{{ isEmpty }}" hint-placeholder-val="{{ false }}">
+      <div style="padding: 72px 20px; display: grid; place-items: center;">
+        <div style="max-width: 440px; text-align: center; display: grid; gap: 8px; justify-items: center;">
+          <span style="color: var(--tool-border-strong); display: grid;"><dc-import name="IconGlyph" d="M2 4.4c0-.5.4-.9.9-.9h3.2l1.5 1.6h5.5c.5 0 .9.4.9.9v6.6c0 .5-.4.9-.9.9H2.9c-.5 0-.9-.4-.9-.9z" size="40" stroke="1" hint-size="40px,40px"></dc-import></span>
+          <div style="font-size: 17px; font-weight: 600;">{{ dirName }} 是空的</div>
+          <div style="color: var(--tool-text-2); line-height: 1.6;">把文件拖进这个窗口就会放进这个目录，或者在会话里让 AI 在这里新建一份稿。</div>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- 列表 -->
+    <sc-if value="{{ isList }}" hint-placeholder-val="{{ true }}">
+      <div style="background: var(--tool-panel); border: 1px solid var(--tool-border); border-radius: var(--tool-radius-lg); overflow: hidden; box-shadow: var(--tool-shadow-1);">
+        <div style="display: grid; grid-template-columns: 22px minmax(0, 1fr) 84px 76px 96px 150px; gap: 12px; align-items: center; padding: 7px 14px; background: var(--tool-panel-2); border-bottom: 1px solid var(--tool-border); font-size: 11px; font-weight: 600; letter-spacing: 0.03em; color: var(--tool-muted);">
+          <span></span><span>名称</span><span>类型</span><span style="text-align: right;">大小</span><span>更新</span><span>读数</span>
+        </div>
+        <sc-for list="{{ rows }}" as="r" hint-placeholder-count="6">
+          <div onClick="{{ r.open }}" role="row" tabindex="0" aria-selected="{{ r.checked }}" style="display: grid; grid-template-columns: 22px minmax(0, 1fr) 84px 76px 96px 150px; gap: 12px; align-items: center; min-height: 44px; padding: 6px 14px; border-bottom: 1px solid var(--tool-border); cursor: pointer; transition: background .13s ease; background: {{ r.bg }};" style-hover="background: var(--tool-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: -2px;">
+            <button type="button" onClick="{{ r.toggle }}" role="checkbox" aria-checked="{{ r.checked }}" aria-label="选中 {{ r.name }}" style="width: 16px; height: 16px; padding: 0; display: grid; place-items: center; border-radius: 4px; border: 1px solid; cursor: pointer; transition: background .13s ease, border-color .13s ease, opacity .13s ease; background: {{ r.cbBg }}; border-color: {{ r.cbBd }}; color: var(--tool-on-accent); opacity: {{ r.cbOp }};" style-hover="opacity: 1;" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px; opacity: 1;">
+              <sc-if value="{{ r.checked }}" hint-placeholder-val="{{ false }}">
+                <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true"><path d="M2 5.2l2 2 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+              </sc-if>
+            </button>
+            <div style="min-width: 0; display: flex; align-items: center; gap: 9px;">
+              <span style="width: 24px; height: 24px; flex: none; display: grid; place-items: center; border-radius: var(--tool-radius-sm); background: {{ r.iconBg }}; color: {{ r.iconFg }};">
+                <dc-import name="IconGlyph" d="{{ r.icon }}" size="13" hint-size="13px,13px"></dc-import>
+              </span>
+              <div style="min-width: 0;">
+                <div style="font-weight: 560; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="{{ r.name }}">{{ r.name }}</div>
+                <sc-if value="{{ r.hasSub }}" hint-placeholder-val="{{ false }}">
+                  <div style="font-size: 11px; color: var(--tool-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="{{ r.sub }}">{{ r.sub }}</div>
+                </sc-if>
+              </div>
+            </div>
+            <span style="font-size: 12px; color: var(--tool-text-2);">{{ r.kindLabel }}</span>
+            <span style="text-align: right; font-family: var(--tool-mono); font-size: 12px; font-variant-numeric: tabular-nums; color: var(--tool-text-2);">{{ r.sizeLabel }}</span>
+            <span title="{{ r.updatedAt }}" style="font-size: 12px; color: var(--tool-text-2); white-space: nowrap;">{{ r.ago }}</span>
+            <div style="display: flex; align-items: center; gap: 6px; min-width: 0;">
+              <sc-if value="{{ r.hasHealth }}" hint-placeholder-val="{{ false }}">
+                <span style="display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 7px; border-radius: 999px; font-size: 11px; font-weight: 560; border: 1px solid; white-space: nowrap; background: {{ r.hBg }}; border-color: {{ r.hBd }}; color: {{ r.hFg }};">
+                  <span style="width: 5px; height: 5px; border-radius: 999px; background: currentColor;"></span>{{ r.hLabel }}
+                </span>
+              </sc-if>
+              <span style="font-family: var(--tool-mono); font-size: 11px; color: var(--tool-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ r.meta }}</span>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </sc-if>
+
+    <!-- 网格 -->
+    <sc-if value="{{ isGrid }}" hint-placeholder-val="{{ false }}">
+      <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px;">
+        <sc-for list="{{ rows }}" as="r" hint-placeholder-count="6">
+          <div onClick="{{ r.open }}" role="button" tabindex="0" aria-pressed="{{ r.checked }}" style="position: relative; background: var(--tool-panel); border: 1px solid; border-radius: var(--tool-radius-lg); overflow: hidden; cursor: pointer; box-shadow: var(--tool-shadow-1); transition: border-color .13s ease, box-shadow .13s ease; border-color: {{ r.cardBd }};" style-hover="box-shadow: var(--tool-shadow-2);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">
+            <div style="aspect-ratio: 16 / 10; position: relative; border-bottom: 1px solid var(--tool-border); background: var(--tool-panel-2); overflow: hidden;">
+              <!-- 有缩略图（稿件 / 图片）：占位条纹 + 文件名；真图由 render_check / 原图填 -->
+              <sc-if value="{{ r.hasThumb }}" hint-placeholder-val="{{ false }}">
+                <div style="position: absolute; inset: 0; display: grid; place-items: center; background: {{ r.thumbBg }};">
+                  <span style="font-family: var(--tool-mono); font-size: 10px; color: var(--tool-muted); background: var(--tool-panel); border: 1px solid var(--tool-border); border-radius: var(--tool-radius-sm); padding: 2px 6px; max-width: 80%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ r.thumbLabel }}</span>
+                </div>
+              </sc-if>
+              <!-- 没有缩略图：md 给摘录，其他给大图标 + 扩展名 -->
+              <sc-if value="{{ r.hasExcerpt }}" hint-placeholder-val="{{ false }}">
+                <div style="position: absolute; inset: 0; padding: 34px 14px 12px; background: var(--tool-panel); font-size: 11px; line-height: 1.6; color: var(--tool-text-2); overflow: hidden; white-space: pre-wrap;">{{ r.excerpt }}</div>
+              </sc-if>
+              <sc-if value="{{ r.hasGlyph }}" hint-placeholder-val="{{ true }}">
+                <div style="position: absolute; inset: 0; display: grid; place-items: center;">
+                  <div style="display: grid; gap: 6px; justify-items: center; color: {{ r.iconFg }};">
+                    <dc-import name="IconGlyph" d="{{ r.icon }}" size="28" stroke="1.2" hint-size="28px,28px"></dc-import>
+                    <span style="font-family: var(--tool-mono); font-size: 11px; color: var(--tool-muted);">{{ r.extLabel }}</span>
+                  </div>
+                </div>
+              </sc-if>
+              <button type="button" onClick="{{ r.toggle }}" role="checkbox" aria-checked="{{ r.checked }}" aria-label="选中 {{ r.name }}" style="position: absolute; top: 8px; left: 8px; width: 18px; height: 18px; padding: 0; display: grid; place-items: center; border-radius: 4px; border: 1px solid; cursor: pointer; transition: background .13s ease, opacity .13s ease; background: {{ r.cbBgGrid }}; border-color: {{ r.cbBd }}; color: var(--tool-on-accent); opacity: {{ r.cbOp }};" style-hover="opacity: 1;" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px; opacity: 1;">
+                <sc-if value="{{ r.checked }}" hint-placeholder-val="{{ false }}">
+                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true"><path d="M2 5.2l2 2 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                </sc-if>
+              </button>
+              <sc-if value="{{ r.hasHealth }}" hint-placeholder-val="{{ false }}">
+                <span style="position: absolute; top: 8px; right: 8px; display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 7px; border-radius: 999px; font-size: 11px; font-weight: 560; border: 1px solid; background: {{ r.hBg }}; border-color: {{ r.hBd }}; color: {{ r.hFg }};">
+                  <span style="width: 5px; height: 5px; border-radius: 999px; background: currentColor;"></span>{{ r.hLabel }}
+                </span>
+              </sc-if>
+            </div>
+            <div style="padding: 9px 12px; display: flex; align-items: center; gap: 8px; min-width: 0;">
+              <span style="flex: none; display: grid; color: {{ r.iconFg }};"><dc-import name="IconGlyph" d="{{ r.icon }}" size="13" hint-size="13px,13px"></dc-import></span>
+              <span style="flex: 1 1 0; min-width: 0; font-weight: 560; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="{{ r.name }}">{{ r.name }}</span>
+              <span style="flex: none; font-family: var(--tool-mono); font-size: 11px; color: var(--tool-muted);">{{ r.gridMeta }}</span>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </sc-if>
+  </div>
+
+  <!-- 多选条：选中 ≥ 1 项时贴底出现 -->
+  <sc-if value="{{ hasSelection }}" hint-placeholder-val="{{ false }}">
+    <div role="toolbar" aria-label="已选文件" style="position: sticky; bottom: 0; z-index: 3; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 20px; background: var(--tool-panel); border-top: 1px solid var(--tool-border-strong); box-shadow: 0 -4px 16px rgba(20, 26, 36, 0.06);">
+      <span style="flex: none; font-weight: 600; white-space: nowrap;">已选 {{ selCount }} 项</span>
+      <span style="min-width: 0; font-family: var(--tool-mono); font-size: 11px; color: var(--tool-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 360px;" title="{{ selNames }}">{{ selNames }}</span>
+      <span style="flex: 1;"></span>
+      <button type="button" onClick="{{ clearSel }}" style="height: 28px; padding: 0 10px; border: 0; background: transparent; color: var(--tool-muted); border-radius: var(--tool-radius); cursor: pointer; font-size: 12px;" style-hover="background: var(--tool-hover); color: var(--tool-text);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">取消 <kbd style="font-family: var(--tool-mono); font-size: 10px;">Esc</kbd></button>
+      <button type="button" style="height: 28px; padding: 0 12px; border: 1px solid var(--tool-err-border); background: var(--tool-panel); color: var(--tool-err); border-radius: var(--tool-radius); cursor: pointer; font-size: 12px;" style-hover="background: var(--tool-err-soft);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">删除</button>
+      <button type="button" style="height: 28px; padding: 0 12px; border: 1px solid var(--tool-border-strong); background: var(--tool-panel); border-radius: var(--tool-radius); cursor: pointer; font-size: 12px;" style-hover="background: var(--tool-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">移动…</button>
+      <button type="button" style="display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 13px; border: 0; background: var(--tool-accent); color: var(--tool-on-accent); border-radius: var(--tool-radius); cursor: pointer; font-size: 12px; font-weight: 560;" style-hover="background: var(--tool-accent-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">
+        <dc-import name="IconGlyph" d="M5.4 4.6h6.8V14H5.4zM3.4 12V2h6.4" size="13" hint-size="13px,13px"></dc-import>
+        带进会话
+      </button>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;theme&quot;: {&quot;editor&quot;: &quot;enum&quot;, &quot;options&quot;: [&quot;跟随外层&quot;, &quot;dark&quot;], &quot;default&quot;: &quot;跟随外层&quot;, &quot;tsType&quot;: &quot;'dark'|null&quot;, &quot;section&quot;: &quot;工具皮肤&quot;}}">
+const ICON = {
+  dc: "M2.5 3h11v10h-11zM2.5 5.8h11M5.2 8.4h5.6M5.2 10.6h3.4",
+  dir: "M2 4.4c0-.5.4-.9.9-.9h3.2l1.5 1.6h5.5c.5 0 .9.4.9.9v6.6c0 .5-.4.9-.9.9H2.9c-.5 0-.9-.4-.9-.9z",
+  md: "M4 2h5.4L12 4.6V14H4zM9.4 2v2.6H12M6 8h4M6 10.4h4M6 5.8h1.6",
+  image: "M2.5 3h11v10h-11zM2.5 11l3.2-3.2 2.8 2.8 1.8-1.8 3.2 3.2M10.6 5.8h.1",
+  code: "M5.5 5L2.5 8l3 3M10.5 5l3 3-3 3M9 3.5l-2 9",
+  html: "M8 2a6 6 0 1 0 0 12A6 6 0 1 0 8 2zM2 8h12M8 2c-2.2 2.2-2.2 9.8 0 12M8 2c2.2 2.2 2.2 9.8 0 12",
+  other: "M4 2h5.4L12 4.6V14H4zM9.4 2v2.6H12"
+};
+const KIND_LABEL = { dc: "设计稿", dir: "目录", md: "Markdown", image: "图片", code: "代码", html: "HTML", other: "其他" };
+const HEALTH = {
+  ok: { label: "通过", bg: "var(--tool-ok-soft)", bd: "var(--tool-ok-border)", fg: "var(--tool-ok)" },
+  warn: { label: "有提醒", bg: "var(--tool-warn-soft)", bd: "var(--tool-warn-border)", fg: "var(--tool-warn)" },
+  error: { label: "有错误", bg: "var(--tool-err-soft)", bd: "var(--tool-err-border)", fg: "var(--tool-err)" },
+  unchecked: { label: "未体检", bg: "var(--tool-unchecked-soft)", bd: "var(--tool-unchecked-border)", fg: "var(--tool-unchecked)" }
+};
+
+const ENTRIES = [
+  { name: "Pages", kind: "dir", count: 12, updatedAt: "2026-09-23T10:02:00+08:00" },
+  { name: "日志.dc.html", kind: "dc", size: 48211, updatedAt: "2026-09-23T09:40:12+08:00",
+    thumb: ".umbrastudio/shots/日志@1440x900.png", health: "ok", version: "v217",
+    importedBy: ["Umbra PC 端.dc.html"] },
+  { name: "需求.md", kind: "md", size: 9120, updatedAt: "2026-09-22T18:11:00+08:00", snapshot: "s14",
+    excerpt: "# 日志页需求 · 最近 7 天 …" },
+  { name: "首页截图.png", kind: "image", size: 812004, updatedAt: "2026-09-21T12:00:00+08:00",
+    thumb: "uploads/首页截图.png", dims: "1440×900" },
+  { name: "project.json", kind: "code", size: 640, updatedAt: "2026-09-20T08:00:00+08:00" },
+  { name: "备份.zip", kind: "other", size: 20480000, updatedAt: "2026-09-01T08:00:00+08:00" }
+];
+
+const DEMOS = [
+  { n: 1, short: "列表", name: "列表", note: "默认列表；目录排最前，其余按更新时间", selection: [] },
+  { n: 2, short: "网格", name: "网格（缩略图墙）", note: "稿件 / 图片给缩略图，md 给摘录，其余给图标 + 扩展名", view: "grid", selection: [] },
+  { n: 3, short: "多选", name: "多选两项", note: "底部出多选条：带进会话 · 移动 · 删除", view: "list", selection: ["需求.md", "首页截图.png"] },
+  { n: 4, short: "空目录", name: "空目录", note: "引导：拖文件进来，或让 AI 在这里建稿", view: "list", selection: [], empty: true },
+  { n: 5, short: "只看稿件", name: "只看稿件（= S1）", note: "筛到只剩 .dc.html，给一条去 S1 的路", view: "list", selection: [], drafts: true },
+  { n: 6, short: "图片目录", name: "图片多的目录 · 自动网格", note: "第 3 题：默认列表；非目录文件里图片 ≥ 60% 且 ≥ 6 张时自动切网格，手动切过就记住", selection: [], images: true }
+];
+/* 第 3 题的判据。手动切过（layout.viewByDir[dir]）就不再自动 */
+const AUTO_MIN = 6, AUTO_SHARE = 0.6;
+const IMAGES = ["首页", "日志页", "设置页", "会话列表", "空态", "报错态", "深色首页", "移动端首页"].map((t, i) => ({
+  name: t + ".png", kind: "image", size: 640000 + i * 41000, updatedAt: new Date(Date.parse("2026-09-23T09:00:00+08:00") - i * 7.2e6).toISOString(),
+  thumb: "uploads/截图/" + t + ".png", dims: i === 7 ? "390×844" : "1440×900" }))
+  .concat([{ name: "说明.md", kind: "md", size: 1200, updatedAt: "2026-09-20T08:00:00+08:00", snapshot: "s2", excerpt: "# 截图说明 …" }]);
+function autoView(entries) {
+  const files = entries.filter((e) => e.kind !== "dir");
+  const img = files.filter((e) => e.kind === "image").length;
+  return { view: img >= AUTO_MIN && img / Math.max(1, files.length) >= AUTO_SHARE ? "grid" : "list", img: img, total: files.length };
+}
+
+const NOW = new Date("2026-09-23T10:30:00+08:00").getTime();
+function ago(iso) {
+  const m = Math.round((NOW - new Date(iso).getTime()) / 6e4);
+  if (m < 60) return m + " 分钟前";
+  const h = Math.round(m / 60);
+  if (h < 24) return h + " 小时前";
+  const d = Math.round(h / 24);
+  return d < 30 ? d + " 天前" : new Date(iso).toLocaleDateString("zh-CN");
+}
+function size(b) {
+  if (b == null) return "—";
+  if (b < 1024) return b + " B";
+  if (b < 1048576) return (b / 1024 < 100 ? (b / 1024).toFixed(1) : Math.round(b / 1024)) + " KB";
+  return (b / 1048576).toFixed(1) + " MB";
+}
+const ext = (n) => { const i = n.lastIndexOf("."); return i > 0 ? n.slice(i + 1).toUpperCase() : ""; };
+
+class Component extends DCLogic {
+  state = { demo: 1, view: null, only: null, sel: null };
+
+  componentDidMount() {
+    this.onKey = (e) => { if (e.key === "Escape") this.setState({ sel: [] }); };
+    document.addEventListener("keydown", this.onKey);
+  }
+  componentWillUnmount() { document.removeEventListener("keydown", this.onKey); }
+
+  renderVals() {
+    const s = this.state;
+    const dm = DEMOS[s.demo - 1];
+    const only = s.only !== null ? s.only : !!dm.drafts;
+    const selection = s.sel || dm.selection;
+    const dir = dm.empty ? "Archive/" : dm.images ? "uploads/截图/" : "PC 端/";
+    let entries = dm.empty ? [] : dm.images ? IMAGES.slice() : ENTRIES.slice();
+    const auto = autoView(entries);
+    const isAuto = !s.view && !dm.view;
+    const view = s.view || dm.view || auto.view;
+    if (only) entries = entries.filter((e) => e.kind === "dc");
+    entries.sort((a, b) => (a.kind === "dir" ? 0 : 1) - (b.kind === "dir" ? 0 : 1) || new Date(b.updatedAt) - new Date(a.updatedAt));
+    const toggle = (name) => {
+      const cur = s.sel || dm.selection;
+      this.setState({ sel: cur.indexOf(name) >= 0 ? cur.filter((x) => x !== name) : cur.concat([name]) });
+    };
+
+    const rows = entries.map((e) => {
+      const on = selection.indexOf(e.name) >= 0;
+      const h = e.health ? HEALTH[e.health] : null;
+      const sub = e.kind === "md" ? e.excerpt : e.kind === "dc" && e.importedBy && e.importedBy.length ? "被 " + e.importedBy.join("、") + " 引用" : "";
+      const meta = e.kind === "dc" ? (e.version || "—") : e.kind === "md" ? "快照 " + e.snapshot : e.kind === "image" ? e.dims : e.kind === "dir" ? e.count + " 项" : "";
+      return {
+        name: e.name, kindLabel: KIND_LABEL[e.kind], icon: ICON[e.kind] || ICON.other,
+        iconBg: e.kind === "dc" ? "var(--tool-accent-soft)" : "var(--tool-panel-2)",
+        iconFg: e.kind === "dc" ? "var(--tool-accent)" : "var(--tool-text-2)",
+        hasSub: !!sub, sub: sub,
+        sizeLabel: e.kind === "dir" ? "—" : size(e.size),
+        updatedAt: e.updatedAt, ago: ago(e.updatedAt),
+        hasHealth: !!h, hLabel: h ? h.label : "", hBg: h ? h.bg : "", hBd: h ? h.bd : "", hFg: h ? h.fg : "",
+        meta: meta,
+        gridMeta: e.kind === "dir" ? e.count + " 项" : size(e.size),
+        hasThumb: !!e.thumb,
+        thumbBg: e.kind === "image" ? "repeating-conic-gradient(var(--tool-panel-2) 0 25%, var(--tool-panel) 0 50%) 0 0 / 14px 14px" : "repeating-linear-gradient(135deg, var(--tool-panel-2) 0 9px, var(--tool-panel-3) 9px 18px)",
+        thumbLabel: e.kind === "image" ? e.name + " · " + e.dims : e.name.replace(".dc.html", "") + " @1440×900",
+        hasExcerpt: !e.thumb && e.kind === "md", excerpt: e.excerpt || "",
+        hasGlyph: !e.thumb && e.kind !== "md",
+        extLabel: e.kind === "dir" ? e.count + " 项" : ext(e.name),
+        checked: on,
+        cbBg: on ? "var(--tool-accent)" : "var(--tool-panel)",
+        cbBgGrid: on ? "var(--tool-accent)" : "var(--tool-panel)",
+        cbBd: on ? "var(--tool-accent)" : "var(--tool-border-strong)",
+        cbOp: on || selection.length ? "1" : "0.55",
+        bg: on ? "var(--tool-accent-soft)" : "var(--tool-panel)",
+        cardBd: on ? "var(--tool-accent)" : "var(--tool-border)",
+        toggle: (ev) => { ev.stopPropagation(); toggle(e.name); },
+        open: () => {}
+      };
+    });
+
+    const btn = (on) => ({ bg: on ? "var(--tool-panel)" : "transparent", fg: on ? "var(--tool-text)" : "var(--tool-muted)", sh: on ? "var(--tool-shadow-1)" : "none", fw: on ? "560" : "400" });
+    return {
+      theme: this.props.theme === "dark" ? "dark" : null,
+      showDemoBar: true,
+      demoNote: dm.note,
+      demoStates: DEMOS.map((m) => {
+        const on = m.n === s.demo;
+        return { n: m.n, name: m.name, short: m.short, active: on, fw: on ? "600" : "400",
+          bg: on ? "var(--tool-accent)" : "var(--tool-panel)", bd: on ? "var(--tool-accent)" : "var(--tool-border-strong)",
+          fg: on ? "var(--tool-on-accent)" : "var(--tool-text-2)",
+          pick: () => this.setState({ demo: m.n, view: null, only: null, sel: null }) };
+      }),
+      dirName: dir,
+      countLabel: rows.length + " 项",
+      trashCount: "2",
+      filters: [{ k: false, label: "全部" }, { k: true, label: "只看稿件" }].map((f) =>
+        Object.assign({ label: f.label, active: f.k === only, pick: () => this.setState({ only: f.k }) }, btn(f.k === only))),
+      views: [
+        { k: "list", title: "列表", icon: "M2.5 4h11M2.5 8h11M2.5 12h11" },
+        { k: "grid", title: "网格", icon: "M2.5 2.5h4.5v4.5H2.5zM9 2.5h4.5v4.5H9zM2.5 9h4.5v4.5H2.5zM9 9h4.5v4.5H9z" }
+      ].map((v) => Object.assign({ title: v.title, icon: v.icon, active: v.k === view, pick: () => this.setState({ view: v.k }) }, btn(v.k === view))),
+      showAuto: isAuto && auto.view === "grid",
+      autoLabel: "图片 " + auto.img + " / " + auto.total + " · 自动网格",
+      onlyDrafts: only,
+      isEmpty: rows.length === 0,
+      isList: rows.length > 0 && view === "list",
+      isGrid: rows.length > 0 && view === "grid",
+      rows: rows,
+      hasSelection: selection.length > 0,
+      selCount: String(selection.length),
+      selNames: selection.join("、"),
+      clearSel: () => this.setState({ sel: [] })
+    };
+  }
+}
+</script>
+</body>
+</html>
