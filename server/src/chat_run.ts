@@ -28,7 +28,7 @@ import {
 import { serveStart, serveStatus, serveStop } from "./serve.js";
 import { buildIndex, collectIndex } from "./indexpage.js";
 import { locateNode } from "./locate.js";
-import { readAnyFile } from "./files.js";
+import { listFiles, moveFile, readAnyFile, writeAnyFile } from "./files.js";
 import { revertTo, setProp } from "./edit.js";
 import { touchProject, listRecentProjects, removeRecentProject, clearRecentProjects } from "./workspace.js";
 import { buildRefGraph, listReferences, renameDraft, moveDraft, deleteDraft, deleteDraftImpact, listTrash, restoreDraft } from "./refs.js";
@@ -54,6 +54,8 @@ export interface ChatSendArgs {
   selectedNodeAddress?: string;
   /** 目录视图里选中的若干文件（M8-4，`01` 第 32 条）。路径相对项目根 */
   selectedFiles?: string[];
+  /** `.md` 里选中的一段（M8-8，`01` 第 30 条）：label 是「路径 L9-12」，text 是那一段原文 */
+  selectedRange?: { label: string; text: string };
   /** 应用前端里当前正在看的稿（没选中节点时的弱上下文）：进系统提示，不进用户那句 */
   contextFile?: string;
   /** 作业化调用时的中断信号（本地 API chat_interrupt 触发）：通道 A 的 agent 循环在下一步前停下 */
@@ -86,6 +88,29 @@ export async function executeToolCall(p: Project, tc: ToolCall): Promise<string>
       case "list_drafts": {
         const drafts = (await listDrafts(p)).map((a) => a.slice(p.dir.length + 1).split("\\").join("/"));
         return JSON.stringify({ ok: true, drafts });
+      }
+
+      /* ── 泛型文件（M8）。设计稿之外的东西走这四件；`.dc.html` 在 write_file / move_file 里会被拒。
+         少了它们，AI 面对 `.md` 只会一路撞 patch_draft 的「文件名必须以 .dc.html 结尾」【实测 2026-09-24】。 ── */
+      case "list_files": {
+        const r = await listFiles(p, String(args.dir ?? ""));
+        return JSON.stringify({ ok: true, dir: r.dir, types: r.types,
+          entries: r.entries.map((e) => ({ path: e.path, kind: e.kind, isDir: e.isDir, size: e.size, snapshot: e.snapshot ?? null })) });
+      }
+      case "read_file": {
+        const r = await readAnyFile(p, String(args.path ?? ""));
+        return JSON.stringify({ ok: true, path: r.path, kind: r.kind, size: r.size, sha256: r.sha256,
+          snapshot: r.snapshot ?? null, content: r.content, why: r.why ?? null,
+          note: r.content === null ? "这是二进制或超限文件，没有正文" : "改它之前把 sha256 原样带回 write_file" });
+      }
+      case "write_file": {
+        const r = await writeAnyFile(p, String(args.path ?? ""), String(args.content ?? ""),
+          { expectSha256: typeof args.expectSha256 === "string" ? args.expectSha256 : undefined, origin: "AI", note: typeof args.note === "string" ? args.note : undefined });
+        return JSON.stringify({ ok: true, path: r.path, snapshot: r.snapshot, previous: r.previous, bytes: r.bytes, sha256: r.sha256 });
+      }
+      case "move_file": {
+        const r = await moveFile(p, String(args.from ?? ""), String(args.to ?? ""));
+        return JSON.stringify({ ok: true, from: r.from, to: r.to, rewrote: r.rewrote });
       }
 
       // ── 设计系统检索 ──
@@ -280,7 +305,7 @@ function sanitizeHistory(msgs: ChatMessage[]): ChatMessage[] {
 
 /** chat_send：加载/新建会话 → 选中节点上下文 → 通道 A agent 循环或通道 B 子进程 → 审计变更。返回信封。 */
 export async function runChatSend(p: Project, a: ChatSendArgs): Promise<Envelope<any>> {
-  const { message, sessionId, channel, selectedNodeFile, selectedNodeAddress, selectedFiles, contextFile, abortSignal } = a;
+  const { message, sessionId, channel, selectedNodeFile, selectedNodeAddress, selectedFiles, selectedRange, contextFile, abortSignal } = a;
   const ch = channel ?? "a";
 
   // 加载或新建会话
@@ -330,10 +355,20 @@ export async function runChatSend(p: Project, a: ChatSendArgs): Promise<Envelope
         const info = await readAnyFile(p, rel);
         const head = info.content ? info.content.split("\n").slice(0, 3).map((x) => x.trim()).filter(Boolean).join(" / ").slice(0, 100) : "";
         lines.push(`  - ${rel}（${info.kind}，${info.size} 字节${info.width ? `，${info.width}×${info.height}` : ""}）${head ? ` — ${head}` : ""}`);
-      } catch { lines.push(`  - ${rel}（读不到，可能刚被挪走）`); }
+      } catch {
+        // 目录不是「读不到」，它本来就不是文件 —— 说错了模型会以为出了故障
+        try { const d = await listFiles(p, rel); lines.push(`  - ${rel}（目录，${d.entries.length} 项）`); }
+        catch { lines.push(`  - ${rel}（读不到，可能刚被挪走）`); }
+      }
     }
     if (selectedFiles.length > 20) lines.push(`  … 还有 ${selectedFiles.length - 20} 个`);
     filesContext = lines.join("\n");
+  }
+
+  /* ── 选中段落（M8-8）：给路径、行范围、原文。改的时候要**只改这一段** ── */
+  let rangeContext: string | null = null;
+  if (selectedRange?.text) {
+    rangeContext = [`【当前选中的一段】${selectedRange.label}`, "```", selectedRange.text.slice(0, 4000), "```"].join("\n");
   }
 
   // 通道 A：跑 agent 循环
@@ -367,6 +402,10 @@ export async function runChatSend(p: Project, a: ChatSendArgs): Promise<Envelope
       { type: "function", function: { name: "list_components", description: "列出所有组件与页稿", parameters: { type: "object", properties: { project: { type: "string" } }, required: ["project"] } } },
       { type: "function", function: { name: "get_component", description: "取组件契约或全文", parameters: { type: "object", properties: { project: { type: "string" }, name: { type: "string" }, mode: { type: "string", enum: ["contract", "full"] } }, required: ["project", "name"] } } },
       { type: "function", function: { name: "read_draft", description: "读一份稿的源码（改稿前先读它）。返回的 HTML 里每个元素带 data-ud-node 地址，set_prop 就用这个地址", parameters: { type: "object", properties: { project: { type: "string" }, path: { type: "string", description: "稿相对项目根的路径，如 测试.dc.html" } }, required: ["project", "path"] } } },
+      { type: "function", function: { name: "list_files", description: "列一层目录里的所有文件（不只设计稿）。每项带 kind（dir/dc/md/image/code/html/other）、大小、快照号", parameters: { type: "object", properties: { project: { type: "string" }, dir: { type: "string", description: "相对项目根的子目录，不给就是项目根" } }, required: ["project"] } } },
+      { type: "function", function: { name: "read_file", description: "读非设计稿的文件（.md / .json / .css / .svg…）。返回 content 与 sha256；改它之前先读，把 sha256 带回 write_file。二进制只给元数据", parameters: { type: "object", properties: { project: { type: "string" }, path: { type: "string" } }, required: ["project", "path"] } } },
+      { type: "function", function: { name: "write_file", description: "写非设计稿的文件。写前用 expectSha256 校验（盘上被别人改过就拒绝），自动存快照可回退。不归一化、不动 frontmatter。.dc.html 会被拒，那个要用 write_draft", parameters: { type: "object", properties: { project: { type: "string" }, path: { type: "string" }, content: { type: "string", description: "整份新内容" }, expectSha256: { type: "string", description: "read_file 给的那个值；新建文件给 \"0\"" }, note: { type: "string", description: "这一版为什么改" } }, required: ["project", "path", "content"] } } },
+      { type: "function", function: { name: "move_file", description: "改名 / 移动非设计稿的文件，并把稿里指向它的 href/src/url() 一起改掉", parameters: { type: "object", properties: { project: { type: "string" }, from: { type: "string" }, to: { type: "string" } }, required: ["project", "from", "to"] } } },
       { type: "function", function: { name: "list_icons", description: "检索图标", parameters: { type: "object", properties: { project: { type: "string" }, query: { type: "string" }, limit: { type: "number" } }, required: ["project"] } } },
       { type: "function", function: { name: "get_icon", description: "取图标 SVG", parameters: { type: "object", properties: { project: { type: "string" }, name: { type: "string" } }, required: ["project", "name"] } } },
       { type: "function", function: { name: "get_syntax_guide", description: "取模板语义与写稿规则", parameters: { type: "object", properties: { topic: { type: "string", enum: ["template", "logic", "interaction", "checklist", "tokens"] } }, required: ["topic"] } } },
@@ -386,10 +425,11 @@ export async function runChatSend(p: Project, a: ChatSendArgs): Promise<Envelope
 
     // 系统提示：设计助手角色 + 选中节点上下文
     const systemParts: string[] = [
-      "你是 Umbra Studio 设计助手。你可以通过工具调用读取和修改设计稿。",
-      "改稿前先用 read_draft 读源码：里面每个元素都有 data-ud-node 地址，改一处样式/属性/文案就用 set_prop(node=那个地址)；不要猜地址。",
-      "修改稿必须用 write_draft 或 patch_draft 落盘，不要口头说改了什么。",
-      "修改前先 validate_draft 确认当前状态，修改后再次 validate 确认无 error。",
+      "你是 Umbra Studio 助手，在一个本地目录工作台里干活。**全程用简体中文回答**，包括思考过程里给用户看的那些话。",
+      "这个目录里有两类文件，各走各的路，别串：",
+      "  · **设计稿 `.dc.html`**：read_draft 读（每个元素带 data-ud-node 地址）→ set_prop 改一处 / patch_draft 增量改 / write_draft 整份写；改前后各 validate_draft 一次。",
+      "  · **别的文件**（`.md`、`.json`、`.css`、图片…）：list_files 列 → read_file 读（拿 content 与 sha256）→ write_file 写（把那个 sha256 原样带回去，盘上被别人改过会被拒）。write_file 不归一化、不动 frontmatter。",
+      "落盘要靠工具，不要口头说改了什么。",
       "⚠️ set_prop 只能改一处（一条样式/一个属性），用户说改多处时先改当前选中的。",
     ];
     if (nodeContext) {
@@ -401,6 +441,14 @@ export async function runChatSend(p: Project, a: ChatSendArgs): Promise<Envelope
       systemParts.push("", "### 用户选中的文件", filesContext, "",
         "用户说「这几个」「它们」时就是指这些文件。要看内容用 read_file；改非设计稿用 write_file（带上 read_file 给的 sha256），改设计稿用 write_draft。");
     }
+    if (rangeContext) {
+      systemParts.push("", "### 用户选中的一段文字", rangeContext, "",
+        "用户说「这段」时就是指它，**不要再问是哪一段**。改法：先 read_file 拿到全文与 sha256，把这一段替换掉、其余一个字都不动，再 write_file 带上那个 sha256。不要重写整份文档。");
+    }
+
+    /* 语言约束放最后一条：模型对系统提示末尾的指令更听话。
+       放开头时 DeepSeek 仍会用英文写「I'll start by reading the file.」这类过渡句【实测 2026-09-24】。 */
+    systemParts.push("", "### 语言", "所有回复一律用简体中文，包括「我先读一下文件」这类过渡句和工具调用前后的说明。不要用英文写给用户看的句子。");
 
     const result = await chat(providerCfg, {
       systemPrompt: systemParts.join("\n"),
@@ -496,6 +544,7 @@ export async function runChatSend(p: Project, a: ChatSendArgs): Promise<Envelope
     bSystemParts.push("", `### 用户当前正在看的稿：${contextFile}`);
   }
   if (filesContext) bSystemParts.push("", "### 用户选中的文件", filesContext);
+  if (rangeContext) bSystemParts.push("", "### 用户选中的一段文字", rangeContext, "", "只改这一段，其余不动。");
 
   const ccResult = await channelBRun(ccConfig, message, bSystemParts.join("\n"), 120000);
 

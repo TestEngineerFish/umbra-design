@@ -13,6 +13,7 @@ import { toast } from "../ui/Toast";
 import { Canvas, Present, type PreviewMode } from "./Canvas";
 import { DirView } from "./DirView";
 import { FileCard } from "./FileCard";
+import { MarkdownView, type Outline } from "./MarkdownView";
 import { SidePanels } from "./SidePanels";
 
 /** 工作台（S11 形制）：顶栏 40 · 页签 34 · 左会话 / 中画布 / 右从属面板列 · 底部状态行 24 */
@@ -23,6 +24,7 @@ export function Workbench({ project, host, layout, setLayout, onHome, onSettings
   /** 当前打开的是目录时，file 是目录路径（"" = 项目根），dirMode 为真 */
   const [dirMode, setDirMode] = useState(false);
   const [dirSel, setDirSel] = useState<string[]>([]);
+  const [outline, setOutline] = useState<Outline[]>([]);
   const [picked, setPickedRaw] = useState<Picked | null>(null);
   /* 选中的节点有两个去处：属性面板（picked，一次只有一个 —— 桥就是单选）与会话的药丸（selections，可多颗）。
      × 掉药丸不该把属性面板也关掉，所以分开存。 */
@@ -145,8 +147,9 @@ export function Workbench({ project, host, layout, setLayout, onHome, onSettings
             {dirMode ? <DirView core={core} dirRel={dirRel} selected={dirSel} onSelectionChange={setDirSel} onOpen={open} />
               : !file ? <div className="flex-1 flex items-center justify-center text-muted text-xs text-center px-6 leading-relaxed bg-canvas">从上面的页签或目录里选一个文件</div>
               : kind === "dc" ? <Canvas url={project.url} store={store} file={file} picked={picked} onPicked={setPicked} mode={mode} setMode={(m) => { setMode(m); mem.set("us.previewMode", m); }} onPresent={() => setPresent(true)} onOpenPanel={(p) => setActive(p)} unresolved={unresolved} />
+              : kind === "md" ? <MarkdownView core={core} path={file} writeTick={store.lastEvent?.type === "write" ? store.lastEvent.at : ""} onWritten={() => void store.fetchDrafts()} onOutline={setOutline} onSelection={(s) => { if (!s) { setSelections((xs) => xs.filter((x) => x.kind !== "range")); return; } if (layout.chatMode === "bar") setLayout({ ...layout, chatMode: "expanded" }); setSelections((xs) => [...xs.filter((x) => x.kind !== "range"), s]); }} />
               : <FileCard core={core} host={host} path={file} onOpen={open} />}
-            {file && panels.length > 0 && <SidePanels core={core} store={store} file={file} picked={picked} onPicked={setPicked} panels={panels} active={active} setActive={setActive} narrow={narrow} onSendToAI={sendToAI} />}
+            {file && panels.length > 0 && <SidePanels core={core} store={store} file={file} picked={picked} onPicked={setPicked} panels={panels} active={active} setActive={setActive} narrow={narrow} onSendToAI={sendToAI} outline={outline} />}
           </div>
           {layout.chatMode === "bar" && (
             <div className="h-11 px-2 flex items-center gap-2 border-t border-border bg-panel shrink-0">

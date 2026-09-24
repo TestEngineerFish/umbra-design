@@ -5,15 +5,16 @@ import { PANEL_TITLE, type PanelId } from "../layout/layout";
 import type { ProjectStore } from "../store/project";
 import { toast } from "../ui/Toast";
 import { PropsPanel } from "./PropsPanel";
+import type { Outline } from "./MarkdownView";
 
 /** 从属面板列（S11 第 1 题的定稿）：40 px 图标轨常驻 + 面板体，同一时刻只开一个；图片 / 目录整列不出现。
  *  属性面板（M7-7）已是 React 的 PropsPanel，S2 嵌入时只留画布。 */
 const ICON: Record<PanelId, string> = { props: "⚙", diagnostics: "⚠", changes: "⟲", comments: "✎", outline: "≡", info: "ⓘ" };
 export const PANEL_WIDTH = 340;
 
-export function SidePanels({ core, store, file, picked, onPicked, panels, active, setActive, narrow, onSendToAI }: {
+export function SidePanels({ core, store, file, picked, onPicked, panels, active, setActive, narrow, onSendToAI, outline }: {
   core: Core; store: ProjectStore; file: string; picked: Picked | null; onPicked: (p: Picked | null) => void; panels: PanelId[]; active: PanelId | null; setActive: (p: PanelId | null) => void; narrow: boolean;
-  onSendToAI: (text: string, picked: Picked) => void;
+  onSendToAI: (text: string, picked: Picked) => void; outline: Outline[];
 }) {
   const badge: Partial<Record<PanelId, number>> = { diagnostics: store.diags.filter((d) => d.level === "error" || d.level === "warning").length, comments: store.comments.filter((c) => !c.resolved).length };
   const body = active && (
@@ -25,7 +26,14 @@ export function SidePanels({ core, store, file, picked, onPicked, panels, active
         {active === "changes" && <Changes core={core} store={store} file={file} />}
         {active === "comments" && <Comments core={core} store={store} file={file} onSendToAI={onSendToAI} />}
         {active === "info" && <Info store={store} file={file} />}
-        {active === "outline" && <div className="p-4 text-muted">Markdown 大纲在 M8 随 `.md` 类型一起做。</div>}
+        {active === "outline" && (outline.length === 0
+          ? <div className="p-4 text-muted">这份文档还没有标题</div>
+          : <div className="py-1">{outline.map((h, i) => (
+              <button key={i} className="w-full text-left px-3 py-1 flex items-center gap-2 hover:bg-hover" style={{ paddingLeft: 12 + (h.level - 1) * 12 }}
+                onClick={() => window.dispatchEvent(new CustomEvent("ud-md-jump", { detail: h }))}>
+                <span className="truncate flex-1">{h.text}</span><span className="font-mono text-[11px] text-muted">L{h.line}</span>
+              </button>))}
+            </div>)}
       </div>
     </section>
   );

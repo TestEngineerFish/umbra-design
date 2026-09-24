@@ -107,7 +107,12 @@ export function useProject(core: Core, dir: string) {
   useEffect(() => { void fetchDrafts(); }, [fetchDrafts, dir]);
   useEffect(() => core.events((e) => {
     setLastEvent(e);
-    if (e.type === "write" || e.type === "fs") { void fetchDrafts(); const f = sel.current; const p = e.payload as { file?: string; changes?: string[] }; if (f && (p.file === f || p.changes?.includes(f))) { void fetchDiagnostics(f); void fetchChanges(f); } }
+    if (e.type === "write" || e.type === "fs") {
+      void fetchDrafts();
+      const f = sel.current; const p = e.payload as { file?: string; changes?: string[] };
+      // 诊断与变更只有设计稿有；对 .md / 图片调这两条路由是 400（resolveDraft 找不到稿）
+      if (f && /\.dc\.html$/.test(f) && (p.file === f || p.changes?.includes(f))) { void fetchDiagnostics(f); void fetchChanges(f); }
+    }
   }, setWsState), [core, fetchDrafts, fetchDiagnostics, fetchChanges]);
 
   return { drafts, indexed, selected, select, diags, comments, changes, source, checking, lastEvent, wsState, fetchDrafts, fetchDiagnostics, fetchComments, fetchChanges, fetchSource, runCheck, rebuildIndex };

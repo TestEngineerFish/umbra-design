@@ -47,6 +47,9 @@ export function useChat(core: Core, dir: string, ctx: { selectedDraft: string | 
       // files 药丸：把路径带过去（M8-4）。range / region 随 M8-6 / M8-10 接
       const files = sels.filter((s) => s.kind === "files").flatMap((s) => s.detail.split("\n")).filter(Boolean);
       if (files.length) body.selectedFiles = files;
+      // range 药丸（.md 选中一段，M8-8）：把路径、行范围、原文一起带过去
+      const range = sels.find((s) => s.kind === "range");
+      if (range) { const [head, ...rest] = range.detail.split("\n"); body.selectedRange = { label: head, text: rest.join("\n") }; }
       const started = await core.post<{ jobId: string; sessionId?: string }>("chat_send", body);
       if (!started.ok || !started.data) throw new Error(started.errors?.[0]?.message ?? "起作业失败");
       job.current = started.data.jobId; const sid = started.data.sessionId ?? sessionId!; setSessionId(sid);

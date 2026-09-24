@@ -401,6 +401,9 @@ export async function handleApi(
         sessionId: typeof b.sessionId === "string" ? b.sessionId : undefined,
         channel: (b.channel === "b" ? "b" : "a") as "a" | "b",
         selectedFiles: Array.isArray(b.selectedFiles) ? (b.selectedFiles as unknown[]).filter((x): x is string => typeof x === "string") : undefined,
+        selectedRange: b.selectedRange && typeof b.selectedRange === "object"
+          ? { label: String((b.selectedRange as Record<string, unknown>).label ?? ""), text: String((b.selectedRange as Record<string, unknown>).text ?? "") }
+          : undefined,
         selectedNodeFile: typeof b.selectedNodeFile === "string" ? b.selectedNodeFile : undefined,
         selectedNodeAddress: typeof b.selectedNodeAddress === "string" ? b.selectedNodeAddress : undefined,
         contextFile: typeof b.contextFile === "string" ? b.contextFile : undefined,
