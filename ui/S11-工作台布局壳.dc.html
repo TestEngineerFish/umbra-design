@@ -3,12 +3,6 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<!-- umbradesign:resources -->
-<script>window.__resources = {
-    "https://unpkg.com/react@18.3.1/umd/react.production.min.js": "./react.production.min.js",
-    "https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js": "./react-dom.production.min.js"
-  };</script>
-<!-- /umbradesign:resources -->
 <script src="./support.js"></script>
 </head>
 <body>
@@ -22,6 +16,7 @@
   a { color: var(--tool-accent); text-decoration: none; }
   a:hover { color: var(--tool-accent-hover); text-decoration: underline; }
   input, button, textarea { font: inherit; color: inherit; }
+  @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 </style>
 </helmet>
 
@@ -31,7 +26,7 @@
   <sc-if value="{{ showDemoBar }}" hint-placeholder-val="{{ true }}">
   <div style="flex: none; display: flex; align-items: center; gap: 8px; padding: 8px 16px; flex-wrap: wrap; font-size: 12px; background: var(--tool-panel-2); border-bottom: 1px solid var(--tool-border);">
     <span style="font-size: 11px; color: var(--tool-muted); flex: none;">演示态</span>
-    <sc-for list="{{ demoStates }}" as="st" hint-placeholder-count="6">
+    <sc-for list="{{ demoStates }}" as="st" hint-placeholder-count="9">
       <button type="button" onClick="{{ st.pick }}" title="{{ st.name }}" aria-pressed="{{ st.active }}" style="display: inline-flex; align-items: center; gap: 5px; height: 23px; padding: 0 9px 0 6px; border-radius: var(--tool-radius-sm); border: 1px solid; cursor: pointer; font-size: 11px; white-space: nowrap; transition: background .13s ease, border-color .13s ease, color .13s ease; background: {{ st.bg }}; border-color: {{ st.bd }}; color: {{ st.fg }};" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">
         <span style="font-family: var(--tool-mono); opacity: 0.6;">{{ st.n }}</span>
         <span style="font-weight: {{ st.fw }};">{{ st.short }}</span>
@@ -43,7 +38,8 @@
   </sc-if>
 
   <div style="flex: 1 1 0; min-height: 0; display: flex; justify-content: center; background: var(--tool-canvas);">
-  <div style="width: 100%; max-width: {{ shellMax }}; height: 100%; display: flex; flex-direction: column; background: var(--tool-bg); box-shadow: {{ shellShadow }};">
+  <!-- 评审用：按 layout.width 模拟窗口宽（默认 1440），预览窗更窄时整体缩放显示，让位规则仍按模拟宽算 -->
+  <div style="flex: none; width: {{ shellMax }}; height: {{ shellH }}; zoom: {{ zoom }}; display: flex; flex-direction: column; background: var(--tool-bg); box-shadow: {{ shellShadow }};">
 
     <!-- ═══ 顶栏 40px ═══ -->
     <div style="flex: none; height: 40px; display: flex; align-items: center; gap: 12px; padding: 0 12px 0 14px; background: var(--tool-panel); border-bottom: 1px solid var(--tool-border);">
@@ -60,7 +56,6 @@
         <span title="{{ projectRoot }}" style="font-family: var(--tool-mono); font-size: 11px; color: var(--tool-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; direction: rtl; text-align: left; max-width: 280px;">{{ projectRoot }}</span>
       </div>
       <span style="flex: 1;"></span>
-      <!-- 会话栏三态开关：一组三颗，状态一眼可读，⌘\ 在「展开」与「输入条」之间来回 -->
       <div role="group" aria-label="会话栏位置" style="display: flex; padding: 2px; gap: 2px; background: var(--tool-panel-2); border: 1px solid var(--tool-border); border-radius: var(--tool-radius); flex: none;">
         <sc-for list="{{ chatModes }}" as="cm" hint-placeholder-count="3">
           <button type="button" onClick="{{ cm.pick }}" title="{{ cm.title }}" aria-pressed="{{ cm.active }}" style="width: 30px; height: 24px; display: grid; place-items: center; border: 0; border-radius: var(--tool-radius-sm); cursor: pointer; transition: background .13s ease, color .13s ease; background: {{ cm.bg }}; color: {{ cm.fg }}; box-shadow: {{ cm.sh }};" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">
@@ -70,15 +65,15 @@
       </div>
     </div>
 
-    <!-- ═══ 主体：会话栏 · 预览列 · 从属面板列（order 决定会话在左还是在右，只画一份） ═══ -->
+    <!-- ═══ 主体：会话栏 · 目录列 · 详情列 · 从属面板列。
+         目录列永远贴在详情左侧（order 1），会话栏换边时它不跟着走 —— 导航和内容是一对 ═══ -->
     <div style="flex: 1 1 0; min-height: 0; display: flex; position: relative;">
 
-      <!-- 会话栏（展开态）。宽度固定，R4：切文件时这条分界线不动 -->
       <sc-if value="{{ chatExpanded }}" hint-placeholder-val="{{ true }}">
       <div style="order: {{ chatOrder }}; flex: none; width: {{ chatWidthPx }}; display: flex; flex-direction: column; min-height: 0; background: var(--tool-panel); border-left: {{ chatBdL }}; border-right: {{ chatBdR }};">
         <div style="flex: none; height: 36px; display: flex; align-items: center; gap: 8px; padding: 0 8px 0 14px; border-bottom: 1px solid var(--tool-border);">
           <span style="font-weight: 600;">会话</span>
-          <span style="font-size: 11px; color: var(--tool-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">通道 A · DeepSeek</span>
+          <span style="font-size: 11px; color: var(--tool-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">DeepSeek · 按量</span>
           <span style="flex: 1;"></span>
           <button type="button" onClick="{{ toBar }}" title="收成输入条（⌘\）" style="width: 24px; height: 24px; display: grid; place-items: center; border: 0; background: transparent; color: var(--tool-muted); border-radius: var(--tool-radius-sm); cursor: pointer;" style-hover="background: var(--tool-hover); color: var(--tool-text);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">
             <dc-import name="IconGlyph" d="M3 12.5h10M5.5 9L8 6.5 10.5 9" size="14" hint-size="14px,14px"></dc-import>
@@ -93,7 +88,7 @@
             </div>
             <div style="line-height: 1.6; color: var(--tool-text);">{{ chatReply }}</div>
           </div>
-          <div style="margin-top: auto; font-size: 11px; color: var(--tool-muted); text-align: center;">消息流的形制见 S9，这里只摆位置</div>
+          <div style="margin-top: auto; font-size: 11px; color: var(--tool-muted); text-align: center;">消息流与会话历史的形制见 S9，这里只摆位置</div>
         </div>
         <div style="flex: none; padding: 10px 12px 12px; border-top: 1px solid var(--tool-border); display: grid; gap: 8px;">
           <sc-if value="{{ hasPill }}" hint-placeholder-val="{{ true }}">
@@ -116,9 +111,65 @@
       </div>
       </sc-if>
 
-      <!-- 预览列：页签 + 预览区 + （收起态时）输入条 -->
+      <!-- ═══ 目录列（第六轮 6.1）。并排时 240 px，可拖 200–360；详情放不下时让位成浮层，同一份标记 ═══ -->
+      <sc-if value="{{ treeShown }}" hint-placeholder-val="{{ true }}">
+      <sc-if value="{{ treeFloat }}" hint-placeholder-val="{{ false }}">
+        <div onClick="{{ closeFloat }}" style="position: absolute; top: 0; bottom: 0; left: {{ treeLeft }}; right: 0; z-index: 5; background: rgba(15, 18, 24, 0.22);"></div>
+      </sc-if>
+      <nav aria-label="目录" style="order: 1; flex: none; width: {{ treeWidthPx }}; position: {{ treePos }}; left: {{ treeLeft }}; top: 0; bottom: 0; z-index: {{ treeZ }}; display: flex; flex-direction: column; min-height: 0; background: var(--tool-panel); border-right: 1px solid {{ treeBd }}; box-shadow: {{ treeShadow }};">
+        <div style="flex: none; height: 34px; display: flex; align-items: center; gap: 2px; padding: 0 6px 0 12px;">
+          <button type="button" onClick="{{ openRoot }}" title="在详情区打开项目根目录" style="min-width: 0; display: flex; align-items: baseline; gap: 6px; padding: 0; border: 0; background: transparent; cursor: pointer; text-align: left;" style-hover="color: var(--tool-accent);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">
+            <span style="font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ projectName }}</span>
+          </button>
+          <span style="flex: 1;"></span>
+          <button type="button" onClick="{{ collapseAll }}" title="全部折叠" style="width: 24px; height: 24px; display: grid; place-items: center; border: 0; background: transparent; color: var(--tool-muted); border-radius: var(--tool-radius-sm); cursor: pointer;" style-hover="background: var(--tool-hover); color: var(--tool-text);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">
+            <dc-import name="IconGlyph" d="M4.5 3l3.5 3 3.5-3M4.5 13l3.5-3 3.5 3" size="13" hint-size="13px,13px"></dc-import>
+          </button>
+          <button type="button" onClick="{{ hideTree }}" title="{{ hideTitle }}" style="width: 24px; height: 24px; display: grid; place-items: center; border: 0; background: transparent; color: var(--tool-muted); border-radius: var(--tool-radius-sm); cursor: pointer;" style-hover="background: var(--tool-hover); color: var(--tool-text);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">
+            <dc-import name="IconGlyph" d="M9.8 4L5.8 8l4 4" size="13" hint-size="13px,13px"></dc-import>
+          </button>
+        </div>
+        <div role="tree" style="flex: 1 1 0; min-height: 0; overflow: auto; padding: 2px 6px 16px; display: flex; flex-direction: column;">
+          <sc-for list="{{ treeRows }}" as="r" hint-placeholder-count="9">
+            <sc-if value="{{ r.isNode }}" hint-placeholder-val="{{ true }}">
+              <div role="treeitem" tabindex="0" aria-level="{{ r.level }}" aria-expanded="{{ r.ariaExp }}" aria-selected="{{ r.current }}" onClick="{{ r.act }}" onDoubleClick="{{ r.dbl }}" title="{{ r.tip }}" style="flex: none; display: flex; align-items: center; height: 28px; padding: 0 8px 0 {{ r.pad }}; border-radius: var(--tool-radius-sm); cursor: pointer; background: {{ r.bg }}; color: {{ r.fg }};" style-hover="background: var(--tool-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: -2px;">
+                <span style="flex: none; width: 16px; height: 16px; display: grid; place-items: center; color: var(--tool-muted); opacity: {{ r.chevOp }}; transform: rotate({{ r.rot }}); transition: transform .15s ease;">
+                  <dc-import name="IconGlyph" d="M6.2 4.2L10 8l-3.8 3.8" size="12" stroke="1.5" hint-size="12px,12px"></dc-import>
+                </span>
+                <span style="flex: none; display: grid; margin-right: 6px; color: {{ r.iconFg }};"><dc-import name="IconGlyph" d="{{ r.icon }}" size="14" hint-size="14px,14px"></dc-import></span>
+                <span style="flex: 1 1 0; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: {{ r.fw }};">{{ r.name }}</span>
+                <sc-if value="{{ r.hasDot }}" hint-placeholder-val="{{ false }}">
+                  <span title="{{ r.dotTip }}" style="flex: none; width: 6px; height: 6px; margin-left: 8px; border-radius: 999px; background: {{ r.dotBg }};"></span>
+                </sc-if>
+              </div>
+            </sc-if>
+            <sc-if value="{{ r.isNote }}" hint-placeholder-val="{{ false }}">
+              <div style="flex: none; display: flex; align-items: center; height: 28px; padding-left: {{ r.pad }}; font-size: 12px; color: var(--tool-muted);">
+                <span style="flex: none; width: 16px; height: 16px; display: grid; place-items: center; margin-right: 6px;">
+                  <sc-if value="{{ r.spin }}" hint-placeholder-val="{{ true }}">
+                    <svg width="12" height="12" viewBox="0 0 12 12" style="animation: spin 1s linear infinite;" aria-hidden="true"><circle cx="6" cy="6" r="4.6" fill="none" stroke="var(--tool-accent)" stroke-width="1.5" stroke-dasharray="20 12"></circle></svg>
+                  </sc-if>
+                </span>
+                <span>{{ r.text }}</span>
+              </div>
+            </sc-if>
+          </sc-for>
+        </div>
+        <sc-if value="{{ treeResizable }}" hint-placeholder-val="{{ true }}">
+          <div onMouseDown="{{ startDrag }}" onDoubleClick="{{ resetWidth }}" title="拖动调宽 · 双击回到 240 px" style="position: absolute; top: 0; bottom: 0; right: -3px; width: 6px; z-index: 2; cursor: col-resize; background: {{ dragBg }};" style-hover="background: linear-gradient(var(--tool-accent), var(--tool-accent)) center / 2px 100% no-repeat;"></div>
+        </sc-if>
+      </nav>
+      </sc-if>
+
+      <!-- 详情列：页签 + 预览区 + （收起态时）输入条 -->
       <div style="order: 2; flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; position: relative;">
         <div role="tablist" style="flex: none; height: 34px; display: flex; align-items: stretch; background: var(--tool-panel-2); border-bottom: 1px solid var(--tool-border); overflow: hidden;">
+          <!-- 目录不在屏上时，页签条最左一颗就是它的入口：一个位置、一种图标，收起前后不挪 -->
+          <sc-if value="{{ showTreeBtn }}" hint-placeholder-val="{{ false }}">
+            <button type="button" onClick="{{ showTree }}" title="显示目录（⌘B）" aria-label="显示目录" style="flex: none; width: 36px; display: grid; place-items: center; border: 0; border-right: 1px solid var(--tool-border); background: var(--tool-panel); color: var(--tool-text-2); cursor: pointer;" style-hover="color: var(--tool-accent);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: -2px;">
+              <dc-import name="IconGlyph" d="M2.5 3.5h4M4.5 3.5v8.5h3M4.5 7.8h3M10 7.8h3.5M10 12h3.5" size="15" hint-size="15px,15px"></dc-import>
+            </button>
+          </sc-if>
           <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="3">
             <div role="tab" tabindex="0" aria-selected="{{ t.active }}" onClick="{{ t.pick }}" title="{{ t.path }}" style="flex: 0 1 200px; min-width: 96px; display: flex; align-items: center; gap: 7px; padding: 0 8px 0 11px; cursor: pointer; border-right: 1px solid var(--tool-border); transition: background .13s ease, color .13s ease; background: {{ t.bg }}; color: {{ t.fg }}; box-shadow: {{ t.sh }};" style-hover="color: var(--tool-text);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: -2px;">
               <span style="flex: none; display: grid; color: {{ t.iconFg }};"><dc-import name="IconGlyph" d="{{ t.icon }}" size="13" hint-size="13px,13px"></dc-import></span>
@@ -150,7 +201,6 @@
           </sc-if>
         </div>
 
-        <!-- 会话收成一条输入条：只占预览列的宽，不盖住从属面板 -->
         <sc-if value="{{ chatIsBar }}" hint-placeholder-val="{{ false }}">
         <div style="flex: none; min-height: 44px; display: flex; align-items: center; gap: 8px; padding: 6px 8px; background: var(--tool-panel); border-top: 1px solid var(--tool-border);">
           <button type="button" onClick="{{ toExpanded }}" title="展开会话（⌘\）" style="flex: none; width: 30px; height: 30px; display: grid; place-items: center; border: 1px solid var(--tool-border); background: var(--tool-panel); color: var(--tool-text-2); border-radius: var(--tool-radius); cursor: pointer;" style-hover="background: var(--tool-hover); color: var(--tool-text);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">
@@ -172,8 +222,7 @@
         </sc-if>
       </div>
 
-      <!-- 从属面板列：统一在右侧一列（第 1 题的答复）。面板体 300px + 40px 图标轨。
-           没有从属面板的类型（图片 / 目录 / 其他）整列不出现，预览吃满。 -->
+      <!-- 从属面板列：面板体 300px + 40px 图标轨。详情放不下时面板体改抽屉，图标轨留在原位 -->
       <sc-if value="{{ hasPanels }}" hint-placeholder-val="{{ true }}">
       <div style="order: 5; flex: none; display: flex; min-height: 0; background: var(--tool-panel); border-left: 1px solid var(--tool-border); border-right: {{ railBdR }};">
         <sc-if value="{{ panelInline }}" hint-placeholder-val="{{ true }}">
@@ -192,7 +241,7 @@
               <sc-if value="{{ isOutline }}" hint-placeholder-val="{{ false }}">
                 <div style="display: grid; gap: 1px;">
                   <sc-for list="{{ outline }}" as="o" hint-placeholder-count="3">
-                    <div style="display: flex; align-items: baseline; gap: 8px; height: 28px; padding-left: {{ o.indent }}; padding-right: 6px; border-radius: var(--tool-radius-sm); cursor: pointer; align-items: center;" style-hover="background: var(--tool-hover);">
+                    <div style="display: flex; gap: 8px; height: 28px; padding-left: {{ o.indent }}; padding-right: 6px; border-radius: var(--tool-radius-sm); cursor: pointer; align-items: center;" style-hover="background: var(--tool-hover);">
                       <span style="flex: 1 1 0; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: {{ o.fw }};">{{ o.text }}</span>
                       <span style="flex: none; font-family: var(--tool-mono); font-size: 11px; color: var(--tool-muted);">L{{ o.line }}</span>
                     </div>
@@ -218,7 +267,6 @@
       </div>
       </sc-if>
 
-      <!-- 窄窗（< 1100 px，R5）：从属面板改抽屉，盖在预览上，图标轨留在原位 -->
       <sc-if value="{{ drawerOpen }}" hint-placeholder-val="{{ false }}">
         <div role="dialog" aria-label="{{ panelTitle }}" style="position: absolute; top: 0; bottom: 0; right: {{ drawerRight }}; width: 320px; z-index: 4; display: flex; flex-direction: column; background: var(--tool-panel); border-left: 1px solid var(--tool-border-strong); box-shadow: var(--tool-shadow-2);">
           <div style="flex: none; height: 36px; display: flex; align-items: center; gap: 8px; padding: 0 8px 0 14px; border-bottom: 1px solid var(--tool-border);">
@@ -239,7 +287,7 @@
       </sc-if>
     </div>
 
-    <!-- ═══ 底部状态行 24px：诊断 / 变更都不在这里了，只留读数 ═══ -->
+    <!-- ═══ 底部状态行 24px ═══ -->
     <div style="flex: none; height: 24px; display: flex; align-items: center; gap: 10px; padding: 0 12px; font-size: 11px; color: var(--tool-muted); background: var(--tool-panel); border-top: 1px solid var(--tool-border); white-space: nowrap; overflow: hidden;">
       <span style="font-family: var(--tool-mono); min-width: 0; overflow: hidden; text-overflow: ellipsis;">{{ statusPath }}</span>
       <span style="color: var(--tool-border-strong);">·</span>
@@ -249,7 +297,7 @@
         <span style="font-family: var(--tool-mono); font-variant-numeric: tabular-nums;">{{ statusMeta }}</span>
       </sc-if>
       <span style="flex: 1;"></span>
-      <span>{{ statusLayout }}</span>
+      <span style="font-variant-numeric: tabular-nums;">{{ statusLayout }}</span>
     </div>
   </div>
   </div>
@@ -286,6 +334,11 @@ const SEL = {
   files: { word: "files", icon: "M5.4 4.6h6.8V14H5.4zM3.4 12V2h6.4" },
   dir: { word: "dir", icon: ICON.dir }
 };
+/* 6.1 的尺寸体系。详情区放不下 DETAIL_MIN 时依次让位：① 从属面板体改抽屉 ② 目录列改浮层 */
+const SIM_W = 1440;
+const TREE_MIN = 200, TREE_MAX = 360, TREE_DEF = 240, DETAIL_MIN = 480, PANEL_W = 300, RAIL_W = 40;
+/* 6.2 的树尺寸体系，S11 窄列与 S12 宽区共用：每层缩进 16 = 折叠三角的宽，于是子项的三角正好落在父项图标下 */
+const INDENT = 16, ROW_PAD = 4;
 
 const TABS = [
   { path: "PC 端/日志.dc.html", kind: "dc", unsaved: false },
@@ -298,59 +351,167 @@ const DC_PANELS = [
   { id: "changes", title: "变更", open: false },
   { id: "comments", title: "评论", open: false, badge: 1 }
 ];
+const MD_PANELS = [{ id: "outline", title: "大纲", open: true }];
+const panelsFor = (kind) => kind === "dc" ? DC_PANELS : kind === "md" ? MD_PANELS : [];
+
+/* 树节点：children 缺省 = 还没拉（展开时才请求）；children: [] = 已拉、是空目录 */
+const TREE = [
+  { name: "PC 端", kind: "dir", count: 4, children: [
+    { name: "Pages", kind: "dir", count: 3 },
+    { name: "日志.dc.html", kind: "dc", health: "ok" },
+    { name: "设置.dc.html", kind: "dc", health: "warn" },
+    { name: "需求.md", kind: "md" }
+  ] },
+  { name: "design-system", kind: "dir", count: 3 },
+  { name: "uploads", kind: "dir", count: 2, children: [
+    { name: "截图", kind: "dir", count: 9 },
+    { name: "首页截图.png", kind: "image" }
+  ] },
+  { name: "Archive", kind: "dir", count: 0 },
+  { name: "README.md", kind: "md" },
+  { name: "project.json", kind: "code" }
+];
+const LAZY = {
+  "PC 端/Pages": [{ name: "首页.dc.html", kind: "dc", health: "ok" }, { name: "会话列表.dc.html", kind: "dc", health: "error" }, { name: "空态.dc.html", kind: "dc", health: "unchecked" }],
+  "design-system": [{ name: "tokens.css", kind: "code" }, { name: "Button.dc.html", kind: "dc", health: "ok" }, { name: "README.md", kind: "md" }],
+  "uploads/截图": ["首页", "日志页", "设置页", "会话列表", "空态", "报错态", "深色首页", "移动端首页", "说明"].map((t, i) => ({ name: t + (i === 8 ? ".md" : ".png"), kind: i === 8 ? "md" : "image" })),
+  "Archive": []
+};
+const DOT = { warn: ["var(--tool-warn)", "有提醒"], error: ["var(--tool-err)", "有错误"] };
+
 const BASE = {
   project: { name: "umbra", title: "Umbra 私人 AI 助手", root: "/Users/sam/Design/umbra" },
-  layout: { chatSide: "left", chatMode: "expanded", chatWidth: 380, narrow: false },
+  layout: { chatSide: "left", chatMode: "expanded", chatWidth: 380, width: null,
+    tree: { open: true, width: TREE_DEF, expanded: ["PC 端"] } },
   file: { path: "PC 端/日志.dc.html", kind: "dc" },
   tabs: TABS,
   panels: DC_PANELS,
+  tree: { nodes: TREE, loading: [] },
   selection: { kind: "node", label: "button.primary", detail: "PC 端/日志.dc.html › n42" }
 };
 const OUTLINE = [
-  { level: 1, text: "日志页需求", line: 1 },
-  { level: 2, text: "范围", line: 8 },
-  { level: 2, text: "状态", line: 21 }
+  { level: 1, text: "日志页需求", line: 5 },
+  { level: 2, text: "范围", line: 12 },
+  { level: 2, text: "状态", line: 25 }
 ];
 const ext = (o, p) => Object.assign({}, o, p);
+const lay = (p) => ext(BASE, { layout: ext(BASE.layout, p) });
+const treeLay = (p) => ext(BASE.layout.tree, p);
 
 const DEMOS = [
-  { n: 1, short: ".dc.html", name: "选中 .dc.html", note: "四个从属面板在右侧一列，属性展开", data: BASE },
-  { n: 2, short: ".md", name: "选中 .md", note: "只剩大纲；会话栏与预览的分界线没动（R4）",
-    data: ext(BASE, { file: { path: "README.md", kind: "md" }, panels: [{ id: "outline", title: "大纲", open: true }],
+  { n: 1, short: ".dc.html", name: "选中 .dc.html", note: "目录 · 详情 · 属性三块并排；当前文件在树里高亮，祖先自动展开", data: BASE },
+  { n: 2, short: ".md", name: "选中 .md", note: "只剩大纲；目录列与会话栏的分界线都没动（R4）",
+    data: ext(BASE, { file: { path: "README.md", kind: "md" }, panels: MD_PANELS,
       selection: { kind: "range", label: "README.md L9–12", detail: "最近 7 天 …" } }) },
-  { n: 3, short: "图片", name: "选中图片", note: "没有从属面板，整列不出现，预览最大",
+  { n: 3, short: "图片 · 加载中", name: "选中图片 · 子目录读取中", note: "没有从属面板，详情吃满；uploads/截图 刚展开，子项按需拉，先出一行「读取中…」",
     data: ext(BASE, { file: { path: "uploads/首页截图.png", kind: "image" }, panels: [],
+      layout: ext(BASE.layout, { tree: treeLay({ expanded: ["PC 端", "uploads", "uploads/截图"] }) }),
+      tree: { nodes: TREE, loading: ["uploads/截图"] },
       selection: { kind: "region", label: "首页截图.png (120,640 210×44)", detail: "这个按钮的颜色是什么" } }) },
-  { n: 4, short: "输入条", name: "会话收成一条输入条", note: "输入条只占预览列宽，药丸在输入框左侧",
-    data: ext(BASE, { layout: ext(BASE.layout, { chatMode: "bar" }) }) },
-  { n: 5, short: "会话在右", name: "会话在右", note: "顺序：预览 · 从属面板 · 会话。面板始终贴着预览",
-    data: ext(BASE, { layout: ext(BASE.layout, { chatSide: "right" }) }) },
-  { n: 6, short: "窄窗抽屉", name: "narrow: true（< 1100 px）", note: "模拟 1024 px 窗口；诊断以抽屉盖在预览上，Esc 关",
-    data: ext(BASE, { layout: ext(BASE.layout, { narrow: true }),
-      panels: DC_PANELS.map((p) => ext(p, { open: p.id === "diagnostics" })) }) }
+  { n: 4, short: "输入条", name: "会话收成一条输入条", note: "会话收起后目录列贴着左边缘，详情更宽",
+    data: lay({ chatMode: "bar" }) },
+  { n: 5, short: "会话在右", name: "会话在右", note: "顺序：目录 · 详情 · 从属面板 · 会话。目录不跟会话换边",
+    data: lay({ chatSide: "right" }) },
+  { n: 6, short: "目录收起", name: "用户收起了目录", note: "整列收掉，页签条最左留一颗目录钮（⌘B）。选择记在 layout.tree.open",
+    data: lay({ tree: treeLay({ open: false }) }) },
+  { n: 7, short: "1280 px", name: "窗口 1280 px · 第一步让位", note: "详情会小于 480 px，属性面板体先改抽屉（图标轨留着）；目录列仍并排",
+    data: lay({ width: 1280 }) },
+  { n: 8, short: "1024 px", name: "窗口 1024 px · 第二步让位", note: "面板改抽屉后仍放不下，目录列也让位：页签条出目录钮，点开是浮层",
+    data: ext(lay({ width: 1024 }), { panels: DC_PANELS.map((p) => ext(p, { open: p.id === "diagnostics" })) }) },
+  { n: 9, short: "目录浮层", name: "1024 px · 目录浮层打开", note: "浮层盖在详情上，选中文件或 Esc 就收；不改写用户记住的「展开」",
+    data: lay({ width: 1024 }), float: true }
 ];
 
+function childrenOf(node, path, loaded) { return node.children || loaded[path]; }
+function allPaths(nodes, parent, out) {
+  nodes.forEach((n) => { const p = parent ? parent + "/" + n.name : n.name; if (n.kind === "dir") { out.push(p); if (n.children) allPaths(n.children, p, out); } });
+  return out;
+}
+function ancestors(path) {
+  const parts = path.replace(/\/$/, "").split("/"); const out = [];
+  for (let i = 1; i < parts.length; i++) out.push(parts.slice(0, i).join("/"));
+  return out;
+}
+
 class Component extends DCLogic {
-  state = { demo: 1, side: null, mode: null, open: undefined, pill: true };
+  state = { demo: 1, side: null, mode: null, open: undefined, pill: true,
+    treeOpen: null, treeW: null, float: null, exp: null, loading: null, loaded: {}, file: null,
+    vw: typeof window !== "undefined" ? window.innerWidth : 1440 };
 
   componentDidMount() {
     this.onKey = (e) => {
-      if (e.key === "Escape" && this.current().layout.narrow) this.setState({ open: null });
+      if (e.key === "Escape") this.setState({ open: this.lastDrawer ? null : this.state.open, float: false });
       if ((e.metaKey || e.ctrlKey) && e.key === "\\") { e.preventDefault(); this.setState({ mode: this.mode() === "bar" ? "expanded" : "bar" }); }
+      if ((e.metaKey || e.ctrlKey) && (e.key === "b" || e.key === "B")) { e.preventDefault(); this.toggleTree(); }
     };
+    this.onResize = () => this.setState({ vw: window.innerWidth });
     document.addEventListener("keydown", this.onKey);
+    window.addEventListener("resize", this.onResize);
   }
-  componentWillUnmount() { document.removeEventListener("keydown", this.onKey); }
+  componentWillUnmount() {
+    document.removeEventListener("keydown", this.onKey);
+    window.removeEventListener("resize", this.onResize);
+    (this.timers || []).forEach(clearTimeout);
+  }
 
   current() {
-    const d = DEMOS[this.state.demo - 1].data;
-    const s = this.state;
-    return ext(d, { layout: ext(d.layout, { chatSide: s.side || d.layout.chatSide, chatMode: s.mode || d.layout.chatMode }) });
+    const dm = DEMOS[this.state.demo - 1];
+    const d = dm.data, s = this.state;
+    let out = ext(d, { layout: ext(d.layout, { chatSide: s.side || d.layout.chatSide, chatMode: s.mode || d.layout.chatMode }) });
+    if (s.file) {
+      const tabs = out.tabs.some((t) => t.path === s.file.path) ? out.tabs : out.tabs.concat([{ path: s.file.path, kind: s.file.kind }]);
+      out = ext(out, { file: s.file, tabs: tabs, panels: panelsFor(s.file.kind),
+        selection: s.file.kind === "dir" ? { kind: "dir", label: s.file.path, detail: "整个目录" } : out.selection });
+    }
+    return out;
   }
   mode() { return this.current().layout.chatMode; }
+  expanded() {
+    const d = this.current();
+    const base = this.state.exp || d.layout.tree.expanded.concat(ancestors(d.file.path));
+    return base;
+  }
+  loadingSet() { return this.state.loading || this.current().tree.loading; }
+  treeUserOpen() { return this.state.treeOpen !== null ? this.state.treeOpen : this.current().layout.tree.open; }
+  treeWidth() { return this.state.treeW || this.current().layout.tree.width; }
+
+  toggleTree() {
+    if (this.lastTreeInline || this.state.float) { this.setState(this.state.float ? { float: false } : { treeOpen: false }); return; }
+    this.showTree();
+  }
+  showTree() {
+    if (!this.treeUserOpen()) {
+      this.setState({ treeOpen: true, float: this.lastTreeFits ? false : true });
+    } else this.setState({ float: true });
+  }
+  toggleDir(path, node) {
+    const cur = this.expanded();
+    const open = cur.indexOf(path) >= 0;
+    const next = open ? cur.filter((p) => p !== path) : cur.concat([path]);
+    const upd = { exp: next };
+    if (!open && !childrenOf(node, path, this.state.loaded)) {
+      const ld = this.loadingSet();
+      if (ld.indexOf(path) < 0) {
+        upd.loading = ld.concat([path]);
+        this.timers = this.timers || [];
+        this.timers.push(setTimeout(() => {
+          this.setState((st) => ({ loaded: ext(st.loaded, { [path]: LAZY[path] || [] }), loading: (st.loading || []).filter((p) => p !== path) }));
+        }, 900));
+      }
+    }
+    this.setState(upd);
+  }
+  openFile(path, kind) {
+    const i = DEMOS.findIndex((m) => m.data.file.path === path && !m.data.layout.width && m.n <= 3);
+    const keepExp = this.expanded();
+    const exp = keepExp.concat(ancestors(path).filter((a) => keepExp.indexOf(a) < 0));
+    if (i >= 0 && !this.state.file && !DEMOS[this.state.demo - 1].data.layout.width) this.setState({ demo: i + 1, open: undefined, pill: true, exp: exp, float: false, file: null });
+    else this.setState({ file: { path: path, kind: kind }, open: undefined, pill: true, exp: exp, float: false });
+  }
 
   renderVals() {
     const s = this.state;
+    const dm = DEMOS[s.demo - 1];
     const d = this.current();
     const L = d.layout;
     const kind = d.file.kind;
@@ -361,7 +522,63 @@ class Component extends DCLogic {
     const right = L.chatSide === "right";
     const sel = s.pill && d.selection ? d.selection : null;
     const selK = sel ? SEL[sel.kind] : null;
-    const base = (p) => p.split("/").pop();
+    const base = (p) => p.replace(/\/$/, "").split("/").pop() + (p.endsWith("/") ? "/" : "");
+
+    /* ── 让位计算：同一套数字喂给布局和状态行 ── */
+    const W = L.width || SIM_W;
+    const zoom = Math.min(1, s.vw / W);
+    const chatW = expanded ? L.chatWidth : 0;
+    const tw = this.treeWidth();
+    const userOpen = this.treeUserOpen();
+    const panelsW = (inline) => hasPanels ? RAIL_W + (openP && inline ? PANEL_W : 0) : 0;
+    let panelDrawer = false;
+    let treeInline = userOpen;
+    let detail = W - chatW - (treeInline ? tw : 0) - panelsW(true);
+    if (detail < DETAIL_MIN && openP) { panelDrawer = true; detail = W - chatW - (treeInline ? tw : 0) - panelsW(false); }
+    this.lastTreeFits = W - chatW - tw - panelsW(false) >= DETAIL_MIN;
+    if (treeInline && detail < DETAIL_MIN) { treeInline = false; detail = W - chatW - panelsW(false); }
+    const yielded = userOpen && !treeInline;
+    const floatOpen = !treeInline && (s.float !== null ? s.float : !!dm.float);
+    this.lastTreeInline = treeInline;
+    this.lastDrawer = panelDrawer;
+
+    /* ── 树 → 可见行 ── */
+    const exp = this.expanded();
+    const loading = this.loadingSet();
+    const unsaved = d.tabs.filter((t) => t.unsaved).map((t) => t.path);
+    const curPath = d.file.path.replace(/\/$/, "");
+    const rows = [];
+    const walk = (nodes, parent, level) => {
+      nodes.slice().sort((a, b) => (a.kind === "dir" ? 0 : 1) - (b.kind === "dir" ? 0 : 1)).forEach((n) => {
+        const path = parent ? parent + "/" + n.name : n.name;
+        const isDir = n.kind === "dir";
+        const open = isDir && exp.indexOf(path) >= 0;
+        const cur = path === curPath;
+        const kids = isDir ? childrenOf(n, path, s.loaded) : null;
+        const dirty = unsaved.indexOf(path) >= 0;
+        const dot = dirty ? ["var(--tool-warn)", "未落盘"] : DOT[n.health] || null;
+        rows.push({ isNode: true, isNote: false, name: n.name, level: String(level + 1), current: cur,
+          pad: (ROW_PAD + level * INDENT) + "px",
+          ariaExp: isDir ? String(open) : undefined,
+          tip: path + (isDir && n.count != null ? " · " + n.count + " 项 · 双击在详情区打开" : ""),
+          chevOp: isDir ? "1" : "0", rot: open ? "90deg" : "0deg",
+          icon: ICON[n.kind] || ICON.other,
+          iconFg: cur ? "var(--tool-accent)" : n.kind === "dc" ? "var(--tool-accent)" : "var(--tool-muted)",
+          fw: cur ? "600" : "400",
+          bg: cur ? "var(--tool-accent-soft)" : "transparent",
+          fg: cur ? "var(--tool-accent)" : "var(--tool-text)",
+          hasDot: !!dot, dotBg: dot ? dot[0] : "", dotTip: dot ? dot[1] : "",
+          act: () => isDir ? this.toggleDir(path, n) : this.openFile(path, n.kind),
+          dbl: () => { if (isDir) this.setState({ file: { path: path + "/", kind: "dir" }, open: undefined, float: false }); } });
+        if (open) {
+          const notePad = (ROW_PAD + (level + 1) * INDENT) + "px";
+          if (kids && kids.length) walk(kids, path, level + 1);
+          else if (kids) rows.push({ isNode: false, isNote: true, spin: false, text: "空目录", pad: notePad });
+          else rows.push({ isNode: false, isNote: true, spin: true, text: "读取中…", pad: notePad });
+        }
+      });
+    };
+    walk(d.tree.nodes, "", 0);
 
     const modes = [
       { key: "left", title: "会话在左", icon: "M2.5 3h11v10h-11zM6.5 3v10" },
@@ -373,28 +590,41 @@ class Component extends DCLogic {
     const previews = {
       dc: { label: "S2 画布（?embed=1）", note: "稿子仍在 iframe 里。嵌入模式下 S2 只留画布，属性面板交给右边这一列", ratio: "16 / 10", max: "880px", bg: "var(--tool-panel)" },
       md: { label: "S13 Markdown 视图", note: "渲染 / 源码两档；大纲在右侧一列", ratio: "3 / 4", max: "560px", bg: "var(--tool-panel)" },
-      image: { label: "S14 图片视图", note: "首页截图.png · 1440×900。适配窗口，可圈选", ratio: "16 / 10", max: "1040px", bg: "var(--tool-panel-2)" }
+      image: { label: "S14 图片视图", note: "适配窗口，可圈选", ratio: "16 / 10", max: "1040px", bg: "var(--tool-panel-2)" },
+      dir: { label: "S12 目录视图（宽密度）", note: "以 " + d.file.path + " 为根的同一棵树，加勾选、读数、更新三列；多选、网格都在这里做", ratio: "16 / 10", max: "960px", bg: "var(--tool-panel)" },
+      code: { label: "S15 通用文件卡", note: "代码类文件先给文件卡；源码编辑不在这一轮", ratio: "4 / 3", max: "520px", bg: "var(--tool-panel)" },
+      other: { label: "S15 通用文件卡", note: "没有专门视图的类型给文件卡", ratio: "4 / 3", max: "520px", bg: "var(--tool-panel)" }
     };
-    const pv = previews[kind] || previews.dc;
-
+    const pv = previews[kind] || previews.other;
     const meta = kind === "dc" ? "v217 · 812 元素 · 通过" : kind === "md" ? "s14 · 未落盘" : kind === "image" ? "1440×900 · 793 KB" : "";
+
+    const lay = [];
+    if (treeInline) lay.push("目录 " + tw + " px");
+    else if (yielded) lay.push("目录让位");
+    else lay.push("目录收起");
+    lay.push(expanded ? "会话" + (right ? "右 " : "左 ") + L.chatWidth + " px" : "会话收起");
+    lay.push("详情 " + Math.round(detail) + " px");
+    if (panelDrawer) lay.push("面板改抽屉");
 
     return {
       theme: this.props.theme === "dark" ? "dark" : null,
       showDemoBar: true,
-      demoNote: DEMOS[s.demo - 1].note,
+      demoNote: dm.note,
       demoStates: DEMOS.map((m) => {
         const on = m.n === s.demo;
         return { n: m.n, name: m.name, short: m.short, active: on, fw: on ? "600" : "400",
           bg: on ? "var(--tool-accent)" : "var(--tool-panel)", bd: on ? "var(--tool-accent)" : "var(--tool-border-strong)",
           fg: on ? "var(--tool-on-accent)" : "var(--tool-text-2)",
-          pick: () => this.setState({ demo: m.n, side: null, mode: null, open: undefined, pill: true }) };
+          pick: () => this.setState({ demo: m.n, side: null, mode: null, open: undefined, pill: true, treeOpen: null, treeW: null, float: null, exp: null, loading: null, loaded: {}, file: null }) };
       }),
 
-      shellMax: L.narrow ? "1024px" : "100%",
-      shellShadow: L.narrow ? "0 0 0 1px var(--tool-border-strong)" : "none",
+      shellMax: W + "px",
+      shellH: "100%",
+      zoom: zoom.toFixed(4),
+      shellShadow: L.width ? "0 0 0 1px var(--tool-border-strong)" : "none",
       projectTitle: d.project.title,
       projectRoot: d.project.root,
+      projectName: d.project.name,
       chatModes: modes.map((m) => {
         const on = m.key === curMode;
         return { title: m.title, icon: m.icon, active: on,
@@ -414,6 +644,33 @@ class Component extends DCLogic {
       chatAsk: kind === "md" ? "这一段写得太啰嗦，压成两句" : kind === "image" ? "这个按钮的颜色是什么" : "把这个按钮的字号调大一点",
       chatReply: kind === "md" ? "好，我改 L9–12，改完你在预览里看。" : kind === "image" ? "圈出的按钮底色接近 #E8590C，是橙色主按钮。" : "改成 15px，已落盘到 v218。",
 
+      treeShown: treeInline || floatOpen,
+      treeFloat: floatOpen,
+      treeWidthPx: (treeInline ? tw : 280) + "px",
+      treePos: treeInline ? "relative" : "absolute",
+      treeLeft: (!treeInline && expanded && !right ? L.chatWidth : 0) + "px",
+      treeZ: treeInline ? "1" : "6",
+      treeBd: treeInline ? "var(--tool-border)" : "var(--tool-border-strong)",
+      treeShadow: treeInline ? "none" : "var(--tool-shadow-2)",
+      treeResizable: treeInline,
+      dragBg: s.dragging ? "linear-gradient(var(--tool-accent), var(--tool-accent)) center / 2px 100% no-repeat" : "transparent",
+      treeRows: rows,
+      hideTitle: treeInline ? "收起目录（⌘B）" : "关闭浮层（Esc）",
+      hideTree: () => this.setState(treeInline ? { treeOpen: false } : { float: false }),
+      closeFloat: () => this.setState({ float: false }),
+      showTreeBtn: !treeInline,
+      showTree: () => this.showTree(),
+      collapseAll: () => this.setState({ exp: [] }),
+      openRoot: () => this.setState({ file: { path: d.project.name + "/", kind: "dir" }, open: undefined, float: false }),
+      startDrag: (e) => {
+        e.preventDefault();
+        const x0 = e.clientX, w0 = tw;
+        const mv = (ev) => this.setState({ treeW: Math.max(TREE_MIN, Math.min(TREE_MAX, Math.round(w0 + (ev.clientX - x0) / zoom))), dragging: true });
+        const up = () => { document.removeEventListener("mousemove", mv); document.removeEventListener("mouseup", up); this.setState({ dragging: false }); };
+        document.addEventListener("mousemove", mv); document.addEventListener("mouseup", up);
+      },
+      resetWidth: () => this.setState({ treeW: TREE_DEF }),
+
       hasPill: !!sel,
       pillIcon: selK ? selK.icon : "M0 0",
       pillKind: selK ? selK.word : "",
@@ -429,7 +686,7 @@ class Component extends DCLogic {
           sh: on ? "inset 0 -1px 0 var(--tool-panel), inset 0 2px 0 var(--tool-accent)" : "none",
           fw: on ? "560" : "400",
           iconFg: t.kind === "dc" ? "var(--tool-accent)" : "var(--tool-muted)",
-          pick: () => { const i = DEMOS.findIndex((m) => m.data.file.path === t.path); if (i >= 0) this.setState({ demo: i + 1, open: undefined, pill: true }); } };
+          pick: () => this.openFile(t.path, t.kind) };
       }),
 
       fileIcon: ICON[kind] || ICON.other,
@@ -440,9 +697,9 @@ class Component extends DCLogic {
       frameBg: pv.bg,
 
       hasPanels: hasPanels,
-      panelInline: !!openP && !L.narrow,
-      drawerOpen: !!openP && L.narrow,
-      drawerRight: (40 + (right && expanded ? L.chatWidth : 0)) + "px",
+      panelInline: !!openP && !panelDrawer,
+      drawerOpen: !!openP && panelDrawer,
+      drawerRight: (RAIL_W + (right && expanded ? L.chatWidth : 0)) + "px",
       closePanel: () => this.setState({ open: null }),
       panelTitle: openP ? openP.title : "",
       panelHasBadge: !!(openP && openP.badge),
@@ -464,7 +721,7 @@ class Component extends DCLogic {
       statusKind: KIND_LABEL[kind] || kind,
       hasStatusMeta: !!meta,
       statusMeta: meta,
-      statusLayout: (expanded ? "会话在" + (right ? "右" : "左") + " · " + L.chatWidth + " px" : "会话收起") + (L.narrow ? " · 窄窗，面板为抽屉" : "")
+      statusLayout: lay.join(" · ")
     };
   }
 }

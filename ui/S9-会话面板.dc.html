@@ -31,20 +31,41 @@ body { background: var(--tool-bg); font-family: 'DC', sans-serif; font-size: 13p
 
   <!-- ═══ 顶栏 ═══ -->
   <div style="display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--tool-border); background: var(--tool-panel);">
-    <button onClick="{{ goBack }}" style="display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; border: none; background: transparent; border-radius: 6px; cursor: pointer; color: var(--tool-text);" style-hover="background: var(--tool-hover);" title="返回预览">
+    <button onClick="{{ backAct }}" style="display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; border: none; background: transparent; border-radius: 6px; cursor: pointer; color: var(--tool-text);" style-hover="background: var(--tool-hover);" title="{{ backTitle }}">
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M10 3L5 8l5 5"/></svg>
     </button>
-    <div style="flex: 1 1 0; min-width: 0;">
-      <div style="font-size: 14px; font-weight: 560;">AI 会话</div>
-      <div style="font-size: 11px; color: var(--tool-muted);">{{ sessionInfo }}</div>
-    </div>
+    <!-- 会话历史入口（第六轮 6.3）：标题本身就是入口。点标题 → 整栏换成历史列表；列表里点一条 → 换回这条会话。
+         不另加一颗「历史」钮：顶栏已经有返回、新会话、引擎三样，再加就挤了；而「标题 + ▾」本来就读作「还有别的」。 -->
+    <sc-if value="{{ inChat }}" hint-placeholder-val="{{ true }}">
+      <button type="button" onClick="{{ openHistory }}" title="会话历史" aria-haspopup="true" style="flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 1px; margin-left: -6px; padding: 3px 6px; border: 0; background: transparent; border-radius: var(--tool-radius); cursor: pointer; text-align: left; color: var(--tool-text);" style-hover="background: var(--tool-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">
+        <span style="display: flex; align-items: center; gap: 4px; max-width: 100%;">
+          <span style="min-width: 0; font-size: 14px; font-weight: 560; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ curTitle }}</span>
+          <span style="flex: none; display: grid; color: var(--tool-muted);"><dc-import name="IconGlyph" d="M4.5 6.5L8 10l3.5-3.5" size="12" stroke="1.5" hint-size="12px,12px"></dc-import></span>
+        </span>
+        <span style="max-width: 100%; font-size: 11px; color: var(--tool-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ sessionInfo }}</span>
+      </button>
+      <button type="button" onClick="{{ newSession }}" title="新会话（⌘N）" aria-label="新会话" style="flex: none; width: 28px; height: 28px; display: grid; place-items: center; border: 0; background: transparent; border-radius: var(--tool-radius); cursor: pointer; color: var(--tool-text-2);" style-hover="background: var(--tool-hover); color: var(--tool-text);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">
+        <dc-import name="IconGlyph" d="M8 3v10M3 8h10" size="14" hint-size="14px,14px"></dc-import>
+      </button>
+    </sc-if>
+    <sc-if value="{{ inHistory }}" hint-placeholder-val="{{ false }}">
+      <div style="flex: 1 1 0; min-width: 0; display: flex; align-items: baseline; gap: 8px;">
+        <span style="font-size: 14px; font-weight: 560;">会话历史</span>
+        <span style="font-family: var(--tool-mono); font-size: 11px; color: var(--tool-muted);">{{ sessionCount }}</span>
+      </div>
+      <button type="button" onClick="{{ newSession }}" style="flex: none; display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 10px; border: 1px solid var(--tool-border-strong); background: var(--tool-panel); border-radius: var(--tool-radius); cursor: pointer; font-size: 12px; color: var(--tool-text);" style-hover="background: var(--tool-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">
+        <dc-import name="IconGlyph" d="M8 3v10M3 8h10" size="12" hint-size="12px,12px"></dc-import>新会话
+      </button>
+    </sc-if>
     <!-- 中断钮不在顶栏（设计侧 §2.3）：它已经换到下面的「发送」位上 ——
          一个控件位、两种状态。跑着的时候手就在输入框旁边，不该让人往回跑到顶栏去停。 -->
-    <!-- 通道选择 -->
-    <div style="display: flex; border: 1px solid var(--tool-border); border-radius: 6px; overflow: hidden;">
-      <button onClick="{{ onChannelA }}" style="padding: 4px 10px; font-size: 11px; border: none; cursor: pointer; background: {{ chanABg }}; color: {{ chanAFg }}; font-weight: {{ chanAFw }};" style-hover="opacity: .85;">通道 A</button>
-      <button onClick="{{ onChannelB }}" style="padding: 4px 10px; font-size: 11px; border: none; cursor: pointer; background: {{ chanBBg }}; color: {{ chanBFg }}; font-weight: {{ chanBFw }};" style-hover="opacity: .85;">通道 B</button>
+    <!-- 引擎选择（第六轮 6.4：「通道」改叫「引擎」，钮上直接写名字，A/B/C 只留作内部键 channel） -->
+    <sc-if value="{{ inChat }}" hint-placeholder-val="{{ true }}">
+    <div role="group" aria-label="引擎" style="display: flex; border: 1px solid var(--tool-border); border-radius: 6px; overflow: hidden;">
+      <button onClick="{{ onChannelA }}" style="padding: 4px 10px; font-size: 11px; border: none; cursor: pointer; white-space: nowrap; background: {{ chanABg }}; color: {{ chanAFg }}; font-weight: {{ chanAFw }};" style-hover="opacity: .85;">DeepSeek</button>
+      <button onClick="{{ onChannelB }}" style="padding: 4px 10px; font-size: 11px; border: none; cursor: pointer; white-space: nowrap; background: {{ chanBBg }}; color: {{ chanBFg }}; font-weight: {{ chanBFw }};" style-hover="opacity: .85;">Claude Code</button>
     </div>
+    </sc-if>
   </div>
 
   <!-- ═══ 演示态切换条（只在 ui/ 下直接打开时出现；被工具部署进项目后整行不出现） ═══ -->
@@ -62,7 +83,62 @@ body { background: var(--tool-bg); font-family: 'DC', sans-serif; font-size: 13p
   </div>
   </sc-if>
 
+  <!-- ═══ 会话历史（第六轮 6.3）：占满整栏，不做浮层 —— 380 px 的栏里再叠一层下拉，只剩一条窄缝可看 ═══ -->
+  <sc-if value="{{ inHistory }}" hint-placeholder-val="{{ false }}">
+  <div style="flex: 1 1 0; overflow-y: auto; overflow-x: hidden; padding: 4px 8px 24px;">
+    <sc-if value="{{ showSearch }}" hint-placeholder-val="{{ false }}">
+      <div style="position: relative; margin: 8px 4px 2px;">
+        <span style="position: absolute; left: 9px; top: 8px; display: grid; color: var(--tool-muted);"><dc-import name="IconGlyph" d="M7 2.5a4.5 4.5 0 1 0 0 9 4.5 4.5 0 1 0 0-9zM10.4 10.4l3.1 3.1" size="13" hint-size="13px,13px"></dc-import></span>
+        <input type="text" value="{{ q }}" onChange="{{ onQ }}" placeholder="按标题找…" style="width: 100%; height: 30px; padding: 0 10px 0 29px; font-size: 12px; border: 1px solid var(--tool-border-strong); border-radius: var(--tool-radius); background: var(--tool-panel); color: var(--tool-text); outline: none; box-sizing: border-box;" style-focus="border-color: var(--tool-accent); box-shadow: 0 0 0 2px var(--tool-accent-soft);">
+      </div>
+    </sc-if>
+    <sc-for list="{{ groups }}" as="g" hint-placeholder-count="2">
+      <div>
+        <div style="padding: 16px 10px 6px; font-size: 11px; font-weight: 560; color: var(--tool-muted);">{{ g.label }}</div>
+        <sc-for list="{{ g.items }}" as="it" hint-placeholder-count="3">
+          <sc-if value="{{ it.isRow }}" hint-placeholder-val="{{ true }}">
+            <div role="button" tabindex="0" onClick="{{ it.open }}" aria-current="{{ it.current }}" title="{{ it.id }}" style="position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 8px; row-gap: 2px; padding: 8px 4px 8px 10px; border-radius: var(--tool-radius); cursor: pointer; background: {{ it.bg }};" style-hover="background: var(--tool-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: -2px;">
+              <sc-if value="{{ it.renaming }}" hint-placeholder-val="{{ false }}">
+                <input type="text" ref="{{ renameRef }}" value="{{ renameText }}" onChange="{{ onRenameText }}" onKeyDown="{{ onRenameKey }}" onBlur="{{ commitRename }}" onClick="{{ stop }}" aria-label="会话标题" style="min-width: 0; width: calc(100% + 5px); box-sizing: border-box; height: 24px; margin: -2px 0 -2px -5px; padding: 0 5px; font-size: 13px; font-weight: 560; border: 1px solid var(--tool-accent); border-radius: var(--tool-radius-sm); background: var(--tool-panel); color: var(--tool-text); outline: none; box-shadow: 0 0 0 2px var(--tool-accent-soft);">
+              </sc-if>
+              <sc-if value="{{ it.notRenaming }}" hint-placeholder-val="{{ true }}">
+                <span style="min-width: 0; font-weight: {{ it.fw }}; color: {{ it.titleFg }}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ it.title }}</span>
+              </sc-if>
+              <div style="grid-row: span 2; display: flex; align-items: center; gap: 2px;">
+                <sc-if value="{{ it.current }}" hint-placeholder-val="{{ false }}">
+                  <span style="font-size: 11px; color: var(--tool-accent); padding-right: 4px;">当前</span>
+                </sc-if>
+                <button type="button" onClick="{{ it.toggleMenu }}" aria-label="更多操作" aria-expanded="{{ it.menuOpen }}" style="width: 24px; height: 24px; display: grid; place-items: center; border: 0; background: transparent; border-radius: var(--tool-radius-sm); cursor: pointer; color: var(--tool-muted); opacity: {{ it.moreOp }};" style-hover="background: var(--tool-panel-3); color: var(--tool-text); opacity: 1;" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px; opacity: 1;">
+                  <dc-import name="IconGlyph" d="M4 8h.1M8 8h.1M12 8h.1" size="14" stroke="2" hint-size="14px,14px"></dc-import>
+                </button>
+              </div>
+              <span style="min-width: 0; font-size: 11px; color: var(--tool-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ it.meta }}</span>
+              <sc-if value="{{ it.menuOpen }}" hint-placeholder-val="{{ false }}">
+                <div role="menu" onClick="{{ stop }}" style="position: absolute; right: 4px; top: 34px; z-index: 5; min-width: 132px; padding: 4px; display: grid; background: var(--tool-panel); border: 1px solid var(--tool-border-strong); border-radius: var(--tool-radius); box-shadow: var(--tool-shadow-2);">
+                  <button type="button" role="menuitem" onClick="{{ it.rename }}" style="display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 8px; border: 0; background: transparent; border-radius: var(--tool-radius-sm); cursor: pointer; font-size: 12px; color: var(--tool-text); text-align: left;" style-hover="background: var(--tool-hover);">重命名</button>
+                  <button type="button" role="menuitem" onClick="{{ it.remove }}" style="display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 8px; border: 0; background: transparent; border-radius: var(--tool-radius-sm); cursor: pointer; font-size: 12px; color: var(--tool-err); text-align: left;" style-hover="background: var(--tool-err-soft);">删除</button>
+                </div>
+              </sc-if>
+            </div>
+          </sc-if>
+          <sc-if value="{{ it.isDeleted }}" hint-placeholder-val="{{ false }}">
+            <div style="display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 10px; font-size: 12px; color: var(--tool-muted);">
+              <span style="min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">已删除「{{ it.title }}」</span>
+              <span style="flex: 1;"></span>
+              <button type="button" onClick="{{ it.undo }}" style="flex: none; height: 24px; padding: 0 8px; border: 0; background: transparent; border-radius: var(--tool-radius-sm); cursor: pointer; font-size: 12px; font-weight: 560; color: var(--tool-accent);" style-hover="background: var(--tool-accent-soft);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">撤销</button>
+            </div>
+          </sc-if>
+        </sc-for>
+      </div>
+    </sc-for>
+    <sc-if value="{{ noResults }}" hint-placeholder-val="{{ false }}">
+      <div style="padding: 40px 12px; text-align: center; font-size: 12px; color: var(--tool-muted);">没有标题含「{{ q }}」的会话</div>
+    </sc-if>
+  </div>
+  </sc-if>
+
   <!-- ═══ 消息区 ═══ -->
+  <sc-if value="{{ inChat }}" hint-placeholder-val="{{ true }}">
   <div style="flex: 1 1 0; overflow: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px;">
 
     <sc-for list="{{ messages }}" as="m">
@@ -141,7 +217,10 @@ body { background: var(--tool-bg); font-family: 'DC', sans-serif; font-size: 13p
 
   </div>
 
+  </sc-if>
+
   <!-- ═══ 输入区 ═══ -->
+  <sc-if value="{{ inChat }}" hint-placeholder-val="{{ true }}">
   <div style="padding: 12px 16px; border-top: 1px solid var(--tool-border); background: var(--tool-panel);">
     <!-- 「已选中」药丸（第四轮）：从「节点」泛化为五种 node / range / region / files / dir。
          一次可带多个，紧挨输入框上方（S11 定的位置）；完整 detail 挂 title，每颗带 ×。 -->
@@ -178,6 +257,8 @@ body { background: var(--tool-bg); font-family: 'DC', sans-serif; font-size: 13p
     </div>
   </div>
 
+  </sc-if>
+
   <!-- ═══ 底部状态栏 ═══ -->
   <div style="padding: 4px 12px; font-size: 10px; color: var(--tool-muted); border-top: 1px solid var(--tool-border); background: var(--tool-panel); display: flex; align-items: center; gap: 12px;">
     <span title="{{ usageTip }}">{{ usageLabel }}</span>
@@ -197,10 +278,52 @@ const DEMOS = [
   { n: 3, short: "工具调用", name: "连续调用多个工具", note: "running / done 状态" },
   { n: 4, short: "中断", name: "运行中可中断", note: "显示中断按钮" },
   { n: 5, short: "空会话", name: "空会话 + 引导", note: "还没有消息" },
-  { n: 6, short: "通道B", name: "使用通道 B（Claude Code）", note: "显示调用次数而非 token" },
+  { n: 6, short: "Claude Code", name: "引擎：Claude Code（本机订阅）", note: "显示调用次数而非 token" },
   { n: 7, short: "选中节点", name: "选中节点后发给 AI", note: "输入框上方一颗 node 药丸；发出后消息里记一行带了什么" },
-  { n: 8, short: "五种药丸", name: "一次带多个上下文", note: "node / range / region / files / dir 各一颗，可逐个 ×，也可全部清掉" }
+  { n: 8, short: "五种药丸", name: "一次带多个上下文", note: "node / range / region / files / dir 各一颗，可逐个 ×，也可全部清掉" },
+  { n: 9, short: "历史", name: "会话历史", note: "点顶栏标题进来；按今天 / 昨天 / 本周 / 更早分组，当前那条底色 + 「当前」", view: "history" },
+  { n: 10, short: "几十条", name: "36 条会话", note: "超过 8 条出搜索框（只搜标题，本地过滤）；分组不变", view: "history", many: true },
+  { n: 11, short: "重命名", name: "重命名", note: "⋯ → 重命名：标题就地变输入框，⏎ 存、Esc 放弃、失焦也存", view: "history", renaming: 1 },
+  { n: 12, short: "删除·撤销", name: "删除后行内撤销", note: "不弹确认；行塌成一行「已删除 · 撤销」，离开列表才真删（同 S1）", view: "history", deleted: 2 }
 ];
+
+/* 会话历史（第六轮 6.3）。键：sessions: [{ id, model, channel, tool?, title?, updatedAt, msgCount }], currentId。
+   title 需要后端补（首条用户消息前 40 字；重命名后写回同一个键）；缺省时退回「未命名 · 时间」，不显示 id。
+   tool 也需要补：channel b 下是哪个本机工具（claude / codex / cursor-agent）。 */
+const ENGINE_A = { deepseek: "DeepSeek", glm: "智谱" };
+const ENGINE_B = { claude: "Claude Code", codex: "Codex", "cursor-agent": "Cursor Agent" };
+function engineName(x) {
+  if (x.channel === "b") return ENGINE_B[x.tool] || "本机工具";
+  if (x.channel === "c") return "火山方舟";
+  const k = Object.keys(ENGINE_A).find((p) => (x.model || "").indexOf(p) === 0);
+  return k ? ENGINE_A[k] : (x.model || "API");
+}
+const SNOW = Date.parse("2026-09-24T11:00:00+08:00");
+const SESSIONS = [
+  { id: "chat-1790246445286-c8p9hq", model: "deepseek-chat", channel: "a", updatedAt: "2026-09-24T10:42:01+08:00", msgCount: 4, title: "把日志行的行高调一下，现在太挤了" },
+  { id: "chat-1790239012003-k2m1zz", model: "", channel: "b", tool: "claude", updatedAt: "2026-09-24T08:15:00+08:00", msgCount: 12, title: "检查一下这份稿有没有问题" },
+  { id: "chat-1790171203114-p0q7aa", model: "glm-4", channel: "a", updatedAt: "2026-09-23T21:03:00+08:00", msgCount: 6, title: "帮我把空态标题改得更友好一些" },
+  { id: "chat-1790150400877-x1c4de", model: "doubao-seed-1.6", channel: "c", updatedAt: "2026-09-23T15:40:00+08:00", msgCount: 2 },
+  { id: "chat-1789990011000-r8t2fg", model: "", channel: "b", tool: "codex", updatedAt: "2026-09-21T17:20:00+08:00", msgCount: 18, title: "S12 目录视图的读数列要不要砍" },
+  { id: "chat-1789203100000-h5j6kl", model: "deepseek-chat", channel: "a", updatedAt: "2026-09-12T10:00:00+08:00", msgCount: 9, title: "把整个页面的布局重写一下" }
+];
+const MANY_TITLES = ["深色主题下的边框太亮", "首页的卡片间距统一成 16", "日志页加一个筛选", "按钮 hover 态太跳", "会话列表空态", "设置页分组", "把 README 压短一点", "图标换成 IconGlyph", "报错卡的文案", "移动端首页"];
+const MANY = SESSIONS.concat(Array.from({ length: 30 }, (_, i) => ({
+  id: "chat-" + (1789000000000 - i * 9e7) + "-m" + i, model: i % 3 ? "deepseek-chat" : "", channel: i % 3 ? "a" : "b", tool: "claude",
+  updatedAt: new Date(SNOW - (2 + i * 1.3) * 864e5).toISOString(), msgCount: 3 + (i * 7) % 20,
+  title: i % 7 === 6 ? undefined : MANY_TITLES[i % MANY_TITLES.length] + (i >= 10 ? "（" + (Math.floor(i / 10) + 1) + "）" : "") })));
+const pad2 = (n) => (n < 10 ? "0" : "") + n;
+function dayDiff(iso) {
+  const a = new Date(SNOW); a.setHours(0, 0, 0, 0);
+  const b = new Date(iso); b.setHours(0, 0, 0, 0);
+  return Math.round((a - b) / 864e5);
+}
+function whenLabel(iso) {
+  const t = new Date(iso), dd = dayDiff(iso);
+  return dd === 0 ? pad2(t.getHours()) + ":" + pad2(t.getMinutes()) : dd === 1 ? "昨天 " + pad2(t.getHours()) + ":" + pad2(t.getMinutes()) : (t.getMonth() + 1) + " 月 " + t.getDate() + " 日";
+}
+function groupOf(iso) { const dd = dayDiff(iso); return dd === 0 ? "今天" : dd === 1 ? "昨天" : dd < 7 ? "本周" : "更早"; }
+function titleOf(x) { const t = new Date(x.updatedAt); return x.title || "未命名 · " + (t.getMonth() + 1) + "-" + t.getDate() + " " + pad2(t.getHours()) + ":" + pad2(t.getMinutes()); }
 
 /* 「已选中」五种（第四轮）。键：selections: [{ kind, label, detail }] */
 const SEL_KIND = {
@@ -225,8 +348,23 @@ class Component extends DCLogic {
 /* ref 用类字段建：renderVals 首次渲染就会被调用，
    那时 componentDidMount 还没跑，ref 会是 undefined。 */
   inputRef = React.createRef();
+  renameRef = React.createRef();
 
-  state = { demo: 1, channel: "a", input: "", sel: null };
+  state = { demo: 1, channel: "a", input: "", sel: null,
+    view: null, currentId: null, fresh: false, menu: null, renaming: null, renameText: "", deleted: null, titles: {}, q: "" };
+
+  componentDidUpdate(pp, ps) {
+    if (this.renameRef.current && this.state.renaming && ps.renaming !== this.state.renaming) { this.renameRef.current.focus(); this.renameRef.current.select(); }
+  }
+  view() { return this.state.view || DEMOS[this.state.demo - 1].view || "chat"; }
+  sessions() { return DEMOS[this.state.demo - 1].many ? MANY : SESSIONS; }
+  startRename(x) { this.setState({ renaming: x.id, renameText: this.state.titles[x.id] || x.title || "", menu: null }); }
+  commitRename() {
+    const s = this.state;
+    if (!s.renaming) { this.setState({ view: this.view() }); return; }
+    const t = s.renameText.trim();
+    this.setState({ renaming: null, titles: t ? Object.assign({}, s.titles, { [s.renaming]: t }) : s.titles });
+  }
 
   selections() { return this.state.sel || DEMO_SEL[this.state.demo] || []; }
 
@@ -236,7 +374,7 @@ class Component extends DCLogic {
     const s = this.state;
     const demo = DEMOS[s.demo - 1];
 
-    const messages = this.demoMessages(s.demo).map((m) => {
+    const messages = this.demoMessages(s.fresh ? 5 : (demo.view ? 1 : s.demo)).map((m) => {
       if (!m.tools) return m;
       return Object.assign({}, m, {
         tools: m.tools.map((t) => {
@@ -251,8 +389,8 @@ class Component extends DCLogic {
         })
       });
     });
-    const isRunning = s.demo === 2 || s.demo === 3 || s.demo === 4;
-    const streaming = s.demo === 2;
+    const isRunning = !s.fresh && (s.demo === 2 || s.demo === 3 || s.demo === 4);
+    const streaming = !s.fresh && s.demo === 2;
     const streamContent = "好的，我来把这里的字号调大一点，然后更新一下行高——";
 
     const sendBg = s.input ? "var(--tool-accent)" : "var(--tool-border-strong)";
@@ -263,15 +401,67 @@ class Component extends DCLogic {
     let usageLabel = "";
     let usageTip = "";
     if (s.channel === "a") {
-      usageLabel = "通道 A · ¥0.13";
+      usageLabel = "DeepSeek · ¥0.13";
       usageTip = "1,284 tokens · 4 次工具调用 · 模型 deepseek-chat";
     } else {
-      usageLabel = "通道 B · 第 3 次调用";
+      usageLabel = "Claude Code · 第 3 次调用";
       usageTip = "订阅制，不按 token 计费 · Claude Code headless";
     }
 
     const sels = this.selections();
+
+    /* ── 会话历史 ── */
+    const view = this.view();
+    const all = this.sessions().map((x) => Object.assign({}, x, { title: s.titles[x.id] || x.title }));
+    const curId = s.fresh ? null : (s.currentId || all[0].id);
+    const cur = all.find((x) => x.id === curId) || null;
+    const renamingId = s.renaming || (s.view === null && demo.renaming ? all[demo.renaming].id : null);
+    const deleted = s.deleted !== null ? s.deleted : (demo.deleted ? [all[demo.deleted].id] : []);
+    const q = s.q.trim();
+    const shown = all.filter((x) => !q || titleOf(x).indexOf(q) >= 0);
+    const groups = [];
+    shown.forEach((x) => {
+      const g = groupOf(x.updatedAt);
+      let grp = groups.find((y) => y.label === g);
+      if (!grp) { grp = { label: g, items: [] }; groups.push(grp); }
+      const isCur = x.id === curId, gone = deleted.indexOf(x.id) >= 0, ren = x.id === renamingId;
+      grp.items.push({
+        id: x.id, isRow: !gone, isDeleted: gone, current: isCur,
+        renaming: ren, notRenaming: !ren,
+        title: titleOf(x), fw: isCur ? "600" : "400", titleFg: x.title ? "var(--tool-text)" : "var(--tool-text-2)",
+        meta: engineName(x) + " · " + whenLabel(x.updatedAt) + " · " + x.msgCount + " 条",
+        bg: isCur ? "var(--tool-accent-soft)" : "transparent",
+        menuOpen: s.menu === x.id, moreOp: s.menu === x.id ? "1" : "0.55",
+        open: () => { if (!ren) this.setState({ currentId: x.id, fresh: false, view: "chat", menu: null, channel: x.channel === "b" ? "b" : "a" }); },
+        toggleMenu: (e) => { e.stopPropagation(); this.setState({ menu: s.menu === x.id ? null : x.id }); },
+        rename: (e) => { e.stopPropagation(); this.startRename(x); },
+        remove: (e) => { e.stopPropagation(); this.setState({ deleted: deleted.concat([x.id]), menu: null }); },
+        undo: () => this.setState({ deleted: deleted.filter((d) => d !== x.id) })
+      });
+    });
+    const engineNow = s.channel === "a" ? "DeepSeek · deepseek-chat · 按量" : "Claude Code · 本机订阅";
+
     return {
+      inChat: view === "chat",
+      inHistory: view === "history",
+      backAct: () => view === "history" ? this.setState({ view: "chat", menu: null, renaming: null }) : this.goBack(),
+      backTitle: view === "history" ? "回到会话" : "返回预览",
+      openHistory: () => this.setState({ view: "history" }),
+      newSession: () => this.setState({ fresh: true, view: "chat", menu: null, sel: null }),
+      curTitle: cur ? titleOf(cur) : "新会话",
+      sessionCount: (all.length - deleted.length) + " 条",
+      showSearch: all.length > 8,
+      q: s.q,
+      onQ: (e) => this.setState({ q: e.target.value }),
+      groups: groups,
+      noResults: !!q && shown.length === 0,
+      renameRef: this.renameRef,
+      renameText: s.renaming ? s.renameText : (renamingId ? (all.find((x) => x.id === renamingId) || {}).title || "" : ""),
+      onRenameText: (e) => this.setState({ renaming: renamingId, renameText: e.target.value }),
+      onRenameKey: (e) => { if (e.key === "Enter") { e.preventDefault(); this.commitRename(); } if (e.key === "Escape") { e.stopPropagation(); this.setState({ renaming: null, view: "history" }); } },
+      commitRename: () => this.commitRename(),
+      stop: (e) => e.stopPropagation(),
+
       hasSelections: sels.length > 0,
       manySelections: sels.length > 1,
       selections: sels.map((p, i) => ({ kind: p.kind, label: p.label, detail: p.detail, icon: SEL_KIND[p.kind] || "M0 0",
@@ -282,7 +472,7 @@ class Component extends DCLogic {
       goBack: () => this.goBack(),
       inputRef: this.inputRef,
       theme: this.props.theme === "dark" ? "dark" : null,
-      sessionInfo: s.channel === "a" ? "通道 A（DeepSeek）· 2 条消息" : "通道 B（Claude Code headless）· 2 条消息",
+      sessionInfo: engineNow + (s.fresh ? "" : " · " + (cur ? cur.msgCount : 0) + " 条"),
       isRunning: isRunning,
       notRunning: !isRunning,
       streaming: streaming,
@@ -294,7 +484,7 @@ class Component extends DCLogic {
       onSend: () => this.setState({ input: "" }),
       onInterrupt: () => {},
 
-      // 通道切换
+      // 引擎切换（键仍叫 channel）
       chanABg: s.channel === "a" ? "var(--tool-accent)" : "transparent",
       chanAFg: s.channel === "a" ? "white" : "var(--tool-text)",
       chanAFw: s.channel === "a" ? "560" : "400",
@@ -318,7 +508,7 @@ class Component extends DCLogic {
         fg: s.demo === d.n ? "white" : "var(--tool-text)",
         bd: s.demo === d.n ? "var(--tool-accent)" : "var(--tool-border)",
         fw: s.demo === d.n ? "560" : "400",
-        pick: () => this.setState({ demo: d.n, input: "", sel: null })
+        pick: () => this.setState({ demo: d.n, input: "", sel: null, view: null, currentId: null, fresh: false, menu: null, renaming: null, deleted: null, titles: {}, q: "" })
       }))
     };
   }
@@ -326,7 +516,7 @@ class Component extends DCLogic {
   demoMessages(demo) {
     if (demo === 1 || demo === 7) {
       const msgs = [
-        { isSystem: true, content: "会话开始 · 通道 A · 模型 deepseek-chat" },
+        { isSystem: true, content: "会话开始 · DeepSeek · deepseek-chat" },
         { isUser: true, content: demo === 7 ? "把这个按钮的字号调大一点" : "把日志行的行高调一下，现在太挤了" }
       ];
       if (demo === 7) {
@@ -351,7 +541,7 @@ class Component extends DCLogic {
     }
     if (demo === 2) {
       return [
-        { isSystem: true, content: "会话开始 · 通道 A" },
+        { isSystem: true, content: "会话开始 · DeepSeek" },
         { isUser: true, content: "帮我把空态标题改得更友好一些" },
         {
           isAi: true, content: "",
@@ -364,7 +554,7 @@ class Component extends DCLogic {
     }
     if (demo === 3) {
       return [
-        { isSystem: true, content: "会话开始 · 通道 A" },
+        { isSystem: true, content: "会话开始 · DeepSeek" },
         { isUser: true, content: "检查一下这份稿有没有问题" },
         {
           isAi: true, content: "我来跑一下校验和体检。",
@@ -379,7 +569,7 @@ class Component extends DCLogic {
     }
     if (demo === 4) {
       return [
-        { isSystem: true, content: "会话开始 · 通道 A" },
+        { isSystem: true, content: "会话开始 · DeepSeek" },
         { isUser: true, content: "把整个页面的布局重写一下" },
         {
           isAi: true, content: "正在分析布局结构，准备使用 write_draft 生成新版本…",
@@ -392,12 +582,12 @@ class Component extends DCLogic {
     }
     if (demo === 5 || demo === 8) {
       return [
-        { isSystem: true, content: "会话已创建 · 通道 A · 选择模型后开始对话" }
+        { isSystem: true, content: "新会话 · 发出第一条消息后才记进历史" }
       ];
     }
     if (demo === 6) {
       return [
-        { isSystem: true, content: "会话开始 · 通道 B（Claude Code headless）" },
+        { isSystem: true, content: "会话开始 · Claude Code" },
         { isUser: true, content: "帮我看看这份稿有没有错误" },
         {
           isAi: true, content: "我来跑一下校验。",

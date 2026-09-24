@@ -120,17 +120,42 @@ async function main(): Promise<void> {
     if (!isNew) {
       const base = readBaseline(incoming);
       const cur = await readFile(curPath, "utf8");
-      if (!base) {
-        blocking++; fileOk = false;
-        console.log(`     ${red("底稿不明 —— 没有 baseline 标记")}`);
-        console.log(dim("       这份不是在我们用 `npm run outgoing` 发出去的底稿上改的，多半是它自己的旧版本。"));
-        console.log(dim("       做法：先 outgoing 打包发过去，请设计侧在那个包的底稿上重做，别在这份上移植"));
-      } else if (base.sha !== shaOf(cur)) {
-        blocking++; fileOk = false;
-        console.log(`     ${ylw(`底稿过时 —— 它基于 ${base.sent ?? "?"} 发出的版本（${base.sha}），我们这边之后又改过（现在 ${shaOf(cur)}）`)}`);
-        console.log(dim(`       做法：三方合并 —— 共同祖先是 outgoing/UmbraStudio-ui-${base.sent ?? "<那次>"}.zip 里的同名文件`));
-      } else {
+      if (base && base.sha === shaOf(cur)) {
         console.log(`     ${grn(`底稿正确 —— 基于 ${base.sent ?? "?"} 发出的现版`)}`);
+      } else {
+        /* baseline 对不上（没有、或戳是旧的）。**先别急着拦** —— 换一条直接盯要害的判据。
+         *
+         * 这道检查的真正目的不是「知道它基于哪一版」，而是「**确保我们的改动没被丢掉**」。
+         * §三十二 那次事故的症状就是 S1 少 27 个键、S2 少 54 个键 ——
+         * 形制看着好好的，我们后加的接线全没了，而设计侧自己不可能知道缺了什么。
+         *
+         * `renderVals` 的键就是接线本身。**现版的键一个都没少 = 我们的东西都还在**，
+         * 这比一行 baseline 注释更直接：注释可能忘了更新（S9 这次就是，戳还停在第三轮，
+         * 而正文实测是在现版上改的），键却骗不了人。
+         *
+         * 所以：键零丢失 → 放行，但**用黄色说清是"按内容认可"而不是"底稿正确"**，
+         * 并把 baseline 的实际情况一起打出来，让人能复核。
+         * 键有丢失 → 照旧拦住，且这时 baseline 对不上就是很强的佐证。
+         *
+         * 2026-09-24 加这条的由来：新屏（设计侧自己建的 S11/S12）**从来没有过 baseline**，
+         * 因为它们没经过我们的 outgoing 打包。只认 baseline 的话，每个新屏第一次交回都会被拦。
+         */
+        const gone = auditRenderVals(parseDraft(cur, f)).union
+          .filter((k) => !auditRenderVals(parseDraft(incoming, f)).union.includes(k));
+        const why = !base
+          ? "没有 baseline 标记（新屏没经过 outgoing 打包时就是这样）"
+          : `baseline 戳是 ${base.sent ?? "?"}（${base.sha}），我们现版是 ${shaOf(cur)}`;
+        if (gone.length === 0) {
+          console.log(`     ${ylw("按内容认可 —— baseline 对不上，但我们现版的接线一个键都没少")}`);
+          console.log(dim(`       ${why}`));
+          console.log(dim("       判据：renderVals 的键零丢失。丢键才是 §三十二 那次事故的症状，baseline 只是它的代理指标"));
+        } else {
+          blocking++; fileOk = false;
+          console.log(`     ${red(`底稿不对 —— 少了 ${gone.length} 个键，我们的接线被丢了`)}`);
+          console.log(dim(`       ${why}`));
+          console.log(dim(`       少的键：${gone.slice(0, 12).join(" · ")}${gone.length > 12 ? " …" : ""}`));
+          console.log(dim("       做法：先 outgoing 打包发过去，请设计侧在那个包的底稿上重做，别在这份上移植"));
+        }
       }
     }
 

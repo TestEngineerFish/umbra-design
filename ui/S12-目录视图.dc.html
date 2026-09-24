@@ -3,12 +3,6 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<!-- umbradesign:resources -->
-<script>window.__resources = {
-    "https://unpkg.com/react@18.3.1/umd/react.production.min.js": "./react.production.min.js",
-    "https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js": "./react-dom.production.min.js"
-  };</script>
-<!-- /umbradesign:resources -->
 <script src="./support.js"></script>
 </head>
 <body>
@@ -22,6 +16,7 @@
   a { color: var(--tool-accent); text-decoration: none; }
   a:hover { color: var(--tool-accent-hover); text-decoration: underline; }
   input, button { font: inherit; color: inherit; }
+  @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 </style>
 </helmet>
 
@@ -30,7 +25,7 @@
   <sc-if value="{{ showDemoBar }}" hint-placeholder-val="{{ true }}">
   <div style="display: flex; align-items: center; gap: 8px; padding: 8px 16px; flex-wrap: wrap; font-size: 12px; background: var(--tool-panel-2); border-bottom: 1px solid var(--tool-border);">
     <span style="font-size: 11px; color: var(--tool-muted); flex: none;">演示态</span>
-    <sc-for list="{{ demoStates }}" as="st" hint-placeholder-count="5">
+    <sc-for list="{{ demoStates }}" as="st" hint-placeholder-count="7">
       <button type="button" onClick="{{ st.pick }}" title="{{ st.name }}" aria-pressed="{{ st.active }}" style="display: inline-flex; align-items: center; gap: 5px; height: 23px; padding: 0 9px 0 6px; border-radius: var(--tool-radius-sm); border: 1px solid; cursor: pointer; font-size: 11px; white-space: nowrap; transition: background .13s ease, border-color .13s ease, color .13s ease; background: {{ st.bg }}; border-color: {{ st.bd }}; color: {{ st.fg }};" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">
         <span style="font-family: var(--tool-mono); opacity: 0.6;">{{ st.n }}</span>
         <span style="font-weight: {{ st.fw }};">{{ st.short }}</span>
@@ -45,10 +40,13 @@
   <div style="position: sticky; top: 0; z-index: 3; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 20px; background: var(--tool-panel); border-bottom: 1px solid var(--tool-border);">
     <div style="display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 13px;">
       <span style="color: var(--tool-muted); display: grid;"><dc-import name="IconGlyph" d="M2 4.4c0-.5.4-.9.9-.9h3.2l1.5 1.6h5.5c.5 0 .9.4.9.9v6.6c0 .5-.4.9-.9.9H2.9c-.5 0-.9-.4-.9-.9z" size="14" hint-size="14px,14px"></dc-import></span>
-      <a href="#" style="color: var(--tool-text-2);">umbra</a>
-      <span style="color: var(--tool-border-strong);">/</span>
-      <span style="font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ dirName }}</span>
-      <span style="font-family: var(--tool-mono); font-size: 11px; color: var(--tool-muted); white-space: nowrap;">{{ countLabel }}</span>
+      <sc-for list="{{ crumbs }}" as="c" hint-placeholder-count="2">
+        <div style="display: flex; align-items: center; gap: 6px; min-width: 0;">
+          <sc-if value="{{ c.sep }}" hint-placeholder-val="{{ false }}"><span style="color: var(--tool-border-strong);">/</span></sc-if>
+          <button type="button" onClick="{{ c.go }}" style="padding: 0; border: 0; background: transparent; cursor: pointer; white-space: nowrap; color: {{ c.fg }}; font-weight: {{ c.fw }};" style-hover="color: var(--tool-accent);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">{{ c.name }}</button>
+        </div>
+      </sc-for>
+      <span style="font-family: var(--tool-mono); font-size: 11px; color: var(--tool-muted); white-space: nowrap; margin-left: 4px;">{{ countLabel }}</span>
     </div>
     <span style="flex: 1;"></span>
     <div role="group" aria-label="筛选" style="display: flex; padding: 2px; gap: 2px; background: var(--tool-panel-2); border: 1px solid var(--tool-border); border-radius: var(--tool-radius); flex: none;">
@@ -74,13 +72,13 @@
 
   <sc-if value="{{ onlyDrafts }}" hint-placeholder-val="{{ false }}">
     <div style="display: flex; align-items: center; gap: 8px; padding: 8px 20px; font-size: 12px; color: var(--tool-text-2); background: var(--tool-accent-soft); border-bottom: 1px solid var(--tool-accent-border);">
-      <span>只看稿件：这就是原来的 S1 稿件索引，读数、筛选、行内操作都在那一屏。</span>
+      <span>只看稿件：树里只留 .dc.html 和装着稿的目录。读数、行内操作的完整版在 S1。</span>
       <span style="flex: 1;"></span>
       <a href="./S1-稿件索引.dc.html" style="font-weight: 560;">打开完整索引</a>
     </div>
   </sc-if>
 
-  <div style="flex: 1 1 0; padding: 14px 20px 80px;">
+  <div style="flex: 1 1 0; padding: 16px 20px 80px;">
 
     <sc-if value="{{ isEmpty }}" hint-placeholder-val="{{ false }}">
       <div style="padding: 72px 20px; display: grid; place-items: center;">
@@ -92,59 +90,75 @@
       </div>
     </sc-if>
 
-    <!-- 列表 -->
+    <!-- 树（第六轮 6.2）。列砍到三列：名称 · 读数 · 更新。类型由图标说，大小只在它是唯一有用读数时进「读数」。
+         行与行之间不画线，靠 36 px 行高和缩进分层；勾选框单独一列、不随缩进走，竖着对齐 -->
     <sc-if value="{{ isList }}" hint-placeholder-val="{{ true }}">
-      <div style="background: var(--tool-panel); border: 1px solid var(--tool-border); border-radius: var(--tool-radius-lg); overflow: hidden; box-shadow: var(--tool-shadow-1);">
-        <div style="display: grid; grid-template-columns: 22px minmax(0, 1fr) 84px 76px 96px 150px; gap: 12px; align-items: center; padding: 7px 14px; background: var(--tool-panel-2); border-bottom: 1px solid var(--tool-border); font-size: 11px; font-weight: 600; letter-spacing: 0.03em; color: var(--tool-muted);">
-          <span></span><span>名称</span><span>类型</span><span style="text-align: right;">大小</span><span>更新</span><span>读数</span>
+      <div role="treegrid" aria-label="{{ dirName }}" style="max-width: 1080px; background: var(--tool-panel); border: 1px solid var(--tool-border); border-radius: var(--tool-radius-lg); padding: 6px 0 8px; box-shadow: var(--tool-shadow-1);">
+        <div style="display: grid; grid-template-columns: 16px minmax(0, 1fr) 176px 84px; column-gap: 16px; align-items: center; height: 32px; padding: 0 18px 0 16px; font-size: 11px; color: var(--tool-muted);">
+          <button type="button" onClick="{{ toggleAll }}" role="checkbox" aria-checked="{{ allChecked }}" aria-label="全选可见项" style="width: 16px; height: 16px; padding: 0; display: grid; place-items: center; border-radius: 4px; border: 1px solid; cursor: pointer; background: {{ allBg }}; border-color: {{ allBd }}; color: var(--tool-on-accent); opacity: {{ allOp }};" style-hover="opacity: 1;" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px; opacity: 1;">
+            <sc-if value="{{ allChecked }}" hint-placeholder-val="{{ false }}">
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true"><path d="M2 5.2l2 2 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+            </sc-if>
+          </button>
+          <span>名称</span><span>读数</span><span style="text-align: right;">更新</span>
         </div>
-        <sc-for list="{{ rows }}" as="r" hint-placeholder-count="6">
-          <div onClick="{{ r.open }}" role="row" tabindex="0" aria-selected="{{ r.checked }}" style="display: grid; grid-template-columns: 22px minmax(0, 1fr) 84px 76px 96px 150px; gap: 12px; align-items: center; min-height: 44px; padding: 6px 14px; border-bottom: 1px solid var(--tool-border); cursor: pointer; transition: background .13s ease; background: {{ r.bg }};" style-hover="background: var(--tool-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: -2px;">
-            <button type="button" onClick="{{ r.toggle }}" role="checkbox" aria-checked="{{ r.checked }}" aria-label="选中 {{ r.name }}" style="width: 16px; height: 16px; padding: 0; display: grid; place-items: center; border-radius: 4px; border: 1px solid; cursor: pointer; transition: background .13s ease, border-color .13s ease, opacity .13s ease; background: {{ r.cbBg }}; border-color: {{ r.cbBd }}; color: var(--tool-on-accent); opacity: {{ r.cbOp }};" style-hover="opacity: 1;" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px; opacity: 1;">
-              <sc-if value="{{ r.checked }}" hint-placeholder-val="{{ false }}">
-                <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true"><path d="M2 5.2l2 2 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path></svg>
-              </sc-if>
-            </button>
-            <div style="min-width: 0; display: flex; align-items: center; gap: 9px;">
-              <span style="width: 24px; height: 24px; flex: none; display: grid; place-items: center; border-radius: var(--tool-radius-sm); background: {{ r.iconBg }}; color: {{ r.iconFg }};">
-                <dc-import name="IconGlyph" d="{{ r.icon }}" size="13" hint-size="13px,13px"></dc-import>
-              </span>
-              <div style="min-width: 0;">
-                <div style="font-weight: 560; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="{{ r.name }}">{{ r.name }}</div>
+        <sc-for list="{{ rows }}" as="r" hint-placeholder-count="8">
+          <sc-if value="{{ r.isNode }}" hint-placeholder-val="{{ true }}">
+            <div role="row" tabindex="0" aria-level="{{ r.level }}" aria-expanded="{{ r.ariaExp }}" aria-selected="{{ r.checked }}" onClick="{{ r.act }}" onDoubleClick="{{ r.dbl }}" style="display: grid; grid-template-columns: 16px minmax(0, 1fr) 176px 84px; column-gap: 16px; align-items: center; height: 36px; margin: 0 6px; padding: 0 12px 0 10px; border-radius: var(--tool-radius); cursor: pointer; transition: background .13s ease; background: {{ r.bg }};" style-hover="background: var(--tool-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: -2px;">
+              <button type="button" onClick="{{ r.toggle }}" role="checkbox" aria-checked="{{ r.checked }}" aria-label="选中 {{ r.name }}" style="width: 16px; height: 16px; padding: 0; display: grid; place-items: center; border-radius: 4px; border: 1px solid; cursor: pointer; transition: background .13s ease, border-color .13s ease, opacity .13s ease; background: {{ r.cbBg }}; border-color: {{ r.cbBd }}; color: var(--tool-on-accent); opacity: {{ r.cbOp }};" style-hover="opacity: 1;" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px; opacity: 1;">
+                <sc-if value="{{ r.checked }}" hint-placeholder-val="{{ false }}">
+                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true"><path d="M2 5.2l2 2 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                </sc-if>
+              </button>
+              <div style="min-width: 0; display: flex; align-items: center; padding-left: {{ r.pad }};">
+                <span style="flex: none; width: 16px; height: 16px; display: grid; place-items: center; color: var(--tool-muted); opacity: {{ r.chevOp }}; transform: rotate({{ r.rot }}); transition: transform .15s ease;">
+                  <dc-import name="IconGlyph" d="M6.2 4.2L10 8l-3.8 3.8" size="12" stroke="1.5" hint-size="12px,12px"></dc-import>
+                </span>
+                <span style="flex: none; display: grid; margin-right: 8px; color: {{ r.iconFg }};"><dc-import name="IconGlyph" d="{{ r.icon }}" size="14" hint-size="14px,14px"></dc-import></span>
+                <span title="{{ r.tip }}" style="min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: {{ r.fw }};">{{ r.name }}</span>
                 <sc-if value="{{ r.hasSub }}" hint-placeholder-val="{{ false }}">
-                  <div style="font-size: 11px; color: var(--tool-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="{{ r.sub }}">{{ r.sub }}</div>
+                  <span title="{{ r.sub }}" style="flex: 1 1 0; min-width: 0; margin-left: 10px; font-size: 12px; color: var(--tool-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ r.sub }}</span>
                 </sc-if>
               </div>
+              <div style="display: flex; align-items: center; gap: 8px; min-width: 0;">
+                <sc-if value="{{ r.hasHealth }}" hint-placeholder-val="{{ false }}">
+                  <span style="flex: none; display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: {{ r.hFg }};">
+                    <span style="width: 6px; height: 6px; border-radius: 999px; background: currentColor;"></span>{{ r.hLabel }}
+                  </span>
+                </sc-if>
+                <span style="min-width: 0; font-family: var(--tool-mono); font-size: 11px; color: var(--tool-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums;">{{ r.meta }}</span>
+              </div>
+              <span title="{{ r.updatedAt }}" style="text-align: right; font-size: 12px; color: var(--tool-muted); white-space: nowrap;">{{ r.ago }}</span>
             </div>
-            <span style="font-size: 12px; color: var(--tool-text-2);">{{ r.kindLabel }}</span>
-            <span style="text-align: right; font-family: var(--tool-mono); font-size: 12px; font-variant-numeric: tabular-nums; color: var(--tool-text-2);">{{ r.sizeLabel }}</span>
-            <span title="{{ r.updatedAt }}" style="font-size: 12px; color: var(--tool-text-2); white-space: nowrap;">{{ r.ago }}</span>
-            <div style="display: flex; align-items: center; gap: 6px; min-width: 0;">
-              <sc-if value="{{ r.hasHealth }}" hint-placeholder-val="{{ false }}">
-                <span style="display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 7px; border-radius: 999px; font-size: 11px; font-weight: 560; border: 1px solid; white-space: nowrap; background: {{ r.hBg }}; border-color: {{ r.hBd }}; color: {{ r.hFg }};">
-                  <span style="width: 5px; height: 5px; border-radius: 999px; background: currentColor;"></span>{{ r.hLabel }}
+          </sc-if>
+          <sc-if value="{{ r.isNote }}" hint-placeholder-val="{{ false }}">
+            <div style="display: grid; grid-template-columns: 16px minmax(0, 1fr); column-gap: 16px; align-items: center; height: 36px; margin: 0 6px; padding: 0 12px 0 10px; font-size: 12px; color: var(--tool-muted);">
+              <span></span>
+              <div style="display: flex; align-items: center; padding-left: {{ r.pad }};">
+                <span style="flex: none; width: 16px; height: 16px; display: grid; place-items: center; margin-right: 8px;">
+                  <sc-if value="{{ r.spin }}" hint-placeholder-val="{{ true }}">
+                    <svg width="12" height="12" viewBox="0 0 12 12" style="animation: spin 1s linear infinite;" aria-hidden="true"><circle cx="6" cy="6" r="4.6" fill="none" stroke="var(--tool-accent)" stroke-width="1.5" stroke-dasharray="20 12"></circle></svg>
+                  </sc-if>
                 </span>
-              </sc-if>
-              <span style="font-family: var(--tool-mono); font-size: 11px; color: var(--tool-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ r.meta }}</span>
+                <span>{{ r.text }}</span>
+              </div>
             </div>
-          </div>
+          </sc-if>
         </sc-for>
       </div>
     </sc-if>
 
-    <!-- 网格 -->
+    <!-- 网格：只管一层。层级交给 S11 的目录列；目录在网格里是一张卡，双击进入（面包屑回退） -->
     <sc-if value="{{ isGrid }}" hint-placeholder-val="{{ false }}">
-      <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px;">
-        <sc-for list="{{ rows }}" as="r" hint-placeholder-count="6">
-          <div onClick="{{ r.open }}" role="button" tabindex="0" aria-pressed="{{ r.checked }}" style="position: relative; background: var(--tool-panel); border: 1px solid; border-radius: var(--tool-radius-lg); overflow: hidden; cursor: pointer; box-shadow: var(--tool-shadow-1); transition: border-color .13s ease, box-shadow .13s ease; border-color: {{ r.cardBd }};" style-hover="box-shadow: var(--tool-shadow-2);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">
-            <div style="aspect-ratio: 16 / 10; position: relative; border-bottom: 1px solid var(--tool-border); background: var(--tool-panel-2); overflow: hidden;">
-              <!-- 有缩略图（稿件 / 图片）：占位条纹 + 文件名；真图由 render_check / 原图填 -->
+      <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px;">
+        <sc-for list="{{ cards }}" as="r" hint-placeholder-count="6">
+          <div onClick="{{ r.act }}" onDoubleClick="{{ r.dbl }}" role="button" tabindex="0" aria-pressed="{{ r.checked }}" title="{{ r.tip }}" style="position: relative; background: var(--tool-panel); border: 1px solid; border-radius: var(--tool-radius-lg); overflow: hidden; cursor: pointer; box-shadow: var(--tool-shadow-1); transition: border-color .13s ease, box-shadow .13s ease; border-color: {{ r.cardBd }};" style-hover="box-shadow: var(--tool-shadow-2);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">
+            <div style="aspect-ratio: 16 / 10; position: relative; background: var(--tool-panel-2); overflow: hidden;">
               <sc-if value="{{ r.hasThumb }}" hint-placeholder-val="{{ false }}">
                 <div style="position: absolute; inset: 0; display: grid; place-items: center; background: {{ r.thumbBg }};">
                   <span style="font-family: var(--tool-mono); font-size: 10px; color: var(--tool-muted); background: var(--tool-panel); border: 1px solid var(--tool-border); border-radius: var(--tool-radius-sm); padding: 2px 6px; max-width: 80%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ r.thumbLabel }}</span>
                 </div>
               </sc-if>
-              <!-- 没有缩略图：md 给摘录，其他给大图标 + 扩展名 -->
               <sc-if value="{{ r.hasExcerpt }}" hint-placeholder-val="{{ false }}">
                 <div style="position: absolute; inset: 0; padding: 34px 14px 12px; background: var(--tool-panel); font-size: 11px; line-height: 1.6; color: var(--tool-text-2); overflow: hidden; white-space: pre-wrap;">{{ r.excerpt }}</div>
               </sc-if>
@@ -156,7 +170,7 @@
                   </div>
                 </div>
               </sc-if>
-              <button type="button" onClick="{{ r.toggle }}" role="checkbox" aria-checked="{{ r.checked }}" aria-label="选中 {{ r.name }}" style="position: absolute; top: 8px; left: 8px; width: 18px; height: 18px; padding: 0; display: grid; place-items: center; border-radius: 4px; border: 1px solid; cursor: pointer; transition: background .13s ease, opacity .13s ease; background: {{ r.cbBgGrid }}; border-color: {{ r.cbBd }}; color: var(--tool-on-accent); opacity: {{ r.cbOp }};" style-hover="opacity: 1;" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px; opacity: 1;">
+              <button type="button" onClick="{{ r.toggle }}" role="checkbox" aria-checked="{{ r.checked }}" aria-label="选中 {{ r.name }}" style="position: absolute; top: 8px; left: 8px; width: 18px; height: 18px; padding: 0; display: grid; place-items: center; border-radius: 4px; border: 1px solid; cursor: pointer; transition: background .13s ease, opacity .13s ease; background: {{ r.cbBg }}; border-color: {{ r.cbBd }}; color: var(--tool-on-accent); opacity: {{ r.cbOp }};" style-hover="opacity: 1;" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px; opacity: 1;">
                 <sc-if value="{{ r.checked }}" hint-placeholder-val="{{ false }}">
                   <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true"><path d="M2 5.2l2 2 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path></svg>
                 </sc-if>
@@ -169,7 +183,7 @@
             </div>
             <div style="padding: 9px 12px; display: flex; align-items: center; gap: 8px; min-width: 0;">
               <span style="flex: none; display: grid; color: {{ r.iconFg }};"><dc-import name="IconGlyph" d="{{ r.icon }}" size="13" hint-size="13px,13px"></dc-import></span>
-              <span style="flex: 1 1 0; min-width: 0; font-weight: 560; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="{{ r.name }}">{{ r.name }}</span>
+              <span style="flex: 1 1 0; min-width: 0; font-weight: 560; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ r.name }}</span>
               <span style="flex: none; font-family: var(--tool-mono); font-size: 11px; color: var(--tool-muted);">{{ r.gridMeta }}</span>
             </div>
           </div>
@@ -178,7 +192,6 @@
     </sc-if>
   </div>
 
-  <!-- 多选条：选中 ≥ 1 项时贴底出现 -->
   <sc-if value="{{ hasSelection }}" hint-placeholder-val="{{ false }}">
     <div role="toolbar" aria-label="已选文件" style="position: sticky; bottom: 0; z-index: 3; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 20px; background: var(--tool-panel); border-top: 1px solid var(--tool-border-strong); box-shadow: 0 -4px 16px rgba(20, 26, 36, 0.06);">
       <span style="flex: none; font-weight: 600; white-space: nowrap;">已选 {{ selCount }} 项</span>
@@ -212,34 +225,44 @@ const HEALTH = {
   error: { label: "有错误", bg: "var(--tool-err-soft)", bd: "var(--tool-err-border)", fg: "var(--tool-err)" },
   unchecked: { label: "未体检", bg: "var(--tool-unchecked-soft)", bd: "var(--tool-unchecked-border)", fg: "var(--tool-unchecked)" }
 };
+/* 与 S11 目录列同一套：缩进 16 = 三角宽；图标 14；宽区行高 36（窄列 28） */
+const INDENT = 16;
 
+/* entries[] 是树：dir 节点 children 缺省 = 未拉取（展开时请求，期间出「读取中…」），[] = 空目录 */
+const T = (h) => new Date(Date.parse("2026-09-23T10:30:00+08:00") - h * 36e5).toISOString();
 const ENTRIES = [
-  { name: "Pages", kind: "dir", count: 12, updatedAt: "2026-09-23T10:02:00+08:00" },
-  { name: "日志.dc.html", kind: "dc", size: 48211, updatedAt: "2026-09-23T09:40:12+08:00",
-    thumb: ".umbrastudio/shots/日志@1440x900.png", health: "ok", version: "v217",
-    importedBy: ["Umbra PC 端.dc.html"] },
-  { name: "需求.md", kind: "md", size: 9120, updatedAt: "2026-09-22T18:11:00+08:00", snapshot: "s14",
-    excerpt: "# 日志页需求 · 最近 7 天 …" },
-  { name: "首页截图.png", kind: "image", size: 812004, updatedAt: "2026-09-21T12:00:00+08:00",
-    thumb: "uploads/首页截图.png", dims: "1440×900" },
-  { name: "project.json", kind: "code", size: 640, updatedAt: "2026-09-20T08:00:00+08:00" },
-  { name: "备份.zip", kind: "other", size: 20480000, updatedAt: "2026-09-01T08:00:00+08:00" }
+  { name: "Pages", kind: "dir", count: 3, updatedAt: T(0.5), children: [
+    { name: "组件", kind: "dir", count: 2, updatedAt: T(2), children: [
+      { name: "按钮.dc.html", kind: "dc", size: 12004, updatedAt: T(2), health: "ok", version: "v12" },
+      { name: "输入框.dc.html", kind: "dc", size: 15320, updatedAt: T(30), health: "unchecked", version: "v4" }
+    ] },
+    { name: "首页.dc.html", kind: "dc", size: 61320, updatedAt: T(0.5), health: "ok", version: "v88" },
+    { name: "会话列表.dc.html", kind: "dc", size: 30211, updatedAt: T(5), health: "error", version: "v31" }
+  ] },
+  { name: "旧稿", kind: "dir", count: 14, updatedAt: T(200) },
+  { name: "日志.dc.html", kind: "dc", size: 48211, updatedAt: T(0.8), health: "ok", version: "v217", importedBy: ["Umbra PC 端.dc.html"] },
+  { name: "需求.md", kind: "md", size: 9120, updatedAt: T(16), snapshot: "s14", excerpt: "# 日志页需求 · 最近 7 天 …" },
+  { name: "首页截图.png", kind: "image", size: 812004, updatedAt: T(70), thumb: "uploads/首页截图.png", dims: "1440×900" },
+  { name: "project.json", kind: "code", size: 640, updatedAt: T(98) },
+  { name: "备份.zip", kind: "other", size: 20480000, updatedAt: T(530) }
 ];
+const LAZY = {
+  "旧稿": ["v1 首页", "v1 日志", "v1 设置"].map((t, i) => ({ name: t + ".dc.html", kind: "dc", size: 20000 + i * 3000, updatedAt: T(300 + i * 20), health: "unchecked", version: "v1" }))
+};
+const IMAGES = ["首页", "日志页", "设置页", "会话列表", "空态", "报错态", "深色首页", "移动端首页"].map((t, i) => ({
+  name: t + ".png", kind: "image", size: 640000 + i * 41000, updatedAt: T(i * 2), thumb: "uploads/截图/" + t + ".png", dims: i === 7 ? "390×844" : "1440×900" }))
+  .concat([{ name: "说明.md", kind: "md", size: 1200, updatedAt: T(70), snapshot: "s2", excerpt: "# 截图说明 …" }]);
 
 const DEMOS = [
-  { n: 1, short: "列表", name: "列表", note: "默认列表；目录排最前，其余按更新时间", selection: [] },
-  { n: 2, short: "网格", name: "网格（缩略图墙）", note: "稿件 / 图片给缩略图，md 给摘录，其余给图标 + 扩展名", view: "grid", selection: [] },
-  { n: 3, short: "多选", name: "多选两项", note: "底部出多选条：带进会话 · 移动 · 删除", view: "list", selection: ["需求.md", "首页截图.png"] },
-  { n: 4, short: "空目录", name: "空目录", note: "引导：拖文件进来，或让 AI 在这里建稿", view: "list", selection: [], empty: true },
-  { n: 5, short: "只看稿件", name: "只看稿件（= S1）", note: "筛到只剩 .dc.html，给一条去 S1 的路", view: "list", selection: [], drafts: true },
-  { n: 6, short: "图片目录", name: "图片多的目录 · 自动网格", note: "第 3 题：默认列表；非目录文件里图片 ≥ 60% 且 ≥ 6 张时自动切网格，手动切过就记住", selection: [], images: true }
+  { n: 1, short: "树", name: "树 · 三层", note: "单击目录展开，上一层一直在；双击目录以它为根（面包屑回退）", expanded: ["Pages", "Pages/组件"], selection: [] },
+  { n: 2, short: "读取中", name: "展开时按需拉取", note: "旧稿/ 刚展开：子项还没回来，在子项的位置出一行「读取中…」，三角已转", expanded: ["旧稿"], loading: ["旧稿"], selection: [] },
+  { n: 3, short: "多选", name: "跨层多选", note: "勾选框单独一列、竖向对齐，不随缩进走；可以跨层选", expanded: ["Pages"], selection: ["需求.md", "Pages/首页.dc.html"] },
+  { n: 4, short: "网格", name: "网格只管一层", note: "网格里目录是一张卡、不展开；层级交给左侧目录列", view: "grid", selection: [] },
+  { n: 5, short: "空目录", name: "空目录", note: "引导：拖文件进来，或让 AI 在这里建稿", view: "list", selection: [], empty: true },
+  { n: 6, short: "只看稿件", name: "只看稿件", note: "树里只留 .dc.html 和装着稿的目录；未拉取的目录保留（不知道里面有没有）", expanded: ["Pages", "Pages/组件"], selection: [], drafts: true },
+  { n: 7, short: "图片目录", name: "图片多的目录 · 自动网格", note: "图片 ≥ 60% 且 ≥ 6 张自动切网格，手动切过就记住（layout.viewByDir）", selection: [], images: true }
 ];
-/* 第 3 题的判据。手动切过（layout.viewByDir[dir]）就不再自动 */
 const AUTO_MIN = 6, AUTO_SHARE = 0.6;
-const IMAGES = ["首页", "日志页", "设置页", "会话列表", "空态", "报错态", "深色首页", "移动端首页"].map((t, i) => ({
-  name: t + ".png", kind: "image", size: 640000 + i * 41000, updatedAt: new Date(Date.parse("2026-09-23T09:00:00+08:00") - i * 7.2e6).toISOString(),
-  thumb: "uploads/截图/" + t + ".png", dims: i === 7 ? "390×844" : "1440×900" }))
-  .concat([{ name: "说明.md", kind: "md", size: 1200, updatedAt: "2026-09-20T08:00:00+08:00", snapshot: "s2", excerpt: "# 截图说明 …" }]);
 function autoView(entries) {
   const files = entries.filter((e) => e.kind !== "dir");
   const img = files.filter((e) => e.kind === "image").length;
@@ -261,68 +284,141 @@ function size(b) {
   if (b < 1048576) return (b / 1024 < 100 ? (b / 1024).toFixed(1) : Math.round(b / 1024)) + " KB";
   return (b / 1048576).toFixed(1) + " MB";
 }
-const ext = (n) => { const i = n.lastIndexOf("."); return i > 0 ? n.slice(i + 1).toUpperCase() : ""; };
+const extOf = (n) => { const i = n.lastIndexOf("."); return i > 0 ? n.slice(i + 1).toUpperCase() : ""; };
+const sortE = (list) => list.slice().sort((a, b) => (a.kind === "dir" ? 0 : 1) - (b.kind === "dir" ? 0 : 1) || new Date(b.updatedAt) - new Date(a.updatedAt));
+function hasDraft(e, loaded, path) {
+  if (e.kind === "dc") return true;
+  if (e.kind !== "dir") return false;
+  const kids = e.children || loaded[path];
+  return !kids || kids.some((k) => hasDraft(k, loaded, path + "/" + k.name));
+}
 
 class Component extends DCLogic {
-  state = { demo: 1, view: null, only: null, sel: null };
+  state = { demo: 1, view: null, only: null, sel: null, exp: null, loading: null, loaded: {}, root: null };
 
   componentDidMount() {
     this.onKey = (e) => { if (e.key === "Escape") this.setState({ sel: [] }); };
     document.addEventListener("keydown", this.onKey);
   }
-  componentWillUnmount() { document.removeEventListener("keydown", this.onKey); }
+  componentWillUnmount() { document.removeEventListener("keydown", this.onKey); (this.timers || []).forEach(clearTimeout); }
+
+  toggleDir(path, node) {
+    const dm = DEMOS[this.state.demo - 1];
+    const cur = this.state.exp || dm.expanded || [];
+    const open = cur.indexOf(path) >= 0;
+    const upd = { exp: open ? cur.filter((p) => p !== path) : cur.concat([path]) };
+    if (!open && !(node.children || this.state.loaded[path])) {
+      const ld = this.state.loading || dm.loading || [];
+      if (ld.indexOf(path) < 0) upd.loading = ld.concat([path]);
+      this.timers = this.timers || [];
+      this.timers.push(setTimeout(() => this.setState((st) => ({ loaded: Object.assign({}, st.loaded, { [path]: LAZY[path] || [] }), loading: (st.loading || []).filter((p) => p !== path) })), 900));
+    }
+    this.setState(upd);
+  }
 
   renderVals() {
     const s = this.state;
     const dm = DEMOS[s.demo - 1];
     const only = s.only !== null ? s.only : !!dm.drafts;
     const selection = s.sel || dm.selection;
-    const dir = dm.empty ? "Archive/" : dm.images ? "uploads/截图/" : "PC 端/";
-    let entries = dm.empty ? [] : dm.images ? IMAGES.slice() : ENTRIES.slice();
+    const baseDir = dm.empty ? "Archive" : dm.images ? "uploads/截图" : "PC 端";
+    const src = dm.empty ? [] : dm.images ? IMAGES : ENTRIES;
+
+    /* 双击目录 = 以它为根（S11 目录列里双击也走这里） */
+    const rootPath = s.root || "";
+    const findNode = (list, parts) => {
+      let cur = list;
+      for (let i = 0; i < parts.length; i++) {
+        const n = (cur || []).find((e) => e.name === parts[i]);
+        if (!n) return [];
+        cur = n.children || s.loaded[parts.slice(0, i + 1).join("/")] || [];
+      }
+      return cur;
+    };
+    let entries = rootPath ? findNode(src, rootPath.split("/")) : src;
     const auto = autoView(entries);
     const isAuto = !s.view && !dm.view;
     const view = s.view || dm.view || auto.view;
-    if (only) entries = entries.filter((e) => e.kind === "dc");
-    entries.sort((a, b) => (a.kind === "dir" ? 0 : 1) - (b.kind === "dir" ? 0 : 1) || new Date(b.updatedAt) - new Date(a.updatedAt));
-    const toggle = (name) => {
+    const exp = s.exp || dm.expanded || [];
+    const loading = s.loading || dm.loading || [];
+    const toggleSel = (path) => {
       const cur = s.sel || dm.selection;
-      this.setState({ sel: cur.indexOf(name) >= 0 ? cur.filter((x) => x !== name) : cur.concat([name]) });
+      this.setState({ sel: cur.indexOf(path) >= 0 ? cur.filter((x) => x !== path) : cur.concat([path]) });
     };
+    const enter = (path) => this.setState({ root: path, exp: [], sel: [] });
+    const any = selection.length > 0;
 
-    const rows = entries.map((e) => {
-      const on = selection.indexOf(e.name) >= 0;
+    const shape = (e, path) => {
+      const on = selection.indexOf(path) >= 0;
       const h = e.health ? HEALTH[e.health] : null;
       const sub = e.kind === "md" ? e.excerpt : e.kind === "dc" && e.importedBy && e.importedBy.length ? "被 " + e.importedBy.join("、") + " 引用" : "";
-      const meta = e.kind === "dc" ? (e.version || "—") : e.kind === "md" ? "快照 " + e.snapshot : e.kind === "image" ? e.dims : e.kind === "dir" ? e.count + " 项" : "";
+      const meta = e.kind === "dc" ? (e.version || "") : e.kind === "md" ? "快照 " + e.snapshot : e.kind === "image" ? e.dims + " · " + size(e.size) : e.kind === "dir" ? e.count + " 项" : size(e.size);
       return {
-        name: e.name, kindLabel: KIND_LABEL[e.kind], icon: ICON[e.kind] || ICON.other,
-        iconBg: e.kind === "dc" ? "var(--tool-accent-soft)" : "var(--tool-panel-2)",
-        iconFg: e.kind === "dc" ? "var(--tool-accent)" : "var(--tool-text-2)",
+        name: e.name, icon: ICON[e.kind] || ICON.other, checked: on,
+        iconFg: e.kind === "dc" ? "var(--tool-accent)" : "var(--tool-muted)",
+        tip: path + " · " + KIND_LABEL[e.kind] + (e.kind === "dir" ? "" : " · " + size(e.size)),
         hasSub: !!sub, sub: sub,
-        sizeLabel: e.kind === "dir" ? "—" : size(e.size),
         updatedAt: e.updatedAt, ago: ago(e.updatedAt),
         hasHealth: !!h, hLabel: h ? h.label : "", hBg: h ? h.bg : "", hBd: h ? h.bd : "", hFg: h ? h.fg : "",
         meta: meta,
+        fw: e.kind === "dir" ? "560" : "400",
+        cbBg: on ? "var(--tool-accent)" : "var(--tool-panel)",
+        cbBd: on ? "var(--tool-accent)" : "var(--tool-border-strong)",
+        cbOp: on || any ? "1" : "0.55",
+        bg: on ? "var(--tool-accent-soft)" : "transparent",
+        toggle: (ev) => { ev.stopPropagation(); toggleSel(path); }
+      };
+    };
+
+    const rows = [];
+    const walk = (list, parent, level) => {
+      sortE(list).forEach((e) => {
+        const path = parent ? parent + "/" + e.name : e.name;
+        if (only && !hasDraft(e, s.loaded, path)) return;
+        const isDir = e.kind === "dir";
+        const open = isDir && exp.indexOf(path) >= 0;
+        const kids = isDir ? (e.children || s.loaded[path]) : null;
+        rows.push(Object.assign(shape(e, path), {
+          isNode: true, isNote: false, level: String(level + 1),
+          pad: (level * INDENT) + "px", ariaExp: isDir ? String(open) : undefined,
+          chevOp: isDir ? "1" : "0", rot: open ? "90deg" : "0deg",
+          act: () => { if (isDir) this.toggleDir(path, e); },
+          dbl: () => { if (isDir) enter((rootPath ? rootPath + "/" : "") + path); }
+        }));
+        if (open) {
+          const pad = ((level + 1) * INDENT) + "px";
+          if (kids && kids.length) walk(kids, path, level + 1);
+          else if (kids) rows.push({ isNode: false, isNote: true, spin: false, text: "空目录", pad: pad });
+          else rows.push({ isNode: false, isNote: true, spin: true, text: "读取中…", pad: pad });
+        }
+      });
+    };
+    walk(entries, "", 0);
+
+    const cards = sortE(entries).filter((e) => !only || hasDraft(e, s.loaded, e.name)).map((e) => {
+      const path = e.name;
+      const h = e.health ? HEALTH[e.health] : null;
+      return Object.assign(shape(e, path), {
+        cardBd: selection.indexOf(path) >= 0 ? "var(--tool-accent)" : "var(--tool-border)",
         gridMeta: e.kind === "dir" ? e.count + " 项" : size(e.size),
         hasThumb: !!e.thumb,
         thumbBg: e.kind === "image" ? "repeating-conic-gradient(var(--tool-panel-2) 0 25%, var(--tool-panel) 0 50%) 0 0 / 14px 14px" : "repeating-linear-gradient(135deg, var(--tool-panel-2) 0 9px, var(--tool-panel-3) 9px 18px)",
         thumbLabel: e.kind === "image" ? e.name + " · " + e.dims : e.name.replace(".dc.html", "") + " @1440×900",
         hasExcerpt: !e.thumb && e.kind === "md", excerpt: e.excerpt || "",
         hasGlyph: !e.thumb && e.kind !== "md",
-        extLabel: e.kind === "dir" ? e.count + " 项" : ext(e.name),
-        checked: on,
-        cbBg: on ? "var(--tool-accent)" : "var(--tool-panel)",
-        cbBgGrid: on ? "var(--tool-accent)" : "var(--tool-panel)",
-        cbBd: on ? "var(--tool-accent)" : "var(--tool-border-strong)",
-        cbOp: on || selection.length ? "1" : "0.55",
-        bg: on ? "var(--tool-accent-soft)" : "var(--tool-panel)",
-        cardBd: on ? "var(--tool-accent)" : "var(--tool-border)",
-        toggle: (ev) => { ev.stopPropagation(); toggle(e.name); },
-        open: () => {}
-      };
+        extLabel: e.kind === "dir" ? e.count + " 项" : extOf(e.name),
+        hBg: h ? h.bg : "", hBd: h ? h.bd : "",
+        act: () => {},
+        dbl: () => { if (e.kind === "dir") enter((rootPath ? rootPath + "/" : "") + path); }
+      });
     });
 
     const btn = (on) => ({ bg: on ? "var(--tool-panel)" : "transparent", fg: on ? "var(--tool-text)" : "var(--tool-muted)", sh: on ? "var(--tool-shadow-1)" : "none", fw: on ? "560" : "400" });
+    const crumbParts = [baseDir.split("/").pop()].concat(rootPath ? rootPath.split("/") : []);
+    const nodeRows = rows.filter((r) => r.isNode);
+    const allOn = nodeRows.length > 0 && nodeRows.every((r) => r.checked);
+    const count = view === "grid" ? cards.length : entries.length;
+
     return {
       theme: this.props.theme === "dark" ? "dark" : null,
       showDemoBar: true,
@@ -332,25 +428,41 @@ class Component extends DCLogic {
         return { n: m.n, name: m.name, short: m.short, active: on, fw: on ? "600" : "400",
           bg: on ? "var(--tool-accent)" : "var(--tool-panel)", bd: on ? "var(--tool-accent)" : "var(--tool-border-strong)",
           fg: on ? "var(--tool-on-accent)" : "var(--tool-text-2)",
-          pick: () => this.setState({ demo: m.n, view: null, only: null, sel: null }) };
+          pick: () => this.setState({ demo: m.n, view: null, only: null, sel: null, exp: null, loading: null, loaded: {}, root: null }) };
       }),
-      dirName: dir,
-      countLabel: rows.length + " 项",
+      dirName: baseDir + "/" + (rootPath ? rootPath + "/" : ""),
+      crumbs: crumbParts.map((c, i) => {
+        const last = i === crumbParts.length - 1;
+        return { name: c, sep: i > 0, fg: last ? "var(--tool-text)" : "var(--tool-text-2)", fw: last ? "600" : "400",
+          go: () => this.setState({ root: i === 0 ? null : crumbParts.slice(1, i + 1).join("/"), exp: [], sel: [] }) };
+      }),
+      countLabel: count + " 项",
       trashCount: "2",
       filters: [{ k: false, label: "全部" }, { k: true, label: "只看稿件" }].map((f) =>
         Object.assign({ label: f.label, active: f.k === only, pick: () => this.setState({ only: f.k }) }, btn(f.k === only))),
       views: [
-        { k: "list", title: "列表", icon: "M2.5 4h11M2.5 8h11M2.5 12h11" },
+        { k: "list", title: "树", icon: "M2.5 3.5h4M4.5 3.5v8.5h3M4.5 7.8h3M10 7.8h3.5M10 12h3.5" },
         { k: "grid", title: "网格", icon: "M2.5 2.5h4.5v4.5H2.5zM9 2.5h4.5v4.5H9zM2.5 9h4.5v4.5H2.5zM9 9h4.5v4.5H9z" }
       ].map((v) => Object.assign({ title: v.title, icon: v.icon, active: v.k === view, pick: () => this.setState({ view: v.k }) }, btn(v.k === view))),
       showAuto: isAuto && auto.view === "grid",
       autoLabel: "图片 " + auto.img + " / " + auto.total + " · 自动网格",
       onlyDrafts: only,
-      isEmpty: rows.length === 0,
-      isList: rows.length > 0 && view === "list",
-      isGrid: rows.length > 0 && view === "grid",
+      isEmpty: entries.length === 0,
+      isList: entries.length > 0 && view === "list",
+      isGrid: entries.length > 0 && view === "grid",
       rows: rows,
-      hasSelection: selection.length > 0,
+      cards: cards,
+      allChecked: allOn,
+      allBg: allOn ? "var(--tool-accent)" : "var(--tool-panel)",
+      allBd: allOn ? "var(--tool-accent)" : "var(--tool-border-strong)",
+      allOp: allOn || any ? "1" : "0.55",
+      toggleAll: () => {
+        const paths = [];
+        const collect = (list, parent) => sortE(list).forEach((e) => { const p = parent ? parent + "/" + e.name : e.name; if (only && !hasDraft(e, s.loaded, p)) return; paths.push(p); if (e.kind === "dir" && exp.indexOf(p) >= 0) collect(e.children || s.loaded[p] || [], p); });
+        collect(entries, "");
+        this.setState({ sel: allOn ? [] : paths });
+      },
+      hasSelection: any,
       selCount: String(selection.length),
       selNames: selection.join("、"),
       clearSel: () => this.setState({ sel: [] })
