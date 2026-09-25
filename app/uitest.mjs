@@ -111,7 +111,7 @@ if (await title.count()) {
    恰恰是页签条上少了三颗钮，而那种「少了」截图上根本看不出来。 */
 console.log("\n按钮分层：顶栏 / 页签条 / 目录列头（M8-15 · 设计侧第七轮）");
 const header = pg.locator("header").first();
-const tabbar = pg.locator('div.h-\\[34px\\]').first();
+const tabbar = pg.locator('[data-ud="tabbar"]');
 ok(await header.locator('[aria-label="窗口布局"] button').count() === 4, "顶栏布局组四颗钮（目录列 + 会话三档）", `${await header.locator('[aria-label="窗口布局"] button').count()} 颗`);
 ok(await header.locator('[data-ud="tree-toggle"]').count() === 1, "目录列开关在顶栏布局组里（原来在页签条最左）");
 const tabbarText = await tabbar.innerText().catch(() => "");
@@ -135,7 +135,6 @@ await pg.keyboard.press("Escape"); await pg.waitForTimeout(300);
    要守住的不是某个像素，而是**三个环节各自还通**：视图（View）、面板（Panels）、状态行（Status）。
    哪一环断了，症状都是「这种文件打开后少了点东西」，而截图上很难一眼看出少了什么。 */
 console.log("\n格式注册表：每种文件的视图 / 面板 / 状态行（M8-14）");
-const footText = () => pg.locator("footer").innerText();
 const openByName = async (suffix) => {
   const row = pg.locator('[role="treeitem"]').filter({ hasText: suffix }).first();
   if (!(await row.count())) return false;
@@ -143,32 +142,70 @@ const openByName = async (suffix) => {
   return true;
 };
 
-/* 设计稿：属性面板（dc 模块的 Panels）。它是唯一有五个面板的格式 */
+/* ⚠️ 底部状态行在 M8-16 整条去掉了（用户实测第 9 / 13 条），所以这一节不再拿它当判据。
+   `Status` 改到文件工具栏右端，而只有声明了 `Toolbar` 的格式才有那条横带 ——
+   现在只有 JSON，所以 Status 这一环只在 JSON 那几条里测。
+   设计稿和 Markdown 这里改测 View 与 Panels 两环。 */
+
+/* 设计稿：画布（View）+ 属性面板（Panels）。它是唯一有五个面板的格式 */
 if (await openByName(".dc.html")) {
-  ok(/设计稿|组件稿/.test(await footText()), "设计稿：状态行写类型和读数", (await footText()).split("\n").slice(0, 5).join(" · "));
-  ok(await pg.locator('text=属性').count() > 0, "设计稿：右侧属性面板在");
+  ok(await pg.locator("iframe").count() > 0, "设计稿：画布渲染出来了（View 环节）");
+  ok(await pg.locator('text=属性').count() > 0, "设计稿：右侧属性面板在（Panels 环节）");
 } else ok(false, "项目里没有 .dc.html，测不了设计稿");
 
 /* Markdown：大纲。**这一条最该测** —— 大纲原来是 Workbench 的一个 state，
    现在住在 md 模块自己的 Provider 里（View 产出、Panels 消费）。
    接错了的症状是「右边那一列空着」，静态检查抓不到。 */
 if (await openByName(".md")) {
-  ok(/Markdown/.test(await footText()), "Markdown：状态行写类型");
   ok(await pg.locator('text=大纲').count() > 0, "Markdown：大纲面板在（它跨了 View 与 Panels 两处）");
 } else ok(false, "项目里没有 .md，测不了 Markdown");
 
 /* JSON：M8-14 新加的一种。**它存在就是「加一种格式只需新增一个文件」的证据** */
 if (await openByName(".json")) {
-  const t = await pg.locator("footer").innerText();
-  ok(/JSON/.test(t), "JSON：状态行写 JSON（新格式的 Status 接上了）");
+  /* Status 现在在工具栏右端，不在底部 */
+  const bar = await pg.locator('[data-ud="file-toolbar"]').innerText().catch(() => "");
+  ok(/JSON/.test(bar), "JSON：类型读数在工具栏右端（Status 环节）", bar.replace(/\n/g, " / ").slice(0, 60));
   /* 这两档现在在**统一的文件工具栏**上（M8-15 把它从视图内部搬了出来），
      所以判据要落在那条带上 —— 落在 body 上的话，搬没搬都一样过，测不出东西。 */
-  const tb = pg.locator('div[role="group"][aria-label="视图"]').first();
+  const tb = pg.locator('[data-ud="file-toolbar"] [role="group"][aria-label="视图"]').first();
   ok(await tb.count() > 0, "JSON：视图段组在统一的文件工具栏上");
   const tbText = await tb.innerText().catch(() => "");
   ok(/结构/.test(tbText) && /源码/.test(tbText), "JSON：结构 / 源码两档都在", tbText.replace(/\n/g, " / "));
-  ok(await pg.locator('button[title="更多"]').count() > 0, "JSON：文件 ⋯ 在工具栏右端");
+  ok(await pg.locator('[data-ud="file-toolbar"] button[title="更多"]').count() > 0, "JSON：文件 ⋯ 在工具栏右端");
 } else console.log("  – 项目里没有 .json，跳过新格式那一条（不算通过）");
+
+/* ── 引擎是会话的属性（M8-16，用户实测第 7 条）──
+   撞到的场景：会话在火山方舟上 → 选成 Claude → 新建一条 → 再切回来，**又变回火山方舟**。
+   根因是选引擎只改了前端 state 和 localStorage，没写进会话文件，而 `chat_get` 读的是文件。
+   **判据用刷新页面代替「切走再切回」** —— 刷新之后前端从零开始，
+   引擎只能是从会话文件里读回来的，这比在界面里绕一圈更直接、也不需要第二条会话。 */
+console.log("\n引擎跟着会话走（M8-16 · 用户实测第 7 条）");
+const engineBtn = () => pg.locator('aside button[data-ud="engine"]').first();
+const engName = async () => (await engineBtn().innerText()).replace(/[\n▾]/g, " ").trim();
+const before = await engName();
+await engineBtn().click(); await pg.waitForTimeout(400);
+let switched = null;
+for (const c of ["b", "a", "c"]) {
+  const o = pg.locator(`aside [data-ud="engine-opt-${c}"]`);
+  if (await o.count() && (await o.getAttribute("aria-pressed")) !== "true") { switched = (await o.innerText()).split("\n")[0].trim(); await o.click(); break; }
+}
+if (!switched) { console.log("  – 只配了一个引擎，这条测不了（不算通过）"); }
+else {
+  await pg.waitForTimeout(900);
+  ok((await engName()).includes(switched.split(" ")[0]), "换引擎后钮上跟着变", `${before} → ${await engName()}`);
+  await pg.reload({ waitUntil: "domcontentloaded" });
+  await pg.waitForFunction(() => document.querySelectorAll('[role="treeitem"]').length > 0, null, { timeout: 30000 });
+  await pg.waitForTimeout(1800);
+  const after = await engName();
+  ok(after.includes(switched.split(" ")[0]), "刷新后还是它（说明写进会话文件了，不只是 localStorage）", `刷新后 ${after}`);
+  /* 还原成原来的引擎 —— 这是用户的项目数据，回归不该留下痕迹 */
+  await pg.locator('aside button[data-ud="engine"]').first().click(); await pg.waitForTimeout(400);
+  for (const c of ["a", "b", "c"]) {
+    const o = pg.locator(`aside [data-ud="engine-opt-${c}"]`);
+    if (await o.count() && (await o.innerText()).split("\n")[0].trim() === before) { await o.click(); break; }
+  }
+  await pg.waitForTimeout(700);
+}
 
 console.log("\n控制台");
 ok(errs.length === 0, "零 error（已排除解析期的模板洞噪声）", errs[0] ?? "");

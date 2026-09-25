@@ -167,6 +167,24 @@ export async function addMessage(projectDir: string, sessionId: string, entry: O
 }
 
 /** 给会话起个名字（M8-12）。空串 = 清掉用户起的名字，回到自动标题。 */
+/** 换这条会话用哪个引擎（M8-16）。
+ *
+ *  为什么要写进会话：**引擎是会话的属性，不是全局偏好**。
+ *  以前只改前端的 state 和 localStorage，会话文件里还是旧的 ——
+ *  用户实测撞到的：会话在火山方舟上 → 选成 Claude → 新建一条 → 再切回来，
+ *  **又变回火山方舟**（`chat_get` 读的是会话文件）。
+ *
+ *  和 `renameChat` 同一条口径：**不动 `updatedAt`** ——
+ *  那一栏是「最后说话的时间」，换个引擎不该把会话顶到列表最前面。 */
+export async function setChatChannel(projectDir: string, sessionId: string, channel: "a" | "b" | "c", tool?: string): Promise<ChatSession> {
+  const s = await loadChat(projectDir, sessionId);
+  if (!s) throw new Error(`没有这个会话：${sessionId}`);
+  s.channel = channel;
+  if (channel === "b") { if (tool) s.tool = tool; } else delete s.tool;   // 换出 b 就没有「哪个 CLI」这回事了
+  await saveChat(projectDir, s);
+  return s;
+}
+
 export async function renameChat(projectDir: string, sessionId: string, title: string): Promise<ChatSession> {
   const s = await loadChat(projectDir, sessionId);
   if (!s) throw new Error(`没有这个会话：${sessionId}`);

@@ -92,7 +92,16 @@ export function useChat(core: Core, dir: string, ctx: { selectedDraft: string | 
   }, [core, reloadSessions, openSession, sessionId]);
 
   const newSession = useCallback(() => { setSessionId(null); setMessages([]); setNotes([]); setUsage(null); }, []);
-  const pickChannel = useCallback((c: "a" | "b" | "c") => { setChannel(c); pickChannelShared(c); }, []);
+  /** 换引擎。**三处都要写到**：
+   *  界面 state（马上看得见）· `us.chatChannel`（下一条新会话跟着它开）·
+   *  **当前会话文件**（M8-16 修的那条）。
+   *  只写前两处的话：会话在火山方舟上 → 选成 Claude → 新建一条 → 再切回来，
+   *  `chat_get` 从文件里读，又变回火山方舟 —— 用户实测撞到的。 */
+  const pickChannel = useCallback((c: "a" | "b" | "c") => {
+    setChannel(c);
+    pickChannelShared(c);
+    if (sessionId) void core.post("chat_channel", { session: sessionId, channel: c, tool: caps[c]?.cli });
+  }, [core, sessionId, caps]);
   /* 设置面板里也能切通道（在那儿选 CLI 的人多半就是想用它）。
      它发这个事件，这里跟上 —— 不然会出现「设置里选了 Codex，会话栏还停在通道 C」。 */
   useEffect(() => {

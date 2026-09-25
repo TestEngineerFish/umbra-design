@@ -142,7 +142,7 @@ export function FileTree({ core, current, expanded, onExpandedChange, onOpenFile
       {/* 列头：项目名（点回根）+ 两颗导航钮。钮常驻不 hover 才出 —— 键盘和触控都要够得着 */}
       {/* 高度和分隔线都跟页签条对齐（34px + border-b）——
           目录列通栏之后它和页签条并排，差 2px 或少一条线，那条横线就是断的 */}
-      <div className="h-[34px] pl-2.5 pr-1 flex items-center gap-1 shrink-0 text-xs relative border-b border-border">
+      <div data-ud="tree-head" className="h-[34px] pl-2.5 pr-1 flex items-center gap-1 shrink-0 text-xs relative border-b border-border">
         <button className="min-w-0 flex-1 flex items-center gap-1.5 h-6 px-1 rounded font-semibold hover:bg-hover text-left"
           onClick={() => onOpenDir("")} title="回到项目根">
           <span className="text-muted shrink-0">{kindDef("dir").icon}</span><span className="truncate">{projectName}</span>

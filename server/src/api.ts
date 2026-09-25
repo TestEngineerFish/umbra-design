@@ -401,6 +401,16 @@ export async function handleApi(
       json(reply, 200, { ok: true, data: { id: s2.id, title: s2.title ?? "", titled: !!s2.title } });
       return true;
     }
+    if (route === "chat_channel" && req.method === "POST") {
+      const b = await readBody(req) as { session?: string; channel?: string; tool?: string };
+      const { setChatChannel } = await import("./chat.js");
+      const sid = str(b.session, "session");
+      const ch = b.channel === "a" || b.channel === "b" || b.channel === "c" ? b.channel : null;
+      if (!ch) { json(reply, 400, { ok: false, errors: [{ code: "E_ARG", message: "channel 只能是 a / b / c" }] }); return true; }
+      const s2 = await setChatChannel(p.dir, sid, ch, typeof b.tool === "string" ? b.tool : undefined);
+      json(reply, 200, { ok: true, data: { id: s2.id, channel: s2.channel, tool: s2.tool ?? null } });
+      return true;
+    }
     if (route === "chat_delete" && req.method === "POST") {
       const b = await readBody(req) as { session?: string };
       const { deleteChat } = await import("./chat.js");

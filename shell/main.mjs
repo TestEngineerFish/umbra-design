@@ -90,7 +90,11 @@ function wireIpc() {
   ipcMain.handle("host:revealInFinder", (_e, p) => { shell.showItemInFolder(p); });
   ipcMain.handle("host:openExternal", (_e, url) => shell.openExternal(String(url)));
   ipcMain.handle("host:notify", (_e, n) => { if (Notification.isSupported()) new Notification({ title: n?.title ?? "Umbra Studio", body: n?.body ?? "" }).show(); });
-  ipcMain.handle("host:setTitle", (_e, t) => { if (mainWin) mainWin.setTitle(t ? `${t} · Umbra Studio` : "Umbra Studio"); });
+  /* 窗口标题**只写项目名**（M8-16，用户实测第 1 条）。
+     拼上应用名是 VS Code 那类的惯例，但这里已经有两处在报应用名了：
+     macOS 的菜单栏、Dock 的悬停提示。标题栏再写一次，用户看到的就是
+     「项目名 + Umbra Studio」黏成一长串，反而认不出哪个是项目。 */
+  ipcMain.handle("host:setTitle", (_e, t) => { if (mainWin) mainWin.setTitle(t || "Umbra Studio"); });
 }
 
 async function createMainWindow() {

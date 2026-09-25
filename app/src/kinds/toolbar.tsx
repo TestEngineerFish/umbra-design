@@ -127,5 +127,5 @@ export function FileMore({ ctx, items }: { ctx: ViewContext; items: MenuItem[] }
 
 /** 工具栏那条 34px 横带的容器。模块的 `Toolbar` 填内容，工作台在尾巴上挂 `⋯`。 */
 export function ToolbarBar({ children }: { children: React.ReactNode }) {
-  return <div className="h-[34px] px-1.5 flex items-center gap-2 border-b border-border bg-panel shrink-0 text-xs relative z-20">{children}</div>;
+  return <div data-ud="file-toolbar" className="h-[34px] px-1.5 flex items-center gap-2 border-b border-border bg-panel shrink-0 text-xs relative z-20">{children}</div>;
 }

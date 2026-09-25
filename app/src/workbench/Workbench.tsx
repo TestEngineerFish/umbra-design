@@ -15,8 +15,8 @@ import { FileTree } from "./FileTree";
 /* 详情区怎么画、右边配什么面板、状态行写什么，**全在 kinds 注册表里**。
    这个文件从此不认识任何一种具体格式 —— 加 `.json` 时它一个字都没动（M8-14）。 */
 import { moduleFor, type ViewContext } from "../kinds";
-import { FileMore, ToolbarBar } from "../kinds/toolbar";
 import { kindDef } from "@shared/kinds";
+import { FileMore, ToolbarBar } from "../kinds/toolbar";
 
 /** 工作台（S11 形制）：顶栏 40 · 页签 34 · 左会话 / 中画布 / 右从属面板列 · 底部状态行 24 */
 export function Workbench({ project, host, layout, setLayout, onHome, onSettings }: { project: ProjectHandle; host: HostAdapter; layout: LayoutState; setLayout: (l: LayoutState) => void; onHome: () => void; onSettings: () => void }) {
@@ -164,14 +164,14 @@ export function Workbench({ project, host, layout, setLayout, onHome, onSettings
           判据是「点了它，变的是什么」：变的是整个项目或整扇窗的才配站在这儿。
           项目路径从顶栏拿掉了 —— 它占 280px，却只是信息，没人点它，现在进项目菜单。 */}
       <header className="h-[38px] px-2.5 flex items-center gap-1 border-b border-border bg-panel shrink-0 text-xs relative z-30">
-        <button className="flex items-center gap-2 h-[26px] px-2 rounded hover:bg-hover shrink-0" onClick={onHome} title="回到项目列表">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="text-accent shrink-0" aria-hidden="true">
+        {/* **只剩图标**（M8-16，用户实测第 2 条）：应用名在窗口标题上已经有了，
+            顶栏再写一遍「Umbra Studio」是重复，而且它右边紧跟着项目名，读起来像一个长名字。 */}
+        <button className="w-7 h-[26px] grid place-items-center rounded hover:bg-hover shrink-0 text-accent" onClick={onHome} title="回到项目列表" aria-label="回到项目列表">
+          <svg width="17" height="17" viewBox="0 0 16 16" fill="none" aria-hidden="true">
             <rect x="1.5" y="1.5" width="13" height="13" rx="3.2" stroke="currentColor" strokeWidth="1.4" />
             <path d="M5 8.2h6M5 5.4h6M5 11h3.2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
           </svg>
-          <span className="font-bold tracking-tight">Umbra Studio</span>
         </button>
-        <span className="text-border shrink-0">/</span>
         <div className="relative min-w-0 flex">
           <button className={`min-w-0 max-w-[420px] flex items-center gap-1.5 h-[26px] pl-2 pr-1.5 rounded hover:bg-hover ${menu ? "bg-hover" : ""}`}
             onClick={() => setMenu((m) => !m)} aria-expanded={menu} aria-haspopup="menu" title={project.dir}>
@@ -181,9 +181,10 @@ export function Workbench({ project, host, layout, setLayout, onHome, onSettings
           {menu && <>
             <div className="fixed inset-0 z-40" onClick={() => setMenu(false)} />
             <div role="menu" className="absolute top-[31px] left-0 z-[41] w-72 p-1 bg-panel border border-borderStrong rounded-lg shadow-2xl text-left">
-              {/* 路径在这儿，而且完整 —— 顶栏那份是截断的，真要复制路径反而不够用 */}
-              <div className="px-2 pt-1.5 pb-2 mb-1 border-b border-border grid gap-0.5">
-                <span className="font-semibold">{project.title || project.name}</span>
+              {/* 只放路径。**项目名不再写第二遍**（M8-16，用户实测第 3 条：
+                  「左上角项目名称后，又出现了一个项目名称，这种 double name」）——
+                  按钮上就是项目名，菜单是它的展开，展开里再报一次名字没有信息量。 */}
+              <div className="px-2 pt-1.5 pb-2 mb-1 border-b border-border">
                 <span className="font-mono text-[11px] text-muted break-all leading-relaxed">{project.dir}</span>
               </div>
               {[
@@ -263,7 +264,7 @@ export function Workbench({ project, host, layout, setLayout, onHome, onSettings
               原来这条带上挤了三样不属于它的东西：目录列开关（→ 顶栏布局组）、
               「▤ 目录」（→ 目录列头的「铺到详情区」）、「N 份稿 ▾」（→ 目录列头的「转到文件」）。
               两个都叫「目录」的钮其实一个变布局、一个变导航，分开之后才说得清。 */}
-          <div className="h-[34px] flex items-stretch border-b border-border bg-panel shrink-0 text-xs">
+          <div data-ud="tabbar" className="h-[34px] flex items-stretch border-b border-border bg-panel shrink-0 text-xs">
             <div className="flex-1 min-w-0 flex overflow-x-auto">
               {tabs.map((t) => { const d = store.drafts.find((x) => x.file === t); const cur = t === file; return <div key={t} className={`group flex items-center gap-1.5 pl-3 pr-2 border-r border-border cursor-pointer whitespace-nowrap ${cur ? "bg-bg border-t-2 border-t-accent -mb-px" : "text-muted hover:text-text"}`} onClick={() => open(t)} title={t}><span className={`hdot ${d?.health ?? "unchecked"}`} /><span className={cur ? "font-semibold" : ""}>{draftTitle(t)}</span><button className="ib opacity-0 group-hover:opacity-100 text-[10px]" onClick={(e) => { e.stopPropagation(); closeTab(t); }} title="关闭">×</button></div>; })}
               {tabs.length === 0 && <span className="px-3 self-center text-muted text-[11px]">还没打开文件 —— 从左边的目录里选一个</span>}
@@ -275,6 +276,18 @@ export function Workbench({ project, host, layout, setLayout, onHome, onSettings
           {(dirMode || file) && mod.Toolbar && (
             <ToolbarBar>
               <mod.Toolbar ctx={ctx} />
+              {/* 这份文件的读数**挪到了工具栏右端**（M8-16）。
+                  它原来在底部状态行，而那条整条去掉了 —— 用户说文件名在页签上已经有、
+                  元素数和体检状态他不想在底部看到。放在这儿不算重复：
+                  文件工具栏本来就是「这份文件」那一层。最终要留哪些读数由第八轮定。
+                  ⚠️ 只有声明了 `Toolbar` 的格式才有这条横带，所以现在只有 JSON 能看到；
+                  其余四种等 M8-15b 工具栏上移时一起归位。 */}
+              {/* 不声明 `Status` 就用类型名兜底 —— 这条兜底原来在状态行里，
+                  搬位置时我漏了它，工具栏右端就空着（M8-16 实测）。
+                  正是 `registry.ts` 那条注释警告过的「一条省略等于空白的接口，早晚有人省略」。 */}
+              <span className="flex items-center gap-1.5 text-[11px] text-muted font-mono shrink-0">
+                {mod.Status ? <mod.Status ctx={ctx} /> : kindDef(kind).label}
+              </span>
               <FileMore ctx={ctx} items={mod.menu?.(ctx) ?? []} />
             </ToolbarBar>
           )}
@@ -305,14 +318,11 @@ export function Workbench({ project, host, layout, setLayout, onHome, onSettings
         </div>
         {layout.chatSide === "right" && rail}
       </div>
-      <footer className="h-6 px-3 flex items-center gap-3 border-t border-border bg-panel shrink-0 text-[11px] text-muted font-mono">
-        {/* 中间这几段由格式模块给（`Status`）—— 以前这里有一条「dc 写版本和元素数、
-            目录写已选几项、其余查一张 KIND_LABEL 表」的分叉，第四种格式一来就撑不住了 */}
-        {dirMode || file ? <><span className="truncate">{dirMode ? (dirRel || "项目根") : file}</span><span>·</span>{mod.Status ? <mod.Status ctx={ctx} /> : <span>{kindDef(kind).label}</span>}</>
-          : <span>没有打开的文件</span>}
-        <span className="flex-1" />
-        <span>会话在{layout.chatMode === "bar" ? "输入条" : layout.chatSide === "left" ? "左" : "右"} · {layout.chatWidth} px</span>
-      </footer>
+      {/* 底部状态行**整条去掉**（M8-16，用户实测第 9 / 13 条）。
+          它上面那几样，每一样在别处都已经有了：文件名在页签上、类型和读数在文件工具栏、
+          「会话在左 · 380 px」根本是调试信息。用户的话：这种调试信息该放进一个调试模块。
+          ⚠️ **调试模块还没有** —— 形制在第八轮交给设计侧（`doc/14` §八第 8 条）。
+          在那之前这些读数暂时看不到，这是有意的：宁可少显示，也不留一条谁都不看的横带。 */}
       </Wrap>
       {present && file && <Present url={project.url} file={file} onStop={() => setPresent(false)} />}
       {sheet === "newDraft" && <NewDraftSheet core={core} current={file} onClose={() => setSheet(null)} onCreated={async (f) => { await store.fetchDrafts(); open(f); }} />}

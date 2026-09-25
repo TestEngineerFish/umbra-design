@@ -22,9 +22,13 @@ export function ChatRail({ chat, selections, onDropSelection, onClearSelections,
      不再写「通道 A/B/C」—— 那个词对用户没有任何意义（他脱口而出的是「模式」）。
      引擎名由服务端给，前端不抄第二份映射表。 */
   const who = engineLabel(chat.caps, chat.channel, chat.model);
+  /* 底部这行**只报这一轮花了多少**，不再重复引擎名和模型（M8-16）。
+     用户实测点出来的：同一个模型名在会话栏里出现了三次（标题下、引擎钮上、底部），
+     「一个所用模型名称，在聊天模块中显示一次就够了」。
+     会话条数也去掉 —— 那是历史列表里的事，不是当前这轮的读数。 */
   const usage = chat.usage
-    ? (chat.usage.totalCostUSD != null ? `${who} · $${Number(chat.usage.totalCostUSD).toFixed(3)}` : `${who} · ${(chat.usage.totalTokens ?? 0).toLocaleString()} tokens`)
-    : who;
+    ? (chat.usage.totalCostUSD != null ? `$${Number(chat.usage.totalCostUSD).toFixed(3)}` : `${(chat.usage.totalTokens ?? 0).toLocaleString()} tokens`)
+    : "";
   return (
     <aside className="relative flex flex-col bg-panel border-border shrink-0 min-h-0" style={{ width }}>
       <Grip onResize={onResize} width={width} side={side} />
@@ -58,7 +62,7 @@ export function ChatRail({ chat, selections, onDropSelection, onClearSelections,
                 const k = chat.caps?.[c];
                 if (!k) return null;
                 return (
-                  <button key={c} className={`w-full text-left px-3 py-2 hover:bg-hover flex flex-col gap-0.5 ${chat.channel === c ? "bg-accentSoft" : ""}`}
+                  <button key={c} data-ud={`engine-opt-${c}`} aria-pressed={chat.channel === c} className={`w-full text-left px-3 py-2 hover:bg-hover flex flex-col gap-0.5 ${chat.channel === c ? "bg-accentSoft" : ""}`}
                     onClick={() => { chat.pickChannel(c); setEngineMenu(false); }}>
                     <span className="flex items-center gap-1.5">
                       <span className={`font-semibold ${chat.channel === c ? "text-accent" : ""}`}>{k.engine ?? c.toUpperCase()}</span>
@@ -94,7 +98,7 @@ export function ChatRail({ chat, selections, onDropSelection, onClearSelections,
           placeholder={selections.length ? "对选中的说…（「这里字号大一点」）" : contextLabel ? (/^[\u4e00-\u9fa5]/.test(contextLabel) ? `对${contextLabel}说…` : `对 ${contextLabel} 说…`) : "输入消息… ⏎ 发送"} className="flex-1 min-h-[40px] max-h-40 px-3 py-2 rounded border border-border bg-bg text-xs outline-none focus:border-accent resize-y" />
         {chat.running ? <button className="btn danger" onClick={() => void chat.interrupt()}>中断</button> : <button className="btn primary" onClick={() => void chat.send()} disabled={!chat.input.trim()}>发送</button>}
       </div>
-      <div className="px-3 h-6 flex items-center text-[11px] text-muted border-t border-border shrink-0"><span>{usage}</span><span className="flex-1" /><span>{chat.running ? "运行中" : chat.sessions.length ? `${chat.sessions.length} 个会话` : ""}</span></div>
+      {(usage || chat.running) && <div className="px-3 h-6 flex items-center text-[11px] text-muted border-t border-border shrink-0"><span>{usage}</span><span className="flex-1" /><span>{chat.running ? "运行中" : ""}</span></div>}
     </aside>
   );
 }
