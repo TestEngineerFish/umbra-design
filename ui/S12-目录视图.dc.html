@@ -104,7 +104,7 @@
         </div>
         <sc-for list="{{ rows }}" as="r" hint-placeholder-count="8">
           <sc-if value="{{ r.isNode }}" hint-placeholder-val="{{ true }}">
-            <div role="row" tabindex="0" aria-level="{{ r.level }}" aria-expanded="{{ r.ariaExp }}" aria-selected="{{ r.checked }}" onClick="{{ r.act }}" onDoubleClick="{{ r.dbl }}" style="display: grid; grid-template-columns: 16px minmax(0, 1fr) 176px 84px; column-gap: 16px; align-items: center; height: 36px; margin: 0 6px; padding: 0 12px 0 10px; border-radius: var(--tool-radius); cursor: pointer; transition: background .13s ease; background: {{ r.bg }};" style-hover="background: var(--tool-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: -2px;">
+            <div role="row" tabindex="0" aria-level="{{ r.level }}" aria-expanded="{{ r.ariaExp }}" aria-selected="{{ r.checked }}" onClick="{{ r.act }}" onDoubleClick="{{ r.dbl }}" onContextMenu="{{ r.ctx }}" style="display: grid; grid-template-columns: 16px minmax(0, 1fr) 176px 84px; column-gap: 16px; align-items: center; height: 36px; margin: 0 6px; padding: 0 12px 0 10px; border-radius: var(--tool-radius); cursor: pointer; transition: background .13s ease; background: {{ r.bg }};" style-hover="background: var(--tool-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: -2px;">
               <button type="button" onClick="{{ r.toggle }}" role="checkbox" aria-checked="{{ r.checked }}" aria-label="选中 {{ r.name }}" style="width: 16px; height: 16px; padding: 0; display: grid; place-items: center; border-radius: 4px; border: 1px solid; cursor: pointer; transition: background .13s ease, border-color .13s ease, opacity .13s ease; background: {{ r.cbBg }}; border-color: {{ r.cbBd }}; color: var(--tool-on-accent); opacity: {{ r.cbOp }};" style-hover="opacity: 1;" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px; opacity: 1;">
                 <sc-if value="{{ r.checked }}" hint-placeholder-val="{{ false }}">
                   <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true"><path d="M2 5.2l2 2 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path></svg>
@@ -152,7 +152,7 @@
     <sc-if value="{{ isGrid }}" hint-placeholder-val="{{ false }}">
       <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px;">
         <sc-for list="{{ cards }}" as="r" hint-placeholder-count="6">
-          <div onClick="{{ r.act }}" onDoubleClick="{{ r.dbl }}" role="button" tabindex="0" aria-pressed="{{ r.checked }}" title="{{ r.tip }}" style="position: relative; background: var(--tool-panel); border: 1px solid; border-radius: var(--tool-radius-lg); overflow: hidden; cursor: pointer; box-shadow: var(--tool-shadow-1); transition: border-color .13s ease, box-shadow .13s ease; border-color: {{ r.cardBd }};" style-hover="box-shadow: var(--tool-shadow-2);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">
+          <div onClick="{{ r.act }}" onDoubleClick="{{ r.dbl }}" onContextMenu="{{ r.ctx }}" role="button" tabindex="0" aria-pressed="{{ r.checked }}" title="{{ r.tip }}" style="position: relative; background: var(--tool-panel); border: 1px solid; border-radius: var(--tool-radius-lg); overflow: hidden; cursor: pointer; box-shadow: var(--tool-shadow-1); transition: border-color .13s ease, box-shadow .13s ease; border-color: {{ r.cardBd }};" style-hover="box-shadow: var(--tool-shadow-2);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">
             <div style="aspect-ratio: 16 / 10; position: relative; background: var(--tool-panel-2); overflow: hidden;">
               <sc-if value="{{ r.hasThumb }}" hint-placeholder-val="{{ false }}">
                 <div style="position: absolute; inset: 0; display: grid; place-items: center; background: {{ r.thumbBg }};">
@@ -198,12 +198,32 @@
       <span style="min-width: 0; font-family: var(--tool-mono); font-size: 11px; color: var(--tool-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 360px;" title="{{ selNames }}">{{ selNames }}</span>
       <span style="flex: 1;"></span>
       <button type="button" onClick="{{ clearSel }}" style="height: 28px; padding: 0 10px; border: 0; background: transparent; color: var(--tool-muted); border-radius: var(--tool-radius); cursor: pointer; font-size: 12px;" style-hover="background: var(--tool-hover); color: var(--tool-text);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">取消 <kbd style="font-family: var(--tool-mono); font-size: 10px;">Esc</kbd></button>
-      <button type="button" style="height: 28px; padding: 0 12px; border: 1px solid var(--tool-err-border); background: var(--tool-panel); color: var(--tool-err); border-radius: var(--tool-radius); cursor: pointer; font-size: 12px;" style-hover="background: var(--tool-err-soft);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">删除</button>
+      <button type="button" style="height: 28px; padding: 0 12px; border: 1px solid var(--tool-err-border); background: var(--tool-panel); color: var(--tool-err); border-radius: var(--tool-radius); cursor: pointer; font-size: 12px;" style-hover="background: var(--tool-err-soft);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">移到回收站</button>
       <button type="button" style="height: 28px; padding: 0 12px; border: 1px solid var(--tool-border-strong); background: var(--tool-panel); border-radius: var(--tool-radius); cursor: pointer; font-size: 12px;" style-hover="background: var(--tool-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">移动…</button>
       <button type="button" style="display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 13px; border: 0; background: var(--tool-accent); color: var(--tool-on-accent); border-radius: var(--tool-radius); cursor: pointer; font-size: 12px; font-weight: 560;" style-hover="background: var(--tool-accent-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">
         <dc-import name="IconGlyph" d="M5.4 4.6h6.8V14H5.4zM3.4 12V2h6.4" size="13" hint-size="13px,13px"></dc-import>
         带进会话
       </button>
+    </div>
+  </sc-if>
+
+  <!-- 右键菜单（第八轮 8.4）：和 S11 目录列同一套。右键点在已勾选的行上、且勾选 ≥ 2 项 → 批量菜单，作用在全部勾选项上；
+       点在没勾选的行上 → 只对这一行，勾选不变 -->
+  <sc-if value="{{ ctxOpen }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ closeCtx }}" onContextMenu="{{ closeCtx }}" style="position: fixed; inset: 0; z-index: 40;"></div>
+    <div role="menu" style="position: fixed; top: {{ ctxY }}; left: {{ ctxX }}; z-index: 41; width: 224px; padding: 4px; background: var(--tool-panel); border: 1px solid var(--tool-border-strong); border-radius: var(--tool-radius-lg); box-shadow: var(--tool-shadow-2); text-align: left;">
+      <sc-if value="{{ ctxMulti }}" hint-placeholder-val="{{ false }}">
+        <div style="padding: 6px 8px 6px; margin-bottom: 4px; border-bottom: 1px solid var(--tool-border); font-size: 11px; color: var(--tool-muted);">已选 {{ selCount }} 项</div>
+      </sc-if>
+      <sc-for list="{{ ctxItems }}" as="mi" hint-placeholder-count="6">
+        <sc-if value="{{ mi.isSep }}" hint-placeholder-val="{{ false }}"><div style="height: 1px; margin: 4px 6px; background: var(--tool-border);"></div></sc-if>
+        <sc-if value="{{ mi.isItem }}" hint-placeholder-val="{{ true }}">
+          <button type="button" role="menuitem" onClick="{{ mi.act }}" style="width: 100%; display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 8px; border: 0; border-radius: var(--tool-radius-sm); background: transparent; cursor: pointer; text-align: left; font-size: 12px; color: {{ mi.fg }};" style-hover="background: var(--tool-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: -2px;">
+            <span style="flex: 1 1 0; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ mi.label }}</span>
+            <span style="flex: none; font-family: var(--tool-mono); font-size: 11px; color: var(--tool-muted);">{{ mi.hint }}</span>
+          </button>
+        </sc-if>
+      </sc-for>
     </div>
   </sc-if>
 </div>
@@ -260,8 +280,9 @@ const DEMOS = [
   { n: 4, short: "网格", name: "网格只管一层", note: "网格里目录是一张卡、不展开；层级交给左侧目录列", view: "grid", selection: [] },
   { n: 5, short: "空目录", name: "空目录", note: "引导：拖文件进来，或让 AI 在这里建稿", view: "list", selection: [], empty: true },
   { n: 6, short: "只看稿件", name: "只看稿件", note: "树里只留 .dc.html 和装着稿的目录；未拉取的目录保留（不知道里面有没有）", expanded: ["Pages", "Pages/组件"], selection: [], drafts: true },
+  { n: 8, short: "右键 · 多选", name: "多选后右键", note: "右键点在已勾选的行上：菜单作用于全部勾选项，只剩批量能做的事（没有重命名、没有新建）", expanded: ["Pages"], selection: ["需求.md", "Pages/首页.dc.html", "Pages/会话列表.dc.html"], ctx: { multi: true, x: 360, y: 250 } },
   { n: 7, short: "图片目录", name: "图片多的目录 · 自动网格", note: "图片 ≥ 60% 且 ≥ 6 张自动切网格，手动切过就记住（layout.viewByDir）", selection: [], images: true }
-];
+].sort((a, b) => a.n - b.n);
 const AUTO_MIN = 6, AUTO_SHARE = 0.6;
 function autoView(entries) {
   const files = entries.filter((e) => e.kind !== "dir");
@@ -294,10 +315,28 @@ function hasDraft(e, loaded, path) {
 }
 
 class Component extends DCLogic {
-  state = { demo: 1, view: null, only: null, sel: null, exp: null, loading: null, loaded: {}, root: null };
+  state = { demo: 1, view: null, only: null, sel: null, exp: null, loading: null, loaded: {}, root: null, ctx: null };
+
+  openCtx(ev, e, path) {
+    ev.preventDefault(); ev.stopPropagation();
+    const dm = DEMOS[this.state.demo - 1];
+    const sel = this.state.sel || dm.selection;
+    const multi = sel.length > 1 && sel.indexOf(path) >= 0;
+    const x = Math.min(ev.clientX, window.innerWidth - 232), y = Math.min(ev.clientY, window.innerHeight - 300);
+    this.setState({ ctx: { multi: multi, kind: e.kind === "dir" ? "dir" : "file", path: path, isDc: e.kind === "dc", x: x, y: y } });
+  }
+  ctxList(c, n) {
+    const it = (label, hint, danger) => ({ isSep: false, isItem: true, label: label, hint: hint || "", fg: danger ? "var(--tool-err)" : "var(--tool-text)", act: () => this.setState({ ctx: null }) });
+    const SEP = { isSep: true, isItem: false, label: "", hint: "", fg: "", act: null };
+    if (c.multi) return [it("带进会话"), it("移动到…"), it("复制路径"), SEP, it("移到回收站（" + n + " 项）", "⌘⌫", true)];
+    if (c.kind === "dir") return [it("新建稿件…"), it("新建目录"), SEP, it("以它为根打开"), it("带进会话"), SEP, it("重命名", "F2"), it("复制路径"), it("在访达中显示"), SEP, it("移到回收站", "⌘⌫", true)];
+    const out = [it("打开"), it("带进会话"), SEP, it("重命名", "F2")];
+    if (c.isDc) out.push(it("复制一份"));
+    return out.concat([it("复制路径"), it("在访达中显示"), SEP, it("移到回收站", "⌘⌫", true)]);
+  }
 
   componentDidMount() {
-    this.onKey = (e) => { if (e.key === "Escape") this.setState({ sel: [] }); };
+    this.onKey = (e) => { if (e.key === "Escape") this.setState(this.state.ctx ? { ctx: null } : { sel: [] }); };
     document.addEventListener("keydown", this.onKey);
   }
   componentWillUnmount() { document.removeEventListener("keydown", this.onKey); (this.timers || []).forEach(clearTimeout); }
@@ -321,6 +360,7 @@ class Component extends DCLogic {
     const dm = DEMOS[s.demo - 1];
     const only = s.only !== null ? s.only : !!dm.drafts;
     const selection = s.sel || dm.selection;
+    const ctxNow = s.ctx;
     const baseDir = dm.empty ? "Archive" : dm.images ? "uploads/截图" : "PC 端";
     const src = dm.empty ? [] : dm.images ? IMAGES : ENTRIES;
 
@@ -355,6 +395,7 @@ class Component extends DCLogic {
       const meta = e.kind === "dc" ? (e.version || "") : e.kind === "md" ? "快照 " + e.snapshot : e.kind === "image" ? e.dims + " · " + size(e.size) : e.kind === "dir" ? e.count + " 项" : size(e.size);
       return {
         name: e.name, icon: ICON[e.kind] || ICON.other, checked: on,
+        ctx: (ev) => this.openCtx(ev, e, path),
         iconFg: e.kind === "dc" ? "var(--tool-accent)" : "var(--tool-muted)",
         tip: path + " · " + KIND_LABEL[e.kind] + (e.kind === "dir" ? "" : " · " + size(e.size)),
         hasSub: !!sub, sub: sub,
@@ -428,7 +469,7 @@ class Component extends DCLogic {
         return { n: m.n, name: m.name, short: m.short, active: on, fw: on ? "600" : "400",
           bg: on ? "var(--tool-accent)" : "var(--tool-panel)", bd: on ? "var(--tool-accent)" : "var(--tool-border-strong)",
           fg: on ? "var(--tool-on-accent)" : "var(--tool-text-2)",
-          pick: () => this.setState({ demo: m.n, view: null, only: null, sel: null, exp: null, loading: null, loaded: {}, root: null }) };
+          pick: () => this.setState({ demo: m.n, view: null, only: null, sel: null, exp: null, loading: null, loaded: {}, root: null, ctx: m.ctx || null }) };
       }),
       dirName: baseDir + "/" + (rootPath ? rootPath + "/" : ""),
       crumbs: crumbParts.map((c, i) => {
@@ -465,7 +506,13 @@ class Component extends DCLogic {
       hasSelection: any,
       selCount: String(selection.length),
       selNames: selection.join("、"),
-      clearSel: () => this.setState({ sel: [] })
+      clearSel: () => this.setState({ sel: [] }),
+      ctxOpen: !!ctxNow,
+      ctxMulti: !!(ctxNow && ctxNow.multi),
+      ctxX: ctxNow ? ctxNow.x + "px" : "0px",
+      ctxY: ctxNow ? ctxNow.y + "px" : "0px",
+      ctxItems: ctxNow ? this.ctxList(ctxNow, selection.length) : [],
+      closeCtx: (ev) => { if (ev) ev.preventDefault(); this.setState({ ctx: null }); }
     };
   }
 }

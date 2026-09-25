@@ -24,49 +24,46 @@
 
   <!-- 演示态条：不属于工作台本身，只在 ui/ 下直接打开时出现 -->
   <sc-if value="{{ showDemoBar }}" hint-placeholder-val="{{ true }}">
-  <div style="flex: none; display: flex; align-items: center; gap: 8px; padding: 8px 16px; flex-wrap: wrap; font-size: 12px; background: var(--tool-panel-2); border-bottom: 1px solid var(--tool-border);">
+  <div style="flex: none; display: flex; align-items: center; gap: 6px; padding: 8px 16px; flex-wrap: wrap; font-size: 12px; background: var(--tool-panel-2); border-bottom: 1px solid var(--tool-border);">
     <span style="font-size: 11px; color: var(--tool-muted); flex: none;">演示态</span>
-    <sc-for list="{{ demoStates }}" as="st" hint-placeholder-count="9">
+    <sc-for list="{{ demoStates }}" as="st" hint-placeholder-count="12">
       <button type="button" onClick="{{ st.pick }}" title="{{ st.name }}" aria-pressed="{{ st.active }}" style="display: inline-flex; align-items: center; gap: 5px; height: 23px; padding: 0 9px 0 6px; border-radius: var(--tool-radius-sm); border: 1px solid; cursor: pointer; font-size: 11px; white-space: nowrap; transition: background .13s ease, border-color .13s ease, color .13s ease; background: {{ st.bg }}; border-color: {{ st.bd }}; color: {{ st.fg }};" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">
         <span style="font-family: var(--tool-mono); opacity: 0.6;">{{ st.n }}</span>
         <span style="font-weight: {{ st.fw }};">{{ st.short }}</span>
       </button>
     </sc-for>
-    <span style="color: var(--tool-border-strong); flex: none;">·</span>
+    <span style="flex-basis: 100%; height: 0;"></span>
     <span style="color: var(--tool-muted); min-width: 0;">{{ demoNote }}</span>
   </div>
   </sc-if>
 
-  <div style="flex: 1 1 0; min-height: 0; display: flex; justify-content: center; background: var(--tool-canvas);">
-  <!-- 评审用：按 layout.width 模拟窗口宽（默认 1440），预览窗更窄时整体缩放显示，让位规则仍按模拟宽算 -->
-  <div style="flex: none; width: {{ shellMax }}; height: {{ shellH }}; zoom: {{ zoom }}; display: flex; flex-direction: column; background: var(--tool-bg); box-shadow: {{ shellShadow }};">
+  <div style="flex: 1 1 0; min-height: 0; display: flex; justify-content: center; background: var(--tool-canvas); overflow: hidden;">
+  <div style="flex: none; width: {{ shellMax }}; height: 100%; zoom: {{ zoom }}; display: flex; flex-direction: column; background: var(--tool-bg); box-shadow: {{ shellShadow }}; position: relative;">
 
-    <!-- ═══ 顶栏 38px · 只放「应用 / 项目」和「窗口布局」两类 ═══ -->
-    <div style="flex: none; height: 38px; display: flex; align-items: center; gap: 4px; padding: 0 10px; background: var(--tool-panel); border-bottom: 1px solid var(--tool-border); position: relative; z-index: 30;">
-      <button type="button" title="回到项目列表" style="flex: none; display: flex; align-items: center; gap: 8px; height: 26px; padding: 0 8px 0 6px; border: 0; background: transparent; border-radius: var(--tool-radius-sm); cursor: pointer;" style-hover="background: var(--tool-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="flex: none; color: var(--tool-accent);" aria-hidden="true">
+    <!-- ═══ 顶栏 38px：左 = 应用图标 + 项目名 ▾；右 = 左栏 / 底栏 / 右栏 三块在不在 ═══ -->
+    <div style="flex: none; height: 38px; display: flex; align-items: center; gap: 4px; padding: 0 10px 0 8px; background: var(--tool-panel); border-bottom: 1px solid var(--tool-border); position: relative; z-index: 30;">
+      <button type="button" title="Umbra Studio · 回到项目列表" aria-label="回到项目列表" style="flex: none; width: 28px; height: 28px; display: grid; place-items: center; border: 0; background: transparent; border-radius: var(--tool-radius-sm); cursor: pointer; color: var(--tool-accent);" style-hover="background: var(--tool-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
           <rect x="1.5" y="1.5" width="13" height="13" rx="3.2" stroke="currentColor" stroke-width="1.4"></rect>
           <path d="M5 8.2h6M5 5.4h6M5 11h3.2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"></path>
         </svg>
-        <span style="font-weight: 620; letter-spacing: -0.01em;">Umbra Studio</span>
       </button>
-      <span style="flex: none; color: var(--tool-border-strong);">/</span>
       <div style="position: relative; min-width: 0; display: flex;">
-        <button type="button" onClick="{{ toggleProj }}" aria-expanded="{{ projOpen }}" aria-haspopup="menu" title="{{ projectRoot }}" style="min-width: 0; max-width: 420px; display: flex; align-items: center; gap: 5px; height: 26px; padding: 0 6px 0 8px; border: 0; border-radius: var(--tool-radius-sm); cursor: pointer; background: {{ projBg }};" style-hover="background: var(--tool-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">
-          <span style="font-weight: 560; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ projectTitle }}</span>
+        <button type="button" onClick="{{ toggleProj }}" aria-expanded="{{ projOpen }}" aria-haspopup="menu" title="{{ projectRoot }}" style="min-width: 0; max-width: 420px; display: flex; align-items: center; gap: 5px; height: 26px; padding: 0 6px 0 6px; border: 0; border-radius: var(--tool-radius-sm); cursor: pointer; background: {{ projBg }};" style-hover="background: var(--tool-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">
+          <span style="font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ projectTitle }}</span>
           <span style="flex: none; display: grid; color: var(--tool-muted);"><dc-import name="IconGlyph" d="M4.5 6.5L8 10l3.5-3.5" size="11" stroke="1.6" hint-size="11px,11px"></dc-import></span>
         </button>
         <sc-if value="{{ projOpen }}" hint-placeholder-val="{{ false }}">
           <div onClick="{{ closeMenu }}" style="position: fixed; inset: 0; z-index: 40;"></div>
-          <div role="menu" style="position: absolute; top: 31px; left: 0; z-index: 41; width: 288px; padding: 4px; background: var(--tool-panel); border: 1px solid var(--tool-border-strong); border-radius: var(--tool-radius-lg); box-shadow: var(--tool-shadow-2); text-align: left;">
-            <div style="padding: 7px 8px 9px; margin-bottom: 4px; border-bottom: 1px solid var(--tool-border); display: grid; gap: 3px;">
-              <span style="font-weight: 600;">{{ projectTitle }}</span>
-              <span style="font-family: var(--tool-mono); font-size: 11px; color: var(--tool-muted); word-break: break-all; line-height: 1.5;">{{ projectRoot }}</span>
-            </div>
-            <sc-for list="{{ projItems }}" as="mi" hint-placeholder-count="5">
+          <div role="menu" style="position: absolute; top: 31px; left: 0; z-index: 41; width: 296px; padding: 4px; background: var(--tool-panel); border: 1px solid var(--tool-border-strong); border-radius: var(--tool-radius-lg); box-shadow: var(--tool-shadow-2); text-align: left;">
+            <button type="button" title="点击复制路径" style="width: 100%; display: grid; gap: 2px; padding: 7px 8px 8px; margin-bottom: 4px; border: 0; border-bottom: 1px solid var(--tool-border); border-radius: var(--tool-radius-sm) var(--tool-radius-sm) 0 0; background: transparent; cursor: copy; text-align: left;" style-hover="background: var(--tool-hover);">
+              <span style="font-size: 11px; color: var(--tool-muted);">项目目录 · 点击复制</span>
+              <span style="font-family: var(--tool-mono); font-size: 11px; color: var(--tool-text-2); word-break: break-all; line-height: 1.5;">{{ projectRoot }}</span>
+            </button>
+            <sc-for list="{{ projItems }}" as="mi" hint-placeholder-count="4">
               <sc-if value="{{ mi.isSep }}" hint-placeholder-val="{{ false }}"><div style="height: 1px; margin: 4px 6px; background: var(--tool-border);"></div></sc-if>
               <sc-if value="{{ mi.isItem }}" hint-placeholder-val="{{ true }}">
-                <button type="button" onClick="{{ mi.act }}" style="width: 100%; display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 8px; border: 0; border-radius: var(--tool-radius-sm); background: transparent; cursor: pointer; text-align: left; font-size: 12px; color: var(--tool-text);" style-hover="background: var(--tool-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: -2px;">
+                <button type="button" onClick="{{ mi.act }}" style="width: 100%; display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 8px; border: 0; border-radius: var(--tool-radius-sm); background: transparent; cursor: pointer; text-align: left; font-size: 12px; color: {{ mi.fg }};" style-hover="background: var(--tool-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: -2px;">
                   <span style="flex: 1 1 0; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ mi.label }}</span>
                   <span style="flex: none; font-family: var(--tool-mono); font-size: 11px; color: var(--tool-muted);">{{ mi.hint }}</span>
                 </button>
@@ -77,39 +74,33 @@
       </div>
       <span style="flex: 1;"></span>
       <div role="group" aria-label="窗口布局" style="display: flex; align-items: center; padding: 2px; gap: 2px; background: var(--tool-panel-2); border: 1px solid var(--tool-border); border-radius: var(--tool-radius); flex: none;">
-        <button type="button" onClick="{{ toggleTreeBtn }}" title="{{ treeBtnTitle }}" aria-pressed="{{ treeBtnOn }}" style="width: 30px; height: 24px; display: grid; place-items: center; border: 0; border-radius: var(--tool-radius-sm); cursor: pointer; transition: background .13s ease, color .13s ease; background: {{ treeBtnBg }}; color: {{ treeBtnFg }}; box-shadow: {{ treeBtnSh }};" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">
-          <dc-import name="IconGlyph" d="M2.5 3.5h4M4.5 3.5v8.5h3M4.5 7.8h3M10 7.8h3.5M10 12h3.5" size="14" hint-size="14px,14px"></dc-import>
-        </button>
-        <span style="width: 1px; height: 14px; margin: 0 2px; background: var(--tool-border-strong);"></span>
-        <sc-for list="{{ chatModes }}" as="cm" hint-placeholder-count="3">
-          <button type="button" onClick="{{ cm.pick }}" title="{{ cm.title }}" aria-pressed="{{ cm.active }}" style="width: 30px; height: 24px; display: grid; place-items: center; border: 0; border-radius: var(--tool-radius-sm); cursor: pointer; transition: background .13s ease, color .13s ease; background: {{ cm.bg }}; color: {{ cm.fg }}; box-shadow: {{ cm.sh }};" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">
-            <dc-import name="IconGlyph" d="{{ cm.icon }}" size="14" hint-size="14px,14px"></dc-import>
+        <sc-for list="{{ layoutBtns }}" as="lb" hint-placeholder-count="3">
+          <button type="button" onClick="{{ lb.pick }}" title="{{ lb.title }}" aria-pressed="{{ lb.on }}" aria-disabled="{{ lb.off }}" style="position: relative; width: 30px; height: 24px; display: grid; place-items: center; border: 0; border-radius: var(--tool-radius-sm); transition: background .13s ease, color .13s ease; cursor: {{ lb.cursor }}; opacity: {{ lb.op }}; background: {{ lb.bg }}; color: {{ lb.fg }}; box-shadow: {{ lb.sh }};" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">
+            <dc-import name="IconGlyph" d="{{ lb.icon }}" size="14" hint-size="14px,14px"></dc-import>
+            <sc-if value="{{ lb.alert }}" hint-placeholder-val="{{ false }}">
+              <span style="position: absolute; top: 3px; right: 5px; width: 6px; height: 6px; border-radius: 999px; background: var(--tool-err); box-shadow: 0 0 0 1.5px var(--tool-panel-2);"></span>
+            </sc-if>
           </button>
         </sc-for>
       </div>
     </div>
 
-    <!-- ═══ 主体：会话栏 · 目录列 · 详情列 · 从属面板列。
-         目录列永远贴在详情左侧（order 1），会话栏换边时它不跟着走 —— 导航和内容是一对 ═══ -->
+    <!-- ═══ 主体：左栏（会话，固定在左）· 中间（目录列 + 详情，底下是调试栏）· 右栏（从属面板 + 图标轨） ═══ -->
     <div style="flex: 1 1 0; min-height: 0; display: flex; position: relative;">
 
-      <sc-if value="{{ chatExpanded }}" hint-placeholder-val="{{ true }}">
-      <div style="order: {{ chatOrder }}; flex: none; width: {{ chatWidthPx }}; display: flex; flex-direction: column; min-height: 0; background: var(--tool-panel); border-left: {{ chatBdL }}; border-right: {{ chatBdR }};">
-        <!-- 会话栏头部只管「会话」本身：哪一条 · 谁来干活 · 新开一条。位置类的钮都在顶栏布局组 -->
+      <sc-if value="{{ leftShown }}" hint-placeholder-val="{{ true }}">
+      <div style="flex: none; width: {{ chatWidthPx }}; display: flex; flex-direction: column; min-height: 0; background: var(--tool-panel); border-right: 1px solid var(--tool-border);">
+        <!-- 会话栏头：只剩两样。引擎 = 这条会话由谁来干（模型名在栏里只出现这一次）；历史 = 换一条 / 新开一条 -->
         <div style="flex: none; height: 34px; display: flex; align-items: center; gap: 4px; padding: 0 6px; border-bottom: 1px solid var(--tool-border); position: relative; z-index: 20;">
-          <button type="button" title="会话历史（形制见 S9）" style="flex: 0 1 auto; min-width: 0; display: flex; align-items: center; gap: 5px; height: 26px; padding: 0 6px 0 8px; border: 0; background: transparent; border-radius: var(--tool-radius-sm); cursor: pointer;" style-hover="background: var(--tool-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">
-            <span style="font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ sessionTitle }}</span>
-            <span style="flex: none; display: grid; color: var(--tool-muted);"><dc-import name="IconGlyph" d="M4.5 6.5L8 10l3.5-3.5" size="11" stroke="1.6" hint-size="11px,11px"></dc-import></span>
-          </button>
-          <span style="flex: 1;"></span>
-          <div style="position: relative; flex: none; display: flex;">
-            <button type="button" onClick="{{ toggleEngine }}" aria-expanded="{{ engOpen }}" aria-haspopup="listbox" title="{{ engineTip }}" style="display: flex; align-items: center; gap: 5px; height: 24px; padding: 0 5px 0 8px; border: 1px solid var(--tool-border); border-radius: var(--tool-radius-sm); cursor: pointer; font-size: 12px; white-space: nowrap; background: {{ engBg }}; color: var(--tool-text-2);" style-hover="background: var(--tool-hover); color: var(--tool-text);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">
-              {{ engineName }}
-              <span style="display: grid; color: var(--tool-muted);"><dc-import name="IconGlyph" d="M4.5 6.5L8 10l3.5-3.5" size="11" stroke="1.6" hint-size="11px,11px"></dc-import></span>
+          <div style="position: relative; min-width: 0; display: flex;">
+            <button type="button" onClick="{{ toggleEngine }}" aria-expanded="{{ engOpen }}" aria-haspopup="listbox" title="{{ engineTip }}" style="min-width: 0; display: flex; align-items: center; gap: 5px; height: 26px; padding: 0 6px 0 8px; border: 0; border-radius: var(--tool-radius-sm); cursor: pointer; white-space: nowrap; background: {{ engBg }};" style-hover="background: var(--tool-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">
+              <span style="font-weight: 600; overflow: hidden; text-overflow: ellipsis;">{{ engineName }}</span>
+              <span style="flex: none; display: grid; color: var(--tool-muted);"><dc-import name="IconGlyph" d="M4.5 6.5L8 10l3.5-3.5" size="11" stroke="1.6" hint-size="11px,11px"></dc-import></span>
             </button>
             <sc-if value="{{ engOpen }}" hint-placeholder-val="{{ false }}">
               <div onClick="{{ closeMenu }}" style="position: fixed; inset: 0; z-index: 40;"></div>
-              <div role="listbox" aria-label="引擎" style="position: absolute; top: 29px; right: 0; z-index: 41; width: 272px; padding: 4px; background: var(--tool-panel); border: 1px solid var(--tool-border-strong); border-radius: var(--tool-radius-lg); box-shadow: var(--tool-shadow-2); text-align: left;">
+              <div role="listbox" aria-label="引擎" style="position: absolute; top: 30px; left: 0; z-index: 41; width: 272px; padding: 4px; background: var(--tool-panel); border: 1px solid var(--tool-border-strong); border-radius: var(--tool-radius-lg); box-shadow: var(--tool-shadow-2); text-align: left;">
+                <div style="padding: 6px 8px 2px; font-size: 11px; color: var(--tool-muted); line-height: 1.5;">只改这一条会话；以后回到它还是这个引擎</div>
                 <sc-for list="{{ engineGroups }}" as="g" hint-placeholder-count="3">
                   <div style="padding: 8px 8px 4px; font-size: 11px; color: var(--tool-muted);">{{ g.label }}</div>
                   <sc-for list="{{ g.items }}" as="e" hint-placeholder-count="2">
@@ -125,22 +116,54 @@
               </div>
             </sc-if>
           </div>
-          <button type="button" title="新会话" aria-label="新会话" style="width: 24px; height: 24px; display: grid; place-items: center; border: 0; background: transparent; color: var(--tool-muted); border-radius: var(--tool-radius-sm); cursor: pointer;" style-hover="background: var(--tool-hover); color: var(--tool-text);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">
-            <dc-import name="IconGlyph" d="M8 3.2v9.6M3.2 8h9.6" size="14" hint-size="14px,14px"></dc-import>
+          <span style="flex: 1;"></span>
+          <button type="button" onClick="{{ toggleHist }}" aria-pressed="{{ histOpen }}" title="{{ histTitle }}" aria-label="会话历史" style="flex: none; width: 26px; height: 26px; display: grid; place-items: center; border: 0; border-radius: var(--tool-radius-sm); cursor: pointer; background: {{ histBg }}; color: {{ histFg }};" style-hover="background: var(--tool-hover); color: var(--tool-text);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">
+            <dc-import name="IconGlyph" d="M2.6 8a5.4 5.4 0 1 0 1.6-3.8M2.4 2.8v2.6h2.6M8 5.2V8l2 1.4" size="15" hint-size="15px,15px"></dc-import>
           </button>
         </div>
-        <div style="flex: 1 1 0; min-height: 0; overflow: auto; padding: 14px; display: flex; flex-direction: column; gap: 12px;">
-          <div style="align-self: flex-end; max-width: 82%; padding: 8px 12px; border-radius: 12px 12px 4px 12px; background: var(--tool-accent); color: var(--tool-on-accent); line-height: 1.55;">{{ chatAsk }}</div>
-          <div style="display: grid; grid-template-columns: 14px minmax(0, 1fr); gap: 10px;">
-            <div style="display: flex; flex-direction: column; align-items: center;">
-              <span style="width: 7px; height: 7px; margin-top: 5px; border-radius: 999px; background: var(--tool-accent);"></span>
-              <span style="flex: 1; width: 2px; margin-top: 4px; border-radius: 1px; background: var(--tool-accent-soft);"></span>
-            </div>
-            <div style="line-height: 1.6; color: var(--tool-text);">{{ chatReply }}</div>
-          </div>
-          <div style="margin-top: auto; font-size: 11px; color: var(--tool-muted); text-align: center;">消息流与会话历史的形制见 S9，这里只摆位置</div>
+
+        <!-- 历史：占满整栏（第六轮 6.3 口径不变）。第一行永远是「新建会话」，所以头部不再要 ＋ -->
+        <sc-if value="{{ histOpen }}" hint-placeholder-val="{{ false }}">
+        <div style="flex: 1 1 0; min-height: 0; overflow: auto; padding: 6px 6px 20px;">
+          <button type="button" onClick="{{ newSession }}" style="width: 100%; display: flex; align-items: center; gap: 9px; height: 36px; padding: 0 10px; border: 0; border-radius: var(--tool-radius); background: transparent; cursor: pointer; text-align: left; color: var(--tool-accent); font-weight: 560;" style-hover="background: var(--tool-accent-soft);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: -2px;">
+            <dc-import name="IconGlyph" d="M8 3.2v9.6M3.2 8h9.6" size="14" hint-size="14px,14px"></dc-import>
+            <span style="flex: 1;">新建会话</span>
+            <span style="font-family: var(--tool-mono); font-size: 11px; font-weight: 400; color: var(--tool-muted);">⌘N</span>
+          </button>
+          <div style="height: 1px; margin: 4px 8px; background: var(--tool-border);"></div>
+          <sc-for list="{{ histGroups }}" as="hg" hint-placeholder-count="2">
+            <div style="padding: 10px 10px 4px; font-size: 11px; color: var(--tool-muted);">{{ hg.label }}</div>
+            <sc-for list="{{ hg.items }}" as="h" hint-placeholder-count="2">
+              <button type="button" onClick="{{ h.pick }}" aria-current="{{ h.cur }}" style="width: 100%; display: grid; gap: 2px; padding: 7px 10px; border: 0; border-radius: var(--tool-radius); cursor: pointer; text-align: left; background: {{ h.bg }};" style-hover="background: var(--tool-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: -2px;">
+                <span style="display: flex; align-items: baseline; gap: 8px; min-width: 0;">
+                  <span style="flex: 1 1 0; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: {{ h.fw }}; color: var(--tool-text);">{{ h.title }}</span>
+                  <span style="flex: none; font-size: 11px; color: var(--tool-muted);">{{ h.when }}</span>
+                </span>
+                <span style="font-size: 11px; color: var(--tool-muted);">{{ h.engine }}</span>
+              </button>
+            </sc-for>
+          </sc-for>
         </div>
-        <div style="flex: none; padding: 10px 12px 12px; border-top: 1px solid var(--tool-border); display: grid; gap: 8px;">
+        </sc-if>
+
+        <sc-if value="{{ chatOpen }}" hint-placeholder-val="{{ true }}">
+        <div style="flex: 1 1 0; min-height: 0; overflow: auto; padding: 14px; display: flex; flex-direction: column; gap: 12px;">
+          <sc-if value="{{ isFresh }}" hint-placeholder-val="{{ false }}">
+            <div style="margin: auto; max-width: 240px; text-align: center; font-size: 12px; line-height: 1.6; color: var(--tool-muted);">新会话 · 用 {{ engineName }}。发出第一条消息后才记进历史</div>
+          </sc-if>
+          <sc-if value="{{ hasMsgs }}" hint-placeholder-val="{{ true }}">
+            <div style="align-self: flex-end; max-width: 82%; padding: 8px 12px; border-radius: 12px 12px 4px 12px; background: var(--tool-accent); color: var(--tool-on-accent); line-height: 1.55;">{{ chatAsk }}</div>
+            <div style="display: grid; grid-template-columns: 14px minmax(0, 1fr); gap: 10px;">
+              <div style="display: flex; flex-direction: column; align-items: center;">
+                <span style="width: 7px; height: 7px; margin-top: 5px; border-radius: 999px; background: var(--tool-accent);"></span>
+                <span style="flex: 1; width: 2px; margin-top: 4px; border-radius: 1px; background: var(--tool-accent-soft);"></span>
+              </div>
+              <div style="line-height: 1.6; color: var(--tool-text);">{{ chatReply }}</div>
+            </div>
+            <div style="margin-top: auto; font-size: 11px; color: var(--tool-muted); text-align: center;">消息流的形制见 S9，这里只摆位置</div>
+          </sc-if>
+        </div>
+        <div style="flex: none; padding: 10px 12px 10px; border-top: 1px solid var(--tool-border); display: grid; gap: 8px;">
           <sc-if value="{{ hasPill }}" hint-placeholder-val="{{ true }}">
             <div style="display: flex; flex-wrap: wrap; gap: 6px;">
               <span title="{{ pillDetail }}" style="display: inline-flex; align-items: center; gap: 6px; max-width: 100%; height: 22px; padding: 0 4px 0 7px; border-radius: var(--tool-radius-sm); border: 1px solid var(--tool-accent-border); background: var(--tool-accent-soft); color: var(--tool-accent); font-size: 11px;">
@@ -157,17 +180,24 @@
             <textarea rows="2" placeholder="说要改什么… ⏎ 发送" style="flex: 1 1 0; min-width: 0; padding: 7px 10px; border: 1px solid var(--tool-border-strong); border-radius: var(--tool-radius); background: var(--tool-panel); color: var(--tool-text); resize: none; line-height: 1.5; outline: none;" style-focus="border-color: var(--tool-accent); box-shadow: 0 0 0 3px var(--tool-accent-soft);"></textarea>
             <button type="button" style="flex: none; height: 32px; padding: 0 14px; border: 0; border-radius: var(--tool-radius); background: var(--tool-accent); color: var(--tool-on-accent); font-weight: 560; cursor: pointer;" style-hover="background: var(--tool-accent-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">发送</button>
           </div>
+          <sc-if value="{{ hasTurnCost }}" hint-placeholder-val="{{ true }}">
+            <div style="font-size: 11px; color: var(--tool-muted); font-variant-numeric: tabular-nums;">{{ turnCost }}</div>
+          </sc-if>
         </div>
+        </sc-if>
       </div>
       </sc-if>
 
-      <!-- ═══ 目录列（第六轮 6.1）。并排时 240 px，可拖 200–360；详情放不下时让位成浮层，同一份标记 ═══ -->
+      <!-- ═══ 中间：目录列 + 详情，底下是调试栏。调试栏只横跨中间，不压会话输入框、不截右栏 ═══ -->
+      <div style="flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; min-height: 0;">
+      <div style="flex: 1 1 0; min-height: 0; display: flex; position: relative;">
+
       <sc-if value="{{ treeShown }}" hint-placeholder-val="{{ true }}">
       <sc-if value="{{ treeFloat }}" hint-placeholder-val="{{ false }}">
-        <div onClick="{{ closeFloat }}" style="position: absolute; top: 0; bottom: 0; left: {{ treeLeft }}; right: 0; z-index: 5; background: rgba(15, 18, 24, 0.22);"></div>
+        <div onClick="{{ closeFloat }}" style="position: absolute; inset: 0; z-index: 24; background: rgba(15, 18, 24, 0.22);"></div>
       </sc-if>
-      <nav aria-label="目录" style="order: 1; flex: none; width: {{ treeWidthPx }}; position: {{ treePos }}; left: {{ treeLeft }}; top: 0; bottom: 0; z-index: {{ treeZ }}; display: flex; flex-direction: column; min-height: 0; background: var(--tool-panel); border-right: 1px solid {{ treeBd }}; box-shadow: {{ treeShadow }};">
-        <!-- 目录列头：「找文件」「铺到详情区」都是导航动作，和目录放在一起 -->
+      <nav ref="{{ navRef }}" aria-label="目录" style="flex: none; width: {{ treeWidthPx }}; position: {{ treePos }}; left: 0; top: 0; bottom: 0; z-index: {{ treeZ }}; display: flex; flex-direction: column; min-height: 0; background: var(--tool-panel); border-right: 1px solid {{ treeBd }}; box-shadow: {{ treeShadow }};">
+        <!-- 目录列头：项目名（点它 = 在详情区铺开）· 转到文件 · 收起目录。收起钮和展开钮是同一个图标，只是箭头方向相反 -->
         <div style="flex: none; height: 34px; display: flex; align-items: center; gap: 2px; padding: 0 6px 0 12px; position: relative; z-index: 20;">
           <button type="button" onClick="{{ openRoot }}" title="在详情区打开项目根目录" style="min-width: 0; display: flex; align-items: baseline; gap: 6px; padding: 0; border: 0; background: transparent; cursor: pointer; text-align: left;" style-hover="color: var(--tool-accent);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">
             <span style="font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ projectName }}</span>
@@ -176,14 +206,8 @@
           <button type="button" onClick="{{ toggleGoto }}" aria-expanded="{{ gotoOpen }}" title="转到文件（⌘P）" aria-label="转到文件" style="width: 24px; height: 24px; display: grid; place-items: center; border: 0; background: {{ gotoBg }}; color: var(--tool-muted); border-radius: var(--tool-radius-sm); cursor: pointer;" style-hover="background: var(--tool-hover); color: var(--tool-text);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">
             <dc-import name="IconGlyph" d="M7 2.8a4.2 4.2 0 1 0 0 8.4a4.2 4.2 0 1 0 0-8.4zM10.1 10.1l3.2 3.2" size="13" hint-size="13px,13px"></dc-import>
           </button>
-          <button type="button" onClick="{{ openRoot }}" title="铺到详情区（多选 · 网格 · 回收站）" aria-label="铺到详情区" style="width: 24px; height: 24px; display: grid; place-items: center; border: 0; background: transparent; color: var(--tool-muted); border-radius: var(--tool-radius-sm); cursor: pointer;" style-hover="background: var(--tool-hover); color: var(--tool-text);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">
-            <dc-import name="IconGlyph" d="M9.5 2.5h4v4M13.5 2.5L9.2 6.8M6.5 13.5h-4v-4M2.5 13.5l4.3-4.3" size="13" hint-size="13px,13px"></dc-import>
-          </button>
-          <button type="button" onClick="{{ collapseAll }}" title="全部折叠" aria-label="全部折叠" style="width: 24px; height: 24px; display: grid; place-items: center; border: 0; background: transparent; color: var(--tool-muted); border-radius: var(--tool-radius-sm); cursor: pointer;" style-hover="background: var(--tool-hover); color: var(--tool-text);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">
-            <dc-import name="IconGlyph" d="M4.5 3l3.5 3 3.5-3M4.5 13l3.5-3 3.5 3" size="13" hint-size="13px,13px"></dc-import>
-          </button>
           <button type="button" onClick="{{ hideTree }}" title="{{ hideTitle }}" aria-label="{{ hideTitle }}" style="width: 24px; height: 24px; display: grid; place-items: center; border: 0; background: transparent; color: var(--tool-muted); border-radius: var(--tool-radius-sm); cursor: pointer;" style-hover="background: var(--tool-hover); color: var(--tool-text);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">
-            <dc-import name="IconGlyph" d="M9.8 4L5.8 8l4 4" size="13" hint-size="13px,13px"></dc-import>
+            <dc-import name="IconGlyph" d="M2.5 3h11v10h-11zM6 3v10M10.8 6.2L9 8l1.8 1.8" size="14" hint-size="14px,14px"></dc-import>
           </button>
           <sc-if value="{{ gotoOpen }}" hint-placeholder-val="{{ false }}">
             <div onClick="{{ closeMenu }}" style="position: fixed; inset: 0; z-index: 40;"></div>
@@ -207,10 +231,10 @@
             </div>
           </sc-if>
         </div>
-        <div role="tree" style="flex: 1 1 0; min-height: 0; overflow: auto; padding: 2px 6px 16px; display: flex; flex-direction: column;">
+        <div role="tree" onContextMenu="{{ ctxBlank }}" style="flex: 1 1 0; min-height: 0; overflow: auto; padding: 2px 6px 16px; display: flex; flex-direction: column;">
           <sc-for list="{{ treeRows }}" as="r" hint-placeholder-count="9">
             <sc-if value="{{ r.isNode }}" hint-placeholder-val="{{ true }}">
-              <div role="treeitem" tabindex="0" aria-level="{{ r.level }}" aria-expanded="{{ r.ariaExp }}" aria-selected="{{ r.current }}" onClick="{{ r.act }}" onDoubleClick="{{ r.dbl }}" title="{{ r.tip }}" style="flex: none; display: flex; align-items: center; height: 28px; padding: 0 8px 0 {{ r.pad }}; border-radius: var(--tool-radius-sm); cursor: pointer; background: {{ r.bg }}; color: {{ r.fg }};" style-hover="background: var(--tool-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: -2px;">
+              <div role="treeitem" tabindex="0" aria-level="{{ r.level }}" aria-expanded="{{ r.ariaExp }}" aria-selected="{{ r.current }}" onClick="{{ r.act }}" onDoubleClick="{{ r.dbl }}" onContextMenu="{{ r.ctx }}" title="{{ r.tip }}" style="flex: none; display: flex; align-items: center; height: 28px; padding: 0 8px 0 {{ r.pad }}; border-radius: var(--tool-radius-sm); cursor: pointer; background: {{ r.bg }}; color: {{ r.fg }}; box-shadow: {{ r.ring }};" style-hover="background: var(--tool-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: -2px;">
                 <span style="flex: none; width: 16px; height: 16px; display: grid; place-items: center; color: var(--tool-muted); opacity: {{ r.chevOp }}; transform: rotate({{ r.rot }}); transition: transform .15s ease;">
                   <dc-import name="IconGlyph" d="M6.2 4.2L10 8l-3.8 3.8" size="12" stroke="1.5" hint-size="12px,12px"></dc-import>
                 </span>
@@ -219,6 +243,20 @@
                 <sc-if value="{{ r.hasDot }}" hint-placeholder-val="{{ false }}">
                   <span title="{{ r.dotTip }}" style="flex: none; width: 6px; height: 6px; margin-left: 8px; border-radius: 999px; background: {{ r.dotBg }};"></span>
                 </sc-if>
+              </div>
+            </sc-if>
+            <sc-if value="{{ r.isRen }}" hint-placeholder-val="{{ false }}">
+              <div style="flex: none; display: flex; align-items: center; height: 28px; padding: 0 4px 0 {{ r.pad }};">
+                <span style="flex: none; width: 16px;"></span>
+                <span style="flex: none; display: grid; margin-right: 6px; color: {{ r.iconFg }};"><dc-import name="IconGlyph" d="{{ r.icon }}" size="14" hint-size="14px,14px"></dc-import></span>
+                <input type="text" value="{{ r.renVal }}" onChange="{{ r.onRen }}" onKeyDown="{{ r.onRenKey }}" onBlur="{{ r.onRenBlur }}" onFocus="{{ r.onRenFocus }}" autoFocus="{{ true }}" aria-label="新名称" style="flex: 1 1 0; min-width: 0; height: 24px; padding: 0 6px; border: 1px solid var(--tool-accent); border-radius: var(--tool-radius-sm); background: var(--tool-panel); outline: none; box-shadow: 0 0 0 3px var(--tool-accent-soft); font-size: 13px;">
+              </div>
+            </sc-if>
+            <sc-if value="{{ r.isDel }}" hint-placeholder-val="{{ false }}">
+              <div style="flex: none; display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 6px 0 {{ r.pad }}; border-radius: var(--tool-radius-sm); background: var(--tool-panel-2); font-size: 12px; color: var(--tool-muted);">
+                <span style="flex: none; width: 16px;"></span>
+                <span style="flex: 1 1 0; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">已移到回收站 · {{ r.name }}</span>
+                <button type="button" onClick="{{ r.undo }}" style="flex: none; height: 22px; padding: 0 8px; border: 0; border-radius: var(--tool-radius-sm); background: transparent; color: var(--tool-accent); font-size: 12px; font-weight: 560; cursor: pointer;" style-hover="background: var(--tool-accent-soft);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">撤销</button>
               </div>
             </sc-if>
             <sc-if value="{{ r.isNote }}" hint-placeholder-val="{{ false }}">
@@ -233,34 +271,93 @@
             </sc-if>
           </sc-for>
         </div>
+
+        <!-- 右键菜单：点在目录 / 文件 / 空白处，菜单不一样。被右键的那一行描一圈边，说明菜单作用在谁身上 -->
+        <sc-if value="{{ ctxOpen }}" hint-placeholder-val="{{ false }}">
+          <div onClick="{{ closeCtx }}" onContextMenu="{{ closeCtx }}" style="position: fixed; inset: 0; z-index: 40;"></div>
+          <div role="menu" aria-label="{{ ctxLabel }}" style="position: absolute; top: {{ ctxTop }}; left: {{ ctxLeft }}; z-index: 41; width: 216px; padding: 4px; background: var(--tool-panel); border: 1px solid var(--tool-border-strong); border-radius: var(--tool-radius-lg); box-shadow: var(--tool-shadow-2); text-align: left;">
+            <sc-for list="{{ ctxItems }}" as="mi" hint-placeholder-count="6">
+              <sc-if value="{{ mi.isSep }}" hint-placeholder-val="{{ false }}"><div style="height: 1px; margin: 4px 6px; background: var(--tool-border);"></div></sc-if>
+              <sc-if value="{{ mi.isItem }}" hint-placeholder-val="{{ true }}">
+                <button type="button" role="menuitem" onClick="{{ mi.act }}" style="width: 100%; display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 8px; border: 0; border-radius: var(--tool-radius-sm); background: transparent; cursor: pointer; text-align: left; font-size: 12px; color: {{ mi.fg }};" style-hover="background: var(--tool-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: -2px;">
+                  <span style="flex: 1 1 0; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ mi.label }}</span>
+                  <span style="flex: none; font-family: var(--tool-mono); font-size: 11px; color: var(--tool-muted);">{{ mi.hint }}</span>
+                </button>
+              </sc-if>
+            </sc-for>
+          </div>
+        </sc-if>
+
         <sc-if value="{{ treeResizable }}" hint-placeholder-val="{{ true }}">
           <div onMouseDown="{{ startDrag }}" onDoubleClick="{{ resetWidth }}" title="拖动调宽 · 双击回到 240 px" style="position: absolute; top: 0; bottom: 0; right: -3px; width: 6px; z-index: 2; cursor: col-resize; background: {{ dragBg }};" style-hover="background: linear-gradient(var(--tool-accent), var(--tool-accent)) center / 2px 100% no-repeat;"></div>
         </sc-if>
       </nav>
       </sc-if>
 
-      <!-- 详情列：页签 + 预览区 + （收起态时）输入条 -->
-      <div style="order: 2; flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; position: relative;">
-        <div role="tablist" style="flex: none; height: 34px; display: flex; align-items: stretch; background: var(--tool-panel-2); border-bottom: 1px solid var(--tool-border); overflow: hidden;">
+      <!-- 详情列：页签 + 文件工具栏 + 预览区 -->
+      <div style="flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; position: relative;">
+        <div role="tablist" style="flex: none; height: 36px; display: flex; align-items: flex-end; gap: 2px; padding: 0 4px 0 4px; background: var(--tool-panel-2); border-bottom: 1px solid var(--tool-border); position: relative; z-index: 15;">
+          <sc-if value="{{ showTreeHandle }}" hint-placeholder-val="{{ false }}">
+            <button type="button" onClick="{{ showTreeAct }}" title="{{ handleTitle }}" aria-label="{{ handleTitle }}" aria-pressed="{{ floatOn }}" style="flex: none; align-self: center; width: 28px; height: 26px; margin-right: 4px; display: grid; place-items: center; border: 0; border-radius: var(--tool-radius-sm); cursor: pointer; background: {{ handleBg }}; color: var(--tool-muted);" style-hover="background: var(--tool-hover); color: var(--tool-text);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">
+              <dc-import name="IconGlyph" d="M2.5 3h11v10h-11zM6 3v10M9.2 6.2L11 8l-1.8 1.8" size="14" hint-size="14px,14px"></dc-import>
+            </button>
+          </sc-if>
           <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="3">
-            <div role="tab" tabindex="0" aria-selected="{{ t.active }}" onClick="{{ t.pick }}" title="{{ t.path }}" style="flex: 0 1 200px; min-width: 96px; display: flex; align-items: center; gap: 7px; padding: 0 8px 0 11px; cursor: pointer; border-right: 1px solid var(--tool-border); transition: background .13s ease, color .13s ease; background: {{ t.bg }}; color: {{ t.fg }}; box-shadow: {{ t.sh }};" style-hover="color: var(--tool-text);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: -2px;">
+            <div role="tab" tabindex="0" aria-selected="{{ t.active }}" onClick="{{ t.pick }}" onMouseEnter="{{ t.enter }}" onMouseLeave="{{ t.leave }}" title="{{ t.path }}" style="flex: 0 1 184px; min-width: 112px; height: {{ t.h }}; margin-bottom: {{ t.mb }}; display: flex; align-items: center; gap: 7px; padding: 0 6px 0 10px; cursor: pointer; border: 1px solid {{ t.bd }}; border-bottom: 0; border-radius: 7px 7px 0 0; transition: background .13s ease, color .13s ease; background: {{ t.bg }}; color: {{ t.fg }};" style-focus="outline: 2px solid var(--tool-ring); outline-offset: -2px;">
               <span style="flex: none; display: grid; color: {{ t.iconFg }};"><dc-import name="IconGlyph" d="{{ t.icon }}" size="13" hint-size="13px,13px"></dc-import></span>
-              <span style="flex: 1 1 0; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: {{ t.fw }};">{{ t.name }}</span>
-              <sc-if value="{{ t.unsaved }}" hint-placeholder-val="{{ false }}">
-                <span title="未落盘" style="flex: none; width: 16px; height: 16px; display: grid; place-items: center;"><span style="width: 6px; height: 6px; border-radius: 999px; background: var(--tool-warn);"></span></span>
-              </sc-if>
-              <sc-if value="{{ t.saved }}" hint-placeholder-val="{{ true }}">
-                <span title="关闭页签" style="flex: none; width: 16px; height: 16px; display: grid; place-items: center; border-radius: 3px; color: var(--tool-muted); opacity: {{ t.closeOp }};">
-                  <dc-import name="IconGlyph" d="M4.4 4.4l7.2 7.2M11.6 4.4l-7.2 7.2" size="10" stroke="1.6" hint-size="10px,10px"></dc-import>
-                </span>
-              </sc-if>
+              <span style="flex: 1 1 0; min-width: 0; display: flex; align-items: baseline; gap: 6px; overflow: hidden;">
+                <span style="flex: 0 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: {{ t.fw }};">{{ t.name }}</span>
+                <sc-if value="{{ t.hasDir }}" hint-placeholder-val="{{ false }}">
+                  <span style="flex: 0 1 auto; min-width: 0; font-size: 11px; color: var(--tool-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ t.dir }}</span>
+                </sc-if>
+              </span>
+              <span style="flex: none; width: 18px; height: 18px; display: grid; place-items: center;">
+                <sc-if value="{{ t.showDot }}" hint-placeholder-val="{{ false }}">
+                  <span title="未保存（改动还没落盘）" style="width: 7px; height: 7px; border-radius: 999px; background: var(--tool-text-2);"></span>
+                </sc-if>
+                <sc-if value="{{ t.showX }}" hint-placeholder-val="{{ false }}">
+                  <span role="button" title="关闭页签（⌘W）" style="width: 18px; height: 18px; display: grid; place-items: center; border-radius: 4px; color: var(--tool-muted);" style-hover="background: var(--tool-hover); color: var(--tool-text);">
+                    <dc-import name="IconGlyph" d="M4.4 4.4l7.2 7.2M11.6 4.4l-7.2 7.2" size="10" stroke="1.6" hint-size="10px,10px"></dc-import>
+                  </span>
+                </sc-if>
+              </span>
             </div>
           </sc-for>
+          <span style="flex: 1;"></span>
+          <sc-if value="{{ hasOverflow }}" hint-placeholder-val="{{ false }}">
+            <div style="position: relative; flex: none; align-self: center; display: flex;">
+              <button type="button" onClick="{{ toggleTabs }}" aria-expanded="{{ tabsOpen }}" aria-haspopup="menu" title="所有打开的文件" style="display: flex; align-items: center; gap: 4px; height: 26px; padding: 0 6px 0 8px; border: 0; border-radius: var(--tool-radius-sm); cursor: pointer; font-size: 12px; font-variant-numeric: tabular-nums; color: var(--tool-text-2); background: {{ tabsBg }};" style-hover="background: var(--tool-hover); color: var(--tool-text);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">
+                {{ overflowLabel }}
+                <span style="display: grid; color: var(--tool-muted);"><dc-import name="IconGlyph" d="M4.5 6.5L8 10l3.5-3.5" size="11" stroke="1.6" hint-size="11px,11px"></dc-import></span>
+              </button>
+              <sc-if value="{{ tabsOpen }}" hint-placeholder-val="{{ false }}">
+                <div onClick="{{ closeMenu }}" style="position: fixed; inset: 0; z-index: 40;"></div>
+                <div role="menu" style="position: absolute; top: 31px; right: 0; z-index: 41; width: 300px; padding: 4px; background: var(--tool-panel); border: 1px solid var(--tool-border-strong); border-radius: var(--tool-radius-lg); box-shadow: var(--tool-shadow-2); text-align: left;">
+                  <div style="display: flex; justify-content: space-between; padding: 6px 8px 4px; font-size: 11px; color: var(--tool-muted);"><span>打开的文件</span><span style="font-family: var(--tool-mono);">{{ tabCount }}</span></div>
+                  <div style="max-height: 320px; overflow: auto; display: grid;">
+                    <sc-for list="{{ allTabs }}" as="at" hint-placeholder-count="6">
+                      <button type="button" onClick="{{ at.pick }}" title="{{ at.path }}" style="display: grid; grid-template-columns: 16px 14px minmax(0, 1fr) 10px; gap: 6px; align-items: center; height: 30px; padding: 0 8px 0 4px; border: 0; border-radius: var(--tool-radius-sm); background: {{ at.bg }}; cursor: pointer; text-align: left;" style-hover="background: var(--tool-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: -2px;">
+                        <span style="display: grid; color: var(--tool-accent); opacity: {{ at.checkOp }};"><dc-import name="IconGlyph" d="M3.5 8.4l3 3 6-6.6" size="12" stroke="1.7" hint-size="12px,12px"></dc-import></span>
+                        <span style="display: grid; color: {{ at.iconFg }};"><dc-import name="IconGlyph" d="{{ at.icon }}" size="13" hint-size="13px,13px"></dc-import></span>
+                        <span style="min-width: 0; display: flex; align-items: baseline; gap: 7px;">
+                          <span style="flex: none; font-size: 12px; color: var(--tool-text); font-weight: {{ at.fw }};">{{ at.name }}</span>
+                          <span style="min-width: 0; font-family: var(--tool-mono); font-size: 11px; color: var(--tool-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ at.dir }}</span>
+                        </span>
+                        <span style="width: 6px; height: 6px; border-radius: 999px; background: var(--tool-text-2); opacity: {{ at.dotOp }};"></span>
+                      </button>
+                    </sc-for>
+                  </div>
+                  <div style="height: 1px; margin: 4px 6px; background: var(--tool-border);"></div>
+                  <button type="button" onClick="{{ closeMenu }}" style="width: 100%; display: flex; align-items: center; height: 28px; padding: 0 8px; border: 0; border-radius: var(--tool-radius-sm); background: transparent; cursor: pointer; text-align: left; font-size: 12px; color: var(--tool-text);" style-hover="background: var(--tool-hover);">关闭其他页签</button>
+                </div>
+              </sc-if>
+            </div>
+          </sc-if>
         </div>
 
-        <!-- ═══ 文件工具栏 34px · 只管「当前这份文件」。每种视图往同一行里填自己的东西；代码 / 其他文件没有这一行 ═══ -->
+        <!-- ═══ 文件工具栏 34px · 只管「当前这份文件」。页签的当前态和这一行是同一块底色，读作「这一行属于这个页签」 ═══ -->
         <sc-if value="{{ hasToolbar }}" hint-placeholder-val="{{ true }}">
-        <div style="flex: none; height: 34px; display: flex; align-items: center; gap: 8px; padding: 0 6px 0 8px; background: var(--tool-panel); border-bottom: 1px solid var(--tool-border); position: relative; z-index: 20;">
+        <div style="flex: none; height: 34px; display: flex; align-items: center; gap: 8px; padding: 0 6px 0 8px; background: var(--tool-panel); border-bottom: 1px solid var(--tool-border); position: relative; z-index: 14; margin-top: -1px;">
           <sc-for list="{{ tbGroups }}" as="g" hint-placeholder-count="2">
             <div role="group" aria-label="{{ g.label }}" style="flex: none; display: flex; padding: 2px; gap: 2px; background: var(--tool-panel-2); border: 1px solid var(--tool-border); border-radius: var(--tool-radius);">
               <sc-for list="{{ g.items }}" as="it" hint-placeholder-count="3">
@@ -272,6 +369,11 @@
             </div>
           </sc-for>
           <span style="flex: 1;"></span>
+          <sc-if value="{{ hasDraftTheme }}" hint-placeholder-val="{{ true }}">
+            <button type="button" onClick="{{ toggleDraftTheme }}" aria-pressed="{{ draftDark }}" title="{{ draftThemeTitle }}" aria-label="稿的浅 / 深色" style="width: 24px; height: 24px; display: grid; place-items: center; border: 0; border-radius: var(--tool-radius-sm); cursor: pointer; background: {{ dtBg }}; color: {{ dtFg }};" style-hover="background: var(--tool-hover); color: var(--tool-text);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">
+              <dc-import name="IconGlyph" d="M8 2.4a5.6 5.6 0 1 0 0 11.2A5.6 5.6 0 1 0 8 2.4zM8 2.4v11.2M8 5h2.6M8 8h3.4M8 11h2.6" size="14" hint-size="14px,14px"></dc-import>
+            </button>
+          </sc-if>
           <sc-if value="{{ hasSize }}" hint-placeholder-val="{{ true }}">
             <div style="position: relative; flex: none; display: flex;">
               <button type="button" onClick="{{ toggleSize }}" aria-expanded="{{ sizeOpen }}" title="画布宽度与缩放（⌘− ⌘＋ ⌘0）" style="display: flex; align-items: center; gap: 5px; height: 24px; padding: 0 5px 0 8px; border: 0; border-radius: var(--tool-radius-sm); cursor: pointer; font-family: var(--tool-mono); font-size: 11px; white-space: nowrap; font-variant-numeric: tabular-nums; color: var(--tool-text-2); background: {{ sizeBg }};" style-hover="background: var(--tool-hover); color: var(--tool-text);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">
@@ -314,16 +416,16 @@
             </button>
             <sc-if value="{{ moreOpen }}" hint-placeholder-val="{{ false }}">
               <div onClick="{{ closeMenu }}" style="position: fixed; inset: 0; z-index: 40;"></div>
-              <div role="menu" style="position: absolute; top: 29px; right: 0; z-index: 41; width: 228px; padding: 4px; background: var(--tool-panel); border: 1px solid var(--tool-border-strong); border-radius: var(--tool-radius-lg); box-shadow: var(--tool-shadow-2); text-align: left;">
+              <div role="menu" style="position: absolute; top: 29px; right: 0; z-index: 41; width: 232px; padding: 4px; background: var(--tool-panel); border: 1px solid var(--tool-border-strong); border-radius: var(--tool-radius-lg); box-shadow: var(--tool-shadow-2); text-align: left;">
                 <sc-for list="{{ moreItems }}" as="mi" hint-placeholder-count="5">
-              <sc-if value="{{ mi.isSep }}" hint-placeholder-val="{{ false }}"><div style="height: 1px; margin: 4px 6px; background: var(--tool-border);"></div></sc-if>
-              <sc-if value="{{ mi.isItem }}" hint-placeholder-val="{{ true }}">
-                <button type="button" onClick="{{ mi.act }}" style="width: 100%; display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 8px; border: 0; border-radius: var(--tool-radius-sm); background: transparent; cursor: pointer; text-align: left; font-size: 12px; color: var(--tool-text);" style-hover="background: var(--tool-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: -2px;">
-                  <span style="flex: 1 1 0; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ mi.label }}</span>
-                  <span style="flex: none; font-family: var(--tool-mono); font-size: 11px; color: var(--tool-muted);">{{ mi.hint }}</span>
-                </button>
-              </sc-if>
-            </sc-for>
+                  <sc-if value="{{ mi.isSep }}" hint-placeholder-val="{{ false }}"><div style="height: 1px; margin: 4px 6px; background: var(--tool-border);"></div></sc-if>
+                  <sc-if value="{{ mi.isItem }}" hint-placeholder-val="{{ true }}">
+                    <button type="button" onClick="{{ mi.act }}" style="width: 100%; display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 8px; border: 0; border-radius: var(--tool-radius-sm); background: transparent; cursor: pointer; text-align: left; font-size: 12px; color: {{ mi.fg }};" style-hover="background: var(--tool-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: -2px;">
+                      <span style="flex: 1 1 0; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ mi.label }}</span>
+                      <span style="flex: none; font-family: var(--tool-mono); font-size: 11px; color: var(--tool-muted);">{{ mi.hint }}</span>
+                    </button>
+                  </sc-if>
+                </sc-for>
               </div>
             </sc-if>
           </div>
@@ -339,36 +441,86 @@
               <div style="font-size: 12px; color: var(--tool-muted); max-width: 340px; line-height: 1.55;">{{ previewNote }}</div>
             </div>
           </div>
-
           <sc-if value="{{ drawerOpen }}" hint-placeholder-val="{{ false }}">
-            <div onClick="{{ closePanel }}" style="position: absolute; inset: 0; background: rgba(15, 18, 24, 0.28);"></div>
+            <div onClick="{{ closeDrawer }}" style="position: absolute; inset: 0; background: rgba(15, 18, 24, 0.28);"></div>
           </sc-if>
         </div>
-
-        <sc-if value="{{ chatIsBar }}" hint-placeholder-val="{{ false }}">
-        <div style="flex: none; min-height: 44px; display: flex; align-items: center; gap: 8px; padding: 6px 8px; background: var(--tool-panel); border-top: 1px solid var(--tool-border);">
-          <button type="button" onClick="{{ toExpanded }}" title="展开会话（⌘\）" style="flex: none; width: 30px; height: 30px; display: grid; place-items: center; border: 1px solid var(--tool-border); background: var(--tool-panel); color: var(--tool-text-2); border-radius: var(--tool-radius); cursor: pointer;" style-hover="background: var(--tool-hover); color: var(--tool-text);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">
-            <dc-import name="IconGlyph" d="M2.5 3.5h11v7.5H7l-3 2.5V11H2.5z" size="14" hint-size="14px,14px"></dc-import>
-          </button>
-          <sc-if value="{{ hasPill }}" hint-placeholder-val="{{ true }}">
-            <span title="{{ pillDetail }}" style="flex: 0 1 auto; min-width: 0; max-width: 42%; display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 4px 0 7px; border-radius: var(--tool-radius-sm); border: 1px solid var(--tool-accent-border); background: var(--tool-accent-soft); color: var(--tool-accent); font-size: 11px;">
-              <dc-import name="IconGlyph" d="{{ pillIcon }}" size="12" hint-size="12px,12px"></dc-import>
-              <span style="flex: none; font-family: var(--tool-mono); font-weight: 600;">{{ pillKind }}</span>
-              <span style="min-width: 0; font-family: var(--tool-mono); color: var(--tool-text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ pillLabel }}</span>
-              <button type="button" onClick="{{ clearPill }}" title="不带这一项" style="flex: none; width: 16px; height: 16px; display: grid; place-items: center; border: 0; background: transparent; color: var(--tool-muted); border-radius: 3px; cursor: pointer;" style-hover="background: var(--tool-panel); color: var(--tool-text);">
-                <dc-import name="IconGlyph" d="M4.4 4.4l7.2 7.2M11.6 4.4l-7.2 7.2" size="10" stroke="1.6" hint-size="10px,10px"></dc-import>
-              </button>
-            </span>
-          </sc-if>
-          <input type="text" placeholder="说要改什么… ⏎ 发送" style="flex: 1 1 0; min-width: 120px; height: 30px; padding: 0 10px; border: 1px solid var(--tool-border-strong); border-radius: var(--tool-radius); background: var(--tool-panel); outline: none;" style-focus="border-color: var(--tool-accent); box-shadow: 0 0 0 3px var(--tool-accent-soft);">
-          <button type="button" style="flex: none; height: 30px; padding: 0 14px; border: 0; border-radius: var(--tool-radius); background: var(--tool-accent); color: var(--tool-on-accent); font-weight: 560; cursor: pointer;" style-hover="background: var(--tool-accent-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">发送</button>
-        </div>
-        </sc-if>
+      </div>
       </div>
 
-      <!-- 从属面板列：面板体 300px + 40px 图标轨。详情放不下时面板体改抽屉，图标轨留在原位 -->
-      <sc-if value="{{ hasPanels }}" hint-placeholder-val="{{ true }}">
-      <div style="order: 5; flex: none; display: flex; min-height: 0; background: var(--tool-panel); border-left: 1px solid var(--tool-border); border-right: {{ railBdR }};">
+      <!-- ═══ 底栏：调试。只装「工具自己的状况」，不装「这份文件的质量」（那是诊断面板） ═══ -->
+      <sc-if value="{{ bottomShown }}" hint-placeholder-val="{{ false }}">
+      <div style="flex: none; height: {{ bottomHpx }}; display: flex; flex-direction: column; min-height: 0; position: relative; background: var(--tool-panel); border-top: 1px solid var(--tool-border);">
+        <div onMouseDown="{{ startDragB }}" onDoubleClick="{{ resetBottom }}" title="拖动调高 · 双击回到 200 px" style="position: absolute; left: 0; right: 0; top: -3px; height: 6px; z-index: 2; cursor: row-resize; background: {{ dragBBg }};" style-hover="background: linear-gradient(var(--tool-accent), var(--tool-accent)) center / 100% 2px no-repeat;"></div>
+        <div style="flex: none; height: 32px; display: flex; align-items: center; gap: 2px; padding: 0 8px 0 6px; border-bottom: 1px solid var(--tool-border);">
+          <div role="tablist" aria-label="调试" style="display: flex; align-items: center; gap: 2px;">
+            <sc-for list="{{ dbgTabs }}" as="dt" hint-placeholder-count="3">
+              <button type="button" role="tab" aria-selected="{{ dt.on }}" onClick="{{ dt.pick }}" style="display: flex; align-items: center; gap: 6px; height: 24px; padding: 0 9px; border: 0; border-radius: var(--tool-radius-sm); cursor: pointer; font-size: 12px; white-space: nowrap; background: {{ dt.bg }}; color: {{ dt.fg }}; font-weight: {{ dt.fw }};" style-hover="background: var(--tool-hover); color: var(--tool-text);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">
+                <sc-if value="{{ dt.hasDot }}" hint-placeholder-val="{{ false }}"><span style="width: 6px; height: 6px; border-radius: 999px; background: {{ dt.dotBg }};"></span></sc-if>
+                {{ dt.label }}
+                <sc-if value="{{ dt.hasCount }}" hint-placeholder-val="{{ false }}">
+                  <span style="min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px; font-family: var(--tool-mono); font-size: 10px; line-height: 16px; text-align: center; background: {{ dt.cBg }}; color: {{ dt.cFg }};">{{ dt.count }}</span>
+                </sc-if>
+              </button>
+            </sc-for>
+          </div>
+          <span style="flex: 1;"></span>
+          <span title="布局读数" style="font-family: var(--tool-mono); font-size: 11px; color: var(--tool-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;">{{ layoutReadout }}</span>
+          <span style="width: 1px; height: 14px; margin: 0 6px; background: var(--tool-border);"></span>
+          <button type="button" onClick="{{ clearDbg }}" title="清空这一页" style="flex: none; height: 24px; padding: 0 8px; border: 0; border-radius: var(--tool-radius-sm); background: transparent; cursor: pointer; font-size: 11px; color: var(--tool-muted);" style-hover="background: var(--tool-hover); color: var(--tool-text);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">清空</button>
+        </div>
+        <div style="flex: 1 1 0; min-height: 0; overflow: auto; padding: 4px 0 8px; font-family: var(--tool-mono); font-size: 11px; line-height: 1.5;">
+          <sc-if value="{{ dbgEmpty }}" hint-placeholder-val="{{ false }}">
+            <div style="padding: 16px 14px; font-family: var(--tool-sans); font-size: 12px; color: var(--tool-muted);">{{ dbgEmptyText }}</div>
+          </sc-if>
+          <sc-if value="{{ isOutput }}" hint-placeholder-val="{{ true }}">
+            <sc-for list="{{ outRows }}" as="o" hint-placeholder-count="4">
+              <div style="display: grid; grid-template-columns: 64px 44px minmax(0, 1fr); gap: 8px; padding: 2px 14px; background: {{ o.bg }};">
+                <span style="color: var(--tool-muted); font-variant-numeric: tabular-nums;">{{ o.t }}</span>
+                <span style="color: {{ o.lvFg }}; font-weight: {{ o.lvFw }};">{{ o.level }}</span>
+                <span style="color: {{ o.fg }}; word-break: break-all;">{{ o.text }}</span>
+              </div>
+            </sc-for>
+          </sc-if>
+          <sc-if value="{{ isTools }}" hint-placeholder-val="{{ false }}">
+            <div style="display: grid; grid-template-columns: 64px 128px minmax(0, 1fr) 52px 60px; gap: 8px; padding: 2px 14px 4px; color: var(--tool-muted); font-family: var(--tool-sans);">
+              <span>时间</span><span>工具</span><span>参数</span><span style="text-align: right;">耗时</span><span style="text-align: right;">结果</span>
+            </div>
+            <sc-for list="{{ toolRows }}" as="tr" hint-placeholder-count="4">
+              <div style="display: grid; grid-template-columns: 64px 128px minmax(0, 1fr) 52px 60px; gap: 8px; padding: 2px 14px; background: {{ tr.bg }};">
+                <span style="color: var(--tool-muted); font-variant-numeric: tabular-nums;">{{ tr.t }}</span>
+                <span style="color: var(--tool-text); font-weight: 600;">{{ tr.name }}</span>
+                <span title="{{ tr.args }}" style="color: var(--tool-text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ tr.args }}</span>
+                <span style="color: var(--tool-muted); text-align: right; font-variant-numeric: tabular-nums;">{{ tr.ms }}</span>
+                <span title="{{ tr.err }}" style="text-align: right; color: {{ tr.resFg }};">{{ tr.res }}</span>
+              </div>
+            </sc-for>
+          </sc-if>
+          <sc-if value="{{ isConn }}" hint-placeholder-val="{{ false }}">
+            <div style="display: flex; align-items: center; gap: 8px; padding: 6px 14px 8px; font-family: var(--tool-sans); font-size: 12px;">
+              <span style="width: 7px; height: 7px; border-radius: 999px; background: {{ connDot }};"></span>
+              <span style="font-weight: 560;">{{ connState }}</span>
+              <span style="font-family: var(--tool-mono); font-size: 11px; color: var(--tool-muted);">{{ connUrl }}</span>
+              <span style="flex: 1;"></span>
+              <button type="button" style="height: 22px; padding: 0 8px; border: 1px solid var(--tool-border); border-radius: var(--tool-radius-sm); background: var(--tool-panel); cursor: pointer; font-size: 11px; color: var(--tool-text-2);" style-hover="background: var(--tool-hover); color: var(--tool-text);">重连</button>
+            </div>
+            <sc-for list="{{ connRows }}" as="c" hint-placeholder-count="4">
+              <div style="display: grid; grid-template-columns: 64px 16px 112px minmax(0, 1fr); gap: 8px; padding: 2px 14px;">
+                <span style="color: var(--tool-muted); font-variant-numeric: tabular-nums;">{{ c.t }}</span>
+                <span style="color: var(--tool-muted);">{{ c.dir }}</span>
+                <span style="color: var(--tool-text); font-weight: 600;">{{ c.type }}</span>
+                <span style="color: var(--tool-text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ c.detail }}</span>
+              </div>
+            </sc-for>
+          </sc-if>
+        </div>
+      </div>
+      </sc-if>
+      </div>
+
+      <!-- ═══ 右栏：从属面板 300px + 40px 图标轨。显隐只归顶栏右那颗钮；图标轨只负责「看哪一块」 ═══ -->
+      <sc-if value="{{ rightShown }}" hint-placeholder-val="{{ true }}">
+      <div style="flex: none; display: flex; min-height: 0; background: var(--tool-panel); border-left: 1px solid var(--tool-border);">
         <sc-if value="{{ panelInline }}" hint-placeholder-val="{{ true }}">
           <div style="width: 300px; display: flex; flex-direction: column; min-height: 0; border-right: 1px solid var(--tool-border);">
             <div style="flex: none; height: 36px; display: flex; align-items: center; gap: 8px; padding: 0 8px 0 14px; border-bottom: 1px solid var(--tool-border);">
@@ -378,11 +530,8 @@
               </sc-if>
               <span style="flex: 1;"></span>
               <sc-if value="{{ panelHasAction }}" hint-placeholder-val="{{ false }}">
-              <button type="button" onClick="{{ runCheck }}" disabled="{{ checking }}" style="height: 24px; padding: 0 8px; border: 1px solid var(--tool-border); border-radius: var(--tool-radius-sm); background: var(--tool-panel); cursor: pointer; font-size: 11px; color: var(--tool-text-2); opacity: {{ checkOp }};" style-hover="background: var(--tool-hover); color: var(--tool-text);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">{{ checkLabel }}</button>
-            </sc-if>
-            <button type="button" onClick="{{ closePanel }}" title="收起（再点一次图标也行）" style="width: 24px; height: 24px; display: grid; place-items: center; border: 0; background: transparent; color: var(--tool-muted); border-radius: var(--tool-radius-sm); cursor: pointer;" style-hover="background: var(--tool-hover); color: var(--tool-text);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">
-                <dc-import name="IconGlyph" d="M6 3.6L10.4 8 6 12.4" size="13" hint-size="13px,13px"></dc-import>
-              </button>
+                <button type="button" onClick="{{ runCheck }}" disabled="{{ checking }}" style="height: 24px; padding: 0 8px; border: 1px solid var(--tool-border); border-radius: var(--tool-radius-sm); background: var(--tool-panel); cursor: pointer; font-size: 11px; color: var(--tool-text-2); opacity: {{ checkOp }};" style-hover="background: var(--tool-hover); color: var(--tool-text);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">{{ checkLabel }}</button>
+              </sc-if>
             </div>
             <div style="flex: 1 1 0; min-height: 0; overflow: auto; padding: 12px 14px;">
               <sc-if value="{{ isOutline }}" hint-placeholder-val="{{ false }}">
@@ -415,7 +564,7 @@
       </sc-if>
 
       <sc-if value="{{ drawerOpen }}" hint-placeholder-val="{{ false }}">
-        <div role="dialog" aria-label="{{ panelTitle }}" style="position: absolute; top: 0; bottom: 0; right: {{ drawerRight }}; width: 320px; z-index: 4; display: flex; flex-direction: column; background: var(--tool-panel); border-left: 1px solid var(--tool-border-strong); box-shadow: var(--tool-shadow-2);">
+        <div role="dialog" aria-label="{{ panelTitle }}" style="position: absolute; top: 0; bottom: 0; right: 40px; width: 320px; z-index: 4; display: flex; flex-direction: column; background: var(--tool-panel); border-left: 1px solid var(--tool-border-strong); box-shadow: var(--tool-shadow-2);">
           <div style="flex: none; height: 36px; display: flex; align-items: center; gap: 8px; padding: 0 8px 0 14px; border-bottom: 1px solid var(--tool-border);">
             <span style="font-weight: 600;">{{ panelTitle }}</span>
             <sc-if value="{{ panelHasBadge }}" hint-placeholder-val="{{ false }}">
@@ -426,9 +575,6 @@
               <button type="button" onClick="{{ runCheck }}" disabled="{{ checking }}" style="height: 24px; padding: 0 8px; border: 1px solid var(--tool-border); border-radius: var(--tool-radius-sm); background: var(--tool-panel); cursor: pointer; font-size: 11px; color: var(--tool-text-2); opacity: {{ checkOp }};" style-hover="background: var(--tool-hover); color: var(--tool-text);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">{{ checkLabel }}</button>
             </sc-if>
             <kbd style="font-family: var(--tool-mono); font-size: 10px; color: var(--tool-muted); background: var(--tool-panel-2); border: 1px solid var(--tool-border); border-radius: var(--tool-radius-sm); padding: 0 4px;">Esc</kbd>
-            <button type="button" onClick="{{ closePanel }}" title="关闭抽屉" style="width: 24px; height: 24px; display: grid; place-items: center; border: 0; background: transparent; color: var(--tool-muted); border-radius: var(--tool-radius-sm); cursor: pointer;" style-hover="background: var(--tool-hover); color: var(--tool-text);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">
-              <dc-import name="IconGlyph" d="M4.4 4.4l7.2 7.2M11.6 4.4l-7.2 7.2" size="12" stroke="1.5" hint-size="12px,12px"></dc-import>
-            </button>
           </div>
           <div style="flex: 1 1 0; min-height: 0; overflow: auto; padding: 12px 14px;">
             <div style="height: 100%; min-height: 160px; display: grid; place-items: center; text-align: center; padding: 16px; border: 1px dashed var(--tool-border-strong); border-radius: var(--tool-radius); color: var(--tool-muted); font-size: 12px; line-height: 1.6;">{{ panelSlot }}</div>
@@ -437,18 +583,64 @@
       </sc-if>
     </div>
 
-    <!-- ═══ 底部状态行 24px ═══ -->
-    <div style="flex: none; height: 24px; display: flex; align-items: center; gap: 10px; padding: 0 12px; font-size: 11px; color: var(--tool-muted); background: var(--tool-panel); border-top: 1px solid var(--tool-border); white-space: nowrap; overflow: hidden;">
-      <span style="font-family: var(--tool-mono); min-width: 0; overflow: hidden; text-overflow: ellipsis;">{{ statusPath }}</span>
-      <span style="color: var(--tool-border-strong);">·</span>
-      <span>{{ statusKind }}</span>
-      <sc-if value="{{ hasStatusMeta }}" hint-placeholder-val="{{ true }}">
-        <span style="color: var(--tool-border-strong);">·</span>
-        <span style="font-family: var(--tool-mono); font-variant-numeric: tabular-nums;">{{ statusMeta }}</span>
-      </sc-if>
-      <span style="flex: 1;"></span>
-      <span style="font-variant-numeric: tabular-nums;">{{ statusLayout }}</span>
+    <!-- ═══ 新建稿件（NewDraftSheet）：从右键「新建稿件…」进来，位置已经填好 ═══ -->
+    <sc-if value="{{ sheetOpen }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ closeSheet }}" style="position: absolute; inset: 0; z-index: 60; background: rgba(15, 18, 24, 0.32); display: grid; place-items: start center; padding-top: 96px;">
+      <div role="dialog" aria-label="新建稿件" onClick="{{ stop }}" style="width: 460px; background: var(--tool-panel); border: 1px solid var(--tool-border-strong); border-radius: var(--tool-radius-lg); box-shadow: var(--tool-shadow-2); display: flex; flex-direction: column;">
+        <div style="padding: 18px 20px 4px; font-size: 15px; font-weight: 620;">新建稿件</div>
+        <div style="padding: 14px 20px 20px; display: grid; gap: 18px;">
+          <label style="display: grid; gap: 7px;">
+            <span style="font-size: 12px; font-weight: 560; color: var(--tool-text-2);">文件名</span>
+            <span style="display: flex; align-items: center; height: 34px; border: 1px solid {{ nameBd }}; border-radius: var(--tool-radius); background: var(--tool-panel); box-shadow: {{ nameRing }};">
+              <input type="text" value="{{ sheetName }}" onChange="{{ onSheetName }}" onKeyDown="{{ onSheetKey }}" placeholder="未命名" autoFocus="{{ true }}" style="flex: 1 1 0; min-width: 0; height: 100%; padding: 0 0 0 10px; border: 0; background: transparent; outline: none;">
+              <span style="flex: none; padding: 0 10px 0 2px; font-family: var(--tool-mono); font-size: 12px; color: var(--tool-muted);">.dc.html</span>
+            </span>
+            <span style="font-size: 11px; line-height: 1.5; color: {{ pathFg }};">{{ sheetHint }}</span>
+          </label>
+          <div style="display: grid; gap: 7px;">
+            <span style="font-size: 12px; font-weight: 560; color: var(--tool-text-2);">位置</span>
+            <button type="button" title="换一个目录" style="display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 8px 0 10px; border: 1px solid var(--tool-border-strong); border-radius: var(--tool-radius); background: var(--tool-panel); cursor: pointer; text-align: left;" style-hover="background: var(--tool-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">
+              <span style="display: grid; color: var(--tool-muted);"><dc-import name="IconGlyph" d="M2 4.4c0-.5.4-.9.9-.9h3.2l1.5 1.6h5.5c.5 0 .9.4.9.9v6.6c0 .5-.4.9-.9.9H2.9c-.5 0-.9-.4-.9-.9z" size="14" hint-size="14px,14px"></dc-import></span>
+              <span style="flex: 1 1 0; min-width: 0; font-family: var(--tool-mono); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ sheetDir }}</span>
+              <span style="font-size: 12px; color: var(--tool-accent);">更改</span>
+            </button>
+          </div>
+          <div style="display: grid; gap: 7px;">
+            <span style="font-size: 12px; font-weight: 560; color: var(--tool-text-2);">类型</span>
+            <div role="radiogroup" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+              <sc-for list="{{ sheetKinds }}" as="k" hint-placeholder-count="2">
+                <button type="button" role="radio" aria-checked="{{ k.on }}" onClick="{{ k.pick }}" style="display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 8px; align-items: start; padding: 10px 12px; border: 1px solid {{ k.bd }}; border-radius: var(--tool-radius); background: {{ k.bg }}; cursor: pointer; text-align: left; box-shadow: {{ k.ring }};" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">
+                  <span style="display: grid; padding-top: 1px; color: {{ k.iconFg }};"><dc-import name="IconGlyph" d="{{ k.icon }}" size="16" hint-size="16px,16px"></dc-import></span>
+                  <span style="display: grid; gap: 2px; min-width: 0;">
+                    <span style="font-weight: 600; color: var(--tool-text);">{{ k.label }}</span>
+                    <span style="font-size: 11px; line-height: 1.5; color: var(--tool-muted);">{{ k.sub }}</span>
+                  </span>
+                </button>
+              </sc-for>
+            </div>
+          </div>
+          <div style="display: grid; gap: 7px;">
+            <span style="font-size: 12px; font-weight: 560; color: var(--tool-text-2);">起始模板 <span style="font-weight: 400; color: var(--tool-muted);">· 可选</span></span>
+            <div role="radiogroup" style="display: grid; border: 1px solid var(--tool-border); border-radius: var(--tool-radius); overflow: hidden;">
+              <sc-for list="{{ sheetTpls }}" as="tp" hint-placeholder-count="3">
+                <button type="button" role="radio" aria-checked="{{ tp.on }}" onClick="{{ tp.pick }}" style="display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 10px; align-items: center; min-height: 40px; padding: 6px 12px; border: 0; border-top: {{ tp.bdTop }}; background: {{ tp.bg }}; cursor: pointer; text-align: left;" style-hover="background: var(--tool-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: -2px;">
+                  <span style="width: 14px; height: 14px; border-radius: 999px; border: 1.5px solid {{ tp.dotBd }}; display: grid; place-items: center;"><span style="width: 6px; height: 6px; border-radius: 999px; background: var(--tool-accent); opacity: {{ tp.dotOp }};"></span></span>
+                  <span style="display: grid; gap: 1px; min-width: 0;">
+                    <span style="font-size: 12px; color: var(--tool-text); font-weight: {{ tp.fw }};">{{ tp.name }}</span>
+                    <span style="font-family: var(--tool-mono); font-size: 11px; color: var(--tool-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ tp.sub }}</span>
+                  </span>
+                </button>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+        <div style="display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding: 12px 20px; border-top: 1px solid var(--tool-border); background: var(--tool-panel-2); border-radius: 0 0 var(--tool-radius-lg) var(--tool-radius-lg);">
+          <button type="button" onClick="{{ closeSheet }}" style="height: 30px; padding: 0 14px; border: 1px solid var(--tool-border-strong); border-radius: var(--tool-radius); background: var(--tool-panel); cursor: pointer;" style-hover="background: var(--tool-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">取消</button>
+          <button type="button" onClick="{{ createDraft }}" disabled="{{ sheetBlocked }}" style="height: 30px; padding: 0 16px; border: 0; border-radius: var(--tool-radius); background: var(--tool-accent); color: var(--tool-on-accent); font-weight: 560; cursor: pointer; opacity: {{ createOp }};" style-hover="background: var(--tool-accent-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">新建 ⏎</button>
+        </div>
+      </div>
     </div>
+    </sc-if>
   </div>
   </div>
 </div>
@@ -456,14 +648,13 @@
 <script type="text/x-dc" data-dc-script data-props="{&quot;theme&quot;: {&quot;editor&quot;: &quot;enum&quot;, &quot;options&quot;: [&quot;跟随外层&quot;, &quot;dark&quot;], &quot;default&quot;: &quot;跟随外层&quot;, &quot;tsType&quot;: &quot;'dark'|null&quot;, &quot;section&quot;: &quot;工具皮肤&quot;}}">
 const ICON = {
   dc: "M2.5 3h11v10h-11zM2.5 5.8h11M5.2 8.4h5.6M5.2 10.6h3.4",
+  comp: "M8 1.8l5.4 3.1v6.2L8 14.2l-5.4-3.1V4.9z",
   dir: "M2 4.4c0-.5.4-.9.9-.9h3.2l1.5 1.6h5.5c.5 0 .9.4.9.9v6.6c0 .5-.4.9-.9.9H2.9c-.5 0-.9-.4-.9-.9z",
   md: "M4 2h5.4L12 4.6V14H4zM9.4 2v2.6H12M6 8h4M6 10.4h4M6 5.8h1.6",
   image: "M2.5 3h11v10h-11zM2.5 11l3.2-3.2 2.8 2.8 1.8-1.8 3.2 3.2M10.6 5.8h.1",
   code: "M5.5 5L2.5 8l3 3M10.5 5l3 3-3 3M9 3.5l-2 9",
-  html: "M8 2a6 6 0 1 0 0 12A6 6 0 1 0 8 2zM2 8h12M8 2c-2.2 2.2-2.2 9.8 0 12M8 2c2.2 2.2 2.2 9.8 0 12",
   other: "M4 2h5.4L12 4.6V14H4zM9.4 2v2.6H12"
 };
-const KIND_LABEL = { dc: "设计稿", dir: "目录", md: "Markdown", image: "图片", code: "代码", html: "HTML", other: "其他文件" };
 const PANEL_ICON = {
   props: "M2.5 4.5h11M2.5 11.5h11M5.5 3v3M10.5 10v3",
   diagnostics: "M8 2.2l6 11.2H2zM8 6.4v3M8 11.4v.1",
@@ -473,11 +664,11 @@ const PANEL_ICON = {
   outline: "M3 4h10M5.5 8h7.5M8 12h5"
 };
 const PANEL_SLOT = {
-  props: "S7 属性面板装在这里（300 px）。今天 S2 右栏那一块整体搬过来，S2 嵌入时不再自带",
-  diagnostics: "S3 诊断面板的侧栏形态装在这里。手动重跑体检的钮在这块面板的头部；结果常驻在图标轨角标和状态行",
-  changes: "S4 变更清单装在这里。「对比上一版」仍跳 S6 整页",
+  props: "S7 属性面板装在这里（300 px）",
+  diagnostics: "S3 诊断面板的侧栏形态。这份稿的体检明细在这里，不进调试栏",
+  changes: "S4 变更清单装在这里。「对比上一版」在文件 ⋯ 里，跳 S6 整页",
   comments: "评论列表装在这里。钉新评论用文件工具栏的「评论」指针",
-  info: "稿件信息装在这里：版本、元素数、被引用、路径"
+  info: "稿件信息：版本、元素数、被引用、路径"
 };
 const SEL = {
   node: { word: "node", icon: "M4 2.8l8.4 4.4-3.6 1-1.8 3.4z" },
@@ -488,9 +679,10 @@ const SEL = {
 };
 const SIM_W = 1440;
 const TREE_MIN = 200, TREE_MAX = 360, TREE_DEF = 240, DETAIL_MIN = 480, PANEL_W = 300, RAIL_W = 40;
-const INDENT = 16, ROW_PAD = 4;
+const BOTTOM_MIN = 120, BOTTOM_MAX = 420, BOTTOM_DEF = 200;
+const TAB_MIN = 112, TAB_GAP = 2, OVERFLOW_W = 52, HANDLE_W = 32;
+const INDENT = 16, ROW_PAD = 4, ROW_H = 28, HEAD_H = 34, MENU_W = 216;
 
-/* 第七轮：引擎选择器按「谁付钱」分三组。channel 仍是内部键 A/B/C，界面只写名字 */
 const ENGINES = [
   { group: "本机 · 用你已有的订阅", items: [
     { id: "claude", channel: "B", tool: "claude", name: "Claude Code", sub: "本机订阅" },
@@ -506,6 +698,13 @@ const ENGINES = [
   ] }
 ];
 const ENGINE_LIST = ENGINES.reduce((a, g) => a.concat(g.items), []);
+/* 会话历史。键：sessions: [{ id, title, engine, group, when, ask, reply, turn }]；engine 存在会话文件里（第 7 条的修法），换会话时引擎跟着会话走 */
+const SESSIONS = [
+  { id: "s-0925-01", title: "日志页按钮字号", engine: "deepseek", group: "今天", when: "10:42", turn: { calls: 3, tokens: "3.2k", cost: "¥0.04" } },
+  { id: "s-0925-00", title: "首页空态改文案", engine: "claude", group: "今天", when: "09:15", ask: "空态那句话改得口语一点", reply: "改成「这里还没有东西，拖个文件进来试试」，已落盘。", turn: { calls: 2 } },
+  { id: "s-0924-03", title: "设置页深色检查", engine: "volc", group: "昨天", when: "21:08", ask: "深色下设置页有没有对比度不够的", reply: "两处：分组标题和禁用态说明文字，已列在诊断里。", turn: { tokens: "5.8k" } },
+  { id: "s-0922-01", title: "README 重写", engine: "deepseek", group: "本周", when: "9月22日", ask: "README 太长了，压一半", reply: "压到 62 行，结构没动。", turn: { calls: 1, tokens: "2.1k", cost: "¥0.02" } }
+];
 const WIDTHS = [
   { label: "PC", w: 1440 }, { label: "PC", w: 1280 }, { label: "平板", w: 1024 }, { label: "手机", w: 390 }, { label: "跟随窗口", w: null }
 ];
@@ -516,6 +715,14 @@ const TABS = [
   { path: "README.md", kind: "md", unsaved: true },
   { path: "uploads/首页截图.png", kind: "image", unsaved: false }
 ];
+const MANY_TABS = TABS.concat([
+  { path: "PC 端/设置.dc.html", kind: "dc" },
+  { path: "PC 端/Pages/首页.dc.html", kind: "dc", unsaved: true },
+  { path: "PC 端/需求.md", kind: "md" },
+  { path: "design-system/README.md", kind: "md" },
+  { path: "design-system/tokens.css", kind: "code" },
+  { path: "uploads/截图/日志页.png", kind: "image" }
+]);
 const DC_PANELS = [
   { id: "props", title: "属性", open: true },
   { id: "diagnostics", title: "诊断", open: false, badge: 2 },
@@ -548,8 +755,7 @@ const LAZY = {
   "uploads/截图": ["首页", "日志页", "设置页", "会话列表", "空态", "报错态", "深色首页", "移动端首页", "说明"].map((t, i) => ({ name: t + (i === 8 ? ".md" : ".png"), kind: i === 8 ? "md" : "image" })),
   "Archive": []
 };
-const DOT = { warn: ["var(--tool-warn)", "有提醒"], error: ["var(--tool-err)", "有错误"] };
-/* 「转到文件」的稿件清单：真应用里用 S1 的索引（已含未展开目录），这里从同一份假树里收 */
+const DOT = { warn: ["var(--tool-warn)", "体检：有提醒"], error: ["var(--tool-err)", "体检：有错误"] };
 function collectDrafts() {
   const out = [];
   const walk = (nodes, parent) => nodes.forEach((n) => {
@@ -561,18 +767,45 @@ function collectDrafts() {
   return out;
 }
 const DRAFTS = collectDrafts();
+const TEMPLATES = [
+  { id: "blank", name: "空白", sub: "只有骨架和 support.js" },
+  { id: "skeleton", name: "页面骨架", sub: "design-system/页面骨架.dc.html" },
+  { id: "copy", name: "复制一份现有稿…", sub: "从项目里挑一份当起点" }
+];
+/* 调试栏数据。键：debug: { output: [{ t, level, text }], tools: [{ t, name, args, ms, ok, err? }], conn: { state, url, events: [{ t, dir, type, detail }] } } */
+const DEBUG = {
+  output: [
+    { t: "10:41:58", level: "info", text: "core 已启动 · 127.0.0.1:5173" },
+    { t: "10:42:03", level: "info", text: "索引完成 · 1.8 s" },
+    { t: "10:42:31", level: "warn", text: "PC 端/设置.dc.html · W_HOLE_IN_PARSED_ATTR" },
+    { t: "10:43:10", level: "error", text: "channel_b: claude 退出码 1 · stderr: rate limited, retry in 20s" },
+    { t: "10:43:31", level: "info", text: "channel_b: 重试成功" }
+  ],
+  tools: [
+    { t: "10:42:40", name: "read_draft", args: "PC 端/日志.dc.html", ms: 38, ok: true },
+    { t: "10:42:41", name: "search_tokens", args: "query=button", ms: 12, ok: true },
+    { t: "10:42:44", name: "patch_draft", args: "n42 style.font-size → 15px", ms: 96, ok: true },
+    { t: "10:42:45", name: "get_token", args: "--tool-accent-2", ms: 4, ok: false, err: "没有这个 token" }
+  ],
+  conn: { state: "open", url: "ws://127.0.0.1:5173/__ud/ws", events: [
+    { t: "10:42:44", dir: "↓", type: "file-changed", detail: "PC 端/日志.dc.html · v218" },
+    { t: "10:42:45", dir: "↓", type: "health", detail: "PC 端/日志.dc.html · 通过" },
+    { t: "10:42:46", dir: "↑", type: "subscribe", detail: "PC 端/日志.dc.html" },
+    { t: "10:43:16", dir: "↓", type: "ping", detail: "" }
+  ] }
+};
 
 const BASE = {
   project: { name: "umbra", title: "Umbra 私人 AI 助手", root: "/Users/sam/Design/umbra" },
-  layout: { chatSide: "left", chatMode: "expanded", chatWidth: 380, width: null,
+  layout: { left: true, bottom: false, right: true, chatWidth: 380, width: null, bottomHeight: BOTTOM_DEF,
     tree: { open: true, width: TREE_DEF, expanded: ["PC 端"] } },
   file: { path: "PC 端/日志.dc.html", kind: "dc" },
   tabs: TABS,
   panels: DC_PANELS,
   tree: { nodes: TREE, loading: [] },
   selection: { kind: "node", label: "button.primary", detail: "PC 端/日志.dc.html › n42" },
-  session: { currentId: "s-0925-01", title: "日志页按钮字号" },
-  engine: "deepseek",
+  sessions: SESSIONS,
+  currentSession: "s-0925-01",
   canvas: { view: "edit", pointer: "select", width: 1440, zoom: 30 }
 };
 const OUTLINE = [
@@ -583,44 +816,64 @@ const OUTLINE = [
 const ext = (o, p) => Object.assign({}, o, p);
 const lay = (p) => ext(BASE, { layout: ext(BASE.layout, p) });
 const treeLay = (p) => ext(BASE.layout.tree, p);
+const rowY = (i) => HEAD_H + 2 + i * ROW_H;
 
 const DEMOS = [
-  { n: 1, short: ".dc.html", name: "选中 .dc.html", note: "三条横带各管一层：顶栏 = 项目 + 窗口布局，页签条 = 开着哪些文件，文件工具栏 = 这份文件", data: BASE },
-  { n: 2, short: ".md", name: "选中 .md", note: "文件工具栏换成 Markdown 自己的：渲染 / 源码 + ⋯；没有尺寸和演示",
-    data: ext(BASE, { file: { path: "README.md", kind: "md" }, panels: MD_PANELS,
-      selection: { kind: "range", label: "README.md L9–12", detail: "最近 7 天 …" } }) },
-  { n: 3, short: "图片 · 加载中", name: "选中图片 · 子目录读取中", note: "图片的工具栏只剩缩放和 ⋯；uploads/截图 刚展开，子项先出一行「读取中…」",
+  { n: 1, short: ".dc.html", name: "选中 .dc.html", note: "顶栏右三颗 = 左栏（会话）/ 底栏（调试）/ 右栏（面板）在不在。目录列不算三块之一，它的开关在自己的列头", data: BASE },
+  { n: 2, short: ".md", name: "选中 .md", note: "右栏装大纲；文件工具栏只有渲染 / 源码 + ⋯",
+    data: ext(BASE, { file: { path: "README.md", kind: "md" }, panels: MD_PANELS, selection: { kind: "range", label: "README.md L9–12", detail: "最近 7 天 …" } }) },
+  { n: 3, short: "图片", name: "图片 · 没有右栏", note: "图片没有从属面板：顶栏右栏钮置灰（不是弹起），悬停说原因。uploads/截图 读取中",
     data: ext(BASE, { file: { path: "uploads/首页截图.png", kind: "image" }, panels: [],
       layout: ext(BASE.layout, { tree: treeLay({ expanded: ["PC 端", "uploads", "uploads/截图"] }) }),
       tree: { nodes: TREE, loading: ["uploads/截图"] },
       selection: { kind: "region", label: "首页截图.png (120,640 210×44)", detail: "这个按钮的颜色是什么" } }) },
-  { n: 4, short: "输入条", name: "会话收成一条输入条", note: "会话收起后目录列贴着左边缘；顶栏布局组里「输入条」那颗按下",
-    data: lay({ chatMode: "bar" }) },
-  { n: 5, short: "会话在右", name: "会话在右", note: "顺序：目录 · 详情 · 从属面板 · 会话。目录不跟会话换边",
-    data: lay({ chatSide: "right" }) },
-  { n: 6, short: "目录收起", name: "用户收起了目录", note: "整列收掉；顶栏布局组里的目录列钮弹起，再点或 ⌘B 回来。选择记在 layout.tree.open",
+  { n: 4, short: "左栏关", name: "左栏（会话）关", note: "会话整栏收掉，不再留输入条（R1 改了，见回复 §一）。⌘\\ 或顶栏第一颗回来",
+    data: lay({ left: false }) },
+  { n: 5, short: "底栏 · 输出", name: "底栏（调试）· 输出", note: "底栏只横跨中间：会话输入框和右栏不被压矮。高度可拖，记在 layout.bottomHeight",
+    data: lay({ bottom: true }), dbg: "output" },
+  { n: 6, short: "底栏 · 工具调用", name: "底栏 · 工具调用", note: "AI 每一次工具调用一行；失败的那行标红，悬停看原因",
+    data: lay({ bottom: true }), dbg: "tools" },
+  { n: 7, short: "底栏 · 连接", name: "底栏 · 连接", note: "WS 状态 + 最近事件；断线时这一页的圆点变红，顶栏底栏钮也挂红点",
+    data: lay({ bottom: true }), dbg: "conn" },
+  { n: 8, short: "底栏关 · 有错", name: "底栏关着时出了错", note: "输出里有 error、底栏又关着：顶栏底栏钮挂一个红点。打开看过就消",
+    data: BASE },
+  { n: 9, short: "右栏关", name: "右栏（面板）关", note: "整列收掉，含图标轨。图标轨只管「看哪一块」，不再管开关",
+    data: lay({ right: false }) },
+  { n: 10, short: "目录收起", name: "目录收起", note: "列头那颗收起后，同一个图标（箭头反向）出现在页签条最左 —— 目录回来的地方。⌘B 照旧",
     data: lay({ tree: treeLay({ open: false }) }) },
-  { n: 7, short: "1280 px", name: "窗口 1280 px · 第一步让位", note: "详情会小于 480 px，属性面板体先改抽屉（图标轨留着）；目录列仍并排",
+  { n: 11, short: "1280 px", name: "窗口 1280 px · 第一步让位", note: "详情会小于 480 px，面板体先改抽屉（图标轨留着）；目录列仍并排",
     data: lay({ width: 1280 }) },
-  { n: 8, short: "1024 px", name: "窗口 1024 px · 第二步让位", note: "目录列也让位；顶栏的目录列钮仍在原处，点开是浮层",
-    data: ext(lay({ width: 1024 }), { panels: DC_PANELS.map((p) => ext(p, { open: p.id === "diagnostics" })) }) },
-  { n: 9, short: "目录浮层", name: "1024 px · 目录浮层打开", note: "浮层盖在详情上，选中文件或 Esc 就收；不改写用户记住的「展开」",
+  { n: 12, short: "1024 · 浮层", name: "1024 px · 目录让位成浮层", note: "目录让位后，页签条最左那颗点开是浮层；选中文件或 Esc 就收",
     data: lay({ width: 1024 }), float: true },
-  { n: 10, short: "项目菜单", name: "项目菜单", note: "顶栏项目名 ▾ 就是项目级菜单：原顶栏 ⋯ 的五项和项目路径都在这里",
+  { n: 13, short: "项目菜单", name: "项目菜单", note: "只剩对「整个项目」的动作：复制路径 · 在访达中显示 · 重建索引 · 项目设置 · 关闭项目。新建稿件去了右键",
     data: BASE, menu: "project" },
-  { n: 11, short: "引擎", name: "引擎选择器", note: "会话栏头部的引擎钮，按谁付钱分三组；当前一条打勾",
+  { n: 14, short: "右键 · 目录", name: "右键目录", note: "新建落在这个目录里；「在详情区打开」接走了原列头的 ⤢",
+    data: BASE, ctx: { kind: "dir", path: "PC 端", top: rowY(0) + 20, left: 96 } },
+  { n: 15, short: "右键 · 文件", name: "右键文件", note: "删除写成「移到回收站」，不弹确认；做完原地给一行撤销",
+    data: BASE, ctx: { kind: "file", path: "PC 端/日志.dc.html", top: rowY(2) + 20, left: 112 } },
+  { n: 16, short: "右键 · 空白", name: "右键空白处", note: "空白处 = 项目根。新建落在根目录；「全部折叠」从列头搬进来",
+    data: BASE, ctx: { kind: "blank", path: null, top: rowY(10) + 24, left: 60 } },
+  { n: 17, short: "新建稿件", name: "新建稿件（从右键进来）", note: "位置已经是右键的那个目录；文件名下面实时写出完整路径，重名当场说",
+    data: BASE, sheet: "PC 端/Pages" },
+  { n: 18, short: "重命名", name: "重命名 · 就地", note: "行变输入框，默认选中去掉扩展名的部分。⏎ 存、Esc 放弃、失焦也存",
+    data: BASE, renaming: "PC 端/设置.dc.html" },
+  { n: 19, short: "删除 · 撤销", name: "移到回收站 · 撤销", note: "同 S1：先做，再给一步回头路。离开这一屏或做下一件事，这一行才消失",
+    data: BASE, deleted: "PC 端/需求.md" },
+  { n: 20, short: "会话历史", name: "会话历史", note: "点头部右边的历史钮：整栏换成列表，第一行永远是「新建会话」。点另一条，引擎跟着那条会话走",
+    data: BASE, hist: true },
+  { n: 21, short: "引擎", name: "引擎选择器", note: "模型名在会话栏里只出现这一处。选了只改这一条会话",
     data: BASE, menu: "engine" },
-  { n: 12, short: "转到文件", name: "转到文件", note: "原页签条右端的「N 份稿 ▾」挪到目录列头的 ⌕；⌘P 在任何状态下都能开",
-    data: BASE, menu: "goto" },
-  { n: 13, short: "宽度 · 缩放", name: "画布宽度与缩放", note: "宽度和缩放合成一颗钮，常态只露读数；⌘− ⌘＋ ⌘0 照旧",
-    data: BASE, menu: "size" },
-  { n: 14, short: "文件 ⋯", name: "文件的更多操作", note: "全屏只剩这一个 ⋯，管当前文件；手动体检收在这里和诊断面板头部",
+  { n: 22, short: "页签多了", name: "页签多了", note: "放不下的收进右端「+N ▾」。不横向滚动、没有滚动条。当前页签永远在可见的那几个里",
+    data: ext(BASE, { tabs: MANY_TABS }) },
+  { n: 23, short: "页签列表", name: "所有打开的文件", note: "列表里是全部页签（含看得见的），当前打勾、未保存有点；同名文件带上目录",
+    data: ext(BASE, { tabs: MANY_TABS }), menu: "tabs" },
+  { n: 24, short: "文件 ⋯", name: "文件的更多操作", note: "补了「对比上一版（S6）」「重新加载预览」，删了「变更与版本」（和图标轨重复）",
     data: BASE, menu: "more" },
-  { n: 15, short: "预览态", name: ".dc.html · 预览", note: "预览 = 稿本身，点选 / 评论两个指针随之收起；回到编辑时恢复上次的指针",
-    data: ext(BASE, { canvas: ext(BASE.canvas, { view: "preview" }) }) },
-  { n: 16, short: "目录视图", name: "在详情区打开目录", note: "S12 自己的工具栏也落在同一行：范围 · 排布在左，回收站进 ⋯；有勾选时右侧换成移动 / 删除 / 带进会话",
-    data: ext(BASE, { file: { path: "umbra/", kind: "dir" }, tabs: TABS.concat([{ path: "umbra/", kind: "dir" }]), panels: [],
-      selection: { kind: "dir", label: "umbra/", detail: "整个目录" } }) }
+  { n: 25, short: "宽度 · 缩放", name: "宽度 · 缩放 + 稿的浅深", note: "✽ 回来了，改成一颗独立的「稿的浅 / 深色」开关，挨着宽度·缩放",
+    data: BASE, menu: "size" },
+  { n: 26, short: "转到文件", name: "转到文件", note: "目录列头的 ⌕；⌘P 在任何状态下都能开", data: BASE, menu: "goto" },
+  { n: 27, short: "目录视图", name: "在详情区打开目录", note: "S12 的工具栏落在文件工具栏那一行；多选后的右键见 S12",
+    data: ext(BASE, { file: { path: "umbra/", kind: "dir" }, tabs: TABS.concat([{ path: "umbra/", kind: "dir" }]), panels: [], selection: { kind: "dir", label: "umbra/", detail: "整个目录" } }) }
 ];
 
 function childrenOf(node, path, loaded) { return node.children || loaded[path]; }
@@ -629,22 +882,35 @@ function ancestors(path) {
   for (let i = 1; i < parts.length; i++) out.push(parts.slice(0, i).join("/"));
   return out;
 }
-const RESET = { side: null, mode: null, open: undefined, pill: true, treeOpen: null, treeW: null, float: null, exp: null, loading: null, loaded: {}, file: null,
-  cv: null, engine: null, mdView: "render", dirScope: "all", dirLayout: "list", imgZoom: null, gotoQ: "", checking: false };
+const baseName = (p) => p.replace(/\/$/, "").split("/").pop();
+const dirOf = (p) => { const a = p.replace(/\/$/, "").split("/"); a.pop(); return a.join("/"); };
+const RESET = { left: null, bottom: null, right: null, open: undefined, pill: true, selOverride: null, treeOpen: null, treeW: null, float: null, exp: null, loading: null, loaded: {}, file: null,
+  cv: null, engineBy: {}, mdView: "render", dirScope: "all", dirLayout: "list", imgZoom: null, gotoQ: "", checking: false,
+  ctx: null, renaming: null, renameText: "", renamed: {}, deleted: null, sheet: null, sheetName: "", sheetKind: "page", sheetTpl: "blank",
+  hist: false, sessionId: null, fresh: false, dbgTab: "output", bottomH: null, cleared: {}, seenErr: false, draftDark: false, hoverTab: null };
 
 class Component extends DCLogic {
   state = ext(RESET, { demo: 1, menu: null, vw: typeof window !== "undefined" ? window.innerWidth : 1440 });
+  navRef = React.createRef();
 
   componentDidMount() {
     this.onKey = (e) => {
       const mod = e.metaKey || e.ctrlKey;
       if (e.key === "Escape") {
-        if (this.state.menu) { this.setState({ menu: null }); return; }
-        this.setState({ open: this.lastDrawer ? null : this.state.open, float: false });
+        const s = this.state;
+        if (s.sheet) { this.setState({ sheet: null }); return; }
+        if (s.ctx) { this.setState({ ctx: null }); return; }
+        if (s.menu) { this.setState({ menu: null }); return; }
+        if (s.hist) { this.setState({ hist: false }); return; }
+        this.setState({ open: this.lastDrawer ? null : s.open, float: false });
       }
-      if (mod && e.key === "\\") { e.preventDefault(); this.setState({ mode: this.mode() === "bar" ? "expanded" : "bar" }); }
-      if (mod && (e.key === "b" || e.key === "B")) { e.preventDefault(); this.toggleTree(); }
-      if (mod && (e.key === "p" || e.key === "P")) {
+      if (!mod) return;
+      if (e.code === "Backslash") { e.preventDefault(); this.toggleRegion("left"); }
+      if (e.code === "KeyJ") { e.preventDefault(); this.toggleRegion("bottom"); }
+      if (e.code === "KeyB" && e.altKey) { e.preventDefault(); this.toggleRegion("right"); return; }
+      if (e.code === "KeyB") { e.preventDefault(); this.toggleTree(); }
+      if (e.code === "KeyN") { e.preventDefault(); this.newSession(); }
+      if (e.code === "KeyP") {
         e.preventDefault();
         this.setState(this.lastTreeInline || this.state.float ? { menu: "goto" } : { float: true, menu: "goto" });
       }
@@ -662,7 +928,8 @@ class Component extends DCLogic {
   current() {
     const dm = DEMOS[this.state.demo - 1];
     const d = dm.data, s = this.state;
-    let out = ext(d, { layout: ext(d.layout, { chatSide: s.side || d.layout.chatSide, chatMode: s.mode || d.layout.chatMode }) });
+    const pick = (k) => s[k] !== null ? s[k] : d.layout[k];
+    let out = ext(d, { layout: ext(d.layout, { left: pick("left"), bottom: pick("bottom"), right: pick("right") }) });
     if (s.file) {
       const tabs = out.tabs.some((t) => t.path === s.file.path) ? out.tabs : out.tabs.concat([{ path: s.file.path, kind: s.file.kind }]);
       out = ext(out, { file: s.file, tabs: tabs, panels: panelsFor(s.file.kind),
@@ -670,7 +937,13 @@ class Component extends DCLogic {
     }
     return out;
   }
-  mode() { return this.current().layout.chatMode; }
+  toggleRegion(k) {
+    const L = this.current().layout;
+    if (k === "right" && !this.lastHasPanels) return;
+    const upd = { [k]: !L[k] };
+    if (k === "bottom" && !L.bottom) upd.seenErr = true;
+    this.setState(upd);
+  }
   expanded() {
     const d = this.current();
     return this.state.exp || d.layout.tree.expanded.concat(ancestors(d.file.path));
@@ -678,7 +951,6 @@ class Component extends DCLogic {
   loadingSet() { return this.state.loading || this.current().tree.loading; }
   treeUserOpen() { return this.state.treeOpen !== null ? this.state.treeOpen : this.current().layout.tree.open; }
   treeWidth() { return this.state.treeW || this.current().layout.tree.width; }
-
   toggleTree() {
     if (this.lastTreeInline || this.lastFloat) { this.setState(this.lastFloat ? { float: false } : { treeOpen: false }); return; }
     this.showTree();
@@ -705,12 +977,54 @@ class Component extends DCLogic {
     this.setState(upd);
   }
   openFile(path, kind) {
-    const i = DEMOS.findIndex((m) => m.data.file.path === path && !m.data.layout.width && m.n <= 3);
     const keepExp = this.expanded();
     const exp = keepExp.concat(ancestors(path).filter((a) => keepExp.indexOf(a) < 0));
-    if (i >= 0 && !this.state.file && !DEMOS[this.state.demo - 1].data.layout.width) this.setState({ demo: i + 1, open: undefined, pill: true, exp: exp, float: false, file: null, menu: null });
-    else this.setState({ file: { path: path, kind: kind }, open: undefined, pill: true, exp: exp, float: false, menu: null });
+    this.setState({ file: { path: path, kind: kind }, open: undefined, pill: true, selOverride: null, exp: exp, float: false, menu: null, ctx: null, deleted: null });
   }
+  openCtx(e, kind, path) {
+    e.preventDefault(); e.stopPropagation();
+    const nav = this.navRef.current;
+    if (!nav) return;
+    const r = nav.getBoundingClientRect();
+    const z = this.lastZoom || 1;
+    const h = r.height / z, w = r.width / z;
+    const n = this.ctxList({ kind: kind, path: path }).length;
+    const mh = n * 28 + 16;
+    let top = (e.clientY - r.top) / z, left = (e.clientX - r.left) / z;
+    top = Math.max(4, Math.min(top, h - mh - 4));
+    left = Math.max(4, Math.min(left, w - 24));
+    this.setState({ ctx: { kind: kind, path: path, top: top, left: left }, menu: null });
+  }
+  ctxList(ctx) {
+    const it = (label, hint, fn, danger) => ({ isSep: false, isItem: true, label: label, hint: hint || "", fg: danger ? "var(--tool-err)" : "var(--tool-text)",
+      act: () => { this.setState({ ctx: null }); if (fn) fn(); } });
+    const SEP = { isSep: true, isItem: false, label: "", hint: "", fg: "", act: null };
+    const p = ctx.path;
+    const rename = () => this.setState({ renaming: p, renameText: this.nameOf(p) });
+    const trash = () => this.setState({ deleted: p, renaming: null });
+    const bring = (k) => () => this.setState({ selOverride: { kind: k, label: p + (k === "dir" ? "/" : ""), detail: k === "dir" ? "整个目录" : "1 个文件" }, pill: true });
+    const newDraft = (dir) => () => this.setState({ sheet: dir, sheetName: "", sheetKind: "page", sheetTpl: "blank" });
+    const root = this.current().project.name;
+    if (ctx.kind === "file") {
+      const isDc = /\.dc\.html$/.test(p);
+      const out = [it("打开", "", () => this.openFile(p, this.kindOf(p))), it("带进会话", "", bring("files")), SEP, it("重命名", "F2", rename)];
+      if (isDc) out.push(it("复制一份"));
+      return out.concat([it("复制路径"), it("在访达中显示"), SEP, it("移到回收站", "⌘⌫", trash, true)]);
+    }
+    if (ctx.kind === "dir") return [it("新建稿件…", "", newDraft(p)), it("新建目录"), SEP,
+      it("在详情区打开", "", () => this.setState({ file: { path: p + "/", kind: "dir" }, open: undefined, float: false })), it("带进会话", "", bring("dir")), SEP,
+      it("重命名", "F2", rename), it("复制路径"), it("在访达中显示"), SEP, it("移到回收站", "⌘⌫", trash, true)];
+    return [it("新建稿件…", "", newDraft(root)), it("新建目录"), SEP, it("全部折叠", "", () => this.setState({ exp: [] })), SEP, it("重建索引"), it("在访达中显示")];
+  }
+  nameOf(p) { return this.state.renamed[p] || baseName(p); }
+  kindOf(p) { return /\.dc\.html$/.test(p) ? "dc" : /\.md$/.test(p) ? "md" : /\.(png|jpe?g|gif|webp)$/.test(p) ? "image" : /\.(css|json|js)$/.test(p) ? "code" : "other"; }
+  commitRename() {
+    const s = this.state;
+    if (!s.renaming) return;
+    const v = s.renameText.trim();
+    this.setState({ renaming: null, renamed: v ? ext(s.renamed, { [s.renaming]: v }) : s.renamed });
+  }
+  newSession() { this.setState({ fresh: true, hist: false, sessionId: null, menu: null }); }
   runCheck() {
     if (this.state.checking) return;
     this.setState({ checking: true, menu: null });
@@ -724,37 +1038,39 @@ class Component extends DCLogic {
     const d = this.current();
     const L = d.layout;
     const kind = d.file.kind;
-    const openId = s.open !== undefined ? s.open : ((d.panels.find((p) => p.open) || {}).id || null);
-    const openP = d.panels.find((p) => p.id === openId) || null;
+    const openId = s.open !== undefined && s.open !== null ? s.open : ((d.panels.find((p) => p.open) || {}).id || null);
+    const openP = d.panels.find((p) => p.id === openId) || d.panels[0] || null;
     const hasPanels = d.panels.length > 0;
-    const expanded = L.chatMode === "expanded";
-    const right = L.chatSide === "right";
-    const sel = s.pill && d.selection ? d.selection : null;
+    this.lastHasPanels = hasPanels;
+    const leftOn = !!L.left, rightOn = !!L.right && hasPanels, bottomOn = !!L.bottom;
+    const sel = s.pill ? (s.selOverride || d.selection) : null;
     const selK = sel ? SEL[sel.kind] : null;
-    const base = (p) => p.replace(/\/$/, "").split("/").pop() + (p.endsWith("/") ? "/" : "");
     const menu = s.menu;
     const toggleMenu = (k) => () => this.setState({ menu: menu === k ? null : k });
 
-    /* ── 让位计算 ── */
+    /* ── 让位计算（R2–R5，会话固定在左后只剩两步：面板体改抽屉 → 目录让位成浮层） ── */
     const W = L.width || SIM_W;
     const zoom = Math.min(1, s.vw / W);
-    const chatW = expanded ? L.chatWidth : 0;
+    this.lastZoom = zoom;
+    const chatW = leftOn ? L.chatWidth : 0;
     const tw = this.treeWidth();
     const userOpen = this.treeUserOpen();
-    const panelsW = (inline) => hasPanels ? RAIL_W + (openP && inline ? PANEL_W : 0) : 0;
+    const panelsW = (inline) => rightOn ? RAIL_W + (inline ? PANEL_W : 0) : 0;
     let panelDrawer = false;
     let treeInline = userOpen;
     let detail = W - chatW - (treeInline ? tw : 0) - panelsW(true);
-    if (detail < DETAIL_MIN && openP) { panelDrawer = true; detail = W - chatW - (treeInline ? tw : 0) - panelsW(false); }
+    if (detail < DETAIL_MIN && rightOn) { panelDrawer = true; detail = W - chatW - (treeInline ? tw : 0) - panelsW(false); }
     this.lastTreeFits = W - chatW - tw - panelsW(false) >= DETAIL_MIN;
     if (treeInline && detail < DETAIL_MIN) { treeInline = false; detail = W - chatW - panelsW(false); }
     const yielded = userOpen && !treeInline;
     const floatOpen = !treeInline && (s.float !== null ? s.float : !!dm.float);
+    const drawerShown = panelDrawer && s.open !== null && s.open !== undefined;
     this.lastTreeInline = treeInline;
     this.lastFloat = floatOpen;
-    this.lastDrawer = panelDrawer;
+    this.lastDrawer = drawerShown;
 
     /* ── 树 → 可见行 ── */
+    const ctx = s.ctx || null;
     const exp = this.expanded();
     const loading = this.loadingSet();
     const unsaved = d.tabs.filter((t) => t.unsaved).map((t) => t.path);
@@ -767,67 +1083,107 @@ class Component extends DCLogic {
         const open = isDir && exp.indexOf(path) >= 0;
         const cur = path === curPath;
         const kids = isDir ? childrenOf(n, path, s.loaded) : null;
+        const pad = (ROW_PAD + level * INDENT) + "px";
+        const name = this.nameOf(path);
+        const icon = ICON[n.kind] || ICON.other;
+        const iconFg = n.kind === "dc" ? "var(--tool-accent)" : "var(--tool-muted)";
+        if (s.deleted === path) {
+          rows.push({ isNode: false, isNote: false, isRen: false, isDel: true, name: name, pad: pad, undo: () => this.setState({ deleted: null }) });
+          return;
+        }
+        if (s.renaming === path) {
+          const stem = name.replace(/(\.dc\.html|\.[^.]+)$/, "").length;
+          rows.push({ isNode: false, isNote: false, isRen: true, isDel: false, pad: pad, icon: icon, iconFg: iconFg,
+            renVal: s.renameText, onRen: (e) => this.setState({ renameText: e.target.value }),
+            onRenKey: (e) => { if (e.key === "Enter") { e.preventDefault(); this.commitRename(); } if (e.key === "Escape") { e.stopPropagation(); e.preventDefault(); this.setState({ renaming: null }); } },
+            onRenBlur: () => this.commitRename(),
+            onRenFocus: (e) => { try { e.target.setSelectionRange(0, isDir ? e.target.value.length : stem); } catch (x) {} } });
+          return;
+        }
         const dirty = unsaved.indexOf(path) >= 0;
-        const dot = dirty ? ["var(--tool-warn)", "未落盘"] : DOT[n.health] || null;
-        rows.push({ isNode: true, isNote: false, name: n.name, level: String(level + 1), current: cur,
-          pad: (ROW_PAD + level * INDENT) + "px",
+        const dot = dirty ? ["var(--tool-text-2)", "未保存"] : DOT[n.health] || null;
+        const ctxHere = ctx && ctx.path === path;
+        rows.push({ isNode: true, isNote: false, isRen: false, isDel: false, name: name, level: String(level + 1), current: cur, pad: pad,
           ariaExp: isDir ? String(open) : undefined,
           tip: path + (isDir && n.count != null ? " · " + n.count + " 项 · 双击在详情区打开" : ""),
           chevOp: isDir ? "1" : "0", rot: open ? "90deg" : "0deg",
-          icon: ICON[n.kind] || ICON.other,
-          iconFg: cur ? "var(--tool-accent)" : n.kind === "dc" ? "var(--tool-accent)" : "var(--tool-muted)",
+          icon: icon, iconFg: cur ? "var(--tool-accent)" : iconFg,
           fw: cur ? "600" : "400",
           bg: cur ? "var(--tool-accent-soft)" : "transparent",
           fg: cur ? "var(--tool-accent)" : "var(--tool-text)",
+          ring: ctxHere ? "inset 0 0 0 1.5px var(--tool-accent)" : "none",
           hasDot: !!dot, dotBg: dot ? dot[0] : "", dotTip: dot ? dot[1] : "",
           act: () => isDir ? this.toggleDir(path, n) : this.openFile(path, n.kind),
-          dbl: () => { if (isDir) this.setState({ file: { path: path + "/", kind: "dir" }, open: undefined, float: false }); } });
+          dbl: () => { if (isDir) this.setState({ file: { path: path + "/", kind: "dir" }, open: undefined, float: false }); },
+          ctx: (e) => this.openCtx(e, isDir ? "dir" : "file", path) });
         if (open) {
           const notePad = (ROW_PAD + (level + 1) * INDENT) + "px";
           if (kids && kids.length) walk(kids, path, level + 1);
-          else if (kids) rows.push({ isNode: false, isNote: true, spin: false, text: "空目录", pad: notePad });
-          else rows.push({ isNode: false, isNote: true, spin: true, text: "读取中…", pad: notePad });
+          else if (kids) rows.push({ isNode: false, isNote: true, isRen: false, isDel: false, spin: false, text: "空目录", pad: notePad });
+          else rows.push({ isNode: false, isNote: true, isRen: false, isDel: false, spin: true, text: "读取中…", pad: notePad });
         }
       });
     };
     walk(d.tree.nodes, "", 0);
 
-    const modes = [
-      { key: "left", title: "会话在左", icon: "M2.5 3h11v10h-11zM6.5 3v10" },
-      { key: "bar", title: "会话收成输入条（⌘\\）", icon: "M2.5 3h11v10h-11zM2.5 10.2h11" },
-      { key: "right", title: "会话在右", icon: "M2.5 3h11v10h-11zM9.5 3v10" }
+    /* ── 顶栏布局组 ── */
+    const hasErr = DEBUG.output.some((o) => o.level === "error") && !s.cleared.output;
+    const regionBtn = (key, on, title, icon, disabled, alert) => ({
+      on: on, off: !!disabled, title: disabled ? title + " · 这类文件没有从属面板" : title, icon: icon, alert: !!alert,
+      cursor: disabled ? "default" : "pointer", op: disabled ? "0.4" : "1",
+      bg: on ? "var(--tool-panel)" : "transparent", fg: on ? "var(--tool-text)" : "var(--tool-muted)", sh: on ? "var(--tool-shadow-1)" : "none",
+      pick: () => { if (!disabled) this.toggleRegion(key); } });
+    const layoutBtns = [
+      regionBtn("left", leftOn, (leftOn ? "隐藏" : "显示") + "左栏 · 会话（⌘\\）", "M2.5 3h11v10h-11zM6.5 3v10M4 5.6h1M4 7.6h1"),
+      regionBtn("bottom", bottomOn, (bottomOn ? "隐藏" : "显示") + "底栏 · 调试（⌘J）" + (hasErr && !bottomOn && !s.seenErr ? " · 有新的错误" : ""), "M2.5 3h11v10h-11zM2.5 9.6h11M5 11.3h3", false, hasErr && !bottomOn && !s.seenErr),
+      regionBtn("right", rightOn, (rightOn ? "隐藏" : "显示") + "右栏 · 面板（⌘⌥B）", "M2.5 3h11v10h-11zM9.5 3v10M11 5.6h1M11 7.6h1", !hasPanels)
     ];
-    const curMode = expanded ? L.chatSide : "bar";
+
+    /* ── 会话 ── */
+    const sessions = d.sessions;
+    const curId = s.fresh ? null : (s.sessionId || d.currentSession);
+    const sess = sessions.find((x) => x.id === curId) || null;
+    const engOf = (x) => s.engineBy[x.id] || x.engine;
+    const engId = s.fresh ? (s.engineBy.__new || (this.lastEngine || engOf(sessions[0]))) : engOf(sess);
+    const eng = ENGINE_LIST.find((e) => e.id === engId) || ENGINE_LIST[0];
+    this.lastEngine = eng.id;
+    const groups = [];
+    sessions.forEach((x) => {
+      let g = groups.find((y) => y.label === x.group);
+      if (!g) { g = { label: x.group, items: [] }; groups.push(g); }
+      const on = x.id === curId;
+      const e = ENGINE_LIST.find((y) => y.id === engOf(x)) || {};
+      g.items.push({ title: x.title, when: x.when, engine: e.name || "", cur: on ? "true" : "false", fw: on ? "600" : "400",
+        bg: on ? "var(--tool-accent-soft)" : "transparent",
+        pick: () => this.setState({ sessionId: x.id, fresh: false, hist: false }) });
+    });
+    const turn = sess ? sess.turn : null;
+    const turnCost = !turn ? "" : eng.channel === "B" ? "本轮 " + turn.calls + " 次调用" : eng.channel === "C" ? "本轮 " + turn.tokens + " tokens" : "本轮 " + turn.tokens + " tokens · " + turn.cost;
+    const defAsk = kind === "md" ? "这一段写得太啰嗦，压成两句" : kind === "image" ? "这个按钮的颜色是什么" : "把这个按钮的字号调大一点";
+    const defReply = kind === "md" ? "好，我改 L9–12，改完你在预览里看。" : kind === "image" ? "圈出的按钮底色接近 #E8590C，是橙色主按钮。" : "改成 15px，已落盘到 v218。";
 
     const previews = {
-      dc: { label: "S2 画布（?embed=1）", note: "嵌入模式下 S2 只留画布：工具栏交给上面那一行，属性面板交给右边那一列", ratio: "16 / 10", max: "880px", bg: "var(--tool-panel)" },
-      md: { label: "S13 Markdown 视图", note: "渲染 / 源码两档在文件工具栏；大纲在右侧一列", ratio: "3 / 4", max: "560px", bg: "var(--tool-panel)" },
+      dc: { label: "S2 画布（?embed=1）", note: "嵌入模式下 S2 只留画布：工具栏交给上面那一行，属性面板交给右栏", ratio: "16 / 10", max: "880px", bg: "var(--tool-panel)" },
+      md: { label: "S13 Markdown 视图", note: "渲染 / 源码两档在文件工具栏；大纲在右栏", ratio: "3 / 4", max: "560px", bg: "var(--tool-panel)" },
       image: { label: "S14 图片视图", note: "适配窗口，可圈选", ratio: "16 / 10", max: "1040px", bg: "var(--tool-panel-2)" },
       dir: { label: "S12 目录视图（宽密度）", note: "以 " + d.file.path + " 为根的同一棵树。S12 自带的工具栏上移到文件工具栏那一行", ratio: "16 / 10", max: "960px", bg: "var(--tool-panel)" },
       code: { label: "S15 通用文件卡", note: "代码类文件先给文件卡，没有文件工具栏", ratio: "4 / 3", max: "520px", bg: "var(--tool-panel)" },
       other: { label: "S15 通用文件卡", note: "没有专门视图的类型给文件卡，没有文件工具栏", ratio: "4 / 3", max: "520px", bg: "var(--tool-panel)" }
     };
     const pv = previews[kind] || previews.other;
-    const meta = kind === "dc" ? "v217 · 812 元素 · 通过" : kind === "md" ? "s14 · 未落盘" : kind === "image" ? "1440×900 · 793 KB" : "";
 
-    const statusBits = [];
-    if (treeInline) statusBits.push("目录 " + tw + " px");
-    else if (yielded) statusBits.push("目录让位");
-    else statusBits.push("目录收起");
-    statusBits.push(expanded ? "会话" + (right ? "右 " : "左 ") + L.chatWidth + " px" : "会话收起");
-    statusBits.push("详情 " + Math.round(detail) + " px");
-    if (panelDrawer) statusBits.push("面板改抽屉");
+    const bits = [];
+    bits.push(leftOn ? "左 " + L.chatWidth : "左 关");
+    bits.push(treeInline ? "目录 " + tw : yielded ? "目录 让位" : "目录 收起");
+    bits.push("详情 " + Math.round(detail));
+    bits.push(!hasPanels ? "右 无" : !rightOn ? "右 关" : panelDrawer ? "右 抽屉" : "右 " + (RAIL_W + PANEL_W));
+    bits.push("窗口 " + W);
 
     /* ── 菜单行 ── */
-    const item = (label, hint, fn) => ({ isSep: false, isItem: true, label: label, hint: hint || "", act: () => { this.setState({ menu: null }); if (fn) fn(); } });
-    const SEP = { isSep: true, isItem: false, label: "", hint: "", act: null };
-    const projItems = [item("新建稿件"), item("重建索引"), item("在访达中显示"), SEP, item("项目设置 · 外观", "⌘,"), SEP, item("关闭项目")];
+    const item = (label, hint, fn, danger) => ({ isSep: false, isItem: true, label: label, hint: hint || "", fg: danger ? "var(--tool-err)" : "var(--tool-text)", act: () => { this.setState({ menu: null }); if (fn) fn(); } });
+    const SEP = { isSep: true, isItem: false, label: "", hint: "", fg: "", act: null };
+    const projItems = [item("在访达中显示"), item("重建索引"), SEP, item("项目设置…", "⌘,"), SEP, item("关闭项目")];
 
-    /* ── 引擎 ── */
-    const engId = s.engine || d.engine;
-    const eng = ENGINE_LIST.find((e) => e.id === engId) || ENGINE_LIST[0];
-
-    /* ── 转到文件 ── */
     const q = (s.gotoQ || "").trim().toLowerCase();
     const gotoList = DRAFTS.filter((f) => !q || f.path.toLowerCase().indexOf(q) >= 0);
 
@@ -842,7 +1198,7 @@ class Component extends DCLogic {
         fg: on ? (tog ? "var(--tool-accent)" : "var(--tool-text)") : "var(--tool-text-2)",
         fw: on ? "560" : "400", sh: on && !tog ? "var(--tool-shadow-1)" : "none", pick: pick };
     };
-    let tbGroups = [];
+    const tbGroups = [];
     if (kind === "dc") {
       tbGroups.push({ label: "视图", items: [
         segItem("编辑", cv.view === "edit", () => setCv({ view: "edit" }), { title: "编辑：能点选、改属性、钉评论" }),
@@ -850,7 +1206,7 @@ class Component extends DCLogic {
         segItem("源码", cv.view === "source", () => setCv({ view: "source" }), { title: "源码：只读" })
       ] });
       if (cv.view === "edit") tbGroups.push({ label: "指针", items: [
-        segItem("点选", cv.pointer === "select", () => setCv({ pointer: cv.pointer === "select" ? null : "select" }), { toggle: true, icon: SEL.node.icon, title: "点选：点稿里的元素即选中（V）。再点一次关掉，回到操作稿" }),
+        segItem("点选", cv.pointer === "select", () => setCv({ pointer: cv.pointer === "select" ? null : "select" }), { toggle: true, icon: SEL.node.icon, title: "点选：点稿里的元素即选中（V）" }),
         segItem("评论", cv.pointer === "comment", () => setCv({ pointer: cv.pointer === "comment" ? null : "comment" }), { toggle: true, icon: PANEL_ICON.comments, title: "评论：点元素钉一条评论（C）" })
       ] });
     } else if (kind === "md") {
@@ -876,25 +1232,79 @@ class Component extends DCLogic {
     const sizeLabel = kind === "image" ? zNow + "%" : (wNow.w ? wNow.w : "自适应") + " · " + zNow + "%";
     const checkLabel = s.checking ? "体检中…" : "重新体检";
     const fileTail = [item("复制路径"), item("在访达中显示"), SEP, item("关闭页签", "⌘W")];
-    const moreItems = kind === "dc" ? [item(checkLabel, s.checking ? "" : "上次 · 通过", () => this.runCheck()), item("在浏览器中打开")].concat(fileTail)
+    const moreItems = kind === "dc"
+      ? [item(checkLabel, s.checking ? "" : "上次 · 通过", () => this.runCheck()), item("对比上一版（S6）"), item("重新加载预览"), item("在浏览器中打开"), SEP].concat(fileTail)
       : kind === "dir" ? [item("回收站"), item("在访达中显示")]
-      : fileTail;
+      : [item("重新加载")].concat([SEP]).concat(fileTail);
+
+    /* ── 页签：放不下的收进「+N ▾」，当前页签保证可见 ── */
+    const tabAvail = detail - 8 - (treeInline ? 0 : HANDLE_W);
+    let cap = Math.max(1, Math.floor((tabAvail + TAB_GAP) / (TAB_MIN + TAB_GAP)));
+    const needOverflow = d.tabs.length > cap;
+    if (needOverflow) cap = Math.max(1, Math.floor((tabAvail - OVERFLOW_W + TAB_GAP) / (TAB_MIN + TAB_GAP)));
+    const activeIdx = d.tabs.findIndex((t) => t.path === d.file.path);
+    let visible = d.tabs.slice(0, cap);
+    if (activeIdx >= cap) visible = d.tabs.slice(0, cap - 1).concat([d.tabs[activeIdx]]);
+    const nameCount = {};
+    d.tabs.forEach((t) => { const b = baseName(t.path); nameCount[b] = (nameCount[b] || 0) + 1; });
+    const tabBase = (t) => ({ name: baseName(t.path) + (t.kind === "dir" ? "/" : ""), dir: dirOf(t.path) || "根目录",
+      hasDir: nameCount[baseName(t.path)] > 1, icon: ICON[t.kind] || ICON.other,
+      iconFg: t.kind === "dc" ? "var(--tool-accent)" : "var(--tool-muted)" });
+
+    /* ── 调试栏 ── */
+    const dbgTab = s.dbgTab;
+    const outList = s.cleared.output ? [] : DEBUG.output;
+    const toolList = s.cleared.tools ? [] : DEBUG.tools;
+    const connList = s.cleared.conn ? [] : DEBUG.conn.events;
+    const errN = outList.filter((o) => o.level === "error").length;
+    const toolErr = toolList.filter((t) => !t.ok).length;
+    const connOk = DEBUG.conn.state === "open";
+    const dbgTabs = [
+      { key: "output", label: "输出", count: errN ? String(errN) : String(outList.length), err: errN > 0 },
+      { key: "tools", label: "工具调用", count: String(toolList.length), err: toolErr > 0 },
+      { key: "conn", label: "连接", dot: connOk ? "var(--tool-ok, #2f9e44)" : "var(--tool-err)" }
+    ].map((t) => {
+      const on = t.key === dbgTab;
+      return { label: t.label, on: on, hasCount: t.count != null && t.count !== "0", count: t.count || "",
+        cBg: t.err ? "var(--tool-err)" : "var(--tool-panel-2)", cFg: t.err ? "var(--tool-panel)" : "var(--tool-muted)",
+        hasDot: !!t.dot, dotBg: t.dot || "",
+        bg: on ? "var(--tool-hover)" : "transparent", fg: on ? "var(--tool-text)" : "var(--tool-text-2)", fw: on ? "560" : "400",
+        pick: () => this.setState({ dbgTab: t.key }) };
+    });
+    const LV = { info: ["info", "var(--tool-muted)", "400"], warn: ["warn", "var(--tool-warn)", "600"], error: ["error", "var(--tool-err)", "700"] };
+    const curDbgList = dbgTab === "output" ? outList : dbgTab === "tools" ? toolList : connList;
+    const bottomH = s.bottomH || L.bottomHeight;
+
+    /* ── 新建稿件 ── */
+    const sheetDir = s.sheet;
+    const nm = (s.sheetName || "").trim();
+    const existing = sheetDir ? (() => {
+      const find = (nodes, parent) => { for (const n of nodes) { const p = parent ? parent + "/" + n.name : n.name; if (p === sheetDir) return n; if (n.kind === "dir") { const r = find(n.children || LAZY[p] || [], p); if (r) return r; } } return null; };
+      const node = sheetDir === d.project.name ? { children: d.tree.nodes } : find(d.tree.nodes, "");
+      return node ? (node.children || LAZY[sheetDir] || []).map((c) => c.name) : [];
+    })() : [];
+    const fileName = (nm || "未命名") + ".dc.html";
+    const clash = !!nm && existing.indexOf(fileName) >= 0;
+    const badChar = /[\/\\:*?"<>|]/.test(nm);
+    const sheetBlocked = clash || badChar;
 
     return {
       theme: this.props.theme === "dark" ? "dark" : null,
       showDemoBar: true,
-      demoNote: dm.note,
+      demoNote: dm.name + " —— " + dm.note,
       demoStates: DEMOS.map((m) => {
         const on = m.n === s.demo;
         return { n: m.n, name: m.name, short: m.short, active: on, fw: on ? "600" : "400",
           bg: on ? "var(--tool-accent)" : "var(--tool-panel)", bd: on ? "var(--tool-accent)" : "var(--tool-border-strong)",
           fg: on ? "var(--tool-on-accent)" : "var(--tool-text-2)",
-          pick: () => this.setState(ext(RESET, { demo: m.n, menu: m.menu || null, loaded: {} })) };
+          pick: () => this.setState(ext(RESET, { demo: m.n, menu: m.menu || null, loaded: {}, engineBy: {}, renamed: {}, cleared: {},
+            ctx: m.ctx || null, renaming: m.renaming || null, renameText: m.renaming ? baseName(m.renaming) : "",
+            deleted: m.deleted || null, sheet: m.sheet || null, hist: !!m.hist, dbgTab: m.dbg || "output" })) };
       }),
       closeMenu: () => this.setState({ menu: null }),
+      stop: (e) => e.stopPropagation(),
 
       shellMax: W + "px",
-      shellH: "100%",
       zoom: zoom.toFixed(4),
       shellShadow: L.width ? "0 0 0 1px var(--tool-border-strong)" : "none",
       projectTitle: d.project.title,
@@ -904,58 +1314,55 @@ class Component extends DCLogic {
       projBg: menu === "project" ? "var(--tool-hover)" : "transparent",
       toggleProj: toggleMenu("project"),
       projItems: projItems,
+      layoutBtns: layoutBtns,
 
-      treeBtnOn: treeInline || floatOpen,
-      treeBtnTitle: (treeInline || floatOpen ? "收起目录列" : "显示目录列") + "（⌘B）",
-      treeBtnBg: treeInline || floatOpen ? "var(--tool-panel)" : "transparent",
-      treeBtnFg: treeInline || floatOpen ? "var(--tool-text)" : "var(--tool-muted)",
-      treeBtnSh: treeInline || floatOpen ? "var(--tool-shadow-1)" : "none",
-      toggleTreeBtn: () => this.toggleTree(),
-      chatModes: modes.map((m) => {
-        const on = m.key === curMode;
-        return { title: m.title, icon: m.icon, active: on,
-          bg: on ? "var(--tool-panel)" : "transparent", fg: on ? "var(--tool-text)" : "var(--tool-muted)", sh: on ? "var(--tool-shadow-1)" : "none",
-          pick: () => this.setState(m.key === "bar" ? { mode: "bar" } : { mode: "expanded", side: m.key }) };
-      }),
-
-      chatExpanded: expanded,
-      chatIsBar: !expanded,
-      chatOrder: right ? "9" : "0",
+      leftShown: leftOn,
       chatWidthPx: L.chatWidth + "px",
-      chatBdL: right ? "1px solid var(--tool-border)" : "0",
-      chatBdR: right ? "0" : "1px solid var(--tool-border)",
-      railBdR: "0",
-      toExpanded: () => this.setState({ mode: "expanded" }),
-      sessionTitle: d.session.title,
       engineName: eng.name,
-      engineTip: "引擎：" + eng.name + " · " + eng.sub,
+      engineTip: "引擎：" + eng.name + " · " + eng.sub + "（只改这一条会话）",
       engOpen: menu === "engine",
-      engBg: menu === "engine" ? "var(--tool-hover)" : "var(--tool-panel)",
+      engBg: menu === "engine" ? "var(--tool-hover)" : "transparent",
       toggleEngine: toggleMenu("engine"),
       engineGroups: ENGINES.map((g) => ({ label: g.group, items: g.items.map((e) => {
         const on = e.id === eng.id;
         return { name: e.name, sub: e.sub, on: on, checkOp: on ? "1" : "0", fw: on ? "600" : "400",
           bg: on ? "var(--tool-accent-soft)" : "transparent",
-          pick: () => this.setState({ engine: e.id, menu: null }) };
+          pick: () => this.setState({ engineBy: ext(s.engineBy, { [s.fresh ? "__new" : curId]: e.id }), menu: null }) };
       }) })),
-      chatAsk: kind === "md" ? "这一段写得太啰嗦，压成两句" : kind === "image" ? "这个按钮的颜色是什么" : "把这个按钮的字号调大一点",
-      chatReply: kind === "md" ? "好，我改 L9–12，改完你在预览里看。" : kind === "image" ? "圈出的按钮底色接近 #E8590C，是橙色主按钮。" : "改成 15px，已落盘到 v218。",
+      histOpen: !!s.hist,
+      chatOpen: !s.hist,
+      histTitle: s.hist ? "回到会话（Esc）" : "会话历史 · 新建会话",
+      histBg: s.hist ? "var(--tool-accent-soft)" : "transparent",
+      histFg: s.hist ? "var(--tool-accent)" : "var(--tool-muted)",
+      toggleHist: () => this.setState({ hist: !s.hist, menu: null }),
+      newSession: () => this.newSession(),
+      histGroups: groups,
+      isFresh: !!s.fresh,
+      hasMsgs: !s.fresh,
+      chatAsk: sess && sess.ask ? sess.ask : defAsk,
+      chatReply: sess && sess.reply ? sess.reply : defReply,
+      hasTurnCost: !!turnCost,
+      turnCost: turnCost,
 
       treeShown: treeInline || floatOpen,
       treeFloat: floatOpen,
       treeWidthPx: (treeInline ? tw : 280) + "px",
       treePos: treeInline ? "relative" : "absolute",
-      treeLeft: (!treeInline && expanded && !right ? L.chatWidth : 0) + "px",
-      treeZ: treeInline ? "1" : "6",
+      treeZ: treeInline ? "1" : "25",
       treeBd: treeInline ? "var(--tool-border)" : "var(--tool-border-strong)",
       treeShadow: treeInline ? "none" : "var(--tool-shadow-2)",
       treeResizable: treeInline,
+      navRef: this.navRef,
       dragBg: s.dragging ? "linear-gradient(var(--tool-accent), var(--tool-accent)) center / 2px 100% no-repeat" : "transparent",
       treeRows: rows,
       hideTitle: treeInline ? "收起目录（⌘B）" : "关闭浮层（Esc）",
       hideTree: () => this.setState(treeInline ? { treeOpen: false } : { float: false }),
       closeFloat: () => this.setState({ float: false, menu: null }),
-      collapseAll: () => this.setState({ exp: [] }),
+      showTreeHandle: !treeInline,
+      floatOn: floatOpen,
+      handleBg: floatOpen ? "var(--tool-hover)" : "transparent",
+      handleTitle: yielded ? "目录（窗口窄，以浮层打开 · ⌘B）" : "展开目录（⌘B）",
+      showTreeAct: () => this.toggleTree(),
       openRoot: () => this.setState({ file: { path: d.project.name + "/", kind: "dir" }, open: undefined, float: false, menu: null }),
       gotoOpen: menu === "goto",
       gotoBg: menu === "goto" ? "var(--tool-hover)" : "transparent",
@@ -976,6 +1383,14 @@ class Component extends DCLogic {
       },
       resetWidth: () => this.setState({ treeW: TREE_DEF }),
 
+      ctxOpen: !!ctx,
+      ctxTop: ctx ? ctx.top + "px" : "0px",
+      ctxLeft: ctx ? ctx.left + "px" : "0px",
+      ctxLabel: ctx ? (ctx.kind === "blank" ? "项目根目录" : this.nameOf(ctx.path)) : "",
+      ctxItems: ctx ? this.ctxList(ctx) : [],
+      closeCtx: (e) => { if (e) e.preventDefault(); this.setState({ ctx: null }); },
+      ctxBlank: (e) => this.openCtx(e, "blank", null),
+
       hasPill: !!sel,
       pillIcon: selK ? selK.icon : "M0 0",
       pillKind: selK ? selK.word : "",
@@ -983,19 +1398,39 @@ class Component extends DCLogic {
       pillDetail: sel ? sel.detail : "",
       clearPill: () => this.setState({ pill: false }),
 
-      tabs: d.tabs.map((t) => {
+      tabs: visible.map((t) => {
         const on = t.path === d.file.path;
-        return { path: t.path, name: base(t.path), icon: ICON[t.kind] || ICON.other, active: on,
-          unsaved: !!t.unsaved, saved: !t.unsaved, closeOp: on ? "1" : "0",
-          bg: on ? "var(--tool-panel)" : "transparent", fg: on ? "var(--tool-text)" : "var(--tool-text-2)",
-          sh: on ? "inset 0 -1px 0 var(--tool-panel), inset 0 2px 0 var(--tool-accent)" : "none",
-          fw: on ? "560" : "400",
-          iconFg: t.kind === "dc" ? "var(--tool-accent)" : "var(--tool-muted)",
-          pick: () => this.openFile(t.path, t.kind) };
+        const hov = s.hoverTab === t.path;
+        return ext(tabBase(t), { path: t.path, active: on,
+          showDot: !!t.unsaved && !hov, showX: hov || (on && !t.unsaved),
+          h: on ? "33px" : "28px", mb: on ? "-1px" : "3px",
+          bd: on ? "var(--tool-border)" : "transparent",
+          bg: on ? "var(--tool-panel)" : hov ? "var(--tool-hover)" : "transparent",
+          fg: on ? "var(--tool-text)" : "var(--tool-text-2)",
+          fw: on ? "600" : "400",
+          enter: () => this.setState({ hoverTab: t.path }), leave: () => this.setState({ hoverTab: null }),
+          pick: () => this.openFile(t.path, t.kind) });
+      }),
+      hasOverflow: needOverflow,
+      overflowLabel: "+" + (d.tabs.length - visible.length),
+      tabsOpen: menu === "tabs",
+      tabsBg: menu === "tabs" ? "var(--tool-hover)" : "transparent",
+      toggleTabs: toggleMenu("tabs"),
+      tabCount: d.tabs.length + " 个",
+      allTabs: d.tabs.map((t) => {
+        const on = t.path === d.file.path;
+        return ext(tabBase(t), { path: t.path, checkOp: on ? "1" : "0", fw: on ? "600" : "400", dotOp: t.unsaved ? "1" : "0",
+          bg: on ? "var(--tool-accent-soft)" : "transparent", pick: () => this.openFile(t.path, t.kind) });
       }),
 
       hasToolbar: hasToolbar,
       tbGroups: tbGroups,
+      hasDraftTheme: kind === "dc",
+      draftDark: !!s.draftDark,
+      draftThemeTitle: "稿的浅 / 深色（现在：" + (s.draftDark ? "深" : "浅") + "）· 只改这份稿怎么显示，不改工具外观",
+      dtBg: s.draftDark ? "var(--tool-accent-soft)" : "transparent",
+      dtFg: s.draftDark ? "var(--tool-accent)" : "var(--tool-muted)",
+      toggleDraftTheme: () => this.setState({ draftDark: !s.draftDark }),
       hasSize: hasSize,
       sizeOpen: menu === "size",
       sizeBg: menu === "size" ? "var(--tool-hover)" : "transparent",
@@ -1021,13 +1456,45 @@ class Component extends DCLogic {
       previewNote: pv.note,
       frameRatio: pv.ratio,
       frameMax: pv.max,
-      frameBg: pv.bg,
+      frameBg: kind === "dc" && s.draftDark ? "var(--tool-panel-2)" : pv.bg,
 
-      hasPanels: hasPanels,
-      panelInline: !!openP && !panelDrawer,
-      drawerOpen: !!openP && panelDrawer,
-      drawerRight: (RAIL_W + (right && expanded ? L.chatWidth : 0)) + "px",
-      closePanel: () => this.setState({ open: null }),
+      bottomShown: bottomOn,
+      bottomHpx: bottomH + "px",
+      dbgTabs: dbgTabs,
+      layoutReadout: bits.join(" · "),
+      clearDbg: () => this.setState({ cleared: ext(s.cleared, { [dbgTab]: true }) }),
+      dbgEmpty: curDbgList.length === 0,
+      dbgEmptyText: dbgTab === "output" ? "没有输出" : dbgTab === "tools" ? "这一轮还没有工具调用" : "没有新事件",
+      isOutput: dbgTab === "output" && outList.length > 0,
+      isTools: dbgTab === "tools" && toolList.length > 0,
+      isConn: dbgTab === "conn",
+      outRows: outList.map((o) => {
+        const lv = LV[o.level] || LV.info;
+        return { t: o.t, level: lv[0], lvFg: lv[1], lvFw: lv[2], text: o.text,
+          fg: o.level === "error" ? "var(--tool-err)" : "var(--tool-text)",
+          bg: o.level === "error" ? "color-mix(in oklch, var(--tool-err) 8%, transparent)" : "transparent" };
+      }),
+      toolRows: toolList.map((t) => ({ t: t.t, name: t.name, args: t.args, ms: t.ms + " ms", res: t.ok ? "ok" : "失败", err: t.err || "",
+        resFg: t.ok ? "var(--tool-muted)" : "var(--tool-err)",
+        bg: t.ok ? "transparent" : "color-mix(in oklch, var(--tool-err) 8%, transparent)" })),
+      connDot: connOk ? "var(--tool-ok, #2f9e44)" : "var(--tool-err)",
+      connState: connOk ? "已连接" : "已断开",
+      connUrl: DEBUG.conn.url,
+      connRows: connList,
+      dragBBg: s.draggingB ? "linear-gradient(var(--tool-accent), var(--tool-accent)) center / 100% 2px no-repeat" : "transparent",
+      startDragB: (e) => {
+        e.preventDefault();
+        const y0 = e.clientY, h0 = bottomH;
+        const mv = (ev) => this.setState({ bottomH: Math.max(BOTTOM_MIN, Math.min(BOTTOM_MAX, Math.round(h0 - (ev.clientY - y0) / zoom))), draggingB: true });
+        const up = () => { document.removeEventListener("mousemove", mv); document.removeEventListener("mouseup", up); this.setState({ draggingB: false }); };
+        document.addEventListener("mousemove", mv); document.addEventListener("mouseup", up);
+      },
+      resetBottom: () => this.setState({ bottomH: BOTTOM_DEF }),
+
+      rightShown: rightOn,
+      panelInline: rightOn && !!openP && !panelDrawer,
+      drawerOpen: rightOn && !!openP && drawerShown,
+      closeDrawer: () => this.setState({ open: null }),
       panelTitle: openP ? openP.title : "",
       panelHasBadge: !!(openP && openP.badge),
       panelBadge: openP && openP.badge ? String(openP.badge) : "",
@@ -1041,19 +1508,44 @@ class Component extends DCLogic {
       panelSlot: openP ? (PANEL_SLOT[openP.id] || "") : "",
       outline: OUTLINE.map((o) => ({ text: o.text, line: String(o.line), indent: (6 + (o.level - 1) * 14) + "px", fw: o.level === 1 ? "600" : "400" })),
       panels: d.panels.map((p) => {
-        const on = p.id === openId;
-        return { title: p.title + (p.badge ? "（" + p.badge + "）" : ""), icon: PANEL_ICON[p.id] || "M0 0", active: on,
+        const on = openP && p.id === openP.id && (!panelDrawer || drawerShown);
+        return { title: p.title + (p.badge ? "（" + p.badge + "）" : ""), icon: PANEL_ICON[p.id] || "M0 0", active: !!on,
           hasBadge: !!p.badge, badge: String(p.badge || ""),
           badgeBg: p.id === "diagnostics" ? "var(--tool-warn)" : "var(--tool-accent)", badgeFg: "var(--tool-panel)",
           bg: on ? "var(--tool-accent-soft)" : "transparent", fg: on ? "var(--tool-accent)" : "var(--tool-muted)",
-          pick: () => this.setState({ open: on ? null : p.id }) };
+          pick: () => this.setState({ open: p.id }) };
       }),
 
-      statusPath: d.file.path,
-      statusKind: KIND_LABEL[kind] || kind,
-      hasStatusMeta: !!meta,
-      statusMeta: meta,
-      statusLayout: statusBits.join(" · ")
+      sheetOpen: !!sheetDir,
+      closeSheet: () => this.setState({ sheet: null }),
+      sheetName: s.sheetName,
+      onSheetName: (e) => this.setState({ sheetName: e.target.value }),
+      onSheetKey: (e) => { if (e.key === "Enter" && !sheetBlocked) { e.preventDefault(); this.setState({ sheet: null }); } },
+      sheetDir: (sheetDir || "") + "/",
+      sheetHint: badChar ? "文件名里不能有 / \\ : * ? \" < > |" : clash ? "这个目录里已经有 " + fileName + "，换个名字" : "将创建 " + sheetDir + "/" + fileName,
+      pathFg: sheetBlocked ? "var(--tool-err)" : "var(--tool-muted)",
+      nameBd: sheetBlocked ? "var(--tool-err)" : "var(--tool-border-strong)",
+      nameRing: sheetBlocked ? "0 0 0 3px color-mix(in oklch, var(--tool-err) 14%, transparent)" : "0 0 0 3px var(--tool-accent-soft)",
+      sheetKinds: [
+        { key: "page", label: "页稿", sub: "一整屏，直接打开就能看", icon: ICON.dc },
+        { key: "component", label: "组件稿", sub: "带 props，给别的稿引用", icon: ICON.comp }
+      ].map((k) => {
+        const on = s.sheetKind === k.key;
+        return { label: k.label, sub: k.sub, icon: k.icon, on: on,
+          bd: on ? "var(--tool-accent)" : "var(--tool-border-strong)", bg: on ? "var(--tool-accent-soft)" : "var(--tool-panel)",
+          ring: on ? "0 0 0 1px var(--tool-accent)" : "none", iconFg: on ? "var(--tool-accent)" : "var(--tool-muted)",
+          pick: () => this.setState({ sheetKind: k.key }) };
+      }),
+      sheetTpls: TEMPLATES.map((t, i) => {
+        const on = s.sheetTpl === t.id;
+        return { name: t.name, sub: t.sub, on: on, fw: on ? "600" : "400", dotOp: on ? "1" : "0",
+          dotBd: on ? "var(--tool-accent)" : "var(--tool-border-strong)",
+          bdTop: i ? "1px solid var(--tool-border)" : "0", bg: on ? "var(--tool-accent-soft)" : "transparent",
+          pick: () => this.setState({ sheetTpl: t.id }) };
+      }),
+      sheetBlocked: sheetBlocked,
+      createOp: sheetBlocked ? "0.45" : "1",
+      createDraft: () => { if (!sheetBlocked) this.setState({ sheet: null }); }
     };
   }
 }

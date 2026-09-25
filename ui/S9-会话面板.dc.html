@@ -29,13 +29,33 @@ body { background: var(--tool-bg); font-family: 'DC', sans-serif; font-size: 13p
      并靠左 —— 它是预览壳旁边的侧栏，不是一页，按整屏宽度评审会得出错结论。 -->
 <div data-tool-theme="{{ theme }}" style="min-height: 100vh; width: 100%; max-width: 520px; border-right: 1px solid var(--tool-border); background: var(--tool-panel); display: flex; flex-direction: column;">
 
-  <!-- ═══ 顶栏 ═══ -->
-  <div style="display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--tool-border); background: var(--tool-panel);">
-    <button onClick="{{ backAct }}" style="display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; border: none; background: transparent; border-radius: 6px; cursor: pointer; color: var(--tool-text);" style-hover="background: var(--tool-hover);" title="{{ backTitle }}">
-      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M10 3L5 8l5 5"/></svg>
+  <!-- ═══ 顶栏（第八轮 8.3）：只剩两样 —— 引擎 ▾（模型名在栏里只出现这一次）和历史钮。
+       会话标题不再上顶栏：它是第一条消息的前 40 字，给人找会话用，放在历史列表里才有用。
+       ＋ 新会话收进历史列表第一行；⇄ 换边、× 关闭删掉（关闭 = S11 顶栏「左栏」钮）。 -->
+  <div style="display: flex; align-items: center; gap: 6px; height: 40px; padding: 0 8px 0 10px; border-bottom: 1px solid var(--tool-border); background: var(--tool-panel);">
+    <sc-if value="{{ inHistory }}" hint-placeholder-val="{{ false }}">
+      <button type="button" onClick="{{ backAct }}" title="{{ backTitle }}（Esc）" aria-label="{{ backTitle }}" style="flex: none; width: 28px; height: 28px; display: grid; place-items: center; border: 0; background: transparent; border-radius: var(--tool-radius-sm); cursor: pointer; color: var(--tool-text);" style-hover="background: var(--tool-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">
+        <dc-import name="IconGlyph" d="M10 3L5 8l5 5" size="15" hint-size="15px,15px"></dc-import>
+      </button>
+      <div style="flex: 1 1 0; min-width: 0; display: flex; align-items: baseline; gap: 8px;">
+        <span style="font-weight: 600;">会话历史</span>
+        <span style="font-family: var(--tool-mono); font-size: 11px; color: var(--tool-muted);">{{ sessionCount }}</span>
+      </div>
+    </sc-if>
+    <sc-if value="{{ inChat }}" hint-placeholder-val="{{ true }}">
+      <button type="button" onClick="{{ cycleEngine }}" title="{{ engineTip }}" aria-haspopup="listbox" style="min-width: 0; display: flex; align-items: center; gap: 5px; height: 28px; padding: 0 6px 0 8px; margin-left: -2px; border: 0; border-radius: var(--tool-radius-sm); cursor: pointer; background: transparent; white-space: nowrap;" style-hover="background: var(--tool-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">
+        <span style="font-weight: 600; overflow: hidden; text-overflow: ellipsis;">{{ engineLabel }}</span>
+        <span style="flex: none; display: grid; color: var(--tool-muted);"><dc-import name="IconGlyph" d="M4.5 6.5L8 10l3.5-3.5" size="11" stroke="1.6" hint-size="11px,11px"></dc-import></span>
+      </button>
+      <span style="flex: 1;"></span>
+    </sc-if>
+    <button type="button" onClick="{{ toggleHistory }}" aria-pressed="{{ inHistory }}" title="{{ histTitle }}" aria-label="会话历史" style="flex: none; width: 28px; height: 28px; display: grid; place-items: center; border: 0; border-radius: var(--tool-radius-sm); cursor: pointer; background: {{ histBg }}; color: {{ histFg }};" style-hover="background: var(--tool-hover); color: var(--tool-text);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">
+      <dc-import name="IconGlyph" d="M2.6 8a5.4 5.4 0 1 0 1.6-3.8M2.4 2.8v2.6h2.6M8 5.2V8l2 1.4" size="15" hint-size="15px,15px"></dc-import>
     </button>
-    <!-- 会话历史入口（第六轮 6.3）：标题本身就是入口。点标题 → 整栏换成历史列表；列表里点一条 → 换回这条会话。
-         不另加一颗「历史」钮：顶栏已经有返回、新会话、引擎三样，再加就挤了；而「标题 + ▾」本来就读作「还有别的」。 -->
+  </div>
+  <!-- 旧顶栏（第六 / 七轮）整段停用，留着给收稿对照；inLegacy 恒为 false -->
+  <sc-if value="{{ inLegacy }}" hint-placeholder-val="{{ false }}">
+  <div>
     <sc-if value="{{ inChat }}" hint-placeholder-val="{{ true }}">
       <button type="button" onClick="{{ openHistory }}" title="会话历史" aria-haspopup="true" style="flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 1px; margin-left: -6px; padding: 3px 6px; border: 0; background: transparent; border-radius: var(--tool-radius); cursor: pointer; text-align: left; color: var(--tool-text);" style-hover="background: var(--tool-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">
         <span style="display: flex; align-items: center; gap: 4px; max-width: 100%;">
@@ -67,6 +87,7 @@ body { background: var(--tool-bg); font-family: 'DC', sans-serif; font-size: 13p
     </div>
     </sc-if>
   </div>
+  </sc-if>
 
   <!-- ═══ 演示态切换条（只在 ui/ 下直接打开时出现；被工具部署进项目后整行不出现） ═══ -->
   <sc-if value="{{ showDemoBar }}" hint-placeholder-val="{{ true }}">
@@ -86,6 +107,12 @@ body { background: var(--tool-bg); font-family: 'DC', sans-serif; font-size: 13p
   <!-- ═══ 会话历史（第六轮 6.3）：占满整栏，不做浮层 —— 380 px 的栏里再叠一层下拉，只剩一条窄缝可看 ═══ -->
   <sc-if value="{{ inHistory }}" hint-placeholder-val="{{ false }}">
   <div style="flex: 1 1 0; overflow-y: auto; overflow-x: hidden; padding: 4px 8px 24px;">
+    <button type="button" onClick="{{ newSession }}" style="width: 100%; display: flex; align-items: center; gap: 9px; height: 38px; margin-top: 4px; padding: 0 10px; border: 0; border-radius: var(--tool-radius); background: transparent; cursor: pointer; text-align: left; color: var(--tool-accent); font-weight: 560;" style-hover="background: var(--tool-accent-soft);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: -2px;">
+      <dc-import name="IconGlyph" d="M8 3v10M3 8h10" size="14" hint-size="14px,14px"></dc-import>
+      <span style="flex: 1;">新建会话</span>
+      <span style="font-family: var(--tool-mono); font-size: 11px; font-weight: 400; color: var(--tool-muted);">⌘N</span>
+    </button>
+    <div style="height: 1px; margin: 4px 8px 0; background: var(--tool-border);"></div>
     <sc-if value="{{ showSearch }}" hint-placeholder-val="{{ false }}">
       <div style="position: relative; margin: 8px 4px 2px;">
         <span style="position: absolute; left: 9px; top: 8px; display: grid; color: var(--tool-muted);"><dc-import name="IconGlyph" d="M7 2.5a4.5 4.5 0 1 0 0 9 4.5 4.5 0 1 0 0-9zM10.4 10.4l3.1 3.1" size="13" hint-size="13px,13px"></dc-import></span>
@@ -401,10 +428,10 @@ class Component extends DCLogic {
     let usageLabel = "";
     let usageTip = "";
     if (s.channel === "a") {
-      usageLabel = "DeepSeek · ¥0.13";
+      usageLabel = "本轮 ¥0.13";
       usageTip = "1,284 tokens · 4 次工具调用 · 模型 deepseek-chat";
     } else {
-      usageLabel = "Claude Code · 第 3 次调用";
+      usageLabel = "本轮第 3 次调用";
       usageTip = "订阅制，不按 token 计费 · Claude Code headless";
     }
 
@@ -493,12 +520,20 @@ class Component extends DCLogic {
       chanBFw: s.channel === "b" ? "560" : "400",
       onChannelA: () => this.setState({ channel: "a" }),
       onChannelB: () => this.setState({ channel: "b" }),
+      inLegacy: false,
+      engineLabel: s.channel === "a" ? "DeepSeek" : "Claude Code",
+      engineTip: "引擎：" + engineNow + "（只改这一条会话；选择器形制见 S11 演示态 21，这里点一下在两个之间切换）",
+      cycleEngine: () => this.setState({ channel: s.channel === "a" ? "b" : "a" }),
+      toggleHistory: () => view === "history" ? this.setState({ view: "chat", menu: null, renaming: null }) : this.setState({ view: "history" }),
+      histTitle: view === "history" ? "回到会话（Esc）" : "会话历史 · 新建会话",
+      histBg: view === "history" ? "var(--tool-accent-soft)" : "transparent",
+      histFg: view === "history" ? "var(--tool-accent)" : "var(--tool-muted)",
 
       // 消息
       messages: messages,
       usageLabel: usageLabel,
       usageTip: usageTip,
-      footerLabel: "当前演示态 " + (demo ? demo.name : ""),
+      footerLabel: "",
 
       // 演示态
       demoStates: DEMOS.map((d) => ({
