@@ -401,6 +401,31 @@ export async function handleApi(
       json(reply, 200, { ok: true, data: { id: s2.id, title: s2.title ?? "", titled: !!s2.title } });
       return true;
     }
+    if (route === "templates" && req.method === "GET") {
+      /* 新建稿件那一屏的「起始模板」（M8-24）。模板在**每个项目自己的**
+         `.umbrastudio/templates/`，不是 design-system 目录 —— 设计侧猜错了，回执里纠正过。 */
+      const { listTemplates } = await import("./templates.js");
+      const list = await listTemplates(p);
+      json(reply, 200, { ok: true, data: { templates: list.map((t) => ({ id: t.name, name: t.name, sub: t.elementCount ? `${t.elementCount} 元素` : undefined })) } });
+      return true;
+    }
+    if (route === "dir_create" && req.method === "POST") {
+      /* 目录右键菜单的「新建目录」（M8-21）。MCP 侧早就有 `create_folder`，
+         本地 API 一直没开这条路由 —— 界面上没有入口，所以没人发现缺。 */
+      const b = await readBody(req) as { path?: string };
+      const { createFolder } = await import("./project.js");
+      const r = await createFolder(p, str(b.path, "path"));
+      json(reply, 200, { ok: true, data: r });
+      return true;
+    }
+    if (route === "duplicate_draft" && req.method === "POST") {
+      /* 目录右键的「复制一份」（M8-21）。同 `dir_create`：MCP 侧早有，本地 API 没开过。 */
+      const b = await readBody(req) as { path?: string; name?: string };
+      const { duplicateDraft } = await import("./project.js");
+      const r = await duplicateDraft(p, str(b.path, "path"), typeof b.name === "string" ? { newName: b.name } : {});
+      json(reply, 200, { ok: true, data: r });
+      return true;
+    }
     if (route === "chat_channel" && req.method === "POST") {
       const b = await readBody(req) as { session?: string; channel?: string; tool?: string };
       const { setChatChannel } = await import("./chat.js");

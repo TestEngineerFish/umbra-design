@@ -34,8 +34,12 @@ export interface ViewContext {
   /** 这个路径判出来的类型。一个模块可以认领几种（文件卡管 code / html / other），
    *  它需要知道自己这次被用在哪一种上。 */
   kind: FileKind;
-  /** 详情区窄到要让位了（实测宽度 < 480px，R5）。视图该自己收掉次要的东西 */
+  /** 详情区窄到要让位了（< 480px，R5）。视图该自己收掉次要的东西 */
   narrow: boolean;
+  /** 详情区**算出来**有多宽（R2–R5 的 `computeYield` 给的）。
+   *  工具栏挤不下时该收哪一样，**由格式模块自己决定** —— 只有它知道自己有几组开关、
+   *  哪一样最能让。工作台给数字，不替它做主。 */
+  detail: number;
 
   /** 打开另一个文件或目录 */
   open(path: string, isDir?: boolean): void;

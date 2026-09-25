@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { timeAgo, type FileSnapshotMeta, type ReadFileResult } from "../../api/types";
 import { renderMd } from "../../ui/markdown";
+import { dirtyStore } from "../../ui/dirty";
 import type { ViewContext } from "../context";
 import { diffLines, headings, jumpTo, splitFrontmatter, type Outline } from "./parse";
 
@@ -65,6 +66,9 @@ export function MdProvider({ ctx, children }: { ctx: ViewContext; children: Reac
   useEffect(() => { void load(); }, [load, writeTick]);
 
   const dirty = !!info && text !== (info.content ?? "");
+  /* 登记到全局，页签上那颗点读它 —— 未保存是这个模块知道的事，
+     而要显示它的地方（页签条）不属于任何一种格式（M8-22） */
+  useEffect(() => { dirtyStore.set(path, dirty); return () => dirtyStore.set(path, false); }, [path, dirty]);
   const { front, body, bodyStartLine } = useMemo(() => splitFrontmatter(text), [text]);
   const html = useMemo(() => renderMd(body), [body]);
   const outline = useMemo(() => headings(body, bodyStartLine), [body, bodyStartLine]);

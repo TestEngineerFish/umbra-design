@@ -99,6 +99,10 @@ export function DcProvider({ ctx, children }: { ctx: ViewContext; children: Reac
     const on = () => reload();
     window.addEventListener("ud-dc-reload", on); return () => window.removeEventListener("ud-dc-reload", on);
   }, [reload]);
+  useEffect(() => {
+    const on = () => setPresent(true);
+    window.addEventListener("ud-dc-present", on); return () => window.removeEventListener("ud-dc-present", on);
+  }, []);
 
   /* 演示全屏归这个模块自己 —— **只有设计稿能演示**，工作台不必替它记一个 state。
      Esc 退出由 `Present` 自己听（它要的是 fullscreenchange，不是 keydown）。 */

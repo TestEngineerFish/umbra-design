@@ -38,20 +38,113 @@ const Field = ({ label, children, note, err }: { label: string; children: React.
 const inputCls = "h-8 px-3 rounded border border-border bg-bg outline-none focus:border-accent";
 
 /** 新建稿件：走 create_draft（唯一写入口），建完自动选中 */
-export function NewDraftSheet({ core, current, onClose, onCreated }: { core: Core; current: string | null; onClose: () => void; onCreated: (file: string) => void }) {
-  const [name, setName] = useState(""); const [title, setTitle] = useState(""); const [source, setSource] = useState<"blank" | "copy">("blank"); const [busy, setBusy] = useState(false);
-  const n = name.trim(); const fileName = n ? (n.endsWith(".dc.html") ? n : n + ".dc.html") : ""; const bad = !!n && /[\\/:*?"<>|]/.test(n);
+interface TemplateRow { id: string; name: string; sub?: string }
+
+/** 新建稿件（M8-24 重画，形制按设计侧第八轮 §三）。
+ *
+ *  用户原话：「新建稿件的样式也不对，**太过拥挤**」。
+ *  设计侧的诊断：拥挤是因为**四样东西排在同一个密度里**，没有层次。
+ *  所以改成四组、组间 18px、每组一个小标题、控件高 34。
+ *
+ *  最要紧的一条是**文件名下面实时写出完整路径** ——
+ *  「点『新建』之前就能知道结果」。重名或非法字符当场变红说原因，钮变灰。
+ */
+export function NewDraftSheet({ core, current, dir, onClose, onCreated }: {
+  core: Core; current: string | null; dir: string; onClose: () => void; onCreated: (file: string) => void;
+}) {
+  const [name, setName] = useState("");
+  const [kind, setKind] = useState<"page" | "component">("page");
+  const [tpl, setTpl] = useState("blank");
+  const [templates, setTemplates] = useState<TemplateRow[]>([]);
+  const [existing, setExisting] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    void core.get<{ templates?: TemplateRow[] }>("templates").then((r) => setTemplates(r.data?.templates ?? [])).catch(() => {});
+    void core.get<{ drafts?: Array<{ file: string }> }>("drafts").then((r) => setExisting((r.data?.drafts ?? []).map((d) => d.file))).catch(() => {});
+  }, [core]);
+
+  const n = name.trim();
+  const fileName = n ? (n.endsWith(".dc.html") ? n : n + ".dc.html") : "";
+  const full = fileName ? (dir ? `${dir}/${fileName}` : fileName) : "";
+  const illegal = !!n && /[\\/:*?"<>|]/.test(n);
+  const dup = !!full && existing.includes(full);
+  const why = illegal ? '名字里不能有 \\ / : * ? " < > |' : dup ? "这个目录里已经有同名的稿了" : "";
+  const blocked = !fileName || !!why || busy;
+
   const submit = async () => {
+    if (blocked) return;
     setBusy(true);
-    const r = await core.post("create_draft", { path: fileName, source, title: source === "blank" ? (title.trim() || undefined) : undefined, sourceFile: source === "copy" ? current : undefined });
-    if (r.ok) { toast(`已新建 ${fileName}`, undefined, "ok"); onCreated(fileName); onClose(); } else { toast("新建稿件失败", r.errors?.[0]?.message, "error"); setBusy(false); }
+    const body: Record<string, unknown> = { path: full, kind };
+    if (tpl === "blank") body.source = "blank";
+    else if (tpl.startsWith("copy:")) { body.source = "copy"; body.sourceFile = tpl.slice(5); }
+    else { body.source = "template"; body.templateName = tpl; }
+    const r = await core.post("create_draft", body);
+    if (r.ok) { toast(`已新建 ${fileName}`, dir || "项目根", "ok"); onCreated(full); onClose(); }
+    else { toast("新建稿件失败", r.errors?.[0]?.message, "error"); setBusy(false); }
   };
+
   return <Sheet onClose={onClose}>
-    <h2 className="text-base font-semibold">新建稿件</h2>
-    <Field label="文件名" note={bad ? "文件名不能含 \\ / : * ? \" < > |" : fileName ? `将写入 ${fileName}` : "会自动补 .dc.html"} err={bad}><input autoFocus className={inputCls} value={name} onChange={(e) => setName(e.target.value)} placeholder="例如：设置 · 账号与凭据" /></Field>
-    <Field label="标题"><input className={inputCls} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="不填就用文件名" /></Field>
-    <Field label="来源"><div className="seg self-start"><button className={source === "blank" ? "on" : ""} onClick={() => setSource("blank")}>空白骨架</button><button className={source === "copy" ? "on" : ""} disabled={!current} onClick={() => setSource("copy")} title={current ? `复制当前选中的 ${current}` : "先选中一份稿"}>复制当前稿</button></div></Field>
-    <div className="flex justify-end gap-2"><button className="btn" onClick={onClose}>取消</button><button className="btn primary" disabled={!fileName || bad || busy} onClick={() => void submit()}>{busy ? "正在建…" : "新建"}</button></div>
+    <div className="w-[460px] max-w-full grid gap-[18px]" onKeyDown={(e) => { if (e.key === "Enter" && !blocked) { e.preventDefault(); void submit(); } }}>
+      <h2 className="text-base font-semibold">新建稿件</h2>
+
+      <div className="grid gap-1.5">
+        <label className="text-[11px] text-muted">文件名</label>
+        <div className="flex items-center gap-0 h-[34px] rounded border bg-bg overflow-hidden" style={{ borderColor: why ? "var(--tool-err)" : "var(--tool-border)" }}>
+          <input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="例如：设置 · 账号与凭据"
+            className="flex-1 min-w-0 h-full px-3 bg-transparent outline-none text-xs" />
+          {/* 扩展名**固定显示在右边**，用户不用自己打 */}
+          <span className="px-2.5 h-full grid place-items-center font-mono text-[11px] text-muted border-l border-border bg-panel2 shrink-0">.dc.html</span>
+        </div>
+        {/* 实时写出完整路径 —— 点「新建」之前就知道结果 */}
+        <div className={`text-[11px] font-mono leading-relaxed break-all ${why ? "text-err" : "text-muted"}`}>
+          {why || (full ? `将创建 ${full}` : "会自动补 .dc.html")}
+        </div>
+      </div>
+
+      <div className="grid gap-1.5">
+        <label className="text-[11px] text-muted">位置</label>
+        <div className="h-[34px] px-3 flex items-center gap-2 rounded border border-border bg-panel2">
+          <span className="flex-1 min-w-0 truncate font-mono text-[11px]">{dir || "项目根"}</span>
+          <span className="text-[11px] text-muted shrink-0">右键哪个目录就建在哪</span>
+        </div>
+      </div>
+
+      <div className="grid gap-1.5">
+        <label className="text-[11px] text-muted">类型</label>
+        <div className="grid grid-cols-2 gap-2">
+          {([["page", "页稿", "一整屏，能演示、能当原型点"], ["component", "组件稿", "可被别的稿 import 的一块"]] as const).map(([k, label, sub]) => (
+            <button key={k} onClick={() => setKind(k)} aria-pressed={kind === k}
+              className={`text-left p-2.5 rounded border transition-colors ${kind === k ? "border-accent bg-accentSoft" : "border-border hover:bg-hover"}`}>
+              <div className={`text-xs font-semibold ${kind === k ? "text-accent" : ""}`}>{label}</div>
+              <div className="text-[11px] text-muted leading-relaxed mt-0.5">{sub}</div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 起始模板：**项目里一个模板都没有时，这一组只剩「空白」和「复制现有稿」**。
+          设计侧问过这种时候要不要整组不出，还没定 —— 先显示，至少用户知道有模板这回事。 */}
+      <div className="grid gap-1.5">
+        <label className="text-[11px] text-muted">起始模板 · 可选</label>
+        <div className="max-h-[132px] overflow-auto rounded border border-border divide-y divide-border">
+          {[{ id: "blank", name: "空白", sub: "只有骨架和运行时" }, ...templates,
+            ...(current ? [{ id: `copy:${current}`, name: "复制一份现有稿…", sub: current }] : [])].map((t) => (
+            <button key={t.id} onClick={() => setTpl(t.id)} aria-pressed={tpl === t.id}
+              className={`w-full text-left px-2.5 py-2 flex items-center gap-2 hover:bg-hover ${tpl === t.id ? "bg-accentSoft" : ""}`}>
+              <span className={`w-3 shrink-0 text-accent ${tpl === t.id ? "" : "opacity-0"}`}>✓</span>
+              <span className="text-xs shrink-0">{t.name}</span>
+              {t.sub && <span className="text-[11px] text-muted truncate">{t.sub}</span>}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex justify-end gap-2">
+        <button className="btn" onClick={onClose}>取消 Esc</button>
+        <button className="btn primary" disabled={blocked} onClick={() => void submit()}>{busy ? "正在建…" : "新建 ⏎"}</button>
+      </div>
+    </div>
   </Sheet>;
 }
 

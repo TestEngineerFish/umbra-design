@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Core } from "../api/client";
 import type { Draft, FileEntry, Health, ListFilesResult } from "../api/types";
 import { Glyph, ICON } from "../ui/Glyph";
+import { CtxMenu, itemsFor, type CtxActions, type CtxTarget } from "./ctxmenu";
 import { kindDef } from "@shared/kinds";
 
 /** 常驻目录列里的那棵树（M8-11，形制按设计侧第六轮的 S11 窄列 / S12）。
@@ -37,13 +38,22 @@ export interface TreeProps {
   indexed: boolean;
   /** 收起这一列。展开钮在页签条最左（同一图标、箭头反向） */
   onCollapse: () => void;
+  /** 右键菜单要的动作（M8-21）。目录列和目录视图共用同一套定义，见 `ctxmenu.tsx` */
+  actions: CtxActions;
+  /** 已经塌成「已移到回收站 · 撤销」的那几行 */
+  trashed: string[];
+  onUndoTrash: (path: string) => void;
   /** 文件变动的信号（传最近一次事件的时刻即可）：变了就把已展开的层重新拉一遍 */
   tick: string;
 }
 
-export function FileTree({ core, current, expanded, onExpandedChange, onOpenFile, onOpenDir, healthOf, projectName, drafts, indexed, onCollapse, tick }: TreeProps) {
+export function FileTree({ core, current, expanded, onExpandedChange, onOpenFile, onOpenDir, healthOf, projectName, drafts, indexed, onCollapse, actions, trashed, onUndoTrash, tick }: TreeProps) {
   const [goto, setGoto] = useState(false);
   const [q, setQ] = useState("");
+  const [ctx, setCtx] = useState<{ x: number; y: number; target: CtxTarget } | null>(null);
+  /** 正在就地改名的那一行（设计侧 §五：重命名就地改，不弹窗 ——
+   *  弹窗要把视线从树里拉走，而改名的时候人正盯着这一行） */
+  const [renaming, setRenaming] = useState<string | null>(null);
   /* 每一层的内容按需拉，拉过就留在内存里。`children[path] === undefined` = 还没拉过，
      这和后端约定的「children 缺省表示未拉取、[] 表示空目录」是同一套语义。 */
   const [children, setChildren] = useState<Record<string, FileEntry[]>>({});
@@ -110,13 +120,55 @@ export function FileTree({ core, current, expanded, onExpandedChange, onOpenFile
       const open = expSet.has(e.path);
       const isCur = e.path === current;
       const h = e.isDir ? null : healthOf(e.path);
+      /* 已移到回收站的行：**原地塌成一行撤销**，不弹确认框（沿用 S1 的口径：
+         先做，再给一步回头路）。落实时机由上层的四条规则决定。 */
+      if (trashed.includes(e.path)) {
+        out.push(
+          <div key={e.path} className="flex items-center gap-2 pr-2 text-[11px] text-muted" style={{ height: ROW_H, paddingLeft: 6 + depth * INDENT }}>
+            <span className="flex-1 truncate">已移到回收站 · {e.name}</span>
+            <button className="btn sm ghost" onClick={() => onUndoTrash(e.path)}>撤销</button>
+          </div>,
+        );
+        continue;
+      }
+      if (renaming === e.path) {
+        out.push(
+          <div key={e.path} className="flex items-center gap-1.5 pr-2" style={{ height: ROW_H, paddingLeft: 6 + depth * INDENT + 20 }}>
+            <input autoFocus defaultValue={e.name} className="flex-1 min-w-0 h-6 px-1.5 rounded border border-accent bg-bg outline-none text-xs"
+              /* 默认选中去掉扩展名的部分（设计侧 §五）—— 改名十有八九只改名字那一段 */
+              onFocus={(ev) => { const dot = e.name.indexOf("."); ev.target.setSelectionRange(0, dot > 0 ? dot : e.name.length); }}
+              onKeyDown={(ev) => {
+                if (ev.key === "Enter") (ev.target as HTMLInputElement).blur();
+                if (ev.key === "Escape") { ev.stopPropagation(); setRenaming(null); }
+              }}
+              onBlur={(ev) => {
+                const name = ev.target.value.trim();
+                setRenaming(null);
+                if (!name || name === e.name) return;
+                const dir = e.path.split("/").slice(0, -1).join("/");
+                void core.post("file_move", { from: e.path, to: dir ? `${dir}/${name}` : name }).then((r) => {
+                  if (!r.ok) { window.dispatchEvent(new CustomEvent("ud-toast", { detail: { title: "改不了名", body: r.errors?.[0]?.message, kind: "error" } })); return; }
+                  void load(dir);
+                });
+              }} />
+          </div>,
+        );
+        continue;
+      }
       out.push(
         <div key={e.path} role="treeitem" aria-expanded={e.isDir ? open : undefined} aria-selected={isCur}
-          className={`flex items-center gap-1.5 pr-2 cursor-pointer select-none ${isCur ? "bg-accentSoft text-accent font-semibold" : "hover:bg-hover"}`}
+          className={`flex items-center gap-1.5 pr-2 cursor-pointer select-none ${isCur ? "bg-accentSoft text-accent font-semibold" : "hover:bg-hover"} ${
+            ctx && "path" in ctx.target && ctx.target.path === e.path ? "ring-1 ring-inset ring-accent" : ""}`}
           style={{ height: ROW_H, paddingLeft: 6 + depth * INDENT }}
           title={e.path}
           onClick={() => (e.isDir ? toggle(e.path) : onOpenFile(e.path))}
-          onDoubleClick={() => { if (e.isDir) onOpenDir(e.path); }}>
+          onDoubleClick={() => { if (e.isDir) onOpenDir(e.path); }}
+          onContextMenu={(ev) => {
+            ev.preventDefault(); ev.stopPropagation();
+            setCtx({ x: ev.clientX, y: ev.clientY, target: e.isDir
+              ? { kind: "dir", path: e.path, name: e.name }
+              : { kind: "file", path: e.path, name: e.name, isDraft: e.kind === "dc" } });
+          }}>
           {/* 三角占位：文件也占同样宽度，图标才对得齐 */}
           <span className="w-4 shrink-0 text-[10px] text-muted grid place-items-center transition-transform"
             style={{ transform: e.isDir && open ? "rotate(90deg)" : "none" }}>{e.isDir ? "▶" : ""}</span>
@@ -143,8 +195,12 @@ export function FileTree({ core, current, expanded, onExpandedChange, onOpenFile
       {/* 高度和分隔线都跟页签条对齐（34px + border-b）——
           目录列通栏之后它和页签条并排，差 2px 或少一条线，那条横线就是断的 */}
       <div data-ud="tree-head" className="h-[34px] pl-2.5 pr-1 flex items-center gap-1 shrink-0 text-xs relative border-b border-border">
+        {/* 项目名**右键 = 空白处菜单**（M8-21）。
+            光靠「树的空白区」不够：树一满就没有空白可点，用户等于没法在根目录新建。
+            项目名就是项目根，在它上面右键最说得通。 */}
         <button className="min-w-0 flex-1 flex items-center gap-1.5 h-6 px-1 rounded font-semibold hover:bg-hover text-left"
-          onClick={() => onOpenDir("")} title="回到项目根">
+          onContextMenu={(ev) => { ev.preventDefault(); setCtx({ x: ev.clientX, y: ev.clientY, target: { kind: "blank" } }); }}
+          onClick={() => onOpenDir("")} title="回到项目根（右键：对项目根的操作）">
           <span className="text-muted shrink-0">{kindDef("dir").icon}</span><span className="truncate">{projectName}</span>
         </button>
         <button className="w-6 h-6 grid place-items-center rounded text-muted hover:bg-hover hover:text-text shrink-0"
@@ -162,9 +218,15 @@ export function FileTree({ core, current, expanded, onExpandedChange, onOpenFile
         {goto && <GotoFile q={q} setQ={setQ} drafts={drafts} indexed={indexed} current={current}
           onPick={(f) => { setGoto(false); onOpenFile(f); }} onClose={() => setGoto(false)} />}
       </div>
-      <div className="flex-1 min-h-0 overflow-auto pb-2" role="tree">
+      {/* 空白处 = 项目根（设计侧 §五）。所以在树的空白区右键，新建就落在根目录。 */}
+      <div className="flex-1 min-h-0 overflow-auto pb-2" role="tree"
+        onContextMenu={(ev) => { ev.preventDefault(); setCtx({ x: ev.clientX, y: ev.clientY, target: { kind: "blank" } }); }}>
         {children[""] === undefined ? <Loading depth={0} /> : rows("", 0)}
+        {/* 底部留一块空白，专门接「空白处右键」—— 树短的时候这里本来就是空的，
+            树长的时候滚到底也有一块。两条路都留着。 */}
+        <div className="min-h-[56px]" />
       </div>
+      {ctx && <CtxMenu x={ctx.x} y={ctx.y} items={itemsFor(ctx.target, { ...actions, rename: setRenaming })} onClose={() => setCtx(null)} />}
     </div>
   );
 }

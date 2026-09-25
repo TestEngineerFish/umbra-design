@@ -17,9 +17,13 @@ export type { PreviewMode } from "./bridge";
  */
 const ZOOMS = [0.3, 0.5, 0.75, 1, 1.25, 1.5];
 
-function Toolbar() {
+function Toolbar({ ctx }: { ctx: ViewContext }) {
   const d = useDc();
   const edit = d.mode === "shell";
+  /* 详情挤不下时，**先收「演示」**：它和「体检」一样是低频动作，收进 `⋯` 照样点得到；
+     而视图组、指针、尺寸是看稿时一直在用的。
+     不收的话 `⋯` 会被挤出可视区（M8-24 量出来：详情 440 时它落在 1067，可视区到 1060）。 */
+  const roomy = ctx.detail >= 560;
   return (
     <>
       <Seg label="视图" items={[
@@ -41,6 +45,19 @@ function Toolbar() {
         </div>
       )}
       <span className="flex-1" />
+      {/* `✽` 稿的浅 / 深色：**一颗独立开关**，放在宽度·缩放钮左边（第八轮 §八）。
+          设计侧特意说了它**不进**那个弹层：弹层回答的是「稿在屏上多大」，
+          浅深回答的是「稿长什么样」；也**不进** `⋯`：看深色版本是常做的事，
+          而且需要来回切着对比。 */}
+      {edit && (
+        <button onClick={() => d.cmd("theme", d.shell.draftTheme === "dark" ? "light" : "dark")}
+          aria-pressed={d.shell.draftTheme === "dark"} data-ud="draft-theme"
+          title="稿的浅 / 深色 —— 只改这份稿怎么显示，不改工具外观"
+          className={`w-[26px] h-[22px] grid place-items-center rounded-sm shrink-0 border ${
+            d.shell.draftTheme === "dark" ? "bg-accentSoft text-accent border-accent" : "bg-panel2 text-text2 border-border hover:text-text"}`}>
+          <Glyph d={ICON.halfTone} size={13} />
+        </button>
+      )}
       {edit && (
         <SizeBtn
           label={`${PRESETS[d.shell.preset] ?? "自适应"} · ${Math.round(d.shell.zoom * 100)}%`}
@@ -48,17 +65,9 @@ function Toolbar() {
           widths={PRESETS.map((label, i) => ({ label, px: label.match(/\d+/)?.[0] ?? "—", on: d.shell.preset === i, pick: () => d.cmd("preset", i) }))}
           zoomPct={Math.round(d.shell.zoom * 100)}
           onZoom={(dir) => d.cmd("zoom", dir > 0 ? (ZOOMS.find((z) => z > d.shell.zoom) ?? 1.5) : (ZOOMS.filter((z) => z < d.shell.zoom).pop() ?? 0.3))}
-          onFit={() => d.cmd("zoom", 1)}
-          /* 稿的浅 / 深色切换暂时挂在这儿 —— 第七轮它自己说了这颗「还没安家」，
-             第八轮 8.7 已经问出去了。放这里是因为它和宽度、缩放一样，改的是「稿怎么显示」。 */
-          extra={
-            <button className="flex-1 h-6 px-2 rounded-sm border border-border bg-panel text-[11px] text-text2 hover:bg-hover hover:text-text text-left"
-              onClick={() => d.cmd("theme", d.shell.draftTheme === "dark" ? "light" : "dark")}>
-              稿的配色：{d.shell.draftTheme === "dark" ? "深色" : "浅色"}
-            </button>
-          } />
+          onFit={() => d.cmd("zoom", 1)} />
       )}
-      <button className="btn sm shrink-0" onClick={() => d.setPresent(true)} title="全屏只看稿，Esc 退出">▷ 演示</button>
+      {roomy && <button className="btn sm shrink-0" onClick={() => d.setPresent(true)} title="全屏只看稿，Esc 退出">▷ 演示</button>}
     </>
   );
 }
@@ -93,6 +102,8 @@ function Status({ ctx }: { ctx: ViewContext }) {
 function menu(ctx: ViewContext) {
   const checking = ctx.store.checking === ctx.path;
   return [
+    /* 窄的时候演示从工具栏收到这儿来 —— 它没消失，只是换了个够得着的地方 */
+    ...(ctx.detail < 560 ? [{ label: "演示（全屏只看稿）", run: () => window.dispatchEvent(new CustomEvent("ud-dc-present")) }] : []),
     { label: checking ? "体检中…" : "重新体检", hint: checking ? "" : "手动重跑", run: () => void ctx.store.runCheck(ctx.path) },
     { label: "对比上一版", hint: "S6", run: () => window.open(`${ctx.project.url}${encodeURIComponent("S6-版本对比.dc.html")}?file=${encodeURIComponent(ctx.path)}`, "_blank") },
     { label: "重新加载预览", run: () => window.dispatchEvent(new CustomEvent("ud-dc-reload")) },

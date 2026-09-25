@@ -32,6 +32,8 @@ export const ICON = {
   treeCollapse: "M2.5 3h11v10h-11zM6.5 3v10M11.5 6.2L9.8 8l1.7 1.8",
   treeExpand: "M2.5 3h11v10h-11zM6.5 3v10M9.8 6.2L11.5 8l-1.7 1.8",
   pointer: "M4 2.8l8.4 4.4-3.6 1-1.8 3.4z",
+  /** 稿的浅 / 深色：一半实一半线的圆（设计侧第八轮 §八） */
+  halfTone: "M8 2.2a5.8 5.8 0 100 11.6 5.8 5.8 0 000-11.6zM8 2.2v11.6",
   minus: "M3.2 8h9.6",
   plus: "M8 3.2v9.6M3.2 8h9.6",
 } as const;

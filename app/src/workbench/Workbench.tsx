@@ -12,12 +12,15 @@ import { toast } from "../ui/Toast";
 import { Glyph, ICON } from "../ui/Glyph";
 import { BottomBar } from "./BottomBar";
 import { debugBus, wireDebug } from "../ui/debug";
+import { dirtyStore } from "../ui/dirty";
 import { FileTree } from "./FileTree";
 /* 详情区怎么画、右边配什么面板、状态行写什么，**全在 kinds 注册表里**。
    这个文件从此不认识任何一种具体格式 —— 加 `.json` 时它一个字都没动（M8-14）。 */
 import { moduleFor, type ViewContext } from "../kinds";
 import { kindDef } from "@shared/kinds";
 import { FileMore, ToolbarBar } from "../kinds/toolbar";
+import { makeActions } from "./ctxmenu";
+import { TabBar } from "./TabBar";
 
 /** 工作台（S11 形制）：顶栏 40 · 页签 34 · 左会话 / 中画布 / 右从属面板列 · 底部状态行 24 */
 export function Workbench({ project, host, layout, setLayout, onHome, onSettings }: { project: ProjectHandle; host: HostAdapter; layout: LayoutState; setLayout: (l: LayoutState) => void; onHome: () => void; onSettings: () => void }) {
@@ -41,7 +44,7 @@ export function Workbench({ project, host, layout, setLayout, onHome, onSettings
       return p ? [...rest, { kind: "node" as const, label: `${p.tag ? `<${p.tag}> ` : ""}${draftTitle(p.file)} · ${p.node}`, detail: `${p.file} › ${p.node}`, ref: { file: p.file, node: p.node } }] : rest;
     });
   }, []);
-  const [sheet, setSheet] = useState<"newDraft" | null>(null);
+  const [sheet, setSheet] = useState<{ kind: "newDraft"; dir: string } | null>(null);
   /* 让位（R2–R5）。**主动算，不量 DOM**（M8-18 换的做法，理由见 `layout.ts` 的 computeYield）。
      量的只有一样：整个工作台有多宽。它是最外层那个容器，不会因为格式模块换 key 而重挂。 */
   const rootRef = useRef<HTMLDivElement>(null);
@@ -54,6 +57,36 @@ export function Workbench({ project, host, layout, setLayout, onHome, onSettings
   const active: PanelId | null = panels.length ? (layout.panelByKind[kind] === undefined ? panels[0]! : (layout.panelByKind[kind] && panels.includes(layout.panelByKind[kind]!) ? layout.panelByKind[kind]! : null)) : null;
   const setActive = useCallback((p: PanelId | null) => setLayout({ ...layout, panelByKind: { ...layout.panelByKind, [kind]: p } }), [layout, setLayout, kind]);
   /* 树本体抽出来：常驻列和窄窗浮层用的是同一棵，别写两遍 */
+  /* ── 移到回收站的行内撤销（M8-21）──
+     设计侧 §五：**不弹确认框**，删完原地给一行撤销。
+     「多久算离开」按 `00` §75.4 定的四条：打开别的文件或目录 · 再删一个 ·
+     开始重命名或新建 · 切项目或关窗。第四条是我们加的 ——
+     不加的话关窗时那一行还悬着，重开之后用户既看不到撤销入口、文件也没真删。 */
+  const [trashed, setTrashed] = useState<string[]>([]);
+  const trashedRef = useRef<string[]>([]); trashedRef.current = trashed;
+  const commitTrash = useCallback(() => {
+    const list = trashedRef.current;
+    if (!list.length) return;
+    setTrashed([]);
+    for (const path of list) void core.post("file_trash", { path });
+  }, [core]);
+  /* 关窗 / 切项目：卸载时落实 */
+  useEffect(() => () => commitTrash(), [commitTrash]);
+
+  /** 右键菜单的动作，目录列和目录视图共用（`ctxmenu.tsx`） */
+  const [localTick, setLocalTick] = useState(0);
+  const ctxActions = makeActions({
+    core, host, projectDir: project.dir,
+    onOpenFile: (f) => open(f), onOpenDir: (d) => open(d, true),
+    onToChat: (paths) => { putSelection("files", { kind: "files", label: paths.length === 1 ? (paths[0]!.split("/").pop() ?? paths[0]!) : `${paths.length} 项`, detail: paths.join("\n") }); setTimeout(() => document.getElementById("chatInput")?.focus(), 50); },
+    onRename: () => {},   // 就地改名由 FileTree 自己接管（它知道是哪一行）
+    onNewDraft: (dir) => setSheet({ kind: "newDraft", dir }),
+    onCollapseAll: () => setLayout({ ...layout, tree: { ...layout.tree, expanded: [] } }),
+    onTrashed: (paths) => { commitTrash(); setTrashed(paths); },   // 「再删一个」：上一批先落实
+    onRebuildIndex: () => void store.rebuildIndex(),
+    refresh: () => setLocalTick((t) => t + 1),
+  });
+
   const tree = (
     <FileTree core={core} current={dirMode ? null : file} projectName={project.name}
       expanded={layout.tree.expanded}
@@ -64,7 +97,8 @@ export function Workbench({ project, host, layout, setLayout, onHome, onSettings
       onOpenDir={(d) => { open(d, true); if (!treeInline) setLayout({ ...layout, tree: { ...layout.tree, open: false } }); }}
       healthOf={(path) => store.drafts.find((d) => d.file === path)?.health ?? null}
       drafts={store.drafts} indexed={store.indexed} onCollapse={() => setLayout({ ...layout, tree: { ...layout.tree, open: false } })}
-      tick={store.lastEvent?.at ?? ""}
+      actions={ctxActions} trashed={trashed} onUndoTrash={(p) => setTrashed((xs) => xs.filter((x) => x !== p))}
+      tick={`${store.lastEvent?.at ?? ""}:${localTick}`}
     />
   );
 
@@ -119,6 +153,7 @@ export function Workbench({ project, host, layout, setLayout, onHome, onSettings
 
   /** 打开任意文件或目录。目录不进页签（它是一个位置，不是一份文件）。 */
   const open = (f: string, isDir = false) => {
+    commitTrash();   // 「做下一件事」的第一条：打开别的文件或目录
     setPicked(null);
     setDirMode(isDir);
     store.select(isDir ? (f || "__root__") : f);
@@ -127,11 +162,12 @@ export function Workbench({ project, host, layout, setLayout, onHome, onSettings
     setTabs((t) => { const n = t.includes(f) ? t : [...t, f]; mem.set(`us.tabs.${project.dir}`, n); return n; });
   };
   const dirRel = dirMode ? (file === "__root__" ? "" : (file ?? "")) : "";
-  const closeTab = (f: string) => { const n = tabs.filter((x) => x !== f); setTabs(n); mem.set(`us.tabs.${project.dir}`, n); if (file === f) { const next = n[n.length - 1] ?? null; if (next) open(next); else store.select(null); } };
+  const closeTab = (f: string) => { dirtyStore.drop(f); const n = tabs.filter((x) => x !== f); setTabs(n); mem.set(`us.tabs.${project.dir}`, n); if (file === f) { const next = n[n.length - 1] ?? null; if (next) open(next); else store.select(null); } };
 
   /* 底栏那颗钮的红点：有没有 error。关着的时候才提示，打开看过就消。 */
   wireDebug();
   const hasDebugError = useSyncExternalStore(debugBus.subscribe, () => debugBus.hasError());
+
 
   /** 让位算一次，下面三处都用它：目录列并排还是浮层、面板体展开还是抽屉、底栏的布局读数 */
   const yieldNow = computeYield(layout, winW, panels.length > 0);
@@ -149,7 +185,7 @@ export function Workbench({ project, host, layout, setLayout, onHome, onSettings
   const ctx: ViewContext = {
     core, host, project, store,
     path: dirMode ? dirRel : (file ?? ""),
-    kind, narrow: panelDrawer,
+    kind, narrow: panelDrawer, detail: yieldNow.detail,
     open,
     select: putSelection,
     ask: (text, sels) => { expandChat(); void chat.send(text, sels); },
@@ -193,18 +229,21 @@ export function Workbench({ project, host, layout, setLayout, onHome, onSettings
           {menu && <>
             <div className="fixed inset-0 z-40" onClick={() => setMenu(false)} />
             <div role="menu" className="absolute top-[31px] left-0 z-[41] w-72 p-1 bg-panel border border-borderStrong rounded-lg shadow-2xl text-left">
-              {/* 只放路径。**项目名不再写第二遍**（M8-16，用户实测第 3 条：
-                  「左上角项目名称后，又出现了一个项目名称，这种 double name」）——
-                  按钮上就是项目名，菜单是它的展开，展开里再报一次名字没有信息量。 */}
-              <div className="px-2 pt-1.5 pb-2 mb-1 border-b border-border">
-                <span className="font-mono text-[11px] text-muted break-all leading-relaxed">{project.dir}</span>
-              </div>
+              {/* 路径**整块可点，点了就复制**（第八轮 §三）——
+                  所以菜单里不再单独放一项「复制路径」。
+                  项目名不写第二遍：按钮上就是它，菜单是它的展开（M8-16 用户提的 double name）。 */}
+              <button className="w-full text-left px-2 pt-1.5 pb-2 mb-1 border-b border-border hover:bg-hover"
+                onClick={() => { setMenu(false); void navigator.clipboard?.writeText(project.dir).then(() => toast("路径已复制", project.dir, "ok"), () => toast("复制不了", "浏览器不让访问剪贴板", "error")); }}>
+                <div className="text-[11px] text-muted mb-0.5">项目目录 · 点击复制</div>
+                <div className="font-mono text-[11px] break-all leading-relaxed">{project.dir}</div>
+              </button>
               {[
-                { label: "新建稿件", run: () => setSheet("newDraft") },
-                { label: "重建索引", run: () => void store.rebuildIndex() },
+                /* **「新建稿件」去了目录右键**（第八轮 §三）：右键点在哪里，稿就建在哪里，
+                   不用在这里点完再选一次位置。 */
                 { label: "在访达中显示", run: () => void host.revealInFinder(project.dir).catch((e: Error) => toast("打开目录失败", e.message, "error")) },
+                { label: "重建索引", run: () => void store.rebuildIndex() },
                 { sep: true as const },
-                { label: "项目设置 · 外观", hint: "⌘,", run: onSettings },
+                { label: "项目设置…", hint: "⌘,", run: onSettings },
                 { sep: true as const },
                 { label: "关闭项目", run: onHome },
               ].map((mi, k) => mi.sep
@@ -279,21 +318,17 @@ export function Workbench({ project, host, layout, setLayout, onHome, onSettings
             )
           )}
           <div className="flex-1 min-w-0 flex flex-col">
-            <div data-ud="tabbar" className="h-[34px] flex items-stretch border-b border-border bg-panel shrink-0 text-xs">
-              {/* 目录收起后，**同一个图标、箭头反向**出现在这里 —— 也就是目录回来的地方
-                （设计侧第八轮 §一：「收起钮和展开钮是同一个图标，只是箭头方向相反」）。
-                不放在顶栏：目录不是三块区域之一，它的开关只归它自己那一列。 */}
-              {!layout.tree.open && (
-                <button data-ud="tree-reopen" className="w-9 shrink-0 grid place-items-center border-r border-border text-muted hover:bg-hover hover:text-text"
-                onClick={() => setLayout({ ...layout, tree: { ...layout.tree, open: true } })} title="展开目录列（⌘B）" aria-label="展开目录列">
-                <Glyph d={ICON.treeExpand} />
-              </button>
-            )}
-            <div className="flex-1 min-w-0 flex overflow-x-auto">
-              {tabs.map((t) => { const d = store.drafts.find((x) => x.file === t); const cur = t === file; return <div key={t} className={`group flex items-center gap-1.5 pl-3 pr-2 border-r border-border cursor-pointer whitespace-nowrap ${cur ? "bg-bg border-t-2 border-t-accent -mb-px" : "text-muted hover:text-text"}`} onClick={() => open(t)} title={t}><span className={`hdot ${d?.health ?? "unchecked"}`} /><span className={cur ? "font-semibold" : ""}>{draftTitle(t)}</span><button className="ib opacity-0 group-hover:opacity-100 text-[10px]" onClick={(e) => { e.stopPropagation(); closeTab(t); }} title="关闭">×</button></div>; })}
-              {tabs.length === 0 && <span className="px-3 self-center text-muted text-[11px]">还没打开文件 —— 从左边的目录里选一个</span>}
-            </div>
-          </div>
+              <TabBar tabs={tabs} current={dirMode ? null : file} onPick={open}
+                onClose={closeTab} onCloseOthers={(keep) => { setTabs([keep]); mem.set(`us.tabs.${project.dir}`, [keep]); if (file !== keep) open(keep); }}
+                extra={!layout.tree.open ? (
+                  /* 目录收起后，**同一个图标、箭头反向**出现在这里 —— 目录回来的地方
+                     （设计侧第八轮 §一：「收起钮和展开钮是同一个图标，只是箭头方向相反」） */
+                  <button data-ud="tree-reopen" className="w-9 shrink-0 grid place-items-center border-r border-border text-muted hover:bg-hover hover:text-text"
+                    onClick={() => setLayout({ ...layout, tree: { ...layout.tree, open: true } })} title="展开目录列（⌘B）" aria-label="展开目录列">
+                    <Glyph d={ICON.treeExpand} />
+                  </button>
+                ) : null} />
+
           {/* ═══ 文件工具栏 34px · 只管「当前这份文件」（第七轮第四层）═══
             **模块不声明 Toolbar 就不出这条带** —— 设计侧明确说代码和其他文件没有这一行，
             不要给它留一条空横带。`⋯` 的公共尾巴由 `FileMore` 补，不用每个模块重复写。 */}
@@ -309,9 +344,14 @@ export function Workbench({ project, host, layout, setLayout, onHome, onSettings
               {/* 不声明 `Status` 就用类型名兜底 —— 这条兜底原来在状态行里，
                 搬位置时我漏了它，工具栏右端就空着（M8-16 实测）。
                 正是 `registry.ts` 那条注释警告过的「一条省略等于空白的接口，早晚有人省略」。 */}
-              <span className="flex items-center gap-1.5 text-[11px] text-muted font-mono min-w-0 truncate">
-                {mod.Status ? <mod.Status ctx={ctx} /> : kindDef(kind).label}
-              </span>
+              {/* ⚠️ **详情窄下来时整段不显示**：它是读数，是这一行里最能让的一样。
+                  不让的话它会把右端的 `⋯` 挤出可视区 —— 而 `⋯` 里装着体检、对比上一版这些动作，
+                  那是点得到才有用的东西（M8-24 量出来：详情 440 时 ⋯ 落在 1075，可视区到 1060）。 */}
+              {yieldNow.detail >= 620 && (
+                <span className="flex items-center gap-1.5 text-[11px] text-muted font-mono min-w-0 truncate">
+                  {mod.Status ? <mod.Status ctx={ctx} /> : kindDef(kind).label}
+                </span>
+              )}
               <FileMore ctx={ctx} items={mod.menu?.(ctx) ?? []} />
             </ToolbarBar>
           )}
@@ -332,7 +372,7 @@ export function Workbench({ project, host, layout, setLayout, onHome, onSettings
       {layout.right && mod.Panels && panels.length > 0 && <mod.Panels ctx={ctx} />}
       </div>
       </Wrap>
-      {sheet === "newDraft" && <NewDraftSheet core={core} current={file} onClose={() => setSheet(null)} onCreated={async (f) => { await store.fetchDrafts(); open(f); }} />}
+      {sheet?.kind === "newDraft" && <NewDraftSheet core={core} current={file} dir={sheet.dir} onClose={() => setSheet(null)} onCreated={async (f) => { await store.fetchDrafts(); open(f); }} />}
     </div>
   );
 }

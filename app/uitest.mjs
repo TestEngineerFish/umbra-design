@@ -148,7 +148,10 @@ ok(!headText.includes("/Users/"), "项目路径不在顶栏上了", headText.rep
 await header.locator("button[aria-haspopup=\"menu\"]").click(); await pg.waitForTimeout(400);
 const menuText = await pg.locator('[role="menu"]').innerText();
 ok(menuText.includes("/Users/"), "完整路径在项目菜单里（要复制路径时截断的没用）");
-ok(["新建稿件", "重建索引", "项目设置 · 外观", "关闭项目"].every((x) => menuText.includes(x)), "项目级五项都收进这个菜单", menuText.split("\n").filter(Boolean).slice(2).join(" / "));
+/* 第八轮精简过：**「新建稿件」去了目录右键**，「复制路径」并进了路径那一栏（整块可点） */
+ok(["在访达中显示", "重建索引", "项目设置…", "关闭项目"].every((x) => menuText.includes(x)), "项目菜单只剩对整个项目的动作", menuText.split("\n").filter(Boolean).slice(2).join(" / "));
+ok(!menuText.includes("新建稿件"), "项目菜单里**没有**新建稿件了（它去了目录右键）");
+ok(/点击复制/.test(menuText), "路径那一栏整块可点即复制");
 await pg.keyboard.press("Escape"); await pg.mouse.click(700, 400); await pg.waitForTimeout(300);
 /* 目录列头的两颗导航钮 */
 /* 「铺到详情区」第八轮删掉了（用户读成「放大」，而且它让详情区重复显示目录）——
@@ -239,10 +242,70 @@ for (const [suffix, label, probe] of [
 }
 /* 目录：工具栏有「范围」「排布」两组，而面包屑该留在视图里（它是内容不是开关）。
    ⚠️ 进目录视图的入口第八轮换了：`⤢` 删掉，改成**点目录列头的项目名**（或右键 / 双击）。 */
-await pg.locator('button[title="回到项目根"]').first().click(); await pg.waitForTimeout(1300);
+await pg.locator('button[title="回到项目根（右键：对项目根的操作）"]').first().click(); await pg.waitForTimeout(1300);
 ok(await bar().locator('[role="group"][aria-label="范围"]').count() === 1, "目录：范围组在工具栏上");
 ok(await bar().locator('[role="group"][aria-label="排布"]').count() === 1, "目录：排布组在工具栏上");
 ok(await countIn(bar(), /全部/g) === 1 && await pageCount(/只看稿件/g) === 1, "目录：视图里没有第二份范围开关");
+
+/* ── 目录右键菜单（M8-21 · 设计侧第八轮 §五）──
+   按**右键点在什么上**分三种。这里每种测一条「该有的」和一条「不该有的」——
+   「新建只出现在目录和空白处」这条规则，只测该有的话是测不出来的。 */
+console.log("\n目录右键菜单：三套（M8-21 · 设计侧第八轮 §五）");
+const ctxText = async () => (await pg.locator('[data-ud="ctxmenu"]').innerText().catch(() => "")).replace(/\n/g, " / ");
+const closeCtx = async () => { await pg.keyboard.press("Escape"); await pg.waitForTimeout(250); };
+
+const ctxDirRow = pg.locator('[role="treeitem"][aria-expanded]').first();
+if (await ctxDirRow.count()) {
+  await ctxDirRow.click({ button: "right" }); await pg.waitForTimeout(400);
+  const t = await ctxText();
+  ok(/新建稿件/.test(t) && /新建目录/.test(t), "右键目录：有「新建稿件 / 新建目录」", t.slice(0, 70));
+  ok(/在详情区打开/.test(t), "右键目录：有「在详情区打开」（接走了原列头的 ⤢）");
+  ok(/移到回收站/.test(t) && !/删除/.test(t), "右键目录：写的是「移到回收站」不是「删除」");
+  ok(!/重建索引/.test(t), "右键目录：**没有**重建索引（它作用于整个项目，只在空白处出）");
+  await closeCtx();
+} else ok(false, "树里没有目录行");
+
+const fileRow = pg.locator('[role="treeitem"]:not([aria-expanded])').first();
+if (await fileRow.count()) {
+  await fileRow.click({ button: "right" }); await pg.waitForTimeout(400);
+  const t = await ctxText();
+  ok(/重命名/.test(t) && /移到回收站/.test(t), "右键文件：有重命名和移到回收站", t.slice(0, 70));
+  ok(!/新建稿件/.test(t) && !/新建目录/.test(t), "右键文件：**没有**新建（在文件上说不清建在哪）");
+  await closeCtx();
+} else ok(false, "树里没有文件行");
+
+/* 在**项目名**上右键 = 空白处菜单。树一满就没有空白区可点，所以列头这条路是主入口。 */
+await pg.locator('button[title="回到项目根（右键：对项目根的操作）"]').click({ button: "right" });
+await pg.waitForTimeout(400);
+{
+  const t = await ctxText();
+  ok(/重建索引/.test(t), "右键空白处：有重建索引（空白处 = 项目根）", t.slice(0, 70));
+  ok(/全部折叠/.test(t), "右键空白处：有「全部折叠」（从列头搬进来的）");
+  await closeCtx();
+}
+
+/* ⋯ 是工具栏上**点得到才有用**的那一颗（体检、对比上一版都在里面）。
+   窄下来时该让的是读数和演示，不是它 —— M8-24 量出来它会被挤到可视区外 7px。 */
+{
+  const bar = pg.locator('[data-ud="file-toolbar"]');
+  const bx = await bar.boundingBox();
+  const mx = await bar.locator('button[title="更多"]').boundingBox();
+  ok(!!bx && !!mx && mx.x + mx.width <= bx.x + bx.width + 1, "文件工具栏的 ⋯ 没被挤出可视区",
+     bx && mx ? `⋯ 右缘 ${Math.round(mx.x + mx.width)} · 工具栏右缘 ${Math.round(bx.x + bx.width)}` : "量不到");
+}
+
+/* ── 页签（M8-22 · 设计侧第八轮 §六）── */
+console.log("\n页签：状态点 / 溢出 / 当前态（M8-22）");
+{
+  /* 开三份文件，看页签的形制 */
+  for (const n of [".md", ".json", ".dc.html"]) await openByName(n);
+  const tabs = pg.locator('[data-ud="tab"]');
+  ok(await tabs.count() >= 2, "页签条里有多个页签", `${await tabs.count()} 个`);
+  ok(await pg.locator('[data-ud="tab"][data-current]').count() === 1, "当前页签只有一个，且标成了凸起块");
+  /* 体检状态**不该**上页签（它在树、诊断角标、诊断面板三处）。
+     旧实现是每个页签都挂一颗 hdot —— 用户把它读成了「未保存」。 */
+  ok(await pg.locator('[data-ud="tab"] .hdot').count() === 0, "页签上没有体检点了（只留未保存）");
+}
 
 /* ── 引擎是会话的属性（M8-16，用户实测第 7 条）──
    撞到的场景：会话在火山方舟上 → 选成 Claude → 新建一条 → 再切回来，**又变回火山方舟**。
