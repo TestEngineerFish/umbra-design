@@ -8,6 +8,7 @@
 <body>
 <x-dc>
 <helmet>
+<script src="./icons.js"></script>
 <style>
   html, body { margin: 0; padding: 0; }
   * { box-sizing: border-box; }
@@ -19,19 +20,22 @@
 </svg>
 
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:48,&quot;height&quot;:48},&quot;d&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;M3 8h10M8 3v10&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;size&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:16,&quot;min&quot;:10,&quot;max&quot;:64,&quot;unit&quot;:&quot;px&quot;,&quot;tsType&quot;:&quot;number&quot;},&quot;stroke&quot;:{&quot;editor&quot;:&quot;float&quot;,&quot;default&quot;:1.4,&quot;min&quot;:0.8,&quot;max&quot;:3,&quot;step&quot;:0.1,&quot;tsType&quot;:&quot;number&quot;},&quot;color&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;default&quot;:&quot;currentColor&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:48,&quot;height&quot;:48},&quot;icon&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;edit&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;d&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;size&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:16,&quot;min&quot;:10,&quot;max&quot;:64,&quot;unit&quot;:&quot;px&quot;,&quot;tsType&quot;:&quot;number&quot;},&quot;stroke&quot;:{&quot;editor&quot;:&quot;float&quot;,&quot;default&quot;:1.4,&quot;min&quot;:0.8,&quot;max&quot;:3,&quot;step&quot;:0.1,&quot;tsType&quot;:&quot;number&quot;},&quot;color&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;default&quot;:&quot;currentColor&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
 /* 图标的 path 数据来自数据源，而洞不能写在 d 上 —— 浏览器在解析 HTML 那一刻
    就校验 d，那时洞还没被替换，控制台立刻报 Expected moveto。
    所以全项目的图标都走这一份：洞挂在 data-icon-d 上，渲染后抄进 d。
    §2.3 选的是「抽子组件」这条路 —— 这条规则只需要在这个文件里遵守一次。 */
 class Component extends DCLogic {
+  /* 第九轮：多了 icon（图标名，查 icons.js 的 UMBRA_ICONS）。d 仍然优先，旧的调用一处不用改。 */
   componentDidMount() {
     this.svgRef = React.createRef();
+    if (!window.UMBRA_ICONS) { this.onIcons = () => this.forceUpdate(); window.addEventListener("umbra-icons", this.onIcons); }
     this.forceUpdate();
     setTimeout(() => this.syncIcons(), 0);
   }
 
   componentDidUpdate() { this.syncIcons(); }
+  componentWillUnmount() { if (this.onIcons) window.removeEventListener("umbra-icons", this.onIcons); }
 
   syncIcons() {
     const root = this.svgRef && this.svgRef.current;
@@ -48,7 +52,7 @@ class Component extends DCLogic {
     const size = Number(this.props.size) || 16;
     return {
       svgRef: this.svgRef,
-      d: this.props.d || "M0 0",
+      d: this.props.d || (window.UMBRA_ICONS || {})[this.props.icon] || "M0 0",
       px: size + "px",
       sw: (Number(this.props.stroke) || 1.4) + "px",
       color: this.props.color || "currentColor"

@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="./_ds-tool/tokens.css">
+<script src="./icons.js"></script>
+<style>
+  html, body { margin: 0; padding: 0; }
+  body { background: var(--tool-bg); }
+  * { box-sizing: border-box; }
+  a { color: var(--tool-accent); text-decoration: none; }
+  a:hover { color: var(--tool-accent-hover); text-decoration: underline; }
+</style>
+</helmet>
+<div data-tool-theme="{{ theme }}" style="min-height: 100vh; padding: 32px 32px 64px; background: var(--tool-bg); color: var(--tool-text); font-family: var(--tool-sans); font-size: 13px; -webkit-font-smoothing: antialiased;">
+  <div style="max-width: 1120px; margin: 0 auto; display: grid; gap: 28px;">
+    <div style="display: grid; gap: 6px;">
+      <div style="font-size: 18px; font-weight: 620;">S16 · 图标表</div>
+      <div style="max-width: 760px; color: var(--tool-text-2); line-height: 1.6; text-wrap: pretty;">16 × 16 网格，活动区 2.5–13.5；线宽一律 1.4，圆端点圆转角，只描边不填色；容器圆角 1.5。只用 16 和 12 两个尺寸。路径在 <span style="font-family: var(--tool-mono);">ui/icons.js</span>，<span style="font-family: var(--tool-mono);">IconGlyph</span> 用 <span style="font-family: var(--tool-mono);">icon="名字"</span> 取。点一格复制它的 d。</div>
+      <div style="font-size: 12px; color: var(--tool-muted);">{{ copied }}</div>
+    </div>
+    <sc-for list="{{ groups }}" as="g" hint-placeholder-count="3">
+      <section style="display: grid; gap: 10px;">
+        <div style="display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;">
+          <span style="font-weight: 600;">{{ g.label }}</span>
+          <span style="font-size: 12px; color: var(--tool-muted);">{{ g.note }}</span>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 8px;">
+          <sc-for list="{{ g.items }}" as="it" hint-placeholder-count="6">
+            <button type="button" onClick="{{ it.copy }}" title="{{ it.d }}" style="display: grid; grid-template-columns: 48px minmax(0, 1fr); gap: 10px; align-items: center; padding: 10px; border: 1px solid var(--tool-border); border-radius: var(--tool-radius); background: var(--tool-panel); cursor: copy; text-align: left;" style-hover="border-color: var(--tool-border-strong); background: var(--tool-hover);">
+              <span style="width: 48px; height: 48px; display: grid; place-items: center; border-radius: var(--tool-radius-sm); color: var(--tool-text); background: {{ gridBg }};">
+                <dc-import name="IconGlyph" icon="{{ it.id }}" size="32" stroke="2.8" hint-size="32px,32px"></dc-import>
+              </span>
+              <span style="min-width: 0; display: grid; gap: 4px;">
+                <span style="display: flex; align-items: center; gap: 8px; color: var(--tool-text-2);">
+                  <dc-import name="IconGlyph" icon="{{ it.id }}" size="16" hint-size="16px,16px"></dc-import>
+                  <dc-import name="IconGlyph" icon="{{ it.id }}" size="12" hint-size="12px,12px"></dc-import>
+                </span>
+                <span style="font-size: 12px; font-weight: 560; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ it.label }}</span>
+                <span style="font-family: var(--tool-mono); font-size: 11px; color: var(--tool-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ it.id }}</span>
+              </span>
+            </button>
+          </sc-for>
+        </div>
+      </section>
+    </sc-for>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;跟随外层&quot;,&quot;dark&quot;],&quot;default&quot;:&quot;跟随外层&quot;,&quot;tsType&quot;:&quot;'dark'|null&quot;,&quot;section&quot;:&quot;工具皮肤&quot;},&quot;showGrid&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;}}">
+class Component extends DCLogic {
+  state = { copied: "" };
+  componentDidMount() {
+    if (!window.UMBRA_ICON_GROUPS) { this.onIcons = () => this.forceUpdate(); window.addEventListener("umbra-icons", this.onIcons); }
+  }
+  componentWillUnmount() { if (this.onIcons) window.removeEventListener("umbra-icons", this.onIcons); }
+  renderVals() {
+    const icons = window.UMBRA_ICONS || {};
+    const groups = (window.UMBRA_ICON_GROUPS || []).map((g) => ({
+      label: g.label + " · " + g.items.length, note: g.note || "",
+      items: g.items.map(([id, label]) => ({ id: id, label: label, d: icons[id] || "",
+        copy: () => { try { navigator.clipboard.writeText(icons[id] || ""); } catch (e) {} this.setState({ copied: "已复制 " + id }); } }))
+    }));
+    const n = groups.reduce((a, g) => a + g.items.length, 0);
+    return {
+      theme: this.props.theme === "dark" ? "dark" : null,
+      groups: groups,
+      copied: this.state.copied || "共 " + n + " 颗。32 px 那一格按比例放大了线宽，看的是轮廓；16 和 12 是实际用的样子",
+      gridBg: this.props.showGrid === false ? "transparent" : "repeating-linear-gradient(0deg, var(--tool-border) 0 0.5px, transparent 0.5px 2px), repeating-linear-gradient(90deg, var(--tool-border) 0 0.5px, transparent 0.5px 2px)"
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -27,13 +27,15 @@ body { background: var(--tool-bg); font-family: 'DC', sans-serif; font-size: 13p
 
 <!-- 壳宽度（设计侧 §2.3）：默认 380px，可拖 320–520。这里单独打开时锁在上限 520px
      并靠左 —— 它是预览壳旁边的侧栏，不是一页，按整屏宽度评审会得出错结论。 -->
-<div data-tool-theme="{{ theme }}" style="min-height: 100vh; width: 100%; max-width: 520px; border-right: 1px solid var(--tool-border); background: var(--tool-panel); display: flex; flex-direction: column;">
+<!-- 第九轮：会话栏固定在右（S11），分隔线换到左边沿；拖宽手柄也在左边沿 -->
+<div data-tool-theme="{{ theme }}" style="min-height: 100vh; width: 100%; max-width: 520px; border-left: 1px solid var(--tool-border); background: var(--tool-panel); display: flex; flex-direction: column; position: relative;">
 
   <!-- ═══ 顶栏（第八轮 8.3）：只剩两样 —— 引擎 ▾（模型名在栏里只出现这一次）和历史钮。
        会话标题不再上顶栏：它是第一条消息的前 40 字，给人找会话用，放在历史列表里才有用。
        ＋ 新会话收进历史列表第一行；⇄ 换边、× 关闭删掉（关闭 = S11 顶栏「左栏」钮）。 -->
-  <div style="display: flex; align-items: center; gap: 6px; height: 40px; padding: 0 8px 0 10px; border-bottom: 1px solid var(--tool-border); background: var(--tool-panel);">
-    <sc-if value="{{ inHistory }}" hint-placeholder-val="{{ false }}">
+  <!-- 第九轮：模块状态栏统一 36px；历史改成下拉，所以头部不再有「返回」态（那一段并进 inLegacy） -->
+  <div style="display: flex; align-items: center; gap: 6px; height: 36px; padding: 0 4px 0 6px; border-bottom: 1px solid var(--tool-border); background: var(--tool-panel);">
+    <sc-if value="{{ inLegacy }}" hint-placeholder-val="{{ false }}">
       <button type="button" onClick="{{ backAct }}" title="{{ backTitle }}（Esc）" aria-label="{{ backTitle }}" style="flex: none; width: 28px; height: 28px; display: grid; place-items: center; border: 0; background: transparent; border-radius: var(--tool-radius-sm); cursor: pointer; color: var(--tool-text);" style-hover="background: var(--tool-hover);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">
         <dc-import name="IconGlyph" d="M10 3L5 8l5 5" size="15" hint-size="15px,15px"></dc-import>
       </button>
@@ -50,7 +52,7 @@ body { background: var(--tool-bg); font-family: 'DC', sans-serif; font-size: 13p
       <span style="flex: 1;"></span>
     </sc-if>
     <button type="button" onClick="{{ toggleHistory }}" aria-pressed="{{ inHistory }}" title="{{ histTitle }}" aria-label="会话历史" style="flex: none; width: 28px; height: 28px; display: grid; place-items: center; border: 0; border-radius: var(--tool-radius-sm); cursor: pointer; background: {{ histBg }}; color: {{ histFg }};" style-hover="background: var(--tool-hover); color: var(--tool-text);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 1px;">
-      <dc-import name="IconGlyph" d="M2.6 8a5.4 5.4 0 1 0 1.6-3.8M2.4 2.8v2.6h2.6M8 5.2V8l2 1.4" size="15" hint-size="15px,15px"></dc-import>
+      <dc-import name="IconGlyph" icon="chat-history" size="16" hint-size="16px,16px"></dc-import>
     </button>
   </div>
   <!-- 旧顶栏（第六 / 七轮）整段停用，留着给收稿对照；inLegacy 恒为 false -->
@@ -104,9 +106,11 @@ body { background: var(--tool-bg); font-family: 'DC', sans-serif; font-size: 13p
   </div>
   </sc-if>
 
-  <!-- ═══ 会话历史（第六轮 6.3）：占满整栏，不做浮层 —— 380 px 的栏里再叠一层下拉，只剩一条窄缝可看 ═══ -->
+  <!-- ═══ 会话历史（第九轮）：改成下拉，贴历史钮右边对齐、往左展开，宽 320、最高 420 后滚动。
+       第六轮「占满整栏」作废：用户要「直接下拉展示，不用切换页面」。形制以 S11 的通用浮层为准 ═══ -->
   <sc-if value="{{ inHistory }}" hint-placeholder-val="{{ false }}">
-  <div style="flex: 1 1 0; overflow-y: auto; overflow-x: hidden; padding: 4px 8px 24px;">
+  <div onClick="{{ closeHistory }}" style="position: fixed; inset: 0; z-index: 19;"></div>
+  <div role="listbox" aria-label="会话历史" style="position: absolute; top: 40px; right: 4px; z-index: 20; width: 320px; max-height: 420px; overflow-y: auto; overflow-x: hidden; padding: 4px; background: var(--tool-panel); border: 1px solid var(--tool-border-strong); border-radius: var(--tool-radius-lg); box-shadow: var(--tool-shadow-2);">
     <button type="button" onClick="{{ newSession }}" style="width: 100%; display: flex; align-items: center; gap: 9px; height: 38px; margin-top: 4px; padding: 0 10px; border: 0; border-radius: var(--tool-radius); background: transparent; cursor: pointer; text-align: left; color: var(--tool-accent); font-weight: 560;" style-hover="background: var(--tool-accent-soft);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: -2px;">
       <dc-import name="IconGlyph" d="M8 3v10M3 8h10" size="14" hint-size="14px,14px"></dc-import>
       <span style="flex: 1;">新建会话</span>
@@ -286,12 +290,14 @@ body { background: var(--tool-bg); font-family: 'DC', sans-serif; font-size: 13p
 
   </sc-if>
 
-  <!-- ═══ 底部状态栏 ═══ -->
+  <!-- ═══ 底部状态栏：第九轮停用。用量和「运行中」去了 S11 底栏（调试）头部右边 ═══ -->
+  <sc-if value="{{ inLegacy }}" hint-placeholder-val="{{ false }}">
   <div style="padding: 4px 12px; font-size: 10px; color: var(--tool-muted); border-top: 1px solid var(--tool-border); background: var(--tool-panel); display: flex; align-items: center; gap: 12px;">
     <span title="{{ usageTip }}">{{ usageLabel }}</span>
     <span style="flex: 1 1 0;"></span>
     <span>{{ footerLabel }}</span>
   </div>
+  </sc-if>
 
 </div>
 
@@ -469,8 +475,9 @@ class Component extends DCLogic {
     const engineNow = s.channel === "a" ? "DeepSeek · deepseek-chat · 按量" : "Claude Code · 本机订阅";
 
     return {
-      inChat: view === "chat",
+      inChat: true,
       inHistory: view === "history",
+      closeHistory: () => this.setState({ view: "chat", menu: null, renaming: null }),
       backAct: () => view === "history" ? this.setState({ view: "chat", menu: null, renaming: null }) : this.goBack(),
       backTitle: view === "history" ? "回到会话" : "返回预览",
       openHistory: () => this.setState({ view: "history" }),
