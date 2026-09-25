@@ -1,7 +1,16 @@
-/** 布局状态（R2 / R3；键名照设计侧第四轮定的：chatSide / chatMode / chatWidth / panelByKind）。
- *  M7-7 才做完整布局引擎，这里只放三态 + 按类型记忆。 */
-export type ChatSide = "left" | "right";
-export type ChatMode = "expanded" | "bar";
+/** 布局状态（R1–R5，键名照设计侧第八轮定的）。
+ *
+ *  **M8-18 换过一次模型。** 以前是「会话栏摆在哪、要不要收成输入条」
+ *  （`chatSide` / `chatMode`），现在是「**左 / 底 / 右三块在不在**」——
+ *  用户原话：「不应该是控制聊天模块显示在什么位置上，而应该是控制左侧模块是否显示，
+ *  底部模块是否显示，右侧模块是否显示」。
+ *
+ *  换边和「收成输入条」两态**有意删掉**，设计侧的理由：
+ *  「左栏钮只有开 / 关两态，表达不了半开」。想临时问一句，⌘\ 一下就回来了。
+ *
+ *  ⚠️ **目录列不算三块之一** —— 它属于「中间」（导航 + 内容是一对）。
+ *  顶栏那三颗钮的图标一一对应屏幕的三条边；把目录也算成「左」，左边就有两样东西，
+ *  一颗钮说不清管的是哪一样。所以目录的开关只在它自己的列头上。 */
 /* 文件类型的认定在 `@shared/kinds`（前后端同一份）。这里只转发，不再写第二套 ——
    以前 `layout.ts` 和 `server/src/files.ts` 各有一个 `kindOf`，
    而且两边的扩展名表没有任何机制保证一致，今天碰巧一样纯属运气（M8-14）。 */
@@ -10,7 +19,14 @@ export { kindOf } from "@shared/kinds";
 export type { FileKind };
 export type PanelId = "props" | "diagnostics" | "changes" | "comments" | "outline" | "info";
 export interface LayoutState {
-  chatSide: ChatSide; chatMode: ChatMode; chatWidth: number;
+  /** 左栏 = 会话（⌘\） */
+  left: boolean;
+  /** 底栏 = 调试（⌘J） */
+  bottom: boolean;
+  /** 右栏 = 从属面板 + 图标轨（⌘⌥B）。这种文件没有面板时钮置灰，这个值照旧记着 */
+  right: boolean;
+  chatWidth: number;
+  bottomHeight: number;
   /** 每种类型上次打开的从属面板；null = 收起（R3） */
   panelByKind: Partial<Record<FileKind, PanelId | null>>;
   theme: "system" | "light" | "dark";
@@ -19,15 +35,37 @@ export interface LayoutState {
   tree: { open: boolean; width: number; expanded: string[] };
 }
 
-/** 目录列的宽度边界（设计侧定的）：默认 240，拖拽范围 200–360，双击边缘回默认 */
+/** 尺寸常量，**一份**（设计侧第八轮 S11 L681–682 的同一套值）。
+ *  以前 `TREE_W` 在这里、`PANEL_WIDTH` 在 `SidePanels.tsx`、480 这个阈值写死在 `Workbench.tsx`，
+ *  改一处就得记着另外两处。 */
 export const TREE_W = { def: 240, min: 200, max: 360 } as const;
+export const BOTTOM_H = { def: 200, min: 120, max: 420 } as const;
+/** 详情区的下限 —— 低于它就开始让位（R5） */
+export const DETAIL_MIN = 480;
+/** 从属面板的面板体宽 + 图标轨宽 */
+export const PANEL_W = 300, RAIL_W = 40;
+
 const KEY = "us.layout";
-const DEFAULT: LayoutState = { chatSide: "left", chatMode: "expanded", chatWidth: 380, panelByKind: { dc: "props", md: "outline" }, theme: "system", tree: { open: true, width: TREE_W.def, expanded: [] } };
+const DEFAULT: LayoutState = {
+  left: true, bottom: false, right: true,
+  chatWidth: 380, bottomHeight: BOTTOM_H.def,
+  panelByKind: { dc: "props", md: "outline" }, theme: "system",
+  tree: { open: true, width: TREE_W.def, expanded: [] },
+};
 export function loadLayout(): LayoutState {
   try {
     const v = JSON.parse(localStorage.getItem(KEY) ?? "null") ?? {};
+    /* **老 schema 的迁移**（M8-18）：`chatSide` / `chatMode` 没了。
+       `chatMode: "bar"`（会话收成输入条）在新模型里最接近的是「左栏关着」——
+       两种情况下会话都不占一整列。换边没有对应项，直接丢掉：会话固定在左了。
+       不迁移的话，老用户打开是 `left: undefined`，左栏直接不见。 */
+    const migrated = v.chatMode !== undefined || v.chatSide !== undefined
+      ? { left: v.chatMode !== "bar", bottom: false, right: true }
+      : {};
     return {
-      ...DEFAULT, ...v,
+      ...DEFAULT, ...v, ...migrated,
+      chatWidth: Number(v.chatWidth) || DEFAULT.chatWidth,
+      bottomHeight: Math.min(BOTTOM_H.max, Math.max(BOTTOM_H.min, Number(v.bottomHeight) || BOTTOM_H.def)),
       panelByKind: { ...DEFAULT.panelByKind, ...(v.panelByKind ?? {}) },
       /* tree 要逐键兜底：老用户的 localStorage 里没有这一项，
          直接用 v.tree 会得到 undefined，界面上就崩在 layout.tree.open 上。
@@ -40,6 +78,39 @@ export function loadLayout(): LayoutState {
     };
   } catch { return DEFAULT; }
 }
+/** 让位计算（R2–R5）。**照 S11 L1051 那段算法搬的，不是自己发明的。**
+ *
+ *  会话固定在左之后只剩两步：**面板体改抽屉 → 目录列让位成浮层**。
+ *  （原来还有一步「会话收成输入条」，那一态在第八轮删了。）
+ *
+ *  ⚠️ **主动算，不量 DOM**。以前是用 `ResizeObserver` 量详情区的实际宽度，
+ *  那样有两个毛病：① 量到的是「让位之后」的结果，要靠它反过来决定让不让位，是个环；
+ *  ② 节点卸载的瞬间会报宽度 0，误判成最窄档（`00` §71.6 真栽过，全屏遮罩把界面锁死）。
+ *  按各列的宽度直接算就没有这两件事。
+ */
+export interface Yield {
+  /** 面板体改抽屉（图标轨留在原位） */
+  panelDrawer: boolean;
+  /** 目录列还并排着（false = 让位成浮层） */
+  treeInline: boolean;
+  /** 用户是开着目录的，但被挤成了浮层 —— 和「用户自己收起来的」要分开显示 */
+  yielded: boolean;
+  /** 详情区算出来有多宽，给底栏的布局读数用 */
+  detail: number;
+}
+export function computeYield(l: LayoutState, winW: number, hasPanels: boolean): Yield {
+  const rightOn = l.right && hasPanels;
+  const chatW = l.left ? l.chatWidth : 0;
+  const tw = l.tree.width;
+  const panelsW = (inline: boolean) => (rightOn ? RAIL_W + (inline ? PANEL_W : 0) : 0);
+  let panelDrawer = false;
+  let treeInline = l.tree.open;
+  let detail = winW - chatW - (treeInline ? tw : 0) - panelsW(true);
+  if (detail < DETAIL_MIN && rightOn) { panelDrawer = true; detail = winW - chatW - (treeInline ? tw : 0) - panelsW(false); }
+  if (treeInline && detail < DETAIL_MIN) { treeInline = false; detail = winW - chatW - panelsW(false); }
+  return { panelDrawer, treeInline, yielded: l.tree.open && !treeInline, detail: Math.round(detail) };
+}
+
 export function saveLayout(s: LayoutState): void { try { localStorage.setItem(KEY, JSON.stringify(s)); } catch { /* 隐私模式 */ } }
 /* R1「按类型决定有哪些从属面板」搬去 `kinds/registry.ts` 的 `panelsOf()` 了 ——
    那里每种格式自己声明，不再在这里写一串 if。 */

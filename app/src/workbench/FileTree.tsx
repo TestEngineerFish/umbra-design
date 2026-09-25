@@ -35,13 +35,13 @@ export interface TreeProps {
    *  第七轮把它们从页签条挪到这儿 —— 页签条只管「开着哪些文件」。 */
   drafts: Draft[];
   indexed: boolean;
-  /** 把目录铺到详情区（多选 / 网格 / 回收站都在那儿） */
-  onSpread: () => void;
+  /** 收起这一列。展开钮在页签条最左（同一图标、箭头反向） */
+  onCollapse: () => void;
   /** 文件变动的信号（传最近一次事件的时刻即可）：变了就把已展开的层重新拉一遍 */
   tick: string;
 }
 
-export function FileTree({ core, current, expanded, onExpandedChange, onOpenFile, onOpenDir, healthOf, projectName, drafts, indexed, onSpread, tick }: TreeProps) {
+export function FileTree({ core, current, expanded, onExpandedChange, onOpenFile, onOpenDir, healthOf, projectName, drafts, indexed, onCollapse, tick }: TreeProps) {
   const [goto, setGoto] = useState(false);
   const [q, setQ] = useState("");
   /* 每一层的内容按需拉，拉过就留在内存里。`children[path] === undefined` = 还没拉过，
@@ -151,9 +151,13 @@ export function FileTree({ core, current, expanded, onExpandedChange, onOpenFile
           onClick={() => { setGoto((g) => !g); setQ(""); }} title="转到文件（⌘P）" aria-label="转到文件">
           <Glyph d={ICON.search} size={13} />
         </button>
-        <button className="w-6 h-6 grid place-items-center rounded text-muted hover:bg-hover hover:text-text shrink-0"
-          onClick={onSpread} title="铺到详情区（多选 · 网格 · 回收站）" aria-label="铺到详情区">
-          <Glyph d={ICON.spread} size={13} />
+        {/* 第八轮把 `⤢ 铺到详情区` **删掉了** —— 用户把它读成了「放大 / 展开」，
+            而且点了之后详情区出现目录列表，他恰恰抱怨过「预览不该和目录显示重复内容」。
+            那个功能留在三个入口：右键目录 · 双击目录 · 点列头的项目名。
+            这个位置换成他真正期望的**收起目录列**。 */}
+        <button data-ud="tree-collapse" className="w-6 h-6 grid place-items-center rounded text-muted hover:bg-hover hover:text-text shrink-0"
+          onClick={onCollapse} title="收起目录列（⌘B）" aria-label="收起目录列">
+          <Glyph d={ICON.treeCollapse} size={13} />
         </button>
         {goto && <GotoFile q={q} setQ={setQ} drafts={drafts} indexed={indexed} current={current}
           onPick={(f) => { setGoto(false); onOpenFile(f); }} onClose={() => setGoto(false)} />}

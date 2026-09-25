@@ -74,9 +74,12 @@ console.log("\n会话历史与引擎名（M8-11 下 / M8-13 · 设计侧第六�
 const railText = await pg.locator("aside").first().innerText();
 ok(!/通道\s*[ABC]\b/.test(railText), "会话栏里没有「通道 A/B/C」字样了");
 ok(/DeepSeek|Claude Code|火山方舟|Codex|Cursor/.test(railText), "显示的是引擎名", (railText.match(/DeepSeek|Claude Code|火山方舟|Codex|Cursor/g) ?? []).slice(0,3).join(" / "));
-/* 标题不能被引擎选择器挤掉 —— 三个引擎名平铺时它被压成了竖排一列（真出过） */
-const titleBox = await pg.locator('aside button[title="看历史会话"]').first().boundingBox();
-ok((titleBox?.width ?? 0) > 120, "顶栏标题没被挤扁", `标题宽 ${Math.round(titleBox?.width ?? 0)} px`);
+/* 会话栏头在第八轮只剩两样：引擎 ▾ 和历史钮。
+   「标题被挤扁」那条判据随标题一起作废了 —— 标题搬进了历史列表。 */
+ok(await pg.locator('aside button[data-ud="engine"]').count() === 1, "会话栏头有引擎选择器");
+ok(await pg.locator('aside button[data-ud="history"]').count() === 1, "会话栏头有历史钮");
+ok(await pg.locator('aside button[title="换边"]').count() === 0 && await pg.locator('aside button[title="新会话"]').count() === 0,
+   "换边 / ＋ 新会话两颗已经去掉（一件事一个入口）");
 /* 引擎下拉：点开能看到按计费方式分的三组 */
 /* 用 data-ud 精确定位。**别用文字匹配** —— 状态行里也有引擎名，
    按文字找会先命中标题按钮，点下去进的是历史模式，而后面的分组判据会被
@@ -90,19 +93,40 @@ if (await engBtn.count()) {
   await engBtn.click(); await pg.waitForTimeout(300);   // 关掉下拉，别挡住后面的点击
 } else ok(false, "没找到引擎选择器");
 
-/* 历史入口：点顶栏标题整栏换成列表 */
-/* 用 title 属性定位，别用 ▾ —— 进了历史之后标题变成「‹ 历史会话」，那个箭头就没了 */
-const title = pg.locator('aside button[title="看历史会话"]').first();
-if (await title.count()) {
-  await title.click(); await pg.waitForTimeout(900);
+/* 历史入口：点历史钮整栏换成列表 */
+const histBtn = pg.locator('aside button[data-ud="history"]').first();
+if (await histBtn.count()) {
+  await histBtn.click(); await pg.waitForTimeout(900);
   const t2 = await pg.locator("aside").first().innerText();
-  ok(/历史会话/.test(t2), "点标题后整栏换成历史列表");
+  ok(/新建会话/.test(t2), "历史列表第一行是「新建会话」（第八轮：＋ 收进这里）");
   ok(/今天|昨天|本周|更早|还没有会话/.test(t2), "历史按日期分组", (t2.match(/今天|昨天|本周|更早/g) ?? []).join(" "));
-  // 输入区在历史模式下仍然在（打字 = 在当前会话继续说）
   ok(await pg.locator("#chatInput").count() > 0, "历史模式下输入框仍在");
-  await pg.locator('aside button[title="回到这条会话"]').first().click(); await pg.waitForTimeout(700);
-  ok(!/历史会话/.test(await pg.locator("aside").first().innerText()), "再点标题回到会话");
-} else ok(false, "没找到顶栏的标题入口（▾）");
+  await pg.locator('aside button[data-ud="history"]').first().click(); await pg.waitForTimeout(700);
+  ok(!/新建会话/.test(await pg.locator("aside").first().innerText()), "再点历史钮回到会话");
+} else ok(false, "没找到历史钮");
+
+/* ── 布局模型：左 / 底 / 右三块在不在（M8-18/19/20 · 设计侧第八轮 §一）──
+   这一轮把「会话栏摆在哪」换成了「三块区域在不在」。
+   **判据要落在「三块各自开得了关得了」上**，而不是某颗钮的位置 —— 位置是形制，开关才是模型。 */
+console.log("\n布局模型：左 / 底 / 右三块（M8-18/19/20 · 设计侧第八轮）");
+const region = (k) => pg.locator(`header [data-ud="region-${k}"]`);
+ok(await pg.locator('header [aria-label="窗口布局"] button').count() === 3, "顶栏布局组是三颗区域钮（不再有目录钮）");
+ok(await region("left").count() === 1 && await region("bottom").count() === 1 && await region("right").count() === 1, "左 / 底 / 右三颗都在");
+/* 左栏：关了会话整栏消失，不再留输入条 */
+await region("left").click(); await pg.waitForTimeout(600);
+ok(await pg.locator("aside").count() === 0 || await pg.locator("#chatInput").count() === 0, "关左栏：会话整栏收掉（不再留输入条）");
+await pg.keyboard.press("Meta+\\"); await pg.waitForTimeout(600);
+ok(await pg.locator("#chatInput").count() > 0, "⌘\\ 把左栏叫回来");
+/* 底栏：默认关，⌘J 打开，三页都在 */
+ok(await pg.locator('[data-ud="bottombar"]').count() === 0, "底栏默认关着");
+await pg.keyboard.press("Meta+j"); await pg.waitForTimeout(700);
+const bb = pg.locator('[data-ud="bottombar"]');
+ok(await bb.count() === 1, "⌘J 打开底栏");
+const bbText = await bb.innerText().catch(() => "");
+ok(/输出/.test(bbText) && /工具调用/.test(bbText) && /连接/.test(bbText), "底栏三页：输出 / 工具调用 / 连接", bbText.split("\n").slice(0, 4).join(" · "));
+ok(/左 \d+|左 关/.test(bbText) && /详情 \d+/.test(bbText), "布局读数常驻在底栏头部（不单开一页）", (bbText.match(/左 [^\n]*/) ?? [""])[0].slice(0, 46));
+await pg.keyboard.press("Meta+j"); await pg.waitForTimeout(500);
+ok(await pg.locator('[data-ud="bottombar"]').count() === 0, "⌘J 再按一次收起底栏");
 
 /* ── 按钮分层（M8-15 · 设计侧第七轮）──
    它给的判据是「点了它，变的是什么」，分项目 / 窗口布局 / 导航 / 会话 / 当前文件五类，
@@ -112,8 +136,10 @@ if (await title.count()) {
 console.log("\n按钮分层：顶栏 / 页签条 / 目录列头（M8-15 · 设计侧第七轮）");
 const header = pg.locator("header").first();
 const tabbar = pg.locator('[data-ud="tabbar"]');
-ok(await header.locator('[aria-label="窗口布局"] button').count() === 4, "顶栏布局组四颗钮（目录列 + 会话三档）", `${await header.locator('[aria-label="窗口布局"] button').count()} 颗`);
-ok(await header.locator('[data-ud="tree-toggle"]').count() === 1, "目录列开关在顶栏布局组里（原来在页签条最左）");
+/* ⚠️ 这两条在第八轮**反过来了**：目录列不算三块区域之一，它的开关只在自己列头。
+   第七轮把它挪进顶栏，用户看完说「不应该有，由目录区块上的菜单图标自己控制」。 */
+ok(await header.locator('[data-ud="tree-toggle"]').count() === 0, "目录开关**不在**顶栏了（第八轮从布局组拿掉）");
+ok(await pg.locator('[data-ud="tree-collapse"]').count() === 1, "收起目录的钮在目录列头");
 const tabbarText = await tabbar.innerText().catch(() => "");
 ok(!/份稿|▤\s*目录/.test(tabbarText), "页签条上没有「N 份稿」和「▤ 目录」了", tabbarText.slice(0, 60).replace(/\n/g, " / ") || "（只有页签）");
 /* 项目菜单：路径进了菜单，顶栏上不再铺 280px 的灰字 */
@@ -125,7 +151,14 @@ ok(menuText.includes("/Users/"), "完整路径在项目菜单里（要复制路�
 ok(["新建稿件", "重建索引", "项目设置 · 外观", "关闭项目"].every((x) => menuText.includes(x)), "项目级五项都收进这个菜单", menuText.split("\n").filter(Boolean).slice(2).join(" / "));
 await pg.keyboard.press("Escape"); await pg.mouse.click(700, 400); await pg.waitForTimeout(300);
 /* 目录列头的两颗导航钮 */
-ok(await pg.locator('button[title="铺到详情区（多选 · 网格 · 回收站）"]').count() === 1, "「铺到详情区」在目录列头");
+/* 「铺到详情区」第八轮删掉了（用户读成「放大」，而且它让详情区重复显示目录）——
+   功能留在右键 / 双击 / 点项目名三处 */
+ok(await pg.locator('button[title="铺到详情区（多选 · 网格 · 回收站）"]').count() === 0, "⤢「铺到详情区」已从列头删掉");
+/* 收起后展开钮出现在页签条最左（同一图标、箭头反向） */
+await pg.locator('[data-ud="tree-collapse"]').click(); await pg.waitForTimeout(600);
+ok(await pg.locator('[data-ud="tabbar"] [data-ud="tree-reopen"]').count() === 1, "收起后，展开钮出现在页签条最左（目录回来的地方）");
+await pg.locator('[data-ud="tree-reopen"]').click(); await pg.waitForTimeout(700);
+ok(await pg.locator('[role="tree"]').count() > 0, "点它目录就回来了");
 await pg.keyboard.press("Meta+p"); await pg.waitForTimeout(500);
 ok(await pg.locator('input[placeholder="转到文件…"]').count() === 1, "⌘P 打开「转到文件」（入口在目录列头）");
 await pg.keyboard.press("Escape"); await pg.waitForTimeout(300);
@@ -204,8 +237,9 @@ for (const [suffix, label, probe] of [
   /* 整页只该出现一次。多于一次 = 视图里还留着一条没搬走的工具栏。 */
   ok(onPage === inBar, `${label}：视图里没有第二条工具栏`, `整页 ${onPage} 处 · 工具栏里 ${inBar} 处`);
 }
-/* 目录：工具栏有「范围」「排布」两组，而面包屑该留在视图里（它是内容不是开关） */
-await pg.locator('button[title="铺到详情区（多选 · 网格 · 回收站）"]').click(); await pg.waitForTimeout(1300);
+/* 目录：工具栏有「范围」「排布」两组，而面包屑该留在视图里（它是内容不是开关）。
+   ⚠️ 进目录视图的入口第八轮换了：`⤢` 删掉，改成**点目录列头的项目名**（或右键 / 双击）。 */
+await pg.locator('button[title="回到项目根"]').first().click(); await pg.waitForTimeout(1300);
 ok(await bar().locator('[role="group"][aria-label="范围"]').count() === 1, "目录：范围组在工具栏上");
 ok(await bar().locator('[role="group"][aria-label="排布"]').count() === 1, "目录：排布组在工具栏上");
 ok(await countIn(bar(), /全部/g) === 1 && await pageCount(/只看稿件/g) === 1, "目录：视图里没有第二份范围开关");

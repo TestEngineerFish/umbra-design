@@ -3,10 +3,9 @@ import { History } from "./History";
 import { SELECTION_ICON, type ChatMessage, type Selection, type ToolCall } from "../api/types";
 import type { ChatStore } from "./useChat";
 import { renderMd, renderMdInline } from "../ui/markdown";
-import { engineLabel } from "./channel";
 
 /** 会话栏，形制按 S9：用户句右对齐；一个 AI 回合共用一根左栏，文本与工具行按出现顺序排；变更卡带回退；「已选中」药丸紧挨输入框上方 */
-export function ChatRail({ chat, selections, onDropSelection, onClearSelections, contextLabel, onCollapse, onSwapSide, width, onResize, side }: { chat: ChatStore; selections: Selection[]; onDropSelection: (i: number) => void; onClearSelections: () => void; contextLabel: string | null; onCollapse: () => void; onSwapSide: () => void; width: number; onResize: (w: number) => void; side: "left" | "right" }) {
+export function ChatRail({ chat, selections, onDropSelection, onClearSelections, contextLabel, width, onResize }: { chat: ChatStore; selections: Selection[]; onDropSelection: (i: number) => void; onClearSelections: () => void; contextLabel: string | null; width: number; onResize: (w: number) => void }) {
   const body = useRef<HTMLDivElement>(null);
   useEffect(() => { if (body.current) body.current.scrollTop = body.current.scrollHeight; }, [chat.messages, chat.notes, chat.running]);
   /* 状态行要一眼看出**现在谁在干活**。通道 B 光写「通道 B · sonnet」不够 ——
@@ -14,14 +13,9 @@ export function ChatRail({ chat, selections, onDropSelection, onClearSelections,
      model 可能是空的（留空 = 用那个 CLI 自己的默认），空就不显示，不写「undefined」。 */
   const [history, setHistory] = useState(false);
   const [engineMenu, setEngineMenu] = useState(false);
-  /* 顶栏显示的标题：当前这条会话的名字。列表里找得到就用列表的（它带着"用户起的还是我们猜的"），
-     找不到（刚开的新会话还没进列表）就退回一句话。 */
-  const curTitle = chat.sessions.find((x) => x.id === chat.sessionId)?.title || (chat.sessionId ? "这条会话" : "新会话");
+  /* 会话标题不再上顶栏（第八轮 §四）：它是第一条消息的前 40 字，给人**找会话**用，
+     放在历史列表里才有用；常驻在顶栏只是占着一行。 */
   const cap = chat.caps?.[chat.channel];
-  /* 状态行格式由设计侧第六轮定：**引擎名 · 模型（有的话）· 计费方式**。
-     不再写「通道 A/B/C」—— 那个词对用户没有任何意义（他脱口而出的是「模式」）。
-     引擎名由服务端给，前端不抄第二份映射表。 */
-  const who = engineLabel(chat.caps, chat.channel, chat.model);
   /* 底部这行**只报这一轮花了多少**，不再重复引擎名和模型（M8-16）。
      用户实测点出来的：同一个模型名在会话栏里出现了三次（标题下、引擎钮上、底部），
      「一个所用模型名称，在聊天模块中显示一次就够了」。
@@ -31,20 +25,13 @@ export function ChatRail({ chat, selections, onDropSelection, onClearSelections,
     : "";
   return (
     <aside className="relative flex flex-col bg-panel border-border shrink-0 min-h-0" style={{ width }}>
-      <Grip onResize={onResize} width={width} side={side} />
+      <Grip onResize={onResize} width={width} side="left" />
+      {/* ═══ 会话栏头（第八轮 §四）═══ 只剩两样：
+          **引擎 ▾**（模型名在这一栏里只出现这一次）和**历史钮**。
+          删掉的：会话标题 ▾（标题是第一条消息的前 40 字，给人找会话用，放历史列表里才有用）、
+          `＋`（进了历史列表第一行）、`⇄ 换边`（会话固定在左了）、
+          `×`（和顶栏的左栏钮重复 —— 一件事一个入口）。 */}
       <div className="h-11 px-3 flex items-center gap-2 border-b border-border shrink-0">
-        {/* 入口就是标题（后面一个 ▾）—— 不另加「历史」按钮：顶栏已经有返回、新会话、引擎三样了 */}
-        <button className="min-w-0 flex-1 text-left group" onClick={() => setHistory((h) => !h)} title={history ? "回到这条会话" : "看历史会话"}>
-          <div className="text-sm font-semibold leading-4 flex items-center gap-1">
-            {history ? <><span className="text-[11px]">‹</span>历史会话</> : <>
-              <span className="truncate">{curTitle}</span>
-              <span className="text-[10px] text-muted group-hover:text-accent shrink-0">▾</span>
-            </>}
-          </div>
-          <div className="text-[11px] text-muted truncate">
-            {history ? `${chat.sessions.length} 条` : (chat.sessionId ? `${who} · ${chat.messages.filter((m) => m.role === "user").length} 条` : "新会话")}
-          </div>
-        </button>
         {/* 引擎选择器。
             **不能三个平铺** —— 换成引擎名之后「DeepSeek / Claude Code / 火山方舟」加起来
             远超 380px 的会话栏，实测会把左边的标题挤成竖排一列（2026-09-24 截图抓到）。
@@ -75,9 +62,11 @@ export function ChatRail({ chat, selections, onDropSelection, onClearSelections,
             </div>
           )}
         </div>
-        <button className="ib" onClick={chat.newSession} title="新会话">＋</button>
-        <button className="ib" onClick={onSwapSide} title="换边">⇄</button>
-        <button className="ib" onClick={onCollapse} title="收成输入条">—</button>
+        <span className="flex-1" />
+        <button data-ud="history" className={`ib ${history ? "text-accent" : ""}`} onClick={() => setHistory((h) => !h)}
+          title={history ? "回到这条会话" : "会话历史（第一行是新建会话）"} aria-pressed={history}>
+          {history ? "‹" : "🕘"}
+        </button>
       </div>
       {history ? <History chat={chat} onClose={() => setHistory(false)} /> : <>
       <div ref={body} className="flex-1 min-h-0 overflow-auto px-3 py-3 flex flex-col gap-3">

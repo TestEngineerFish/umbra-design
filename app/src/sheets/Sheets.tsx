@@ -211,7 +211,9 @@ export function SettingsSheet({ core, projectUrl, layout, setLayout, onClose }: 
     <Sheet.Head><h2 className="text-base font-semibold">设置</h2></Sheet.Head>
     <Sheet.Body>
       <div className="grid grid-cols-[72px_1fr] gap-x-3 gap-y-3 items-center">
-        <span className="text-muted">会话栏</span><div className="seg self-start"><button className={layout.chatSide === "left" ? "on" : ""} onClick={() => setLayout({ ...layout, chatSide: "left" })}>在左（默认）</button><button className={layout.chatSide === "right" ? "on" : ""} onClick={() => setLayout({ ...layout, chatSide: "right" })}>在右</button></div>
+        {/* 「会话栏在左 / 在右」这一项**删掉了**（M8-18）：会话栏固定在左，
+            换边那一态在第八轮有意去掉了。三块区域的显隐在顶栏，不在设置里 ——
+            那是每天要点好几次的东西，埋进设置面板不合适。 */}
         <span className="text-muted">外观</span><div className="seg self-start">{(["system", "light", "dark"] as const).map((t) => <button key={t} className={layout.theme === t ? "on" : ""} onClick={() => setLayout({ ...layout, theme: t })}>{{ system: "跟随系统", light: "浅色", dark: "深色" }[t]}</button>)}</div>
       </div>
       {core && <CliPicker core={core} />}

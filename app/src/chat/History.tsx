@@ -35,7 +35,20 @@ function when(iso?: string): string {
   return `${d.getMonth() + 1} 月 ${d.getDate()} 日`;
 }
 
+/** 这条会话用的引擎名。`caps` 里有服务端给的名字，前端不抄第二份映射表；
+ *  查不到就退回 channel b 的「本机工具」或模型名。 */
+function engineOf(chat: ChatStore, s: ChatSessionRow): string {
+  const ch = (s.channel ?? "a") as "a" | "b" | "c";
+  return chat.caps?.[ch]?.engine ?? (ch === "b" ? (s.tool ?? "本机工具") : s.model) ?? "";
+}
+
 export function History({ chat, onClose }: { chat: ChatStore; onClose: () => void }) {
+  /* ⌘N 新建会话 —— 历史列表开着时才有意义（第一行那颗钮的快捷键） */
+  useEffect(() => {
+    const on = (e: KeyboardEvent) => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "n") { e.preventDefault(); chat.newSession(); onClose(); } };
+    document.addEventListener("keydown", on); return () => document.removeEventListener("keydown", on);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [q, setQ] = useState("");
   const [menu, setMenu] = useState<string | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
@@ -74,6 +87,15 @@ export function History({ chat, onClose }: { chat: ChatStore; onClose: () => voi
         </div>
       )}
       <div className="flex-1 min-h-0 overflow-auto px-2 py-2">
+        {/* **第一行永远是「新建会话」**（第八轮 §四）——
+            顶栏那颗 `＋` 因此省掉了：开新会话和挑旧会话是同一件事的两种结果，
+            放在同一个列表里，用户不用先想「我是要新开还是要找一条」。 */}
+        <button className="w-full flex items-center gap-2 h-9 px-2 mb-1 rounded hover:bg-hover text-left border border-dashed border-border"
+          onClick={() => { chat.newSession(); onClose(); }}>
+          <span className="text-accent font-semibold">＋</span>
+          <span className="flex-1 text-xs font-semibold">新建会话</span>
+          <span className="font-mono text-[11px] text-muted">⌘N</span>
+        </button>
         {rows.length === 0 && <div className="text-[11px] text-muted text-center py-8 leading-relaxed">{q ? "没有匹配的会话" : <>还没有会话<br />说一句话就开始了</>}</div>}
         {GROUPS.filter((g) => byGroup.has(g)).map((g) => (
           <div key={g} className="mb-2">
@@ -108,7 +130,9 @@ export function History({ chat, onClose }: { chat: ChatStore; onClose: () => voi
                       onClick={(e) => { e.stopPropagation(); setMenu(menu === s.id ? null : s.id); }} title="更多">⋯</button>
                   </div>
                   <div className="text-[11px] text-muted truncate pr-6">
-                    {[s.channel === "b" ? (s.tool ?? "本机工具") : s.model, when(s.updatedAt), s.msgCount ? `${s.msgCount} 条` : ""].filter(Boolean).join(" · ")}
+                    {/* 第二行写**这条会话用的引擎** —— 不是当前模型名的重复：
+                        每条各自不同，而且切过去之前就能看见（设计侧 §四） */}
+                    {[engineOf(chat, s), when(s.updatedAt), s.msgCount ? `${s.msgCount} 条` : ""].filter(Boolean).join(" · ")}
                   </div>
                   {menu === s.id && (
                     <div className="absolute right-1 top-7 z-20 w-28 bg-panel border border-border rounded shadow-2xl text-xs overflow-hidden" onClick={(e) => e.stopPropagation()}>

@@ -127,5 +127,8 @@ export function FileMore({ ctx, items }: { ctx: ViewContext; items: MenuItem[] }
 
 /** 工具栏那条 34px 横带的容器。模块的 `Toolbar` 填内容，工作台在尾巴上挂 `⋯`。 */
 export function ToolbarBar({ children }: { children: React.ReactNode }) {
-  return <div data-ud="file-toolbar" className="h-[34px] px-1.5 flex items-center gap-2 border-b border-border bg-panel shrink-0 text-xs relative z-20">{children}</div>;
+  /* `overflow-hidden` 是必须的：详情列窄下来（右栏一开就只剩 440 px）时，
+     工具栏的读数会溢出去压在右栏上。**溢出不会报错，只会看起来像两块内容叠在一起** ——
+     M8-18 的截图里抓到过。 */
+  return <div data-ud="file-toolbar" className="h-[34px] px-1.5 flex items-center gap-2 border-b border-border bg-panel shrink-0 text-xs relative z-20 overflow-hidden">{children}</div>;
 }
