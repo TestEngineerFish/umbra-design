@@ -59,8 +59,6 @@ export interface ViewContext {
     openPanel(p: PanelId | null): void;
     /** 会话栏收成输入条时展开它 —— 要让用户看见 AI 在说什么 */
     expandChat(): void;
-    /** 演示全屏 */
-    present(): void;
     /** 关掉当前文件的页签。它出现在文件 `⋯` 的公共尾巴里（设计侧第七轮的 `fileTail`） */
     closeFile(): void;
     toast(title: string, body?: string, kind?: "error" | "ok"): void;

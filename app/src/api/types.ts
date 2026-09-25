@@ -78,3 +78,11 @@ export interface CliStatus {
   /** 有这个才问得出「有哪些模型可用」（cursor-agent 有，claude 没有） */
   listModelsArgs?: string[];
 }
+
+/** 字节数给人看。**放在这儿而不是某个视图里** —— 文件卡、图片视图、目录列表都要它，
+ *  M8-15b 之前它住在 `DirView.tsx`，另外两处 import 过去，等于让「目录视图」成了公共依赖。 */
+export function fmtSize(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / 1024 / 1024).toFixed(1)} MB`;
+}

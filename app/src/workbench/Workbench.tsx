@@ -9,7 +9,6 @@ import { engineLabel } from "../chat/channel";
 import { useProject } from "../store/project";
 import { NewDraftSheet } from "../sheets/Sheets";
 import { toast } from "../ui/Toast";
-import { Present } from "./Canvas";
 import { Glyph, ICON } from "../ui/Glyph";
 import { FileTree } from "./FileTree";
 /* 详情区怎么画、右边配什么面板、状态行写什么，**全在 kinds 注册表里**。
@@ -40,7 +39,6 @@ export function Workbench({ project, host, layout, setLayout, onHome, onSettings
       return p ? [...rest, { kind: "node" as const, label: `${p.tag ? `<${p.tag}> ` : ""}${draftTitle(p.file)} · ${p.node}`, detail: `${p.file} › ${p.node}`, ref: { file: p.file, node: p.node } }] : rest;
     });
   }, []);
-  const [present, setPresent] = useState(false);
   const [sheet, setSheet] = useState<"newDraft" | null>(null);
   /* R5 让位规则（设计侧第六轮改的口径）：**看详情区的实际宽度，不看窗口宽度**。
      会话栏拖宽、目录列展开都会挤详情，而窗口宽度一点没变 —— 按窗口判会漏。
@@ -99,7 +97,6 @@ export function Workbench({ project, host, layout, setLayout, onHome, onSettings
   }, [kind]);
   useEffect(() => {
     const on = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && present) setPresent(false);
       if ((e.metaKey || e.ctrlKey) && e.key === "\\") { e.preventDefault(); setLayout({ ...layout, chatMode: layout.chatMode === "bar" ? "expanded" : "bar" }); }
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "b") { e.preventDefault(); setLayout({ ...layout, tree: { ...layout.tree, open: !layout.tree.open } }); }
       /* ⌘P 转到文件：入口在目录列头，收起时先展开它，不然浮层挂在一个不存在的列上 */
@@ -111,7 +108,7 @@ export function Workbench({ project, host, layout, setLayout, onHome, onSettings
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "j") { e.preventDefault(); if (layout.chatMode === "bar") setLayout({ ...layout, chatMode: "expanded" }); setTimeout(() => document.getElementById("chatInput")?.focus(), 50); }
     };
     document.addEventListener("keydown", on); return () => document.removeEventListener("keydown", on);
-  }, [present, layout, setLayout]);
+  }, [layout, setLayout]);
 
   /** 打开任意文件或目录。目录不进页签（它是一个位置，不是一份文件）。 */
   const open = (f: string, isDir = false) => {
@@ -144,7 +141,7 @@ export function Workbench({ project, host, layout, setLayout, onHome, onSettings
     select: putSelection,
     ask: (text, sels) => { expandChat(); void chat.send(text, sels); },
     picked, setPicked,
-    ui: { activePanel: active, openPanel: setActive, expandChat, present: () => setPresent(true), closeFile: () => { if (file) closeTab(file); }, toast },
+    ui: { activePanel: active, openPanel: setActive, expandChat, closeFile: () => { if (file) closeTab(file); }, toast },
     ai: { supportsImage: chat.supportsImage, engineLabel: engineLabel(chat.caps, chat.channel, chat.model), reloadCaps: () => void chat.reloadCaps() },
     mem: {
       get: (k, d) => mem.get(`us.kind.${kind}.${k}`, d),
@@ -324,7 +321,6 @@ export function Workbench({ project, host, layout, setLayout, onHome, onSettings
           ⚠️ **调试模块还没有** —— 形制在第八轮交给设计侧（`doc/14` §八第 8 条）。
           在那之前这些读数暂时看不到，这是有意的：宁可少显示，也不留一条谁都不看的横带。 */}
       </Wrap>
-      {present && file && <Present url={project.url} file={file} onStop={() => setPresent(false)} />}
       {sheet === "newDraft" && <NewDraftSheet core={core} current={file} onClose={() => setSheet(null)} onCreated={async (f) => { await store.fetchDrafts(); open(f); }} />}
     </div>
   );

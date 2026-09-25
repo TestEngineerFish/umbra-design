@@ -1,9 +1,8 @@
 import { useEffect, useState } from "react";
 import type { Core } from "../api/client";
-import { timeAgo, type ReadFileResult } from "../api/types";
+import { fmtSize, timeAgo, type ReadFileResult } from "../api/types";
 import type { HostAdapter } from "../host";
 import { toast } from "../ui/Toast";
-import { fmtSize } from "./DirView";
 
 /** 通用文件卡（S15 形制，M8-5）：没有专用预览器的文件 —— 元数据 + 被谁引用 + 四个动作。
  *  一张居中卡片，最宽 520。禁用项的原因直接写在按钮下面，不藏在 hover 里。 */

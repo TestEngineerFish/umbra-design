@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import type { Core } from "../api/client";
-import { timeAgo, type FileEntry, type ListFilesResult } from "../api/types";
-import { mem } from "../layout/layout";
-import { toast } from "../ui/Toast";
+import type { Core } from "../../api/client";
+import { fmtSize, timeAgo, type FileEntry, type ListFilesResult } from "../../api/types";
+import { toast } from "../../ui/Toast";
 import { kindDef } from "@shared/kinds";
 
 /** 目录视图（S12 形制，M8-3 / M8-4）。
@@ -13,13 +12,17 @@ const AUTO_MIN = 6, AUTO_SHARE = 0.6;
 /* 名字和图标都问 `@shared/kinds` —— 以前这里、`FileTree` 里各有一张表，
    新加一种类型得记着改两处，漏一处的症状是「目录列表里有图标，树里是个 ▢」（M8-14）。 */
 
-export function DirView({ core, dirRel, onOpen, onSelectionChange, selected }: {
+/** ⚠️ 视图开关（范围 / 排布）**不住在这里** —— 它们在 `index.tsx` 的 Provider 里，
+ *  因为第七轮把工具栏定成了统一的一条横带，工具栏和视图是两个渲染位置（M8-15b）。 */
+export function DirView({ core, dirRel, onOpen, onSelectionChange, selected, onlyDrafts, manual, onCounts }: {
   core: Core; dirRel: string; onOpen: (path: string, isDir: boolean) => void;
   onSelectionChange: (paths: string[]) => void; selected: string[];
+  onlyDrafts: boolean;
+  manual: Record<string, "list" | "grid">;
+  /** 把读数交给工具栏与状态行：总项数、自动网格的理由 */
+  onCounts: (c: { total: number; autoNote: string | null; view: "list" | "grid" }) => void;
 }) {
   const [data, setData] = useState<ListFilesResult | null>(null);
-  const [manual, setManual] = useState<Record<string, "list" | "grid">>(() => mem.get("us.viewByDir", {}));
-  const [onlyDrafts, setOnlyDrafts] = useState(false);
   const [tick, setTick] = useState(0);
   useEffect(() => { setData(null); void core.get<ListFilesResult>(`files?dir=${encodeURIComponent(dirRel)}`).then((r) => { if (r.ok && r.data) setData(r.data); else toast("读目录失败", r.errors?.[0]?.message, "error"); }); }, [core, dirRel, tick]);
 
@@ -28,7 +31,11 @@ export function DirView({ core, dirRel, onOpen, onSelectionChange, selected }: {
   const auto: "list" | "grid" = images >= AUTO_MIN && files.length > 0 && images / files.length >= AUTO_SHARE ? "grid" : "list";
   const view = manual[dirRel] ?? auto;
   const autoNote = !manual[dirRel] && auto === "grid" ? `图片 ${images} / ${files.length} · 自动网格` : null;
-  const setView = (v: "list" | "grid") => { const m = { ...manual, [dirRel]: v }; setManual(m); mem.set("us.viewByDir", m); };
+  /* 读数交给工具栏 —— 它和视图不在一个渲染位置，只能这样递上去 */
+  useEffect(() => { onCounts({ total: data?.entries.length ?? 0, autoNote, view });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, autoNote, view]);
+
 
   const rows = (data?.entries ?? []).filter((e) => !onlyDrafts || e.isDir || e.kind === "dc");
   const toggle = (path: string) => onSelectionChange(selected.includes(path) ? selected.filter((x) => x !== path) : [...selected, path]);
@@ -53,20 +60,15 @@ export function DirView({ core, dirRel, onOpen, onSelectionChange, selected }: {
 
   return (
     <div className="flex-1 min-w-0 flex flex-col bg-bg min-h-0">
-      <header className="h-10 px-3 flex items-center gap-2 border-b border-border bg-panel shrink-0 text-xs">
-        <nav className="flex items-center gap-1 min-w-0">
-          <button className="ib" onClick={() => onOpen("", true)} title="项目根">▤</button>
-          {crumbs.map((c, i) => <span key={i} className="flex items-center gap-1 min-w-0"><span className="text-muted">/</span><button className={`truncate hover:text-accent ${i === crumbs.length - 1 ? "font-semibold" : "text-text2"}`} onClick={() => onOpen(crumbs.slice(0, i + 1).join("/"), true)}>{c}</button></span>)}
-        </nav>
-        <span className="text-muted">{data ? `${data.entries.length} 项` : ""}</span>
-        <span className="flex-1" />
-        {autoNote && <span className="text-muted">{autoNote}</span>}
-        <div className="seg"><button className={!onlyDrafts ? "on" : ""} onClick={() => setOnlyDrafts(false)}>全部</button><button className={onlyDrafts ? "on" : ""} onClick={() => setOnlyDrafts(true)}>只看稿件</button></div>
-        <div className="seg"><button className={view === "list" ? "on" : ""} onClick={() => setView("list")} title="列表">☰</button><button className={view === "grid" ? "on" : ""} onClick={() => setView("grid")} title="网格">▦</button></div>
-      </header>
+      {/* 面包屑**留在视图里** —— 它说的是「详情区现在铺着哪一层」，是内容的一部分，
+          像浏览器的地址栏。工具栏那一行装的是开关（范围 / 排布），在 `index.tsx`。 */}
+      <nav className="h-9 px-3 flex items-center gap-1 border-b border-border bg-panel shrink-0 text-xs min-w-0">
+        <button className="ib" onClick={() => onOpen("", true)} title="项目根">▤</button>
+        {crumbs.map((c, i) => <span key={i} className="flex items-center gap-1 min-w-0"><span className="text-muted">/</span><button className={`truncate hover:text-accent ${i === crumbs.length - 1 ? "font-semibold" : "text-text2"}`} onClick={() => onOpen(crumbs.slice(0, i + 1).join("/"), true)}>{c}</button></span>)}
+      </nav>
       <div className="flex-1 min-h-0 overflow-auto p-4">
         {!data ? <div className="text-muted text-xs text-center py-10">正在读目录…</div>
-          : rows.length === 0 ? <div className="text-muted text-xs text-center py-10 leading-relaxed">{onlyDrafts ? "这一层没有设计稿" : <>这个目录是空的<br />用顶栏的「新建稿件」，或者把文件放进来</>}</div>
+          : rows.length === 0 ? <div className="text-muted text-xs text-center py-10 leading-relaxed">{onlyDrafts ? "这一层没有设计稿" : <>这个目录是空的<br />用项目菜单里的「新建稿件」，或者把文件放进来</>}</div>
           : view === "grid" ? <Grid core={core} rows={rows} dirRel={dirRel} selected={selected} onToggle={toggle} onOpen={onOpen} />
           : <Table rows={rows} selected={selected} onToggle={toggle} onOpen={onOpen} />}
       </div>
@@ -132,9 +134,4 @@ function reading(e: FileEntry): string {
   if (e.kind === "image") return e.width && e.height ? `${e.width}×${e.height}` : "";
   if (e.snapshot) return `快照 ${e.snapshot}`;
   return "";
-}
-export function fmtSize(n: number): string {
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
-  return `${(n / 1024 / 1024).toFixed(1)} MB`;
 }

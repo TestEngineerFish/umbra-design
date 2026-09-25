@@ -149,7 +149,15 @@ const openByName = async (suffix) => {
 
 /* 设计稿：画布（View）+ 属性面板（Panels）。它是唯一有五个面板的格式 */
 if (await openByName(".dc.html")) {
-  ok(await pg.locator("iframe").count() > 0, "设计稿：画布渲染出来了（View 环节）");
+  /* ⚠️ **「有个 iframe」不是判活**（纪律②）：稿加载失败时那个 iframe 照样在。
+     真判据是穿两层看见东西 —— 外层是 S2 嵌入壳，内层才是稿本身。
+     数得到内层的元素，就说明 postMessage 那座桥和稿的加载都通了。 */
+  await pg.waitForTimeout(1200);
+  const shellFrame = pg.frameLocator("iframe").first();
+  const nested = await shellFrame.locator("iframe").count().catch(() => 0);
+  ok(nested > 0, "设计稿：S2 嵌入壳里装着稿本身（View 环节）", `壳里 ${nested} 层`);
+  const els = nested > 0 ? await shellFrame.frameLocator("iframe").first().locator("*").count().catch(() => 0) : 0;
+  ok(els > 5, "设计稿：稿真的渲染出来了（不只是有个空 iframe）", `稿里 ${els} 个元素`);
   ok(await pg.locator('text=属性').count() > 0, "设计稿：右侧属性面板在（Panels 环节）");
 } else ok(false, "项目里没有 .dc.html，测不了设计稿");
 
@@ -173,6 +181,34 @@ if (await openByName(".json")) {
   ok(/结构/.test(tbText) && /源码/.test(tbText), "JSON：结构 / 源码两档都在", tbText.replace(/\n/g, " / "));
   ok(await pg.locator('[data-ud="file-toolbar"] button[title="更多"]').count() > 0, "JSON：文件 ⋯ 在工具栏右端");
 } else console.log("  – 项目里没有 .json，跳过新格式那一条（不算通过）");
+
+/* ── 文件工具栏（M8-15b）──
+   四种格式的开关都从各自视图内部搬到了统一那条 34px 横带。
+   **「搬干净了」的判据不是「工具栏里有」，而是「别处没有」** ——
+   搬一半的症状是同一组开关出现两次（一条在工具栏、一条还在视图里），
+   而「工具栏里有」这个判据对搬一半的情况照样通过。 */
+console.log("\n文件工具栏：四种格式的开关都上移了（M8-15b · 设计侧第七轮第四层）");
+const bar = () => pg.locator('[data-ud="file-toolbar"]');
+const countIn = async (loc, re) => (((await loc.innerText().catch(() => "")).match(re) ?? []).length);
+const pageCount = async (re) => (((await pg.locator("body").innerText()).match(re) ?? []).length);
+
+for (const [suffix, label, probe] of [
+  [".md", "Markdown", /渲染/g],
+  [".dc.html", "设计稿", /编辑/g],
+  [".json", "JSON", /结构/g],
+]) {
+  if (!(await openByName(suffix))) { ok(false, `${label}：项目里没有这种文件`); continue; }
+  const inBar = await countIn(bar(), probe);
+  const onPage = await pageCount(probe);
+  ok(inBar >= 1, `${label}：开关在统一工具栏上`, `工具栏里 ${inBar} 处`);
+  /* 整页只该出现一次。多于一次 = 视图里还留着一条没搬走的工具栏。 */
+  ok(onPage === inBar, `${label}：视图里没有第二条工具栏`, `整页 ${onPage} 处 · 工具栏里 ${inBar} 处`);
+}
+/* 目录：工具栏有「范围」「排布」两组，而面包屑该留在视图里（它是内容不是开关） */
+await pg.locator('button[title="铺到详情区（多选 · 网格 · 回收站）"]').click(); await pg.waitForTimeout(1300);
+ok(await bar().locator('[role="group"][aria-label="范围"]').count() === 1, "目录：范围组在工具栏上");
+ok(await bar().locator('[role="group"][aria-label="排布"]').count() === 1, "目录：排布组在工具栏上");
+ok(await countIn(bar(), /全部/g) === 1 && await pageCount(/只看稿件/g) === 1, "目录：视图里没有第二份范围开关");
 
 /* ── 引擎是会话的属性（M8-16，用户实测第 7 条）──
    撞到的场景：会话在火山方舟上 → 选成 Claude → 新建一条 → 再切回来，**又变回火山方舟**。

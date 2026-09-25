@@ -1,23 +1,27 @@
+import {  } from "../../api/types";
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { Core } from "../api/client";
-import type { ReadFileResult, Selection } from "../api/types";
-import { toast } from "../ui/Toast";
-import { fmtSize } from "./DirView";
+import type { Core } from "../../api/client";
+import type { ReadFileResult, Selection } from "../../api/types";
+import { toast } from "../../ui/Toast";
 
 /** 图片视图（S14 形制，M8-9 / M8-10）。
  *  只看、缩放、圈一块区域带一句话给 AI —— **不做图像编辑**（`01` §4.2 明写不做）。
  *  圈选坐标一律用**原图像素**，和缩放无关：AI 拿到的是「这张图上 (x,y,w,h) 这一块」，
  *  缩放只是人看得清楚些。
  *  通道吃不吃图由 `supportsImage` 决定；不支持时圈选入口是禁用态，**原因常显**，不藏在 hover 里。 */
-const ZOOMS = [0.25, 0.5, 1, 2, 4];
 
-export function ImageView({ core, path, supportsImage, channelLabel, onSelection, onProbed }: {
+/** ⚠️ 缩放和圈选**不住在这里** —— 它们在 `index.tsx` 的 Provider 里，
+ *  因为第七轮把工具栏定成统一的一条横带，工具栏和视图是两个渲染位置（M8-15b）。 */
+export function ImageView({ core, path, supportsImage, channelLabel, onSelection, onProbed,
+  zoom, setZoom, picking, setPicking, onInfo }: {
   core: Core; path: string; supportsImage: boolean; channelLabel: string; onSelection: (s: Selection | null) => void; onProbed: () => void;
+  zoom: number | "fit"; setZoom: (z: number | "fit") => void;
+  picking: boolean; setPicking: (v: boolean) => void;
+  /** 读数交给工具栏与状态行：尺寸、体积、当前缩放百分比 */
+  onInfo: (i: { info: ReadFileResult | null; scale: number; isSvg: boolean }) => void;
 }) {
   const [probing, setProbing] = useState(false);
   const [info, setInfo] = useState<ReadFileResult | null>(null);
-  const [zoom, setZoom] = useState<number | "fit">("fit");
-  const [picking, setPicking] = useState(false);
   const [rect, setRect] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
   const [drag, setDrag] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
   const [note, setNote] = useState("");
@@ -27,7 +31,7 @@ export function ImageView({ core, path, supportsImage, channelLabel, onSelection
   const isSvg = /\.svg$/i.test(path);
 
   useEffect(() => {
-    setInfo(null); setRect(null); setDrag(null); setNote(""); setPicking(false);
+    setInfo(null); setRect(null); setDrag(null); setNote("");
     setZoom(isSvg ? 2 : "fit");   // svg 可无损放大，默认 200%（设计侧定的）
     void core.get<ReadFileResult>(`file?path=${encodeURIComponent(path)}`).then((r) => { if (r.ok && r.data) setInfo(r.data); });
   }, [core, path, isSvg]);
@@ -38,13 +42,17 @@ export function ImageView({ core, path, supportsImage, channelLabel, onSelection
     return Math.min(1, (el.clientWidth - 48) / w, (el.clientHeight - 48) / h);
   }, [info]);
   const scale = zoom === "fit" ? fitScale() : zoom;
+  /* 读数交给工具栏 —— 它和视图不在一个渲染位置，只能这样递上去 */
+  useEffect(() => { onInfo({ info, scale, isSvg });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [info, scale, isSvg]);
 
   useEffect(() => {
     const on = (e: KeyboardEvent) => {
       const typing = /INPUT|TEXTAREA/.test((document.activeElement?.tagName ?? ""));
       if (typing) return;
       if (e.key === "0") { setZoom("fit"); }
-      if (e.key.toLowerCase() === "r" && supportsImage) { setPicking((p) => !p); setDrag(null); }
+      if (e.key.toLowerCase() === "r" && supportsImage) { setPicking(!picking); setDrag(null); }
       if (e.key === "Escape") { setPicking(false); setDrag(null); setRect(null); setNote(""); onSelection(null); }
     };
     document.addEventListener("keydown", on); return () => document.removeEventListener("keydown", on);
@@ -97,18 +105,6 @@ export function ImageView({ core, path, supportsImage, channelLabel, onSelection
   const cap = !supportsImage;
   return (
     <div className="flex-1 min-w-0 flex flex-col bg-bg min-h-0">
-      <header className="h-10 px-3 flex items-center gap-2 border-b border-border bg-panel shrink-0 text-xs">
-        <span className="font-semibold truncate">{path.split("/").pop()}</span>
-        <span className="font-mono text-muted">{(info?.kind === "image" ? (path.split(".").pop() ?? "").toUpperCase() : "")} · {info?.width ?? "?"}×{info?.height ?? "?"} · {info ? fmtSize(info.size) : "…"}</span>
-        {isSvg && <span className="lvl" style={{ background: "var(--tool-ok-soft)", color: "var(--tool-ok)" }}>矢量 · 可无损缩放</span>}
-        <span className="flex-1" />
-        <button className="ib" onClick={() => setZoom(ZOOMS.filter((z) => z < scale).pop() ?? 0.25)} title="缩小">－</button>
-        <button className="btn sm ghost" onClick={() => setZoom("fit")} title="适配窗口（0）">{zoom === "fit" ? "适配" : `${Math.round(scale * 100)}%`}</button>
-        <button className="ib" onClick={() => setZoom(ZOOMS.find((z) => z > scale) ?? 4)} title="放大">＋</button>
-        <div className="flex flex-col items-end">
-          <button className={`btn sm ${picking ? "on" : ""}`} disabled={cap} onClick={() => { setPicking((p) => !p); setRect(null); onSelection(null); }} title={cap ? undefined : "圈一块区域带给 AI（R）"}>⬚ 圈选 {picking ? "中" : "R"}</button>
-        </div>
-      </header>
       {cap && (
         <div className="px-3 h-8 flex items-center gap-2 text-xs shrink-0 border-b" style={{ background: "var(--tool-warn-soft)", borderColor: "var(--tool-warn-border)", color: "var(--tool-warn)" }}>
           <span>当前大脑通道不支持图片（{channelLabel}），圈选给 AI 用不了。</span>

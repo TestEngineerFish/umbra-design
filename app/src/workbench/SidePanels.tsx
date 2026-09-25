@@ -5,7 +5,7 @@ import { PANEL_TITLE, type PanelId } from "../layout/layout";
 import type { ProjectStore } from "../store/project";
 import { toast } from "../ui/Toast";
 import { PropsPanel } from "./PropsPanel";
-import type { Outline } from "./MarkdownView";
+import type { Outline } from "../kinds/md/parse";
 
 /** 从属面板列（S11 第 1 题的定稿）：40 px 图标轨常驻 + 面板体，同一时刻只开一个；图片 / 目录整列不出现。
  *  属性面板（M7-7）已是 React 的 PropsPanel，S2 嵌入时只留画布。 */
