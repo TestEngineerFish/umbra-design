@@ -192,7 +192,7 @@ export function FileTree({ core, current, expanded, onExpandedChange, onOpenFile
   };
 
   return (
-    <div className="flex flex-col h-full min-h-0">
+    <div className="flex-1 min-w-0 flex flex-col min-h-0">
       {/* 列头：项目名（点回根）+ 两颗导航钮。钮常驻不 hover 才出 —— 键盘和触控都要够得着 */}
       {/* 高度和分隔线都跟页签条对齐（34px + border-b）——
           目录列通栏之后它和页签条并排，差 2px 或少一条线，那条横线就是断的 */}

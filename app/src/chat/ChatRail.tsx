@@ -6,7 +6,7 @@ import { renderMd, renderMdInline } from "../ui/markdown";
 import { Popover, usePopover } from "../ui/Popover";
 
 /** 会话栏，形制按 S9：用户句右对齐；一个 AI 回合共用一根左栏，文本与工具行按出现顺序排；变更卡带回退；「已选中」药丸紧挨输入框上方 */
-export function ChatRail({ chat, selections, onDropSelection, onClearSelections, contextLabel, width, onResize }: { chat: ChatStore; selections: Selection[]; onDropSelection: (i: number) => void; onClearSelections: () => void; contextLabel: string | null; width: number; onResize: (w: number) => void }) {
+export function ChatRail({ chat, selections, onDropSelection, onClearSelections, contextLabel }: { chat: ChatStore; selections: Selection[]; onDropSelection: (i: number) => void; onClearSelections: () => void; contextLabel: string | null }) {
   const body = useRef<HTMLDivElement>(null);
   useEffect(() => { if (body.current) body.current.scrollTop = body.current.scrollHeight; }, [chat.messages, chat.notes, chat.running]);
   /* 状态行要一眼看出**现在谁在干活**。通道 B 光写「通道 B · sonnet」不够 ——
@@ -17,9 +17,10 @@ export function ChatRail({ chat, selections, onDropSelection, onClearSelections,
   /* 会话标题不再上顶栏（第八轮 §四）：它是第一条消息的前 40 字，给人**找会话**用，
      放在历史列表里才有用；常驻在顶栏只是占着一行。 */
   const cap = chat.caps?.[chat.channel];
+  /* 宽度和拖拽手柄**归 `layout/Frame`**（M8-26）—— 这里只管会话本身长什么样。
+     下一轮把会话栏从左挪到右，改的是 Frame 的那个数组，不是这个文件。 */
   return (
-    <aside className="relative flex flex-col bg-panel border-border shrink-0 min-h-0" style={{ width }}>
-      <Grip onResize={onResize} width={width} side="left" />
+    <aside className="relative flex-1 min-w-0 flex flex-col bg-panel border-border min-h-0">
       {/* ═══ 会话栏头（第八轮 §四）═══ 只剩两样：
           **引擎 ▾**（模型名在这一栏里只出现这一次）和**历史钮**。
           删掉的：会话标题 ▾（标题是第一条消息的前 40 字，给人找会话用，放历史列表里才有用）、
@@ -132,20 +133,3 @@ function Pills({ selections, onDrop, onClear }: { selections: Selection[]; onDro
 /** 会话栏与预览之间那条可拖的线（S11 的 chatWidth）。
  *  ⚠️ 拖动时必须在整页盖一层遮罩：预览是 iframe，鼠标一进它的地盘，mousemove 就被 iframe 吃掉，
  *  父页面再也收不到 —— 宽度会卡在鼠标刚离开会话栏的那一刻【实测 2026-09-24】。 */
-function Grip({ onResize, width, side }: { onResize: (w: number) => void; width: number; side: "left" | "right" }) {
-  const [dragging, setDragging] = useState(false);
-  const start = (e: React.MouseEvent) => {
-    e.preventDefault();
-    const x0 = e.clientX, w0 = width, dir = side === "right" ? -1 : 1;
-    setDragging(true);
-    const move = (ev: MouseEvent) => onResize(Math.max(300, Math.min(560, w0 + dir * (ev.clientX - x0))));
-    const up = () => { setDragging(false); document.removeEventListener("mousemove", move); document.removeEventListener("mouseup", up); };
-    document.addEventListener("mousemove", move); document.addEventListener("mouseup", up);
-  };
-  return (
-    <>
-      <div onMouseDown={start} className={`absolute top-0 bottom-0 ${side === "right" ? "left-0 -translate-x-1/2" : "right-0 translate-x-1/2"} w-1 z-20 cursor-col-resize hover:bg-accent/40`} title="拖动调整会话栏宽度" />
-      {dragging && <div className="fixed inset-0 z-50 cursor-col-resize" />}
-    </>
-  );
-}

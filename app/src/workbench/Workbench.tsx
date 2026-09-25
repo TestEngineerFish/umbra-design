@@ -5,6 +5,7 @@ import { ChatRail } from "../chat/ChatRail";
 import { useChat } from "../chat/useChat";
 import type { HostAdapter } from "../host";
 import { TREE_W, computeYield, kindOf, mem, type LayoutState, type PanelId } from "../layout/layout";
+import { Frame } from "../layout/Frame";
 import { engineLabel } from "../chat/channel";
 import { useProject } from "../store/project";
 import { NewDraftSheet } from "../sheets/Sheets";
@@ -206,12 +207,11 @@ export function Workbench({ project, host, layout, setLayout, onHome, onSettings
 
   /* 会话栏**固定在左**（第八轮：换边那一态有意删了），所以不再有 side / 换边 / 关闭三个 props。
      关会话只有一个入口：顶栏的左栏钮（或 ⌘\）。 */
-  const rail = layout.left ? <ChatRail chat={chat} selections={selections} onDropSelection={(i) => setSelections((xs) => xs.filter((_, j) => j !== i))} onClearSelections={() => setSelections([])} contextLabel={dirMode ? (dirRel || "这个目录") : (file ? draftTitle(file) : null)} width={layout.chatWidth} onResize={(w) => setLayout({ ...layout, chatWidth: w })} /> : null;
-  return (
-    <div ref={rootRef} className="h-full flex flex-col">
-      {/* ═══ 顶栏 38px · 只放两类：「应用 / 项目」和「窗口布局」（设计侧第七轮）═══
-          判据是「点了它，变的是什么」：变的是整个项目或整扇窗的才配站在这儿。
-          项目路径从顶栏拿掉了 —— 它占 280px，却只是信息，没人点它，现在进项目菜单。 */}
+  const rail = <ChatRail chat={chat} selections={selections} onDropSelection={(i) => setSelections((xs) => xs.filter((_, j) => j !== i))} onClearSelections={() => setSelections([])} contextLabel={dirMode ? (dirRel || "这个目录") : (file ? draftTitle(file) : null)} />;
+  /* ═══ 顶栏 38px · 只放两类：「应用 / 项目」和「窗口布局」（设计侧第七轮）═══
+     判据是「点了它，变的是什么」：变的是整个项目或整扇窗的才配站在这儿。
+     项目路径从顶栏拿掉了 —— 它占 280px，却只是信息，没人点它，现在进项目菜单。 */
+  const topBar = (
       <header className="h-[38px] px-2.5 flex items-center gap-1 border-b border-border bg-panel shrink-0 text-xs relative z-30">
         {/* **只剩图标**（M8-16，用户实测第 2 条）：应用名在窗口标题上已经有了，
             顶栏再写一遍「Umbra Studio」是重复，而且它右边紧跟着项目名，读起来像一个长名字。 */}
@@ -281,93 +281,103 @@ export function Workbench({ project, host, layout, setLayout, onHome, onSettings
           ))}
         </div>
       </header>
+  );
+
+  return (
+    <div ref={rootRef} className="h-full flex flex-col">
       {/* Provider 要同时包住详情区和状态行（目录的「已选 3 项」在状态行读模块内部的勾选） */}
       {/* Provider 包住详情、工具栏、状态读数三处 —— 它们都要读格式模块内部的状态 */}
-      <Wrap ctx={ctx} key={kind}>
-        <div className="flex-1 min-h-0 flex relative">
-          {rail}
-          {/* ═══ 中间这一柱 = 目录列 + 详情列 + 底栏 ═══
-            **底栏只横跨这一柱**（设计侧第八轮 §二）：会话的输入框要贴着窗口底部，
-            右栏的属性面板要整列的高度，所以那两块在柱子外面。 */}
-          <div className="flex-1 min-w-0 flex flex-col">
-            <div className="flex-1 min-h-0 flex relative">
-              {layout.tree.open && (
-                !treeInline ? (
-                  <>
-                  <div className="absolute inset-0 z-20 bg-black/20" onMouseDown={() => setLayout({ ...layout, tree: { ...layout.tree, open: false } })} />
-                  <aside className="absolute left-0 top-0 bottom-0 z-30 bg-panel border-r border-border shadow-2xl" style={{ width: 280 }}>{tree}</aside>
-                </>
-              ) : (
-              <aside className="relative shrink-0 border-r border-border bg-panel" style={{ width: layout.tree.width }}>
-                {tree}
-                {/* 拖右边缘改宽；双击回默认 240 */}
-                <div className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-accent/30"
-                onDoubleClick={() => setLayout({ ...layout, tree: { ...layout.tree, width: TREE_W.def } })}
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  const x0 = e.clientX, w0 = layout.tree.width;
-                  const mv = (ev: MouseEvent) => setLayout({ ...layout, tree: { ...layout.tree, width: Math.min(TREE_W.max, Math.max(TREE_W.min, w0 + ev.clientX - x0)) } });
-                  const up = () => { document.removeEventListener("mousemove", mv); document.removeEventListener("mouseup", up); document.body.style.cursor = ""; };
-                  document.body.style.cursor = "col-resize";
-                  document.addEventListener("mousemove", mv); document.addEventListener("mouseup", up);
-                }} />
-              </aside>
-            )
-          )}
-          <div className="flex-1 min-w-0 flex flex-col">
-              <TabBar tabs={tabs} current={dirMode ? null : file} onPick={open}
-                onClose={closeTab} onCloseOthers={(keep) => { setTabs([keep]); mem.set(`us.tabs.${project.dir}`, [keep]); if (file !== keep) open(keep); }}
-                extra={!layout.tree.open ? (
-                  /* 目录收起后，**同一个图标、箭头反向**出现在这里 —— 目录回来的地方
-                     （设计侧第八轮 §一：「收起钮和展开钮是同一个图标，只是箭头方向相反」） */
-                  <button data-ud="tree-reopen" className="w-9 shrink-0 grid place-items-center border-r border-border text-muted hover:bg-hover hover:text-text"
-                    onClick={() => setLayout({ ...layout, tree: { ...layout.tree, open: true } })} title="展开目录列（⌘B）" aria-label="展开目录列">
-                    <Glyph d={ICON.treeExpand} />
-                  </button>
-                ) : null} />
+      {/* ═══ 三列的顺序、宽度、让位**全在这个数组里**（M8-26）═══
+          用户说「产品总是要迭代的，所以要模块化处理，方便调整」——
+          两轮之内布局已经改过三次形态，每次都要翻找嵌套的 div。
+          现在换位置 = 调下面这个数组的顺序，别的不动。
 
-          {/* ═══ 文件工具栏 34px · 只管「当前这份文件」（第七轮第四层）═══
-            **模块不声明 Toolbar 就不出这条带** —— 设计侧明确说代码和其他文件没有这一行，
-            不要给它留一条空横带。`⋯` 的公共尾巴由 `FileMore` 补，不用每个模块重复写。 */}
-          {(dirMode || file) && mod.Toolbar && (
-            <ToolbarBar>
-              <mod.Toolbar ctx={ctx} />
-              {/* 这份文件的读数**挪到了工具栏右端**（M8-16）。
-                它原来在底部状态行，而那条整条去掉了 —— 用户说文件名在页签上已经有、
-                元素数和体检状态他不想在底部看到。放在这儿不算重复：
-                文件工具栏本来就是「这份文件」那一层。最终要留哪些读数由第八轮定。
-                ⚠️ 只有声明了 `Toolbar` 的格式才有这条横带，所以现在只有 JSON 能看到；
-                其余四种等 M8-15b 工具栏上移时一起归位。 */}
-              {/* 不声明 `Status` 就用类型名兜底 —— 这条兜底原来在状态行里，
-                搬位置时我漏了它，工具栏右端就空着（M8-16 实测）。
-                正是 `registry.ts` 那条注释警告过的「一条省略等于空白的接口，早晚有人省略」。 */}
-              {/* ⚠️ **详情窄下来时整段不显示**：它是读数，是这一行里最能让的一样。
-                  不让的话它会把右端的 `⋯` 挤出可视区 —— 而 `⋯` 里装着体检、对比上一版这些动作，
-                  那是点得到才有用的东西（M8-24 量出来：详情 440 时 ⋯ 落在 1075，可视区到 1060）。 */}
-              {yieldNow.detail >= 620 && (
-                <span className="flex items-center gap-1.5 text-[11px] text-muted font-mono min-w-0 truncate">
-                  {mod.Status ? <mod.Status ctx={ctx} /> : kindDef(kind).label}
-                </span>
-              )}
-              <FileMore ctx={ctx} items={mod.menu?.(ctx) ?? []} />
-            </ToolbarBar>
-          )}
-          <div className="flex-1 min-h-0 flex">
-            {!dirMode && !file ? (
-              <div className="flex-1 flex flex-col items-center justify-center gap-2 text-muted text-xs text-center px-6 leading-relaxed bg-canvas">
-                <div className="text-2xl opacity-25">◧</div>
-                <div><b className="text-text2">从左边的目录里选一个文件</b></div>
-                <div className="text-[11px]">双击目录能在这里以它为根打开{layout.tree.open ? "" : "；⌘B 展开目录列"}</div>
-              </div>
-            ) : <mod.View ctx={ctx} />}
-          </div>
+          ⚠️ 第九轮用户要的是「目录 | 详情 | 聊天」（聊天换到右边），
+          等设计侧的形制回来一起改：到时候只要把 `chat` 挪到数组末尾、
+          `resize.edge` 从 `right` 换成 `left`。 */}
+      <Wrap ctx={ctx} key={kind}>
+        <Frame
+          top={topBar}
+          regions={[
+            {
+              id: "chat", show: layout.left, width: layout.chatWidth,
+              resize: { min: 320, max: 560, def: 380, edge: "right", onResize: (w) => setLayout({ ...layout, chatWidth: w }) },
+              node: rail,
+            },
+            {
+              id: "nav", show: layout.tree.open,
+              width: treeInline ? layout.tree.width : 280,
+              float: !treeInline,
+              onFloatClose: () => setLayout({ ...layout, tree: { ...layout.tree, open: false } }),
+              resize: treeInline ? { ...TREE_W, edge: "right", onResize: (w) => setLayout({ ...layout, tree: { ...layout.tree, width: w } }) } : undefined,
+              node: tree,
+            },
+            {
+              id: "detail", show: true,
+              node: (
+                <div className="flex-1 min-w-0 flex flex-col">
+            <TabBar tabs={tabs} current={dirMode ? null : file} onPick={open}
+              onClose={closeTab} onCloseOthers={(keep) => { setTabs([keep]); mem.set(`us.tabs.${project.dir}`, [keep]); if (file !== keep) open(keep); }}
+              extra={!layout.tree.open ? (
+                /* 目录收起后，**同一个图标、箭头反向**出现在这里 —— 目录回来的地方
+                   （设计侧第八轮 §一：「收起钮和展开钮是同一个图标，只是箭头方向相反」） */
+                <button data-ud="tree-reopen" className="w-9 shrink-0 grid place-items-center border-r border-border text-muted hover:bg-hover hover:text-text"
+                  onClick={() => setLayout({ ...layout, tree: { ...layout.tree, open: true } })} title="展开目录列（⌘B）" aria-label="展开目录列">
+                  <Glyph d={ICON.treeExpand} />
+                </button>
+              ) : null} />
+
+        {/* ═══ 文件工具栏 34px · 只管「当前这份文件」（第七轮第四层）═══
+          **模块不声明 Toolbar 就不出这条带** —— 设计侧明确说代码和其他文件没有这一行，
+          不要给它留一条空横带。`⋯` 的公共尾巴由 `FileMore` 补，不用每个模块重复写。 */}
+        {(dirMode || file) && mod.Toolbar && (
+          <ToolbarBar>
+            <mod.Toolbar ctx={ctx} />
+            {/* 这份文件的读数**挪到了工具栏右端**（M8-16）。
+              它原来在底部状态行，而那条整条去掉了 —— 用户说文件名在页签上已经有、
+              元素数和体检状态他不想在底部看到。放在这儿不算重复：
+              文件工具栏本来就是「这份文件」那一层。最终要留哪些读数由第八轮定。
+              ⚠️ 只有声明了 `Toolbar` 的格式才有这条横带，所以现在只有 JSON 能看到；
+              其余四种等 M8-15b 工具栏上移时一起归位。 */}
+            {/* 不声明 `Status` 就用类型名兜底 —— 这条兜底原来在状态行里，
+              搬位置时我漏了它，工具栏右端就空着（M8-16 实测）。
+              正是 `registry.ts` 那条注释警告过的「一条省略等于空白的接口，早晚有人省略」。 */}
+            {/* ⚠️ **详情窄下来时整段不显示**：它是读数，是这一行里最能让的一样。
+                不让的话它会把右端的 `⋯` 挤出可视区 —— 而 `⋯` 里装着体检、对比上一版这些动作，
+                那是点得到才有用的东西（M8-24 量出来：详情 440 时 ⋯ 落在 1075，可视区到 1060）。 */}
+            {yieldNow.detail >= 620 && (
+              <span className="flex items-center gap-1.5 text-[11px] text-muted font-mono min-w-0 truncate">
+                {mod.Status ? <mod.Status ctx={ctx} /> : kindDef(kind).label}
+              </span>
+            )}
+            <FileMore ctx={ctx} items={mod.menu?.(ctx) ?? []} />
+          </ToolbarBar>
+        )}
+        <div className="flex-1 min-h-0 flex">
+          {!dirMode && !file ? (
+            <div className="flex-1 flex flex-col items-center justify-center gap-2 text-muted text-xs text-center px-6 leading-relaxed bg-canvas">
+              <div className="text-2xl opacity-25">◧</div>
+              <div><b className="text-text2">从左边的目录里选一个文件</b></div>
+              <div className="text-[11px]">双击目录能在这里以它为根打开{layout.tree.open ? "" : "；⌘B 展开目录列"}</div>
+            </div>
+          ) : <mod.View ctx={ctx} />}
         </div>
-      </div>
-      {layout.bottom && <BottomBar layout={layout} setLayout={setLayout} store={store} chat={chat} yieldNow={yieldNow} hasPanels={panels.length > 0} />}
-      </div>
-      {/* 右栏和会话栏一样待在主体层 —— 它原来在详情区里，底栏一开就把它也截短了 */}
-      {layout.right && mod.Panels && panels.length > 0 && <mod.Panels ctx={ctx} />}
-      </div>
+                </div>
+              ),
+            },
+            {
+              id: "panels", show: layout.right && panels.length > 0, width: "fit",
+              node: mod.Panels ? <mod.Panels ctx={ctx} /> : null,
+            },
+          ]}
+          bottom={layout.bottom ? {
+            node: <BottomBar layout={layout} setLayout={setLayout} store={store} chat={chat} yieldNow={yieldNow} hasPanels={panels.length > 0} />,
+            height: layout.bottomHeight,
+            /* **只横跨中间那几块**（第八轮 §二）：会话的输入框要贴着窗口底部，
+               右栏的面板要整列的高度。 */
+            spans: ["nav", "detail"],
+          } : undefined}
+        />
       </Wrap>
       {sheet?.kind === "newDraft" && <NewDraftSheet core={core} current={file} dir={sheet.dir} onClose={() => setSheet(null)} onCreated={async (f) => { await store.fetchDrafts(); open(f); }} />}
     </div>
