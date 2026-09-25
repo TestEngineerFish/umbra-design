@@ -18,9 +18,12 @@ function Toolbar() {
   const d = useMdDoc();
   return (
     <>
+      {/* 第九轮：**展开编辑栏 = 进源码编辑，收起 = 回到渲染阅读**（设计侧 §三.3）。
+          所以这里不再有「渲染 / 源码」两档 —— ✎ 本身就是那个开关。
+          留一档"分栏"给两边对照着改。 */}
       <Seg label="视图" items={[
-        { label: "渲染", active: d.mode === "render", onPick: () => d.setMode("render") },
         { label: "源码", active: d.mode === "source", onPick: () => d.setMode("source"), title: "带行号，可直接改；⌘S 或失焦落盘" },
+        { label: "渲染", active: d.mode === "render", onPick: () => d.setMode("render"), title: "只读地看" },
       ]} />
       <span className="flex-1" />
       {/* 【判断】「选中这段给 AI」留在工具栏 —— 它变的是这份文件（把它的一段交出去），

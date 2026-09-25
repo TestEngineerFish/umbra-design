@@ -22,14 +22,15 @@ import { dirtyStore } from "../ui/dirty";
  */
 const TAB_W = 184, TAB_MIN = 112, MORE_W = 56;
 
-export function TabBar({ tabs, current, onPick, onClose, onCloseOthers, extra }: {
+export function TabBar({ tabs, current, onPick, onClose, onCloseOthers, tail }: {
   tabs: string[];
   current: string | null;
   onPick: (path: string) => void;
   onClose: (path: string) => void;
   onCloseOthers: (keep: string) => void;
-  /** 页签条最左那颗「展开目录」（目录收起时才有） */
-  extra?: React.ReactNode;
+  /** Tab 条**右端固定的那几颗**（第九轮：✎ 编辑栏 · ◨ 属性区 · ⋯ 这份文件）。
+   *  位置固定，不跟着格式变 —— 格式变的是它们展开之后的内容。 */
+  tail?: React.ReactNode;
 }) {
   const box = useRef<HTMLDivElement>(null);
   const [avail, setAvail] = useState(9999);
@@ -63,9 +64,12 @@ export function TabBar({ tabs, current, onPick, onClose, onCloseOthers, extra }:
     return dir ? `${base} · ${dir}` : base;
   };
 
+  /* 36px：第九轮定的**所有模块状态栏一个值**。
+     理由不只是整齐 —— 三列并排时三条状态栏的底线在同一个 y 上，
+     横着看是一条线贯穿全屏；44/34/34 混用时这条线断成三截，
+     用户说的「高度不一致」看到的就是这个。 */
   return (
-    <div ref={box} data-ud="tabbar" className="h-[34px] flex items-stretch border-b border-border bg-panel shrink-0 text-xs relative">
-      {extra}
+    <div ref={box} data-ud="tabbar" className="h-9 flex items-stretch border-b border-border bg-panel shrink-0 text-xs relative">
       <div className="flex-1 min-w-0 flex items-stretch overflow-hidden">
         {tabs.length === 0 && <span className="px-3 self-center text-muted text-[11px]">还没打开文件 —— 从左边的目录里选一个</span>}
         {shown.map((t) => {
@@ -114,6 +118,7 @@ export function TabBar({ tabs, current, onPick, onClose, onCloseOthers, extra }:
           </Popover>
         </div>
       )}
+      {tail && <div className="shrink-0 flex items-center gap-0.5 px-1.5 border-l border-border">{tail}</div>}
     </div>
   );
 }

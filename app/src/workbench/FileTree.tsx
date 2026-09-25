@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Core } from "../api/client";
 import type { Draft, FileEntry, Health, ListFilesResult } from "../api/types";
-import { Glyph, ICON } from "../ui/Glyph";
+import { Glyph } from "../ui/Glyph";
 import { CtxMenu, itemsFor, type CtxActions, type CtxTarget } from "./ctxmenu";
 import { PopoverAt } from "../ui/Popover";
 import { kindDef } from "@shared/kinds";
@@ -37,8 +37,6 @@ export interface TreeProps {
    *  第七轮把它们从页签条挪到这儿 —— 页签条只管「开着哪些文件」。 */
   drafts: Draft[];
   indexed: boolean;
-  /** 收起这一列。展开钮在页签条最左（同一图标、箭头反向） */
-  onCollapse: () => void;
   /** 右键菜单要的动作（M8-21）。目录列和目录视图共用同一套定义，见 `ctxmenu.tsx` */
   actions: CtxActions;
   /** 已经塌成「已移到回收站 · 撤销」的那几行 */
@@ -48,7 +46,7 @@ export interface TreeProps {
   tick: string;
 }
 
-export function FileTree({ core, current, expanded, onExpandedChange, onOpenFile, onOpenDir, healthOf, projectName, drafts, indexed, onCollapse, actions, trashed, onUndoTrash, tick }: TreeProps) {
+export function FileTree({ core, current, expanded, onExpandedChange, onOpenFile, onOpenDir, healthOf, projectName, drafts, indexed, actions, trashed, onUndoTrash, tick }: TreeProps) {
   const [goto, setGoto] = useState(false);
   const [q, setQ] = useState("");
   const [ctx, setCtx] = useState<{ x: number; y: number; target: CtxTarget } | null>(null);
@@ -196,26 +194,27 @@ export function FileTree({ core, current, expanded, onExpandedChange, onOpenFile
       {/* 列头：项目名（点回根）+ 两颗导航钮。钮常驻不 hover 才出 —— 键盘和触控都要够得着 */}
       {/* 高度和分隔线都跟页签条对齐（34px + border-b）——
           目录列通栏之后它和页签条并排，差 2px 或少一条线，那条横线就是断的 */}
-      <div ref={headRef} data-ud="tree-head" className="h-[34px] pl-2.5 pr-1 flex items-center gap-1 shrink-0 text-xs relative border-b border-border">
+      {/* 36px —— 所有模块状态栏一个值（第九轮 §二） */}
+      <div ref={headRef} data-ud="tree-head" className="h-9 pl-2.5 pr-1 flex items-center gap-0.5 shrink-0 text-xs relative border-b border-border">
         {/* 项目名**右键 = 空白处菜单**（M8-21）。
             光靠「树的空白区」不够：树一满就没有空白可点，用户等于没法在根目录新建。
             项目名就是项目根，在它上面右键最说得通。 */}
-        <button className="min-w-0 flex-1 flex items-center gap-1.5 h-6 px-1 rounded font-semibold hover:bg-hover text-left"
+        <button className="min-w-0 flex-1 flex items-center gap-1.5 h-7 px-1 rounded font-semibold hover:bg-hover text-left"
           onContextMenu={(ev) => { ev.preventDefault(); setCtx({ x: ev.clientX, y: ev.clientY, target: { kind: "blank" } }); }}
           onClick={() => onOpenDir("")} title="回到项目根（右键：对项目根的操作）">
-          <span className="text-muted shrink-0">{kindDef("dir").icon}</span><span className="truncate">{projectName}</span>
+          <Glyph icon="folder-open" className="text-muted shrink-0" /><span className="truncate">{projectName}</span>
         </button>
         <button className="w-6 h-6 grid place-items-center rounded text-muted hover:bg-hover hover:text-text shrink-0"
           onClick={() => { setGoto((g) => !g); setQ(""); }} title="转到文件（⌘P）" aria-label="转到文件">
-          <Glyph d={ICON.search} size={13} />
+          <Glyph icon="search" />
         </button>
-        {/* 第八轮把 `⤢ 铺到详情区` **删掉了** —— 用户把它读成了「放大 / 展开」，
-            而且点了之后详情区出现目录列表，他恰恰抱怨过「预览不该和目录显示重复内容」。
-            那个功能留在三个入口：右键目录 · 双击目录 · 点列头的项目名。
-            这个位置换成他真正期望的**收起目录列**。 */}
-        <button data-ud="tree-collapse" className="w-6 h-6 grid place-items-center rounded text-muted hover:bg-hover hover:text-text shrink-0"
-          onClick={onCollapse} title="收起目录列（⌘B）" aria-label="收起目录列">
-          <Glyph d={ICON.treeCollapse} size={13} />
+        {/* 第九轮：**收起钮删掉**（用户第 14 条「有点多余」）—— 目录的显隐只归顶栏那一颗。
+            这个位置换成 `⋯`，和在空白处右键是**同一张菜单**：
+            两个入口指向同一个对象、列的是同一张单，不算一件事两个入口（设计侧 §一.2）。 */}
+        <button data-ud="tree-more" className="w-7 h-7 grid place-items-center rounded text-muted hover:bg-hover hover:text-text shrink-0"
+          onClick={(ev) => { const r = (ev.currentTarget as HTMLElement).getBoundingClientRect(); setCtx({ x: r.left, y: r.bottom + 2, target: { kind: "blank" } }); }}
+          title="对这个项目的操作" aria-label="更多">
+          <Glyph icon="more" />
         </button>
         {goto && headRef.current && <GotoFile q={q} setQ={setQ} drafts={drafts} indexed={indexed} current={current}
           anchor={{ x: headRef.current.getBoundingClientRect().left + 4, y: headRef.current.getBoundingClientRect().bottom - 4, w: headRef.current.getBoundingClientRect().width - 8 }}

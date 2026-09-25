@@ -115,7 +115,7 @@ export function BottomBar({ layout, setLayout, store, chat, yieldNow, hasPanels 
 export function layoutReadout(l: LayoutState, y?: { treeInline: boolean; yielded: boolean; panelDrawer: boolean; detail: number }, hasPanels = true): string {
   const bits = [
     l.left ? `左 ${l.chatWidth}` : "左 关",
-    y ? (y.treeInline ? `目录 ${l.tree.width}` : y.yielded ? "目录 让位" : "目录 收起") : (l.tree.open ? `目录 ${l.tree.width}` : "目录 收起"),
+    y ? (y.treeInline ? `目录 ${l.tree.width}` : y.yielded ? "目录 让位" : "目录 收起") : (l.left ? `目录 ${l.tree.width}` : "目录 收起"),
     y ? `详情 ${y.detail}` : null,
     !hasPanels ? "右 无" : !l.right ? "右 关" : y?.panelDrawer ? "右 抽屉" : "右 340",
   ];

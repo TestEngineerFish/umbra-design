@@ -1,4 +1,6 @@
-/** 和设计稿里的 `IconGlyph` 一一对应（M8-15）。
+import { ICONS, type IconName } from "./icons";
+
+/** 和设计稿里的 `IconGlyph` 一一对应（M8-15；M8-27 接上了成套图标）。
  *
  *  为什么值得有这个件：稿里每颗钮的图标都是一条 `d`，
  *  有了它就能**把稿里的 path 原样抄过来**，不用在字符图标里找近似的。
@@ -6,15 +8,24 @@
  *
  *  `viewBox` 固定 16 —— 稿里所有 path 都是按 16 画的，换了对不上。
  */
-export function Glyph({ d, size = 14, stroke = 1.4, className }: { d: string; size?: number; stroke?: number; className?: string }) {
+export function Glyph({ icon, d, size = 16, stroke = 1.4, className }: {
+  /** 图标名（`ui/icons.ts` 里的 56 颗）。**优先用这个** */
+  icon?: IconName;
+  /** 直接给 path —— 只剩少数还没进图标表的地方用，新代码一律用 `icon` */
+  d?: string;
+  size?: number; stroke?: number; className?: string;
+}) {
+  const path = (icon && ICONS[icon]) || d || "";
   return (
     <svg width={size} height={size} viewBox="0 0 16 16" fill="none" aria-hidden="true" className={className} style={{ flex: "none" }}>
-      <path d={d} stroke="currentColor" strokeWidth={stroke} strokeLinecap="round" strokeLinejoin="round" />
+      <path d={path} stroke="currentColor" strokeWidth={stroke} strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
 
-/** 稿里用到的 path，抄在一处，别各处手打（`ui/S11` 第七轮） */
+/** ⚠️ **过渡用**：第七 / 八轮我们自己画的几个 path。
+ *  第九轮设计侧给了成套的 56 颗（`ui/icons.ts`），新代码一律用 `<Glyph icon="名字" />`。
+ *  这张表里的会随着各处改完逐步清空。 */
 export const ICON = {
   tree: "M2.5 3.5h4M4.5 3.5v8.5h3M4.5 7.8h3M10 7.8h3.5M10 12h3.5",
   /* 三块区域的图标：画的就是那一块在屏幕的哪条边（抄自 S11 L1137–1139） */

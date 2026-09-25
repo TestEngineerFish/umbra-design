@@ -19,20 +19,25 @@ export { kindOf } from "@shared/kinds";
 export type { FileKind };
 export type PanelId = "props" | "diagnostics" | "changes" | "comments" | "outline" | "info";
 export interface LayoutState {
-  /** 左栏 = 会话（⌘\） */
+  /** 左栏 = **目录**（⌘B）。第八轮这里是会话，第九轮换了 —— 键名按「屏幕的哪条边」命名，
+   *  所以键不用改名，改的是它管哪一块。 */
   left: boolean;
   /** 底栏 = 调试（⌘J） */
   bottom: boolean;
-  /** 右栏 = 从属面板 + 图标轨（⌘⌥B）。这种文件没有面板时钮置灰，这个值照旧记着 */
+  /** 右栏 = **聊天**（⌘\）。第八轮这里是从属面板 */
   right: boolean;
+  /** 属性区开着哪一页，`null` = 收起（第九轮：它进了详情内部，**不再归顶栏管**）。
+   *  收起是**完全收掉**，不留 40px 图标轨 —— 默认收起还留一条轨，
+   *  等于常驻一列没人看的图标。 */
+  props: PanelId | null;
   chatWidth: number;
   bottomHeight: number;
   /** 每种类型上次打开的从属面板；null = 收起（R3） */
   panelByKind: Partial<Record<FileKind, PanelId | null>>;
   theme: "system" | "light" | "dark";
-  /** 常驻目录列（M8-11，设计侧第六轮 6.1）。键名按它给的 `layout.tree`。
-   *  `expanded` 存的是相对路径，和 S12 宽区共用同一份 —— 两边展开的层级要一致。 */
-  tree: { open: boolean; width: number; expanded: string[] };
+  /** 目录列的宽度和展开的层级。**`open` 去掉了** —— 它并进了 `left`（第九轮第 14 条：
+   *  列头那颗收起钮多余，目录的显隐只归顶栏那一颗）。 */
+  tree: { width: number; expanded: string[] };
 }
 
 /** 尺寸常量，**一份**（设计侧第八轮 S11 L681–682 的同一套值）。
@@ -48,9 +53,10 @@ export const PANEL_W = 300, RAIL_W = 40;
 const KEY = "us.layout";
 const DEFAULT: LayoutState = {
   left: true, bottom: false, right: true,
+  props: null,   // 属性区默认收起（第九轮）
   chatWidth: 380, bottomHeight: BOTTOM_H.def,
   panelByKind: { dc: "props", md: "outline" }, theme: "system",
-  tree: { open: true, width: TREE_W.def, expanded: [] },
+  tree: { width: TREE_W.def, expanded: [] },
 };
 export function loadLayout(): LayoutState {
   try {
@@ -59,9 +65,17 @@ export function loadLayout(): LayoutState {
        `chatMode: "bar"`（会话收成输入条）在新模型里最接近的是「左栏关着」——
        两种情况下会话都不占一整列。换边没有对应项，直接丢掉：会话固定在左了。
        不迁移的话，老用户打开是 `left: undefined`，左栏直接不见。 */
+    /* 老 schema 迁移。**两代都要认**：
+       - 第七轮及更早：`chatMode` / `chatSide`
+       - 第八轮：`left` = 会话、`right` = 从属面板、`tree.open` = 目录
+       第九轮把三块换了一遍（左 = 目录、右 = 聊天），所以第八轮存下来的值
+       直接用会**张冠李戴**：本来关着会话，打开变成关着目录。 */
+    const v8 = v.tree && typeof v.tree.open === "boolean";   // 第八轮的形状
     const migrated = v.chatMode !== undefined || v.chatSide !== undefined
-      ? { left: v.chatMode !== "bar", bottom: false, right: true }
-      : {};
+      ? { left: true, bottom: false, right: v.chatMode !== "bar", props: null }
+      : v8
+        ? { left: v.tree.open !== false, right: v.left !== false, props: null }
+        : {};
     return {
       ...DEFAULT, ...v, ...migrated,
       chatWidth: Number(v.chatWidth) || DEFAULT.chatWidth,
@@ -71,7 +85,6 @@ export function loadLayout(): LayoutState {
          直接用 v.tree 会得到 undefined，界面上就崩在 layout.tree.open 上。
          宽度也钳一下 —— 存过界的值（换过边界、手改过）不能让列宽失控。 */
       tree: {
-        open: v.tree?.open ?? DEFAULT.tree.open,
         width: Math.min(TREE_W.max, Math.max(TREE_W.min, Number(v.tree?.width) || TREE_W.def)),
         expanded: Array.isArray(v.tree?.expanded) ? v.tree.expanded.filter((x: unknown) => typeof x === "string") : [],
       },
@@ -99,16 +112,22 @@ export interface Yield {
   detail: number;
 }
 export function computeYield(l: LayoutState, winW: number, hasPanels: boolean): Yield {
-  const rightOn = l.right && hasPanels;
-  const chatW = l.left ? l.chatWidth : 0;
+  /* 第九轮换了三块的含义：`left` = 目录、`right` = 聊天、属性区在详情内部（`props`）。
+     让位顺序也换了，按「多久用一次」排，最不常用的先让：
+     属性区（看完一眼就关）→ 目录（挑完文件就不看）→ 聊天收窄 → 聊天让位。 */
+  const propsOn = l.props !== null && hasPanels;
+  const chatW = l.right ? l.chatWidth : 0;
   const tw = l.tree.width;
-  const panelsW = (inline: boolean) => (rightOn ? RAIL_W + (inline ? PANEL_W : 0) : 0);
+  /** 属性区**完全收掉**，不留图标轨（第九轮）—— 所以收起时它占 0，不是 40 */
+  const propsW = (inline: boolean) => (propsOn && inline ? PANEL_W : 0);
   let panelDrawer = false;
-  let treeInline = l.tree.open;
-  let detail = winW - chatW - (treeInline ? tw : 0) - panelsW(true);
-  if (detail < DETAIL_MIN && rightOn) { panelDrawer = true; detail = winW - chatW - (treeInline ? tw : 0) - panelsW(false); }
-  if (treeInline && detail < DETAIL_MIN) { treeInline = false; detail = winW - chatW - panelsW(false); }
-  return { panelDrawer, treeInline, yielded: l.tree.open && !treeInline, detail: Math.round(detail) };
+  let treeInline = l.left;
+  let detail = winW - chatW - (treeInline ? tw : 0) - propsW(true);
+  // R2：属性区先改抽屉（浮在正文右边）
+  if (detail < DETAIL_MIN && propsOn) { panelDrawer = true; detail = winW - chatW - (treeInline ? tw : 0); }
+  // R3：还不够，目录让位成浮层
+  if (treeInline && detail < DETAIL_MIN) { treeInline = false; detail = winW - chatW; }
+  return { panelDrawer, treeInline, yielded: l.left && !treeInline, detail: Math.round(detail) };
 }
 
 export function saveLayout(s: LayoutState): void { try { localStorage.setItem(KEY, JSON.stringify(s)); } catch { /* 隐私模式 */ } }

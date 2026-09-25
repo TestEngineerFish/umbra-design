@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import type { ReadFileResult } from "../../api/types";
 import { fmtSize } from "../../api/types";
-import { Glyph, ICON } from "../../ui/Glyph";
+import { Glyph } from "../../ui/Glyph";
 import type { ViewContext } from "../context";
 import type { KindModule } from "../registry";
 import { SizeBtn } from "../toolbar";
@@ -37,26 +37,32 @@ function Provider({ ctx, children }: { ctx: ViewContext; children: ReactNode }) 
   return <Ctx.Provider value={{ zoom, setZoom, picking, setPicking, ...readout, setReadout, supportsImage: ctx.ai.supportsImage }}>{children}</Ctx.Provider>;
 }
 
+/** 编辑栏：圈一块区域带给 AI —— 这是**改稿用**的（其实是"让 AI 改"用的） */
 function Toolbar() {
   const d = useImg();
-  const pct = Math.round(d.scale * 100);
   return (
     <>
-      {/* 圈选是「指针」那一类（第七轮：开关型，用弱强调色而不是抬起效果）。
-          引擎看不了图时禁用，原因常显在下面那条横条里，不藏在 tooltip 里。 */}
       <button onClick={() => d.setPicking(!d.picking)} disabled={!d.supportsImage} aria-pressed={d.picking}
         title={d.supportsImage ? "圈一块区域带给 AI（R）" : "当前引擎看不了图"}
-        className={`inline-flex items-center gap-1.5 h-[22px] px-2 rounded-sm border border-border shrink-0 disabled:opacity-40 disabled:cursor-not-allowed ${
-          d.picking ? "bg-accentSoft text-accent font-semibold border-accent" : "bg-panel2 text-text2 hover:text-text"}`}>
-        <Glyph d={ICON.pointer} size={12} />圈选{d.picking ? "中" : ""}
+        className={`inline-flex items-center gap-1.5 h-[22px] px-2 rounded-sm border shrink-0 disabled:opacity-40 disabled:cursor-not-allowed ${
+          d.picking ? "bg-accentSoft text-accent font-semibold border-accent" : "bg-panel2 text-text2 border-border hover:text-text"}`}>
+        <Glyph icon="sel-region" size={12} />圈选{d.picking ? "中" : ""}
       </button>
       {d.isSvg && <span className="lvl shrink-0" style={{ background: "var(--tool-ok-soft)", color: "var(--tool-ok)" }}>矢量 · 可无损缩放</span>}
       <span className="flex-1" />
-      <SizeBtn label={d.zoom === "fit" ? `适配 · ${pct}%` : `${pct}%`} title="缩放（⌘− ⌘＋ ⌘0）"
-        zoomPct={pct}
-        onZoom={(dir) => d.setZoom(dir > 0 ? (ZOOMS.find((z) => z > d.scale) ?? 4) : (ZOOMS.filter((z) => z < d.scale).pop() ?? 0.25))}
-        onFit={() => d.setZoom("fit")} />
     </>
+  );
+}
+
+/** 角落：缩放 —— **看图用**的，一直会用，所以常驻 */
+function Corner() {
+  const d = useImg();
+  const pct = Math.round(d.scale * 100);
+  return (
+    <SizeBtn label={d.zoom === "fit" ? `适配 · ${pct}%` : `${pct}%`} title="缩放（⌘− ⌘＋ ⌘0）"
+      zoomPct={pct}
+      onZoom={(dir) => d.setZoom(dir > 0 ? (ZOOMS.find((z) => z > d.scale) ?? 4) : (ZOOMS.filter((z) => z < d.scale).pop() ?? 0.25))}
+      onFit={() => d.setZoom("fit")} />
   );
 }
 
@@ -71,7 +77,7 @@ function View({ ctx }: { ctx: ViewContext }) {
 
 export const image: KindModule = {
   ids: ["image"],
-  Provider, View, Toolbar,
+  Provider, View, Toolbar, Corner,
   Status: ({ ctx }) => {
     const d = useImg();
     const ext = (ctx.path.split(".").pop() ?? "").toUpperCase();

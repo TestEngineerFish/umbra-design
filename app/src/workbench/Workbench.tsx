@@ -4,7 +4,7 @@ import { draftTitle, type Picked, type Selection } from "../api/types";
 import { ChatRail } from "../chat/ChatRail";
 import { useChat } from "../chat/useChat";
 import type { HostAdapter } from "../host";
-import { TREE_W, computeYield, kindOf, mem, type LayoutState, type PanelId } from "../layout/layout";
+import { PANEL_W, TREE_W, computeYield, kindOf, mem, type LayoutState, type PanelId } from "../layout/layout";
 import { Frame } from "../layout/Frame";
 import { engineLabel } from "../chat/channel";
 import { useProject } from "../store/project";
@@ -19,7 +19,6 @@ import { FileTree } from "./FileTree";
 /* 详情区怎么画、右边配什么面板、状态行写什么，**全在 kinds 注册表里**。
    这个文件从此不认识任何一种具体格式 —— 加 `.json` 时它一个字都没动（M8-14）。 */
 import { moduleFor, type ViewContext } from "../kinds";
-import { kindDef } from "@shared/kinds";
 import { FileMore, ToolbarBar } from "../kinds/toolbar";
 import { makeActions } from "./ctxmenu";
 import { TabBar } from "./TabBar";
@@ -64,6 +63,18 @@ export function Workbench({ project, host, layout, setLayout, onHome, onSettings
      「多久算离开」按 `00` §75.4 定的四条：打开别的文件或目录 · 再删一个 ·
      开始重命名或新建 · 切项目或关窗。第四条是我们加的 ——
      不加的话关窗时那一行还悬着，重开之后用户既看不到撤销入口、文件也没真删。 */
+  /** 编辑栏开着的那几份文件。**记在页签上不是全局**（设计侧 §三.1）——
+   *  一份在改、另一份在看，切页签时各自保持。 */
+  const [editBy, setEditBy] = useState<Record<string, boolean>>({});
+  const editKey = dirMode ? "__dir__" : (file ?? "");
+  const editOpen = !!editBy[editKey];
+  const setEditOpen = useCallback((f: (o: boolean) => boolean) => setEditBy((m) => {
+    const next = f(!!m[editKey]);
+    /* 告诉格式模块「进/出编辑态了」—— Markdown 靠它在源码和渲染之间切 */
+    window.dispatchEvent(new CustomEvent("ud-edit-toggled", { detail: next }));
+    return { ...m, [editKey]: next };
+  }), [editKey]);
+
   const [trashed, setTrashed] = useState<string[]>([]);
   const trashedRef = useRef<string[]>([]); trashedRef.current = trashed;
   const commitTrash = useCallback(() => {
@@ -95,10 +106,10 @@ export function Workbench({ project, host, layout, setLayout, onHome, onSettings
       onExpandedChange={(ex) => setLayout({ ...layout, tree: { ...layout.tree, expanded: ex } })}
       /* 浮层态下选完就收 —— 它盖在详情上，不收的话挡着刚打开的文件。
          并排态不收：那是常驻导航。 */
-      onOpenFile={(f) => { open(f); if (!treeInline) setLayout({ ...layout, tree: { ...layout.tree, open: false } }); }}
-      onOpenDir={(d) => { open(d, true); if (!treeInline) setLayout({ ...layout, tree: { ...layout.tree, open: false } }); }}
+      onOpenFile={(f) => { open(f); if (!treeInline) setLayout({ ...layout, left: false }); }}
+      onOpenDir={(d) => { open(d, true); if (!treeInline) setLayout({ ...layout, left: false }); }}
       healthOf={(path) => store.drafts.find((d) => d.file === path)?.health ?? null}
-      drafts={store.drafts} indexed={store.indexed} onCollapse={() => setLayout({ ...layout, tree: { ...layout.tree, open: false } })}
+      drafts={store.drafts} indexed={store.indexed}
       actions={ctxActions} trashed={trashed} onUndoTrash={(p) => setTrashed((xs) => xs.filter((x) => x !== p))}
       tick={`${store.lastEvent?.at ?? ""}:${localTick}`}
     />
@@ -131,23 +142,30 @@ export function Workbench({ project, host, layout, setLayout, onHome, onSettings
     const on = (e: KeyboardEvent) => {
       /* 三块区域（设计侧第八轮定的键）。⌘\ 这个键没变，变的是语义：
          以前是「会话栏展开 / 收成输入条」，现在是「左栏在不在」—— 半开那一态删了。 */
-      if ((e.metaKey || e.ctrlKey) && e.key === "\\") { e.preventDefault(); setLayout({ ...layout, left: !layout.left }); }
+      /* 第九轮的键：**⌘\ 归聊天**（管的还是会话，只是换了边），⌘B 归目录 */
+      if ((e.metaKey || e.ctrlKey) && e.key === "\\") { e.preventDefault(); setLayout({ ...layout, right: !layout.right }); }
       if ((e.metaKey || e.ctrlKey) && !e.altKey && e.key.toLowerCase() === "j") { e.preventDefault(); setLayout({ ...layout, bottom: !layout.bottom }); }
-      if ((e.metaKey || e.ctrlKey) && e.altKey && e.key.toLowerCase() === "b") { e.preventDefault(); if (panels.length) setLayout({ ...layout, right: !layout.right }); }
-      if ((e.metaKey || e.ctrlKey) && !e.altKey && e.key.toLowerCase() === "b") { e.preventDefault(); setLayout({ ...layout, tree: { ...layout.tree, open: !layout.tree.open } }); }
+      /* ⌘⌥B 第八轮是右栏（从属面板），第九轮属性区进了详情内部，这个键跟着它走 */
+      if ((e.metaKey || e.ctrlKey) && e.altKey && e.key.toLowerCase() === "b") {
+        e.preventDefault();
+        if (panels.length) setLayout({ ...layout, props: layout.props ? null : (layout.panelByKind[kind] ?? panels[0]!) });
+      }
+      /* ⌘E 展开 / 收起编辑栏（第九轮新给的键）。它归格式模块自己管，这里只发事件 */
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "e") { e.preventDefault(); if (mod.Toolbar) setEditOpen((o) => !o); }
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && e.key.toLowerCase() === "b") { e.preventDefault(); setLayout({ ...layout, left: !layout.left }); }
       /* ⌘P 转到文件：入口在目录列头，收起时先展开它，不然浮层挂在一个不存在的列上 */
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "p") {
         e.preventDefault();
-        if (!layout.tree.open) setLayout({ ...layout, tree: { ...layout.tree, open: true } });
-        setTimeout(() => window.dispatchEvent(new CustomEvent("ud-goto-file")), layout.tree.open ? 0 : 60);
+        if (!layout.left) setLayout({ ...layout, left: true });
+        setTimeout(() => window.dispatchEvent(new CustomEvent("ud-goto-file")), layout.left ? 0 : 60);
       }
       /* ⌘L 聚焦会话输入框。**原来是 ⌘J，让给底栏了**（`00` §75.4）——
          Cursor 和 VS Code 的 Copilot Chat 都用 ⌘L 聚焦聊天输入，用户正在用 Cursor。
          左栏关着时先打开再聚焦：他按这个键的意图很清楚，别让他按了没反应。 */
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "l") {
         e.preventDefault();
-        if (!layout.left) setLayout({ ...layout, left: true });
-        setTimeout(() => document.getElementById("chatInput")?.focus(), layout.left ? 0 : 60);
+        if (!layout.right) setLayout({ ...layout, right: true });
+        setTimeout(() => document.getElementById("chatInput")?.focus(), layout.right ? 0 : 60);
       }
     };
     document.addEventListener("keydown", on); return () => document.removeEventListener("keydown", on);
@@ -174,7 +192,7 @@ export function Workbench({ project, host, layout, setLayout, onHome, onSettings
   /** 让位算一次，下面三处都用它：目录列并排还是浮层、面板体展开还是抽屉、底栏的布局读数 */
   const yieldNow = computeYield(layout, winW, panels.length > 0);
   const { panelDrawer, treeInline } = yieldNow;
-  const expandChat = useCallback(() => { if (!layout.left) setLayout({ ...layout, left: true }); }, [layout, setLayout]);
+  const expandChat = useCallback(() => { if (!layout.right) setLayout({ ...layout, right: true }); }, [layout, setLayout]);
   /** 同一类选区只留一颗 —— 选区是「当前选的那一块」，不是历史记录 */
   const putSelection = useCallback((k: Selection["kind"], sel: Selection | null) => {
     setSelections((xs) => [...xs.filter((x) => x.kind !== k), ...(sel ? [sel] : [])]);
@@ -265,16 +283,18 @@ export function Workbench({ project, host, layout, setLayout, onHome, onSettings
             第七轮那颗目录钮就是因为这条删掉的。 */}
         <div role="group" aria-label="窗口布局" className="flex items-center gap-0.5 p-0.5 bg-panel2 border border-border rounded shrink-0">
           {([
-            ["left", ICON.regionLeft, layout.left, `${layout.left ? "隐藏" : "显示"}左栏 · 会话（⌘\\）`, false],
-            ["bottom", ICON.regionBottom, layout.bottom, `${layout.bottom ? "隐藏" : "显示"}底栏 · 调试（⌘J）`, false],
-            ["right", ICON.regionRight, layout.right && panels.length > 0, `${layout.right ? "隐藏" : "显示"}右栏 · 面板（⌘⌥B）`, panels.length === 0],
+            /* 第九轮：三颗管的是**目录 / 调试 / 聊天**。图标画的就是框里的那一条边。
+               属性区不在这里 —— 它进了详情内部，开关在 Tab 条右端。 */
+            ["left", "region-tree" as const, layout.left, `${layout.left ? "隐藏" : "显示"}目录（⌘B）`, false],
+            ["bottom", "region-bottom" as const, layout.bottom, `${layout.bottom ? "隐藏" : "显示"}调试栏（⌘J）`, false],
+            ["right", "region-chat" as const, layout.right, `${layout.right ? "隐藏" : "显示"}聊天（⌘\\）`, false],
           ] as const).map(([k, d, on, title, disabled]) => (
             <button key={k} data-ud={`region-${k}`} disabled={disabled} aria-pressed={on}
-              title={disabled ? "这类文件没有从属面板" : title + (k === "bottom" && hasDebugError && !layout.bottom ? " · 有新的错误" : "")}
+              title={title + (k === "bottom" && hasDebugError && !layout.bottom ? " · 有新的错误" : "")}
               onClick={() => setLayout({ ...layout, [k]: !layout[k] })}
               className={`relative w-[30px] h-6 grid place-items-center rounded-sm transition-colors disabled:opacity-40 disabled:cursor-default ${
                 on ? "bg-panel text-text shadow-sm" : "text-muted hover:text-text"}`}>
-              <Glyph d={d} />
+              <Glyph icon={d} />
               {/* 底栏关着却出了 error：挂一个红点。打开看过就消（设计侧演示态 8） */}
               {k === "bottom" && hasDebugError && !layout.bottom && <span className="absolute top-0.5 right-1 w-1.5 h-1.5 rounded-full bg-err" />}
             </button>
@@ -300,15 +320,10 @@ export function Workbench({ project, host, layout, setLayout, onHome, onSettings
           top={topBar}
           regions={[
             {
-              id: "chat", show: layout.left, width: layout.chatWidth,
-              resize: { min: 320, max: 560, def: 380, edge: "right", onResize: (w) => setLayout({ ...layout, chatWidth: w }) },
-              node: rail,
-            },
-            {
-              id: "nav", show: layout.tree.open,
+              id: "nav", show: layout.left,
               width: treeInline ? layout.tree.width : 280,
               float: !treeInline,
-              onFloatClose: () => setLayout({ ...layout, tree: { ...layout.tree, open: false } }),
+              onFloatClose: () => setLayout({ ...layout, left: false }),
               resize: treeInline ? { ...TREE_W, edge: "right", onResize: (w) => setLayout({ ...layout, tree: { ...layout.tree, width: w } }) } : undefined,
               node: tree,
             },
@@ -318,64 +333,83 @@ export function Workbench({ project, host, layout, setLayout, onHome, onSettings
                 <div className="flex-1 min-w-0 flex flex-col">
             <TabBar tabs={tabs} current={dirMode ? null : file} onPick={open}
               onClose={closeTab} onCloseOthers={(keep) => { setTabs([keep]); mem.set(`us.tabs.${project.dir}`, [keep]); if (file !== keep) open(keep); }}
-              extra={!layout.tree.open ? (
-                /* 目录收起后，**同一个图标、箭头反向**出现在这里 —— 目录回来的地方
-                   （设计侧第八轮 §一：「收起钮和展开钮是同一个图标，只是箭头方向相反」） */
-                <button data-ud="tree-reopen" className="w-9 shrink-0 grid place-items-center border-r border-border text-muted hover:bg-hover hover:text-text"
-                  onClick={() => setLayout({ ...layout, tree: { ...layout.tree, open: true } })} title="展开目录列（⌘B）" aria-label="展开目录列">
-                  <Glyph d={ICON.treeExpand} />
-                </button>
+              tail={(dirMode || file) ? (
+                <>
+                  {/* ═══ Tab 条右端三颗（第九轮 §三）═══ 位置固定，不跟着格式变。
+                      ✎ **按下 = 编辑态，抬起 = 预览态** —— 它顺手吃掉了原来「编辑 / 预览」两档，
+                      所以看稿时切来切去的那一下并没有多点一次。 */}
+                  {mod.Toolbar && (
+                    <button data-ud="toggle-edit" onClick={() => setEditOpen((o) => !o)} aria-pressed={editOpen}
+                      title={`${editOpen ? "收起" : "展开"}编辑栏（⌘E）`}
+                      className={`w-7 h-7 grid place-items-center rounded ${editOpen ? "bg-accentSoft text-accent" : "text-muted hover:text-text hover:bg-hover"}`}>
+                      <Glyph icon="edit" />
+                    </button>
+                  )}
+                  {panels.length > 0 && (
+                    <button data-ud="toggle-props" onClick={() => setLayout({ ...layout, props: layout.props ? null : (layout.panelByKind[kind] ?? panels[0]!) })}
+                      aria-pressed={layout.props !== null} title={`${layout.props ? "收起" : "展开"}属性区（⌘⌥B）`}
+                      className={`relative w-7 h-7 grid place-items-center rounded ${layout.props ? "bg-accentSoft text-accent" : "text-muted hover:text-text hover:bg-hover"}`}>
+                      <Glyph icon="region-props" />
+                      {/* 诊断有提醒而属性区收着时挂一个 warn 点，打开就消（设计侧 §三.2） */}
+                      {!layout.props && store.diags.some((d) => d.level === "error" || d.level === "warning") &&
+                        <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-warn" />}
+                    </button>
+                  )}
+                  <FileMore ctx={ctx} items={mod.menu?.(ctx) ?? []} />
+                </>
               ) : null} />
-
-        {/* ═══ 文件工具栏 34px · 只管「当前这份文件」（第七轮第四层）═══
-          **模块不声明 Toolbar 就不出这条带** —— 设计侧明确说代码和其他文件没有这一行，
-          不要给它留一条空横带。`⋯` 的公共尾巴由 `FileMore` 补，不用每个模块重复写。 */}
-        {(dirMode || file) && mod.Toolbar && (
-          <ToolbarBar>
-            <mod.Toolbar ctx={ctx} />
-            {/* 这份文件的读数**挪到了工具栏右端**（M8-16）。
-              它原来在底部状态行，而那条整条去掉了 —— 用户说文件名在页签上已经有、
-              元素数和体检状态他不想在底部看到。放在这儿不算重复：
-              文件工具栏本来就是「这份文件」那一层。最终要留哪些读数由第八轮定。
-              ⚠️ 只有声明了 `Toolbar` 的格式才有这条横带，所以现在只有 JSON 能看到；
-              其余四种等 M8-15b 工具栏上移时一起归位。 */}
-            {/* 不声明 `Status` 就用类型名兜底 —— 这条兜底原来在状态行里，
-              搬位置时我漏了它，工具栏右端就空着（M8-16 实测）。
-              正是 `registry.ts` 那条注释警告过的「一条省略等于空白的接口，早晚有人省略」。 */}
-            {/* ⚠️ **详情窄下来时整段不显示**：它是读数，是这一行里最能让的一样。
-                不让的话它会把右端的 `⋯` 挤出可视区 —— 而 `⋯` 里装着体检、对比上一版这些动作，
-                那是点得到才有用的东西（M8-24 量出来：详情 440 时 ⋯ 落在 1075，可视区到 1060）。 */}
-            {yieldNow.detail >= 620 && (
-              <span className="flex items-center gap-1.5 text-[11px] text-muted font-mono min-w-0 truncate">
-                {mod.Status ? <mod.Status ctx={ctx} /> : kindDef(kind).label}
-              </span>
+            {/* ═══ 编辑栏 36px · **默认收起**（第九轮 §三）═══
+                里面只有**改稿用**的开关。看稿用的（浅深、宽度缩放、演示）
+                常驻在正文右下角的浮块里，不跟着收起 —— 那些是一直在用的。
+                ⚠️ 第七轮这里叫「文件工具栏」且常驻，用户看了实物说
+                「非必要的内容可以先收起」，以第九轮为准。 */}
+            {editOpen && mod.Toolbar && (dirMode || file) && (
+              <ToolbarBar>
+                <mod.Toolbar ctx={ctx} />
+              </ToolbarBar>
             )}
-            <FileMore ctx={ctx} items={mod.menu?.(ctx) ?? []} />
-          </ToolbarBar>
-        )}
-        <div className="flex-1 min-h-0 flex">
-          {!dirMode && !file ? (
-            <div className="flex-1 flex flex-col items-center justify-center gap-2 text-muted text-xs text-center px-6 leading-relaxed bg-canvas">
-              <div className="text-2xl opacity-25">◧</div>
-              <div><b className="text-text2">从左边的目录里选一个文件</b></div>
-              <div className="text-[11px]">双击目录能在这里以它为根打开{layout.tree.open ? "" : "；⌘B 展开目录列"}</div>
+            <div className="flex-1 min-h-0 flex relative">
+              {!dirMode && !file ? (
+                <div className="flex-1 flex flex-col items-center justify-center gap-2 text-muted text-xs text-center px-6 leading-relaxed bg-canvas">
+                  <Glyph icon="file" size={28} className="opacity-25" />
+                  <div><b className="text-text2">从左边的目录里选一个文件</b></div>
+                  <div className="text-[11px]">双击目录能在这里以它为根打开{layout.left ? "" : "；⌘B 展开目录"}</div>
+                </div>
+              ) : <mod.View ctx={ctx} />}
+              {/* ═══ 正文右下角的浮块（第九轮 §三.3）═══ 只放**看稿用**的，不占一行。 */}
+              {mod.Corner && (dirMode || file) && (
+                <div data-ud="corner" className="absolute right-3 bottom-3 z-10 flex items-center gap-1 px-1.5 h-8 rounded-lg bg-panel/95 border border-border shadow-lg">
+                  <mod.Corner ctx={ctx} />
+                </div>
+              )}
+              {/* ═══ 属性区（第九轮：进了详情内部）═══
+                  **完全收掉，不留 40px 图标轨** —— 默认收起还留一条轨，
+                  等于常驻一列没人看的图标。窄了就改抽屉浮在正文右边（R2）。 */}
+              {layout.props !== null && panels.length > 0 && mod.Panels && (
+                panelDrawer
+                  ? <div data-ud="props" className="absolute right-0 top-0 bottom-0 z-30 flex shadow-2xl border-l border-border bg-panel" style={{ width: PANEL_W }}><mod.Panels ctx={ctx} /></div>
+                  : <div data-ud="props" className="shrink-0 flex border-l border-border" style={{ width: PANEL_W }}><mod.Panels ctx={ctx} /></div>
+              )}
             </div>
-          ) : <mod.View ctx={ctx} />}
-        </div>
                 </div>
               ),
             },
             {
-              id: "panels", show: layout.right && panels.length > 0, width: "fit",
-              node: mod.Panels ? <mod.Panels ctx={ctx} /> : null,
+              /* **聊天固定在右**（第九轮）。手柄在它的左边沿 —— 320–520，双击回 380。
+                 M8-26 抽了 Frame 之后，这次换边改的就是这几行。 */
+              id: "chat", show: layout.right, width: layout.chatWidth,
+              resize: { min: 320, max: 520, def: 380, edge: "left", onResize: (w) => setLayout({ ...layout, chatWidth: w }) },
+              node: rail,
             },
           ]}
           bottom={layout.bottom ? {
             node: <BottomBar layout={layout} setLayout={setLayout} store={store} chat={chat} yieldNow={yieldNow} hasPanels={panels.length > 0} />,
             height: layout.bottomHeight,
-            /* **只横跨中间那几块**（第八轮 §二）：会话的输入框要贴着窗口底部，
-               右栏的面板要整列的高度。 */
-            spans: ["nav", "detail"],
+            /* **通栏**（第九轮改的）：用户第 5 条「窗口最底部为调试和输出模块，
+               用于**所有模块和功能**的输出」，设计稿的图也是横跨三列。
+               第八轮那版只横跨中间，理由是会话的输入框要贴着窗口底部 ——
+               第九轮聊天换到右边、调试栏定位成"所有模块的输出"，那条理由不成立了。 */
+            spans: ["nav", "detail", "chat"],
           } : undefined}
         />
       </Wrap>

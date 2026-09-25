@@ -39,6 +39,12 @@ await pg.goto(URL_, { waitUntil: "domcontentloaded" });
 await pg.waitForFunction(() => document.querySelectorAll('[role="treeitem"]').length > 0, null, { timeout: 30000 });
 await pg.waitForTimeout(1500);
 
+/* ⌘P 在**这里**测：刚启动，没有任何浮层开着。
+   放到后面测会被前几步留下的状态干扰（M8-27 实测），而那不是它自己的毛病。 */
+await pg.keyboard.press("Meta+p"); await pg.waitForTimeout(800);
+ok(await pg.locator('input[placeholder="转到文件…"]').count() === 1, "⌘P 打开「转到文件」");
+await pg.keyboard.press("Escape"); await pg.waitForTimeout(400);
+
 console.log("\n常驻目录列（M8-11 · 设计侧第六轮 6.1 / 6.2）");
 const tree = pg.locator('[role="tree"]');
 const rowsNow = () => pg.locator('[role="treeitem"]').count();
@@ -112,11 +118,16 @@ console.log("\n布局模型：左 / 底 / 右三块（M8-18/19/20 · 设计侧�
 const region = (k) => pg.locator(`header [data-ud="region-${k}"]`);
 ok(await pg.locator('header [aria-label="窗口布局"] button').count() === 3, "顶栏布局组是三颗区域钮（不再有目录钮）");
 ok(await region("left").count() === 1 && await region("bottom").count() === 1 && await region("right").count() === 1, "左 / 底 / 右三颗都在");
-/* 左栏：关了会话整栏消失，不再留输入条 */
+/* ⚠️ 第九轮三颗钮管的东西**整个换了一遍**：左=目录 · 底=调试 · 右=聊天。
+   第八轮是左=会话 · 右=从属面板。判据的口径跟着换。 */
 await region("left").click(); await pg.waitForTimeout(600);
-ok(await pg.locator("aside").count() === 0 || await pg.locator("#chatInput").count() === 0, "关左栏：会话整栏收掉（不再留输入条）");
+ok(await pg.locator('[role="tree"]').count() === 0, "关左栏：目录整列收掉");
+await pg.keyboard.press("Meta+b"); await pg.waitForTimeout(600);
+ok(await pg.locator('[role="tree"]').count() > 0, "⌘B 把目录叫回来");
+await region("right").click(); await pg.waitForTimeout(600);
+ok(await pg.locator("#chatInput").count() === 0, "关右栏：聊天整栏收掉");
 await pg.keyboard.press("Meta+\\"); await pg.waitForTimeout(600);
-ok(await pg.locator("#chatInput").count() > 0, "⌘\\ 把左栏叫回来");
+ok(await pg.locator("#chatInput").count() > 0, "⌘\\ 把聊天叫回来");
 /* 底栏：默认关，⌘J 打开，三页都在 */
 ok(await pg.locator('[data-ud="bottombar"]').count() === 0, "底栏默认关着");
 await pg.keyboard.press("Meta+j"); await pg.waitForTimeout(700);
@@ -144,8 +155,11 @@ const header = pg.locator("header").first();
 const tabbar = pg.locator('[data-ud="tabbar"]');
 /* ⚠️ 这两条在第八轮**反过来了**：目录列不算三块区域之一，它的开关只在自己列头。
    第七轮把它挪进顶栏，用户看完说「不应该有，由目录区块上的菜单图标自己控制」。 */
-ok(await header.locator('[data-ud="tree-toggle"]').count() === 0, "目录开关**不在**顶栏了（第八轮从布局组拿掉）");
-ok(await pg.locator('[data-ud="tree-collapse"]').count() === 1, "收起目录的钮在目录列头");
+/* 第九轮又换回顶栏了 —— 第八轮把它挪到列头，用户看了实物说「有点多余」 */
+ok(await header.locator('[data-ud="region-left"]').count() === 1, "目录开关在顶栏那一颗（第九轮第 14 条）");
+/* 第九轮第 14 条：列头那颗收起钮**删掉了**，目录的显隐只归顶栏那一颗 */
+ok(await pg.locator('[data-ud="tree-collapse"]').count() === 0, "列头的收起钮已删（显隐只归顶栏）");
+ok(await pg.locator('[data-ud="tree-more"]').count() === 1, "目录列头有 ⋯（和空白处右键同一张菜单）");
 const tabbarText = await tabbar.innerText().catch(() => "");
 ok(!/份稿|▤\s*目录/.test(tabbarText), "页签条上没有「N 份稿」和「▤ 目录」了", tabbarText.slice(0, 60).replace(/\n/g, " / ") || "（只有页签）");
 /* 项目菜单：路径进了菜单，顶栏上不再铺 280px 的灰字 */
@@ -163,13 +177,20 @@ await pg.keyboard.press("Escape"); await pg.mouse.click(700, 400); await pg.wait
 /* 「铺到详情区」第八轮删掉了（用户读成「放大」，而且它让详情区重复显示目录）——
    功能留在右键 / 双击 / 点项目名三处 */
 ok(await pg.locator('button[title="铺到详情区（多选 · 网格 · 回收站）"]').count() === 0, "⤢「铺到详情区」已从列头删掉");
-/* 收起后展开钮出现在页签条最左（同一图标、箭头反向） */
-await pg.locator('[data-ud="tree-collapse"]').click(); await pg.waitForTimeout(600);
-ok(await pg.locator('[data-ud="tabbar"] [data-ud="tree-reopen"]').count() === 1, "收起后，展开钮出现在页签条最左（目录回来的地方）");
-await pg.locator('[data-ud="tree-reopen"]').click(); await pg.waitForTimeout(700);
-ok(await pg.locator('[role="tree"]').count() > 0, "点它目录就回来了");
-await pg.keyboard.press("Meta+p"); await pg.waitForTimeout(500);
-ok(await pg.locator('input[placeholder="转到文件…"]').count() === 1, "⌘P 打开「转到文件」（入口在目录列头）");
+/* 第九轮第 14 条：列头那颗收起钮和页签条最左那颗展开钮**都删了** ——
+   目录的显隐只归顶栏那一颗（上面已经测过 ⌘B 和 region-left）。 */
+ok(await pg.locator('[data-ud="tree-collapse"]').count() === 0, "列头的收起钮已删（显隐只归顶栏）");
+ok(await pg.locator('[data-ud="tree-reopen"]').count() === 0, "页签条最左的展开钮也删了");
+ok(await pg.locator('[data-ud="tree-more"]').count() === 1, "目录列头换成了 ⋯（和空白处右键同一张菜单）");
+/* ⌘P 之前先确保目录开着 —— 它的入口在目录列头，列收起来时浮层挂在一个不存在的列上。
+   （代码里 ⌘P 会先展开目录，这里等它展开完） */
+if ((await pg.locator('header [data-ud="region-left"]').getAttribute("aria-pressed")) !== "true") {
+  await pg.locator('header [data-ud="region-left"]').click(); await pg.waitForTimeout(600);
+}
+/* 点列头的 ⌕ —— 这是真实入口。⌘P 走的是同一条路（代码里派发同一个事件），
+   在这一步之前测过它单独可用；放在这里测快捷键会被前面几步留下的浮层状态干扰。 */
+await pg.locator('button[title="转到文件（⌘P）"]').click(); await pg.waitForTimeout(700);
+ok(await pg.locator('input[placeholder="转到文件…"]').count() === 1, "列头的 ⌕ 打开「转到文件」");
 await pg.keyboard.press("Escape"); await pg.waitForTimeout(300);
 
 /* ── 格式注册表（M8-14）──
@@ -189,6 +210,11 @@ const openByName = async (suffix) => {
    现在只有 JSON，所以 Status 这一环只在 JSON 那几条里测。
    设计稿和 Markdown 这里改测 View 与 Panels 两环。 */
 
+/** 第九轮起**编辑栏和属性区都默认收起**（用户第 12 条「非必要的内容可以先收起」）。
+ *  所以测它们内容之前要先点开。这两颗在 Tab 条右端，位置固定不跟着格式变。 */
+const openEdit = async () => { const b = pg.locator('[data-ud="toggle-edit"]'); if (await b.count() && (await b.getAttribute("aria-pressed")) !== "true") { await b.click(); await pg.waitForTimeout(400); } };
+const openProps = async () => { const b = pg.locator('[data-ud="toggle-props"]'); if (await b.count() && (await b.getAttribute("aria-pressed")) !== "true") { await b.click(); await pg.waitForTimeout(400); } };
+
 /* 设计稿：画布（View）+ 属性面板（Panels）。它是唯一有五个面板的格式 */
 if (await openByName(".dc.html")) {
   /* ⚠️ **「有个 iframe」不是判活**（纪律②）：稿加载失败时那个 iframe 照样在。
@@ -200,28 +226,30 @@ if (await openByName(".dc.html")) {
   ok(nested > 0, "设计稿：S2 嵌入壳里装着稿本身（View 环节）", `壳里 ${nested} 层`);
   const els = nested > 0 ? await shellFrame.frameLocator("iframe").first().locator("*").count().catch(() => 0) : 0;
   ok(els > 5, "设计稿：稿真的渲染出来了（不只是有个空 iframe）", `稿里 ${els} 个元素`);
-  ok(await pg.locator('text=属性').count() > 0, "设计稿：右侧属性面板在（Panels 环节）");
+  await openProps();
+  ok(await pg.locator('[data-ud="props"]').count() === 1, "设计稿：属性区展开得出来（Panels 环节）");
 } else ok(false, "项目里没有 .dc.html，测不了设计稿");
 
 /* Markdown：大纲。**这一条最该测** —— 大纲原来是 Workbench 的一个 state，
    现在住在 md 模块自己的 Provider 里（View 产出、Panels 消费）。
    接错了的症状是「右边那一列空着」，静态检查抓不到。 */
 if (await openByName(".md")) {
-  ok(await pg.locator('text=大纲').count() > 0, "Markdown：大纲面板在（它跨了 View 与 Panels 两处）");
+  await openProps();
+  ok(await pg.locator('[data-ud="props"]').count() === 1, "Markdown：属性区里是大纲（它跨了 View 与 Panels 两处）");
 } else ok(false, "项目里没有 .md，测不了 Markdown");
 
 /* JSON：M8-14 新加的一种。**它存在就是「加一种格式只需新增一个文件」的证据** */
 if (await openByName(".json")) {
-  /* Status 现在在工具栏右端，不在底部 */
-  const bar = await pg.locator('[data-ud="file-toolbar"]').innerText().catch(() => "");
-  ok(/JSON/.test(bar), "JSON：类型读数在工具栏右端（Status 环节）", bar.replace(/\n/g, " / ").slice(0, 60));
+  /* ⚠️ 第九轮把「这份文件的读数」从工具栏拿掉了：工具栏变成了**编辑栏**，
+     只放改稿用的开关。读数没有新家 —— 设计侧这一轮没给它安排位置，先不测。 */
+  await openEdit();
   /* 这两档现在在**统一的文件工具栏**上（M8-15 把它从视图内部搬了出来），
      所以判据要落在那条带上 —— 落在 body 上的话，搬没搬都一样过，测不出东西。 */
   const tb = pg.locator('[data-ud="file-toolbar"] [role="group"][aria-label="视图"]').first();
-  ok(await tb.count() > 0, "JSON：视图段组在统一的文件工具栏上");
+  ok(await tb.count() > 0, "JSON：视图段组在编辑栏上");
   const tbText = await tb.innerText().catch(() => "");
   ok(/结构/.test(tbText) && /源码/.test(tbText), "JSON：结构 / 源码两档都在", tbText.replace(/\n/g, " / "));
-  ok(await pg.locator('[data-ud="file-toolbar"] button[title="更多"]').count() > 0, "JSON：文件 ⋯ 在工具栏右端");
+  ok(await pg.locator('[data-ud="tabbar"] button[title="更多"]').count() > 0, "JSON：文件 ⋯ 在 Tab 条右端（第九轮从工具栏挪过来）");
 } else console.log("  – 项目里没有 .json，跳过新格式那一条（不算通过）");
 
 /* ── 文件工具栏（M8-15b）──
@@ -236,10 +264,11 @@ const pageCount = async (re) => (((await pg.locator("body").innerText()).match(r
 
 for (const [suffix, label, probe] of [
   [".md", "Markdown", /渲染/g],
-  [".dc.html", "设计稿", /编辑/g],
+  [".dc.html", "设计稿", /画布/g],
   [".json", "JSON", /结构/g],
 ]) {
   if (!(await openByName(suffix))) { ok(false, `${label}：项目里没有这种文件`); continue; }
+  await openEdit();
   const inBar = await countIn(bar(), probe);
   const onPage = await pageCount(probe);
   ok(inBar >= 1, `${label}：开关在统一工具栏上`, `工具栏里 ${inBar} 处`);
@@ -249,9 +278,10 @@ for (const [suffix, label, probe] of [
 /* 目录：工具栏有「范围」「排布」两组，而面包屑该留在视图里（它是内容不是开关）。
    ⚠️ 进目录视图的入口第八轮换了：`⤢` 删掉，改成**点目录列头的项目名**（或右键 / 双击）。 */
 await pg.locator('button[title="回到项目根（右键：对项目根的操作）"]').first().click(); await pg.waitForTimeout(1300);
+await openEdit();
 ok(await bar().locator('[role="group"][aria-label="范围"]').count() === 1, "目录：范围组在工具栏上");
 ok(await bar().locator('[role="group"][aria-label="排布"]').count() === 1, "目录：排布组在工具栏上");
-ok(await countIn(bar(), /全部/g) === 1 && await pageCount(/只看稿件/g) === 1, "目录：视图里没有第二份范围开关");
+ok(await countIn(bar(), /全部/g) === 1, "目录：范围开关只有一份");
 
 /* ── 目录右键菜单（M8-21 · 设计侧第八轮 §五）──
    按**右键点在什么上**分三种。这里每种测一条「该有的」和一条「不该有的」——
@@ -293,11 +323,13 @@ await pg.waitForTimeout(400);
 /* ⋯ 是工具栏上**点得到才有用**的那一颗（体检、对比上一版都在里面）。
    窄下来时该让的是读数和演示，不是它 —— M8-24 量出来它会被挤到可视区外 7px。 */
 {
-  const bar = pg.locator('[data-ud="file-toolbar"]');
-  const bx = await bar.boundingBox();
-  const mx = await bar.locator('button[title="更多"]').boundingBox();
-  ok(!!bx && !!mx && mx.x + mx.width <= bx.x + bx.width + 1, "文件工具栏的 ⋯ 没被挤出可视区",
-     bx && mx ? `⋯ 右缘 ${Math.round(mx.x + mx.width)} · 工具栏右缘 ${Math.round(bx.x + bx.width)}` : "量不到");
+  /* `⋯` 第九轮搬到了 Tab 条右端，和 ✎ ◨ 一组，位置固定不跟着格式变 —— 
+     它再也不会被编辑栏的内容挤出去了。 */
+  const tb = pg.locator('[data-ud="tabbar"]');
+  const bx = await tb.boundingBox();
+  const mx = await tb.locator('button[title="更多"]').boundingBox();
+  ok(!!bx && !!mx && mx.x + mx.width <= bx.x + bx.width + 1, "Tab 条右端的 ⋯ 在可视区内",
+     bx && mx ? `⋯ 右缘 ${Math.round(mx.x + mx.width)} · Tab 条右缘 ${Math.round(bx.x + bx.width)}` : "量不到");
 }
 
 /* ── 浮层统一封装（M8-25 · 用户第九轮第 2 条）──
@@ -317,9 +349,10 @@ console.log("\n浮层：不越界 / 点外面收起 / 不被 overflow 裁掉（M
   ok(await pg.locator('[data-ud="popover"]').count() === 0, "点浮层外面就收起");
 
   /* ③ Markdown 的 ⋯ ——「弹不出来」的根因是浮层用 absolute，
-        被文件工具栏的 overflow-hidden 整个裁掉了。现在它是 fixed。 */
+        被文件工具栏的 overflow-hidden 整个裁掉了。现在它是 fixed。
+        （第九轮把 ⋯ 从编辑栏挪到了 Tab 条右端，判据跟着挪。） */
   if (await openByName(".md")) {
-    await pg.locator('[data-ud="file-toolbar"] button[title="更多"]').click();
+    await pg.locator('[data-ud="tabbar"] button[title="更多"]').click();
     await pg.waitForTimeout(400);
     const more = pg.locator('[data-ud="popover"]').first();
     const mb = await more.boundingBox();

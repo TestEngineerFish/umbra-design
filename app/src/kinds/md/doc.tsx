@@ -77,6 +77,12 @@ export function MdProvider({ ctx, children }: { ctx: ViewContext; children: Reac
     const on = (e: Event) => jumpTo((e as CustomEvent<Outline>).detail, mode, area, setMode);
     window.addEventListener("ud-md-jump", on); return () => window.removeEventListener("ud-md-jump", on);
   }, [mode]);
+  /* 展开编辑栏 = 进源码编辑，收起 = 回渲染阅读（设计侧第九轮 §三.3）。
+     ✎ 那一颗就是这个开关，所以编辑栏里不再有「渲染 / 源码」两档要切。 */
+  useEffect(() => {
+    const on = (e: Event) => setMode((e as CustomEvent<boolean>).detail ? "source" : "render");
+    window.addEventListener("ud-edit-toggled", on); return () => window.removeEventListener("ud-edit-toggled", on);
+  }, []);
   /* 版本历史由文件 `⋯` 里的那一项触发。走事件是因为 `menu` 是个纯函数、
      拿不到 React context —— 它只能说「要开版本历史」，开的动作在这里。 */
   useEffect(() => {
