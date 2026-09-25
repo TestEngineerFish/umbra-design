@@ -26,7 +26,8 @@ export function ChatRail({ chat, selections, onDropSelection, onClearSelections,
           删掉的：会话标题 ▾（标题是第一条消息的前 40 字，给人找会话用，放历史列表里才有用）、
           `＋`（进了历史列表第一行）、`⇄ 换边`（会话固定在左了）、
           `×`（和顶栏的左栏钮重复 —— 一件事一个入口）。 */}
-      <div className="h-11 px-3 flex items-center gap-2 border-b border-border shrink-0">
+      {/* AI 在跑：这条线变 2px 流动（第九轮 §八：模块自己的事只在自己的线上走） */}
+      <div className={`h-9 px-3 flex items-center gap-2 border-b border-border shrink-0 relative ${chat.running ? "busyline" : ""}`}>
         {/* 引擎选择器。
             **不能三个平铺** —— 换成引擎名之后「DeepSeek / Claude Code / 火山方舟」加起来
             远超 380px 的会话栏，实测会把左边的标题挤成竖排一列（2026-09-24 截图抓到）。
@@ -38,7 +39,7 @@ export function ChatRail({ chat, selections, onDropSelection, onClearSelections,
             <span className="truncate">{cap?.engine ?? chat.channel.toUpperCase()}</span>
             <span className="text-[9px] text-muted shrink-0">▾</span>
           </button>
-          <Popover pop={engPop} align="start" width={220}>
+          <Popover pop={engPop} align="start" width={280}>
               {(["b", "a", "c"] as const).map((c) => {
                 const k = chat.caps?.[c];
                 if (!k) return null;

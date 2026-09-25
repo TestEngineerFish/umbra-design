@@ -92,8 +92,8 @@ export function itemsFor(t: CtxTarget, a: CtxActions): CtxItem[] {
 /** 右键菜单 = 位置跟着鼠标的浮层。定位、翻转、外部点击、Esc 全在 `ui/Popover` 里（M8-25）。 */
 export function CtxMenu({ x, y, items, onClose }: { x: number; y: number; items: CtxItem[]; onClose: () => void }) {
   return (
-    <PopoverAt x={x} y={y} onClose={onClose} width={208} tag="ctxmenu">
-      <div className="p-1">
+    <PopoverAt x={x} y={y} onClose={onClose} tag="ctxmenu">
+      <div>
         {items.map((it, i) => it.label === "—"
           ? <PopSep key={i} />
           : <PopItem key={i} label={it.label} hint={it.hint} danger={it.danger}

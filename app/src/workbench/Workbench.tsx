@@ -22,12 +22,15 @@ import { moduleFor, type ViewContext } from "../kinds";
 import { FileMore, ToolbarBar } from "../kinds/toolbar";
 import { makeActions } from "./ctxmenu";
 import { TabBar } from "./TabBar";
+import { normalize, openTab, type Tab } from "./tabs";
 
 /** 工作台（S11 形制）：顶栏 40 · 页签 34 · 左会话 / 中画布 / 右从属面板列 · 底部状态行 24 */
 export function Workbench({ project, host, layout, setLayout, onHome, onSettings }: { project: ProjectHandle; host: HostAdapter; layout: LayoutState; setLayout: (l: LayoutState) => void; onHome: () => void; onSettings: () => void }) {
   const core = useMemo(() => new Core(project.url, project.token, project.ws), [project]);
   const store = useProject(core, project.dir);
-  const [tabs, setTabs] = useState<string[]>(() => mem.get(`us.tabs.${project.dir}`, []));
+  /** 页签三态（M8-28）。存量是 `string[]`，`normalize` 认它 */
+  const [tabs, setTabsRaw] = useState<Tab[]>(() => normalize(mem.get(`us.tabs.${project.dir}`, [])));
+  const setTabs = useCallback((next: Tab[]) => { setTabsRaw(next); mem.set(`us.tabs.${project.dir}`, next); }, [project.dir]);
   /** 当前打开的是目录时，file 是目录路径（"" = 项目根），dirMode 为真 */
   const [dirMode, setDirMode] = useState(false);
   /* 曾经在这里的三样 state 已经搬进各自的格式模块：
@@ -65,15 +68,37 @@ export function Workbench({ project, host, layout, setLayout, onHome, onSettings
      不加的话关窗时那一行还悬着，重开之后用户既看不到撤销入口、文件也没真删。 */
   /** 编辑栏开着的那几份文件。**记在页签上不是全局**（设计侧 §三.1）——
    *  一份在改、另一份在看，切页签时各自保持。 */
+  /* **改了内容就转正**（设计侧 §六.1）：人都开始改了，它不该再被下一次单击盖掉。
+     `dirtyStore` 是每种格式各自登记的，这里订阅它。 */
+  const dirtySnap = useSyncExternalStore(dirtyStore.subscribe, dirtyStore.snapshot);
+  useEffect(() => {
+    const dirty = dirtySnap ? dirtySnap.split("|") : [];
+    if (!dirty.length) return;
+    setTabsRaw((ts) => {
+      if (!ts.some((t) => t.preview && dirty.includes(t.path))) return ts;
+      const n = ts.map((t) => (t.preview && dirty.includes(t.path) ? { ...t, preview: false } : t));
+      mem.set(`us.tabs.${project.dir}`, n);
+      return n;
+    });
+  }, [dirtySnap, project.dir]);
+
   const [editBy, setEditBy] = useState<Record<string, boolean>>({});
   const editKey = dirMode ? "__dir__" : (file ?? "");
   const editOpen = !!editBy[editKey];
-  const setEditOpen = useCallback((f: (o: boolean) => boolean) => setEditBy((m) => {
-    const next = f(!!m[editKey]);
-    /* 告诉格式模块「进/出编辑态了」—— Markdown 靠它在源码和渲染之间切 */
+  const setEditOpen = useCallback((f: (o: boolean) => boolean) => {
+    const next = f(editOpen);
+    setEditBy((m) => ({ ...m, [editKey]: next }));
+    /* 告诉格式模块「进 / 出编辑态了」—— Markdown 靠它在源码和渲染之间切 */
     window.dispatchEvent(new CustomEvent("ud-edit-toggled", { detail: next }));
-    return { ...m, [editKey]: next };
-  }), [editKey]);
+    /* **展开编辑栏 = 这份文件转正**（设计侧 §六.1 列的进入「打开态」的方式之一）——
+       人都开始改了，它就不该再被下一次单击盖掉 */
+    if (next && editKey && editKey !== "__dir__") {
+      setTabsRaw((ts) => { const n = ts.map((t) => (t.path === editKey ? { ...t, preview: false } : t)); mem.set(`us.tabs.${project.dir}`, n); return n; });
+    }
+    /* ⚠️ 这三件**都不能写在 `setEditBy` 的 updater 里**：updater 必须是纯函数。
+       M8-28 真栽过 —— 在 updater 里调 `setTabsRaw` 和 `dispatchEvent`，
+       结果整个 `setEditBy` 不生效，⌘E 按了没反应，而分支明明进去了。 */
+  }, [editOpen, editKey, project.dir]);
 
   const [trashed, setTrashed] = useState<string[]>([]);
   const trashedRef = useRef<string[]>([]); trashedRef.current = trashed;
@@ -106,10 +131,12 @@ export function Workbench({ project, host, layout, setLayout, onHome, onSettings
       onExpandedChange={(ex) => setLayout({ ...layout, tree: { ...layout.tree, expanded: ex } })}
       /* 浮层态下选完就收 —— 它盖在详情上，不收的话挡着刚打开的文件。
          并排态不收：那是常驻导航。 */
-      onOpenFile={(f) => { open(f); if (!treeInline) setLayout({ ...layout, left: false }); }}
+      /* **单击 = 预览态、双击 = 打开态**（用户第 8 条）。
+         浮层态下选完就收 —— 它盖在详情上，不收的话挡着刚打开的文件。 */
+      onOpenFile={(f, dbl) => { open(f, false, dbl ? "open" : "preview"); if (!treeInline) setLayout({ ...layout, left: false }); }}
       onOpenDir={(d) => { open(d, true); if (!treeInline) setLayout({ ...layout, left: false }); }}
       healthOf={(path) => store.drafts.find((d) => d.file === path)?.health ?? null}
-      drafts={store.drafts} indexed={store.indexed}
+      drafts={store.drafts} indexed={store.indexed} reindexing={store.checking === "__index__"}
       actions={ctxActions} trashed={trashed} onUndoTrash={(p) => setTrashed((xs) => xs.filter((x) => x !== p))}
       tick={`${store.lastEvent?.at ?? ""}:${localTick}`}
     />
@@ -169,20 +196,45 @@ export function Workbench({ project, host, layout, setLayout, onHome, onSettings
       }
     };
     document.addEventListener("keydown", on); return () => document.removeEventListener("keydown", on);
-  }, [layout, setLayout, panels.length]);
+    /* ⚠️ **依赖一个都不能漏**。M8-28 栽过：漏了 `setEditOpen`（它随当前文件变），
+       闭包捕获的是上一个文件的 `editKey`，于是 ⌘E 把编辑栏开在了**别的文件**上，
+       症状是「按了没反应」—— 和用户第 11 条抱怨的一模一样。
+       这种错最难查：分支进去了、state 也写了，只是写错了地方。 */
+  }, [layout, setLayout, panels.length, onSettings, kind, mod.Toolbar, setEditOpen]);
 
   /** 打开任意文件或目录。目录不进页签（它是一个位置，不是一份文件）。 */
-  const open = (f: string, isDir = false) => {
+  const open = (f: string, isDir = false, mode: "preview" | "open" = "preview") => {
     commitTrash();   // 「做下一件事」的第一条：打开别的文件或目录
     setPicked(null);
     setDirMode(isDir);
     store.select(isDir ? (f || "__root__") : f);
     if (isDir) return;
     mem.set(`us.lastDraft.${project.dir}`, f);
-    setTabs((t) => { const n = t.includes(f) ? t : [...t, f]; mem.set(`us.tabs.${project.dir}`, n); return n; });
+    /* 单击 = 预览态（会盖掉上一个预览页签），双击 / 明确打开 = 打开态。
+       这是用户第 8 条要的「不要每看一个就多一个」。 */
+    setTabsRaw((t) => { const n = openTab(t, f, mode); mem.set(`us.tabs.${project.dir}`, n); return n; });
   };
   const dirRel = dirMode ? (file === "__root__" ? "" : (file ?? "")) : "";
-  const closeTab = (f: string) => { dirtyStore.drop(f); const n = tabs.filter((x) => x !== f); setTabs(n); mem.set(`us.tabs.${project.dir}`, n); if (file === f) { const next = n[n.length - 1] ?? null; if (next) open(next); else store.select(null); } };
+  const closeTab = useCallback((f: string) => {
+    dirtyStore.drop(f);
+    /* 关页签时把编辑栏的记忆也清掉 —— 重新打开时回到收起。
+       设计侧问过这一条，它的建议就是「回到收起」：重开一份文件多半是去看的，
+       不是接着改的；真要改，⌘E 一下就回来。 */
+    setEditBy((m) => { const n = { ...m }; delete n[f]; return n; });
+    const n = tabs.filter((x) => x.path !== f);
+    setTabs(n);
+    if (file === f) { const next = n[n.length - 1]?.path ?? null; if (next) open(next, false, "open"); else store.select(null); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tabs, file, setTabs]);
+  /** 关一批（右键菜单的「关闭其他 / 右侧 / 已保存的」用） */
+  const closeMany = useCallback((list: Tab[]) => {
+    for (const t of list) dirtyStore.drop(t.path);
+    const gone = new Set(list.map((t) => t.path));
+    const n = tabs.filter((t) => !gone.has(t.path));
+    setTabs(n);
+    if (file && gone.has(file)) { const next = n[n.length - 1]?.path ?? null; if (next) open(next, false, "open"); else store.select(null); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tabs, file, setTabs]);
 
   /* 底栏那颗钮的红点：有没有 error。关着的时候才提示，打开看过就消。 */
   wireDebug();
@@ -246,8 +298,8 @@ export function Workbench({ project, host, layout, setLayout, onHome, onSettings
             <span className="font-semibold truncate">{project.title || project.name}</span>
             <Glyph d={ICON.caretDown} size={11} stroke={1.6} className="text-muted" />
           </button>
-          <Popover pop={projPop} align="start" width={288}>
-            <div className="p-1">
+          <Popover pop={projPop} align="start">
+            <div>
               {/* 路径**整块可点，点了就复制**（第八轮 §三）——
                   所以菜单里不再单独放一项「复制路径」。
                   项目名不写第二遍：按钮上就是它，菜单是它的展开（M8-16 用户提的 double name）。 */}
@@ -322,7 +374,7 @@ export function Workbench({ project, host, layout, setLayout, onHome, onSettings
             {
               id: "nav", show: layout.left,
               width: treeInline ? layout.tree.width : 280,
-              float: !treeInline,
+              float: layout.left && !treeInline,
               onFloatClose: () => setLayout({ ...layout, left: false }),
               resize: treeInline ? { ...TREE_W, edge: "right", onResize: (w) => setLayout({ ...layout, tree: { ...layout.tree, width: w } }) } : undefined,
               node: tree,
@@ -331,8 +383,15 @@ export function Workbench({ project, host, layout, setLayout, onHome, onSettings
               id: "detail", show: true,
               node: (
                 <div className="flex-1 min-w-0 flex flex-col">
-            <TabBar tabs={tabs} current={dirMode ? null : file} onPick={open}
-              onClose={closeTab} onCloseOthers={(keep) => { setTabs([keep]); mem.set(`us.tabs.${project.dir}`, [keep]); if (file !== keep) open(keep); }}
+            <TabBar tabs={tabs} current={dirMode ? null : file} busy={store.checking === file}
+              onPick={(p) => open(p)} onOpen={(p) => open(p, false, "open")}
+              onClose={closeTab} onCloseMany={closeMany}
+              onPin={(p, pinned) => setTabs(tabs.map((t) => (t.path === p ? { ...t, pinned, preview: pinned ? false : t.preview } : t)))}
+              onKeep={(p) => setTabs(tabs.map((t) => (t.path === p ? { ...t, preview: false } : t)))}
+              onLocate={(p) => { if (!layout.left) setLayout({ ...layout, left: true }); setTimeout(() => window.dispatchEvent(new CustomEvent("ud-locate-file", { detail: p })), layout.left ? 0 : 80); }}
+              onToChat={(p) => { putSelection("files", { kind: "files", label: p.split("/").pop() ?? p, detail: p }); expandChat(); }}
+              onCopyPath={(p) => void navigator.clipboard?.writeText(`${project.dir}/${p}`).then(() => toast("路径已复制", undefined, "ok"), () => toast("复制不了", "浏览器不让访问剪贴板", "error"))}
+              onReveal={(p) => void host.revealInFinder(`${project.dir}/${p}`).catch((e: Error) => toast("打不开", e.message, "error"))}
               tail={(dirMode || file) ? (
                 <>
                   {/* ═══ Tab 条右端三颗（第九轮 §三）═══ 位置固定，不跟着格式变。
@@ -363,10 +422,16 @@ export function Workbench({ project, host, layout, setLayout, onHome, onSettings
                 常驻在正文右下角的浮块里，不跟着收起 —— 那些是一直在用的。
                 ⚠️ 第七轮这里叫「文件工具栏」且常驻，用户看了实物说
                 「非必要的内容可以先收起」，以第九轮为准。 */}
-            {editOpen && mod.Toolbar && (dirMode || file) && (
-              <ToolbarBar>
-                <mod.Toolbar ctx={ctx} />
-              </ToolbarBar>
+            {mod.Toolbar && (dirMode || file) && (
+              /* 展开是**往下推正文**，不浮在正文上 —— 浮上去就盖住稿的顶部，
+                 而稿的顶部常常就是要改的导航（设计侧 §三.1）。
+                 高度 0 ↔ 36，中档 180ms；里层贴底，看起来是从 Tab 条下面推出来的。 */
+              <div className="shrink-0 anim-block" style={{ height: editOpen ? 36 : 0, opacity: editOpen ? 1 : 0 }}
+                {...(!editOpen ? { inert: "" as unknown as boolean } : {})}>
+                <ToolbarBar>
+                  <mod.Toolbar ctx={ctx} />
+                </ToolbarBar>
+              </div>
             )}
             <div className="flex-1 min-h-0 flex relative">
               {!dirMode && !file ? (
@@ -385,10 +450,17 @@ export function Workbench({ project, host, layout, setLayout, onHome, onSettings
               {/* ═══ 属性区（第九轮：进了详情内部）═══
                   **完全收掉，不留 40px 图标轨** —— 默认收起还留一条轨，
                   等于常驻一列没人看的图标。窄了就改抽屉浮在正文右边（R2）。 */}
-              {layout.props !== null && panels.length > 0 && mod.Panels && (
+              {panels.length > 0 && mod.Panels && (
                 panelDrawer
-                  ? <div data-ud="props" className="absolute right-0 top-0 bottom-0 z-30 flex shadow-2xl border-l border-border bg-panel" style={{ width: PANEL_W }}><mod.Panels ctx={ctx} /></div>
-                  : <div data-ud="props" className="shrink-0 flex border-l border-border" style={{ width: PANEL_W }}><mod.Panels ctx={ctx} /></div>
+                  ? (layout.props !== null && <div data-ud="props" className="absolute right-0 top-0 bottom-0 z-30 flex shadow-2xl border-l border-border bg-panel" style={{ width: PANEL_W }}><mod.Panels ctx={ctx} /></div>)
+                  : (
+                    /* 展开 0 ↔ 300，慢档 240ms，从正文右边推出来 */
+                    <div data-ud={layout.props !== null ? "props" : undefined} className="shrink-0 anim-col border-l border-border"
+                      style={{ width: layout.props !== null ? PANEL_W : 0, opacity: layout.props !== null ? 1 : 0, borderLeftWidth: layout.props !== null ? 1 : 0 }}
+                      {...(layout.props === null ? { inert: "" as unknown as boolean } : {})}>
+                      <div className="flex h-full" style={{ width: PANEL_W }}><mod.Panels ctx={ctx} /></div>
+                    </div>
+                  )
               )}
             </div>
                 </div>

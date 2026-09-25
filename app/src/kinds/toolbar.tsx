@@ -60,8 +60,9 @@ export function SizeBtn({ label, title, widths, zoomPct, onZoom, onFit, extra }:
         {label}
         <Glyph d={ICON.caretDown} size={11} stroke={1.6} className="text-muted" />
       </button>
-      <Popover pop={pop} align="end" width={232}>
-        <div className="p-1">
+      {/* 里面是成行的控件（不是菜单项），内边距按原稿的尺寸档 `10 8 8` */}
+      <Popover pop={pop} align="end" width={232} pad="10px 8px 8px">
+        <div>
           {widths && widths.length > 0 && <>
             <div className="px-2 pt-1.5 pb-1 text-[11px] text-muted">画布宽度</div>
             {widths.map((w) => (
@@ -106,8 +107,10 @@ export function FileMore({ ctx, items }: { ctx: ViewContext; items: MenuItem[] }
       {/* ⚠️ **这里必须是 `fixed` 浮层**（`Popover` 就是）。
           工具栏有 `overflow-hidden`（M8-18 为了防读数溢出加的），
           `absolute` 的浮层会被它整个裁掉 —— 用户报的「Markdown 的 ⋯ 弹不出来」就是这条。 */}
-      <Popover pop={pop} align="end" width={224}>
-        <div className="p-1">
+      {/* 菜单类**不给固定宽**：按内容撑，`min 200 / max 320`（原稿 `popMinW`）。
+          写死 224 的时候「在访达中显示」这种长项会被截掉后半截。 */}
+      <Popover pop={pop} align="end">
+        <div>
           {all.map((mi, k) => mi.label === "—"
             ? <PopSep key={k} />
             : <PopItem key={k} label={mi.label} hint={mi.hint} danger={mi.danger}

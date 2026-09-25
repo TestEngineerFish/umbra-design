@@ -50,3 +50,70 @@ body { margin: 0; background: var(--tool-bg); color: var(--tool-text); font-fami
 .md-body th, .md-body td { border: 1px solid var(--tool-border); padding: 5px 10px; text-align: left; }
 .md-body th { background: var(--tool-panel-2); font-weight: 600; }
 .md-body img { max-width: 100%; border-radius: var(--tool-radius); }
+
+/* ── 展开收起的三档动画（M8-28，设计侧第九轮 §五）──
+   界面上有一大堆展开收起：编辑栏、属性区、目录列、底栏、三块区域、浮层、右键菜单、
+   frontmatter、JSON 树节点……设计侧把它们归成三档，曲线一律同一条，进出也同一条。
+
+   | 档 | 用在 |
+   | --- | --- |
+   | 快 120ms | 浮层、树的箭头旋转、JSON 节点箭头、悬停底色、淡入淡出 |
+   | 中 180ms | 编辑栏、frontmatter、树 / JSON 的子节点展开 |
+   | 慢 240ms | 整列（目录、属性区、聊天）、整行（调试栏） |
+
+   **收起时外层收宽 / 收高，里层保持原来的尺寸被裁掉** —— 这样文字不会一帧一帧重排换行。 */
+:root {
+  --dur-fast: 120ms;
+  --dur-mid: 180ms;
+  --dur-slow: 240ms;
+  --ease: cubic-bezier(.2, 0, 0, 1);
+}
+/* 系统开了「减少动态效果」：只保留 80ms 的淡入淡出（设计侧 §五 规矩 4） */
+@media (prefers-reduced-motion: reduce) {
+  :root { --dur-fast: 80ms; --dur-mid: 80ms; --dur-slow: 80ms; }
+  .anim-col, .anim-row, .anim-block { transition-property: opacity !important; }
+}
+/* 整列 / 整行：外层收宽收高，`overflow:hidden` 把里层裁掉 */
+.anim-col { transition: width var(--dur-slow) var(--ease), opacity var(--dur-fast) var(--ease); overflow: hidden; }
+.anim-row { transition: height var(--dur-slow) var(--ease), opacity var(--dur-fast) var(--ease); overflow: hidden; }
+/* 一整块（编辑栏这种） */
+.anim-block { transition: height var(--dur-mid) var(--ease), opacity var(--dur-fast) var(--ease); overflow: hidden; }
+
+/* ── 模块在忙：**状态栏下沿那条 1px 分隔线变 2px，一段 accent 在里面流动**（M8-28，设计侧 §九轮 §八）──
+   第九轮把独立的进度条全去掉了：用户说「太粗了……不是重要的内容，尽量少显示」。
+   **模块自己的事只在自己的线上走** —— 目录在重建索引就走目录头那条，
+   当前文件在体检就走 Tab 条那条，AI 在跑就走聊天头那条。
+
+   ⚠️ 超过 400ms 才出现、出现了至少留 300ms，**不闪**（设计侧的规矩）。 */
+.busyline { position: relative; }
+.busyline::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px;
+  background: linear-gradient(90deg, transparent, var(--tool-accent), transparent);
+  background-size: 40% 100%; background-repeat: no-repeat;
+  animation: busyflow 1.1s linear infinite;
+}
+@keyframes busyflow { from { background-position: -40% 0; } to { background-position: 140% 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .busyline::after { animation: none; background: var(--tool-accent); opacity: .5; }
+}
+
+/* ── 浮层开着时，**iframe 不接事件**（M8-28）──
+   用户报的「点其他区域并没有收起下拉列表」有两个根因：
+   一个是那处浮层忘了接外部点击（M8-25 修了），另一个在这里 ——
+   **点在稿上时事件被 iframe 吃掉**，外面的 document 监听根本收不到。
+
+   设计侧给的解法是「铺一层透明的接盘层，点哪里都先关浮层（这一下不穿透）」。
+   我们做得更窄一点：**只让 iframe 不接事件**，别的地方照常。
+   效果一样（那一下不会点中稿里的元素），但不会像全屏接盘层那样
+   连触发钮都挡住 —— 那个坑 M8-25 踩过。 */
+body:has([data-ud="popover"]) iframe,
+body:has([data-ud="ctxmenu"]) iframe,
+body:has([data-ud="tabmenu"]) iframe { pointer-events: none; }
+
+/* ── 浮层进场（设计侧第九轮 §四 的 `popDown` / `popUp`）──
+   **只有进场，没有退场** —— 原稿是直接卸载的。想加退场就得让浮层多活一帧，
+   而浮层里常有「点完就换内容」的项（切引擎、切会话），多活那一帧会看到旧内容闪一下。
+   往哪边展开由 `Popover` 算出的 `up` 决定：贴在下面就从上方滑入，翻到上面就从下方滑入 ——
+   方向反了的话，浮层看起来是从它要盖住的那块内容里长出来的。 */
+@keyframes popDown { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+@keyframes popUp   { from { opacity: 0; transform: translateY(4px);  } to { opacity: 1; transform: none; } }

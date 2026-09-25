@@ -67,10 +67,15 @@ if (await dirRow.count()) {
   ok(nExpanded > n0, "展开子目录后上一层还在", `${n0} → ${nExpanded} 行`);
 } else ok(false, "没找到可展开的目录");
 
-await pg.keyboard.press("Meta+b"); await pg.waitForTimeout(500);
-ok(await tree.count() === 0, "⌘B 收起");
+await pg.keyboard.press("Meta+b"); await pg.waitForTimeout(600);
+/* ⚠️ **收起后元素还在 DOM 里**（M8-28 起）：要做宽度动画，列就得一直在，
+   靠外层收宽到 0 + overflow:hidden 裁掉里层。所以判据看的是「收起了」
+   （`data-hidden` + 宽度 0），不是「卸载了」。 */
+const navCol = pg.locator('[data-region="nav"]');
+ok(await navCol.getAttribute("data-hidden") !== null, "⌘B 收起");
+ok(((await navCol.boundingBox())?.width ?? 99) < 2, "收起后宽度收到 0", `宽 ${Math.round((await navCol.boundingBox())?.width ?? -1)}`);
 await pg.keyboard.press("Meta+b"); await pg.waitForTimeout(1600);
-ok(await tree.count() > 0, "⌘B 展开回来");
+ok(await navCol.getAttribute("data-hidden") === null, "⌘B 展开回来");
 /* ⌘B 会把整棵树卸载，子层的内存缓存跟着没。再展开时内容必须回来 ——
    只剩一个展开的三角、底下空空如也，是 2026-09-24 真出过的缺陷。 */
 ok(await rowsNow() >= nExpanded, "⌘B 往返后，之前展开的子目录内容还在", `${await rowsNow()} 行（收起前 ${nExpanded} 行）`);
@@ -120,14 +125,15 @@ ok(await pg.locator('header [aria-label="窗口布局"] button').count() === 3, 
 ok(await region("left").count() === 1 && await region("bottom").count() === 1 && await region("right").count() === 1, "左 / 底 / 右三颗都在");
 /* ⚠️ 第九轮三颗钮管的东西**整个换了一遍**：左=目录 · 底=调试 · 右=聊天。
    第八轮是左=会话 · 右=从属面板。判据的口径跟着换。 */
+const colHidden = async (id) => (await pg.locator(`[data-region="${id}"]`).getAttribute("data-hidden")) !== null;
 await region("left").click(); await pg.waitForTimeout(600);
-ok(await pg.locator('[role="tree"]').count() === 0, "关左栏：目录整列收掉");
+ok(await colHidden("nav"), "关左栏：目录整列收掉");
 await pg.keyboard.press("Meta+b"); await pg.waitForTimeout(600);
-ok(await pg.locator('[role="tree"]').count() > 0, "⌘B 把目录叫回来");
+ok(!(await colHidden("nav")), "⌘B 把目录叫回来");
 await region("right").click(); await pg.waitForTimeout(600);
-ok(await pg.locator("#chatInput").count() === 0, "关右栏：聊天整栏收掉");
+ok(await colHidden("chat"), "关右栏：聊天整栏收掉");
 await pg.keyboard.press("Meta+\\"); await pg.waitForTimeout(600);
-ok(await pg.locator("#chatInput").count() > 0, "⌘\\ 把聊天叫回来");
+ok(!(await colHidden("chat")), "⌘\\ 把聊天叫回来");
 /* 底栏：默认关，⌘J 打开，三页都在 */
 ok(await pg.locator('[data-ud="bottombar"]').count() === 0, "底栏默认关着");
 await pg.keyboard.press("Meta+j"); await pg.waitForTimeout(700);
@@ -226,6 +232,10 @@ if (await openByName(".dc.html")) {
   ok(nested > 0, "设计稿：S2 嵌入壳里装着稿本身（View 环节）", `壳里 ${nested} 层`);
   const els = nested > 0 ? await shellFrame.frameLocator("iframe").first().locator("*").count().catch(() => 0) : 0;
   ok(els > 5, "设计稿：稿真的渲染出来了（不只是有个空 iframe）", `稿里 ${els} 个元素`);
+  /* ⚠️ 「默认收起」只能钉在**最早的这一次打开** —— 后面几节会把它们点开，
+     而 `layout.props` 还落盘。放到后面去测，量到的是上一节留下的状态（M8-28 真栽过）。 */
+  ok(await pg.locator('[data-ud="toggle-edit"]').getAttribute("aria-pressed") === "false", "编辑栏默认收起（用户第 12 条）");
+  ok(await pg.locator('[data-ud="props"]').count() === 0, "属性区默认收起（不留图标轨）");
   await openProps();
   ok(await pg.locator('[data-ud="props"]').count() === 1, "设计稿：属性区展开得出来（Panels 环节）");
 } else ok(false, "项目里没有 .dc.html，测不了设计稿");
@@ -332,6 +342,113 @@ await pg.waitForTimeout(400);
      bx && mx ? `⋯ 右缘 ${Math.round(mx.x + mx.width)} · Tab 条右缘 ${Math.round(bx.x + bx.width)}` : "量不到");
 }
 
+/* ── 浮层形制（M8-28 · 设计侧第九轮 §四）──
+   判据钉的是**会回归的那几样**：菜单类没写死宽度（写死过 224，长项被截）、
+   菜单行 28 高、进场动画认方向、键盘 ↑↓ 能走。
+   ⚠️ 不钉具体像素以外的观感 —— 那要看截图，静态判据看不出来。 */
+console.log("\n浮层形制：宽度 · 行高 · 进场方向 · 键盘（M8-28）");
+{
+  /* 右键目录起一个菜单类浮层（`ctxmenu`）—— 它是「不给固定宽」的那一类 */
+  const row = pg.locator('[role="treeitem"]').first();
+  await row.click({ button: "right" }); await pg.waitForTimeout(400);
+  const menu = pg.locator('[data-ud="ctxmenu"]');
+  ok(await menu.count() === 1, "右键起得出菜单浮层");
+  const box = await menu.evaluate((e) => { const r = e.getBoundingClientRect(); const c = getComputedStyle(e);
+    return { w: r.width, h: r.height, minW: c.minWidth, maxW: c.maxWidth, anim: c.animationName, pad: c.paddingTop }; }).catch(() => null);
+  ok(box && box.w >= 200 && box.w <= 320, "菜单按内容撑，落在 200–320 之间（原稿 popMinW / max-width）", box && `${Math.round(box.w)}px`);
+  ok(box && (box.anim === "popDown" || box.anim === "popUp"), "进场动画认方向（下方展开 popDown / 翻到上面 popUp）", box && box.anim);
+  ok(box && box.pad === "4px", "菜单类内边距 4px（原稿 popPad）", box && box.pad);
+  const rowH = await menu.locator('[role="menuitem"]').first().evaluate((e) => e.getBoundingClientRect().height).catch(() => 0);
+  ok(Math.abs(rowH - 28) < 1.5, "菜单行 28 高（七处原来是 28 / 30 各写一遍）", `${Math.round(rowH)}px`);
+  /* 键盘：↑↓ 把焦点挪到菜单项上。**这一条钉的是漫游焦点那段** ——
+     原稿用自己的 `popActive` 下标，我们换成查 DOM + focus，换错了的症状是「键盘完全不动」 */
+  await pg.keyboard.press("ArrowDown"); await pg.waitForTimeout(200);
+  const onItem = await pg.evaluate(() => document.activeElement?.getAttribute("role") === "menuitem");
+  ok(onItem, "↓ 把焦点落到菜单项上（键盘能走菜单）");
+  await pg.keyboard.press("End"); await pg.waitForTimeout(200);
+  const atEnd = await pg.evaluate(() => { const m = document.querySelector('[data-ud="ctxmenu"]');
+    const b = m && Array.from(m.querySelectorAll('[role="menuitem"]:not([disabled])'));
+    return !!b && b[b.length - 1] === document.activeElement; });
+  ok(atEnd, "End 跳到最后一项");
+  await pg.keyboard.press("Escape"); await pg.waitForTimeout(300);
+  ok(await pg.locator('[data-ud="ctxmenu"]').count() === 0, "Esc 收掉");
+}
+
+/* ── ⌘E / ⌘⌥B 开合（M8-28 · 设计侧第九轮 §三）──
+   **这一节和默认值无关**，只问「按了会不会变」：先归一到收起，再开、再收。 */
+console.log("\n详情三层的开合：⌘E · ◨（M8-28）");
+if (await openByName(".dc.html")) {
+  await pg.waitForTimeout(1200);
+  const editBtn = pg.locator('[data-ud="toggle-edit"]');
+  const pressed = async () => (await editBtn.getAttribute("aria-pressed")) === "true";
+  if (await pressed()) { await editBtn.click(); await pg.waitForTimeout(400); }
+  /* ⚠️ 这条判据钉的是**依赖数组**：keydown 那个 effect 漏了 `setEditOpen`，
+     闭包就捕获上一个文件的 key，编辑栏开在**别的文件**上 ——
+     症状是「按了没反应」，而分支明明进去了（M8-28 真栽过，正是用户第 11 条）。 */
+  await pg.keyboard.press("Meta+e"); await pg.waitForTimeout(500);
+  ok(await pressed(), "⌘E 展开编辑栏（焦点在稿外）");
+  /* ⚠️ **数得到 `file-toolbar` 不算展开** —— 收起时那个 div 高度是 0 但元素还在
+     （为了做动画刻意不卸载）。要量真高度。 */
+  const h = await pg.locator('[data-ud="file-toolbar"]').evaluate((e) => e.getBoundingClientRect().height).catch(() => 0);
+  ok(h > 20, "编辑栏真的有高度，不是只挂着个元素", `${Math.round(h)}px`);
+  await pg.keyboard.press("Meta+e"); await pg.waitForTimeout(500);
+  ok(!(await pressed()), "⌘E 再按一次收起");
+  ok(await pg.locator('[data-ud="corner"]').count() === 1, "正文右下角的浮块常驻（看稿用的不跟着收）");
+  const propsBtn = pg.locator('[data-ud="toggle-props"]');
+  const pOn = async () => (await pg.locator('[data-ud="props"]').count()) === 1;
+  if (await pOn()) { await propsBtn.click(); await pg.waitForTimeout(500); }
+  await propsBtn.click(); await pg.waitForTimeout(500);
+  ok(await pOn(), "点 ◨ 展开属性区");
+  await propsBtn.click(); await pg.waitForTimeout(500);
+  ok(!(await pOn()), "再点收起（完全收掉，不留图标轨）");
+} else ok(false, "项目里没有 .dc.html");
+
+/* ── 页签三态（M8-28 · 设计侧第九轮 §六）──
+   用户第 8 条：「不应每次查看一个详情就多新增一个」。
+   **最要害的判据是「单击第二个文件之后，页签数没有变多」** ——
+   只测「有预览态样式」的话，覆盖逻辑坏掉了照样过。 */
+console.log("\n页签三态：预览 / 打开 / 固定（M8-28）");
+{
+  /* ⚠️ **必须从干净状态开始**：前面的测试开过好几个页签，而「盖不盖」这件事
+     取决于被点的文件在不在页签里 —— 不清干净的话，判据量到的是别的东西
+     （M8-28 实测：第一次写的判据 3→4 和 4→4 自相矛盾，就是这个原因）。 */
+  const tabs0 = pg.locator('[data-ud="tab"]');
+  while (await tabs0.count() > 0) {
+    await tabs0.first().click({ button: "right" }); await pg.waitForTimeout(350);
+    const saved = pg.locator('[data-ud="tabmenu"]').getByText(/^关闭已保存的$/);
+    if (await saved.count()) { await saved.click(); await pg.waitForTimeout(500); }
+    else { await pg.keyboard.press("Escape"); break; }
+    if (await tabs0.count() > 0) { await pg.keyboard.press("Escape"); break; }   // 关不动了（都是未保存/固定）
+  }
+  ok(await tabs0.count() === 0, "先把页签清干净", `剩 ${await tabs0.count()} 个`);
+  const files = pg.locator('[role="treeitem"]:not([aria-expanded])');
+  const n = await files.count();
+  if (n >= 2) {
+    await files.nth(0).click(); await pg.waitForTimeout(900);
+    const after1 = await tabs0.count();
+    ok(await pg.locator('[data-ud="tab"][data-preview]').count() === 1, "单击目录里的文件 → 预览页签", `${after1} 个页签`);
+    await files.nth(1).click(); await pg.waitForTimeout(900);
+    const after2 = await tabs0.count();
+    /* 这一条是要害：单击下一个只**盖掉**预览页签，不新增 */
+    ok(after2 === after1, "再单击另一个：盖掉预览页签，页签数没变多", `${after1} → ${after2}`);
+    ok(await pg.locator('[data-ud="tab"][data-preview]').count() === 1, "同一时间最多一个预览页签");
+    /* 双击 → 转正 */
+    await files.nth(1).dblclick(); await pg.waitForTimeout(900);
+    ok(await pg.locator('[data-ud="tab"][data-preview]').count() === 0, "双击转正（不再是预览态）");
+    const after3 = await tabs0.count();
+    await files.nth(0).click(); await pg.waitForTimeout(900);
+    ok(await tabs0.count() === after3 + 1, "转正之后再单击别的：新开一个，不盖它", `${after3} → ${await tabs0.count()}`);
+  } else ok(false, "树里文件不够两个，测不了覆盖");
+
+  /* 右键菜单：三个「关闭…」要写出真会关掉的个数 */
+  const anyTab = pg.locator('[data-ud="tab"]').first();
+  await anyTab.click({ button: "right" }); await pg.waitForTimeout(500);
+  const menu = await pg.locator('[data-ud="tabmenu"]').innerText().catch(() => "");
+  ok(/关闭其他/.test(menu) && /个/.test(menu), "页签右键：三个「关闭…」写出真会关掉的个数", menu.replace(/\n/g, " / ").slice(0, 80));
+  ok(/固定/.test(menu) && /在目录中显示/.test(menu), "页签右键：有固定和「在目录中显示」");
+  await pg.keyboard.press("Escape"); await pg.waitForTimeout(300);
+}
+
 /* ── 浮层统一封装（M8-25 · 用户第九轮第 2 条）──
    三个缺陷是同一个问题的三种长相：7 处各写各的浮层，各漏一样。
    现在只有 `ui/Popover.tsx` 一份，这三条判据钉住它。 */
@@ -347,6 +464,21 @@ console.log("\n浮层：不越界 / 点外面收起 / 不被 overflow 裁掉（M
   /* ② 原来引擎下拉少了接外部点击那一层，开着就关不掉 */
   await pg.mouse.click(700, 500); await pg.waitForTimeout(400);
   ok(await pg.locator('[data-ud="popover"]').count() === 0, "点浮层外面就收起");
+
+  /* ⚠️ **点在稿上（iframe 里）也要收起** —— 这是那个 bug 的另一半：
+     事件被 iframe 吃掉，外面的 document 监听收不到。浮层开着时让 iframe 不接事件。
+     只测「点外面」的话这一半测不出来（M8-28 实测：修完第一半之后它还在）。 */
+  if (await openByName(".dc.html")) {
+    await pg.waitForTimeout(1500);
+    await pg.locator('[data-ud="tabbar"] button[title="更多"]').click();
+    await pg.waitForTimeout(400);
+    const fr = await pg.locator("iframe").first().boundingBox();
+    if (fr && await pg.locator('[data-ud="popover"]').count() === 1) {
+      await pg.mouse.click(fr.x + fr.width / 2, fr.y + fr.height / 2);
+      await pg.waitForTimeout(500);
+      ok(await pg.locator('[data-ud="popover"]').count() === 0, "点在稿上（iframe 里）也收起");
+    } else ok(false, "没开出浮层或没有 iframe");
+  }
 
   /* ③ Markdown 的 ⋯ ——「弹不出来」的根因是浮层用 absolute，
         被文件工具栏的 overflow-hidden 整个裁掉了。现在它是 fixed。

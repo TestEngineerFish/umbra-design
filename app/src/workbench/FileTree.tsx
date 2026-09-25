@@ -27,7 +27,8 @@ export interface TreeProps {
   expanded: string[];
   onExpandedChange: (next: string[]) => void;
   /** 单击文件 / 双击目录（双击是「在详情区以它为根打开」） */
-  onOpenFile: (path: string) => void;
+  /** `dbl` = 双击（打开态）。单击是预览态 —— 会被下一次单击盖掉 */
+  onOpenFile: (path: string, dbl?: boolean) => void;
   onOpenDir: (path: string) => void;
   /** 稿件的健康：有提醒或错误才挂点，「通过」不挂（设计侧口径） */
   healthOf: (path: string) => Health | null;
@@ -37,6 +38,8 @@ export interface TreeProps {
    *  第七轮把它们从页签条挪到这儿 —— 页签条只管「开着哪些文件」。 */
   drafts: Draft[];
   indexed: boolean;
+  /** 正在重建索引：列头下沿那条线变 2px 流动 */
+  reindexing?: boolean;
   /** 右键菜单要的动作（M8-21）。目录列和目录视图共用同一套定义，见 `ctxmenu.tsx` */
   actions: CtxActions;
   /** 已经塌成「已移到回收站 · 撤销」的那几行 */
@@ -46,7 +49,7 @@ export interface TreeProps {
   tick: string;
 }
 
-export function FileTree({ core, current, expanded, onExpandedChange, onOpenFile, onOpenDir, healthOf, projectName, drafts, indexed, actions, trashed, onUndoTrash, tick }: TreeProps) {
+export function FileTree({ core, current, expanded, onExpandedChange, onOpenFile, onOpenDir, healthOf, projectName, drafts, indexed, reindexing, actions, trashed, onUndoTrash, tick }: TreeProps) {
   const [goto, setGoto] = useState(false);
   const [q, setQ] = useState("");
   const [ctx, setCtx] = useState<{ x: number; y: number; target: CtxTarget } | null>(null);
@@ -105,6 +108,29 @@ export function FileTree({ core, current, expanded, onExpandedChange, onOpenFile
     window.addEventListener("ud-goto-file", on); return () => window.removeEventListener("ud-goto-file", on);
   }, []);
 
+  /** 「在目录中显示」高亮的那一行（1.2 s 后退回普通的当前行，设计侧 §六.2） */
+  const [flash, setFlash] = useState<string | null>(null);
+  useEffect(() => {
+    const on = (ev: Event) => {
+      const path = (ev as CustomEvent<string>).detail;
+      if (!path) return;
+      /* 先把祖先都展开，再滚过去 —— 目录没展开的话那一行根本不在 DOM 里 */
+      const parts = path.split("/").slice(0, -1);
+      const need: string[] = [];
+      for (let i = 0; i < parts.length; i++) {
+        const p2 = parts.slice(0, i + 1).join("/");
+        if (!expanded.includes(p2)) need.push(p2);
+      }
+      if (need.length) onExpandedChange([...expanded, ...need]);
+      for (const p2 of need) if (children[p2] === undefined) void load(p2);
+      setFlash(path);
+      setTimeout(() => document.querySelector(`[data-path="${CSS.escape(path)}"]`)?.scrollIntoView({ block: "center", behavior: "smooth" }), need.length ? 400 : 60);
+      setTimeout(() => setFlash((f) => (f === path ? null : f)), 1200);
+    };
+    window.addEventListener("ud-locate-file", on); return () => window.removeEventListener("ud-locate-file", on);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expanded, children]);
+
   const toggle = (path: string) => {
     const next = expSet.has(path) ? expanded.filter((x) => x !== path) : [...expanded, path];
     onExpandedChange(next);
@@ -156,13 +182,14 @@ export function FileTree({ core, current, expanded, onExpandedChange, onOpenFile
         continue;
       }
       out.push(
-        <div key={e.path} role="treeitem" aria-expanded={e.isDir ? open : undefined} aria-selected={isCur}
+        <div key={e.path} role="treeitem" data-path={e.path} aria-expanded={e.isDir ? open : undefined} aria-selected={isCur}
           className={`flex items-center gap-1.5 pr-2 cursor-pointer select-none ${isCur ? "bg-accentSoft text-accent font-semibold" : "hover:bg-hover"} ${
-            ctx && "path" in ctx.target && ctx.target.path === e.path ? "ring-1 ring-inset ring-accent" : ""}`}
+            ctx && "path" in ctx.target && ctx.target.path === e.path ? "ring-1 ring-inset ring-accent" : ""} ${
+            flash === e.path ? "ring-1 ring-inset ring-accent" : ""}`}
           style={{ height: ROW_H, paddingLeft: 6 + depth * INDENT }}
           title={e.path}
           onClick={() => (e.isDir ? toggle(e.path) : onOpenFile(e.path))}
-          onDoubleClick={() => { if (e.isDir) onOpenDir(e.path); }}
+          onDoubleClick={() => (e.isDir ? onOpenDir(e.path) : onOpenFile(e.path, true))}
           onContextMenu={(ev) => {
             ev.preventDefault(); ev.stopPropagation();
             setCtx({ x: ev.clientX, y: ev.clientY, target: e.isDir
@@ -195,7 +222,7 @@ export function FileTree({ core, current, expanded, onExpandedChange, onOpenFile
       {/* 高度和分隔线都跟页签条对齐（34px + border-b）——
           目录列通栏之后它和页签条并排，差 2px 或少一条线，那条横线就是断的 */}
       {/* 36px —— 所有模块状态栏一个值（第九轮 §二） */}
-      <div ref={headRef} data-ud="tree-head" className="h-9 pl-2.5 pr-1 flex items-center gap-0.5 shrink-0 text-xs relative border-b border-border">
+      <div ref={headRef} data-ud="tree-head" className={`h-9 pl-2.5 pr-1 flex items-center gap-0.5 shrink-0 text-xs relative border-b border-border ${reindexing ? "busyline" : ""}`}>
         {/* 项目名**右键 = 空白处菜单**（M8-21）。
             光靠「树的空白区」不够：树一满就没有空白可点，用户等于没法在根目录新建。
             项目名就是项目根，在它上面右键最说得通。 */}
@@ -241,8 +268,9 @@ function GotoFile({ q, setQ, drafts, indexed, current, onPick, onClose, anchor }
 }) {
   const kw = q.trim().toLowerCase();
   const rows = drafts.filter((d) => !kw || `${d.title} ${d.file}`.toLowerCase().includes(kw));
+  /* 转到文件自己管内边距（输入框有 `m-1.5`）和自己的滚动，所以 `pad` 给 0 */
   return (
-      <PopoverAt x={anchor.x} y={anchor.y} onClose={onClose} width={anchor.w}>
+      <PopoverAt x={anchor.x} y={anchor.y} onClose={onClose} width={anchor.w} pad="0">
       <div className="max-h-[60vh] flex flex-col">
         <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="转到文件…"
           className="m-1.5 h-7 px-2 rounded border border-borderStrong bg-bg outline-none focus:border-accent text-xs"

@@ -123,24 +123,36 @@ export function NewDraftSheet({ core, current, dir, onClose, onCreated }: {
         </div>
       </div>
 
-      {/* 起始模板：**项目里一个模板都没有时，这一组只剩「空白」和「复制现有稿」**。
-          设计侧问过这种时候要不要整组不出，还没定 —— 先显示，至少用户知道有模板这回事。 */}
-      <div className="grid gap-1.5">
-        <label className="text-[11px] text-muted">起始模板 · 可选</label>
-        <div className="max-h-[132px] overflow-auto rounded border border-border divide-y divide-border">
-          {[{ id: "blank", name: "空白", sub: "只有骨架和运行时" }, ...templates,
-            ...(current ? [{ id: `copy:${current}`, name: "复制一份现有稿…", sub: current }] : [])].map((t) => (
-            <button key={t.id} onClick={() => setTpl(t.id)} aria-pressed={tpl === t.id}
-              className={`w-full text-left px-2.5 py-2 flex items-center gap-2 hover:bg-hover ${tpl === t.id ? "bg-accentSoft" : ""}`}>
-              <span className={`w-3 shrink-0 text-accent ${tpl === t.id ? "" : "opacity-0"}`}>✓</span>
-              <span className="text-xs shrink-0">{t.name}</span>
-              {t.sub && <span className="text-[11px] text-muted truncate">{t.sub}</span>}
-            </button>
-          ))}
+      {/* ═══ 起始模板（第九轮 §十.2）═══
+          **项目里一个模板都没有时整组不出** —— 那时它只剩「空白」和「复制现有稿」两项，
+          是个空架子。「用户永远不知道有模板」这件事，解法放在**模板从哪来**的地方：
+          `.dc.html` 的 `⋯` 里加了「存为模板…」，存过一次这一组就出现了。 */}
+      {templates.length > 0 && (
+        <div className="grid gap-1.5">
+          <label className="text-[11px] text-muted">起始模板 · 可选</label>
+          <div className="max-h-[132px] overflow-auto rounded border border-border divide-y divide-border">
+            {[{ id: "blank", name: "空白", sub: "只有骨架和运行时" }, ...templates].map((t) => (
+              <button key={t.id} onClick={() => setTpl(t.id)} aria-pressed={tpl === t.id}
+                className={`w-full text-left px-2.5 py-2 flex items-center gap-2 hover:bg-hover ${tpl === t.id ? "bg-accentSoft" : ""}`}>
+                <span className={`w-3 shrink-0 text-accent ${tpl === t.id ? "" : "opacity-0"}`}>✓</span>
+                <span className="text-xs shrink-0">{t.name}</span>
+                {t.sub && <span className="text-[11px] text-muted truncate">{t.sub}</span>}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
-      <div className="flex justify-end gap-2">
+      <div className="flex items-center gap-2">
+        {/* 「从现有稿复制…」**不能跟着整组一起消失**，所以它挪到底部成一个文字链 */}
+        {current && (
+          <button className={`text-[11px] underline underline-offset-2 ${tpl.startsWith("copy:") ? "text-accent" : "text-muted hover:text-text"}`}
+            onClick={() => setTpl(tpl.startsWith("copy:") ? "blank" : `copy:${current}`)}
+            title={tpl.startsWith("copy:") ? "点一下取消" : `复制 ${current}`}>
+            {tpl.startsWith("copy:") ? `✓ 从 ${current.split("/").pop()} 复制` : "从现有稿复制…"}
+          </button>
+        )}
+        <span className="flex-1" />
         <button className="btn" onClick={onClose}>取消 Esc</button>
         <button className="btn primary" disabled={blocked} onClick={() => void submit()}>{busy ? "正在建…" : "新建 ⏎"}</button>
       </div>

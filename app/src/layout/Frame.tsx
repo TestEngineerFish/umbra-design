@@ -44,7 +44,10 @@ export function Frame({ top, regions, bottom }: {
    *  右栏的面板要整列的高度。哪几块由调用处给，这里不替它决定。 */
   bottom?: { node: ReactNode; height: number; spans: string[] };
 }) {
-  const shown = regions.filter((r) => r.show);
+  /* ⚠️ **不再按 `show` 过滤掉**（M8-28）：要做宽度动画，元素就得一直在，
+     靠外层收宽到 0 + `overflow:hidden` 把里层裁掉（设计侧 §五）。
+     固定宽的列这么做；`flex-1` 的那一列（详情）永远显示，不参与。 */
+  const shown = regions.filter((r) => r.show || r.width !== undefined);
   /* 底栏横跨的那一段必须是**连续的** —— 中间隔着一块没被 spans 包含的区域，
      底栏就没法画成一条。真出现的话按「第一个到最后一个」算，并在开发期喊一声。 */
   const spanIdx = bottom ? shown.map((r, i) => (bottom.spans.includes(r.id) ? i : -1)).filter((i) => i >= 0) : [];
@@ -64,7 +67,7 @@ export function Frame({ top, regions, bottom }: {
           <div className="flex-1 min-h-0 flex relative">
             {shown.slice(spanFrom, spanTo + 1).map((r) => <Col key={r.id} r={r} />)}
           </div>
-          <div style={{ height: bottom.height }} className="shrink-0">{bottom.node}</div>
+          <div style={{ height: bottom.height }} className="shrink-0 anim-row">{bottom.node}</div>
         </div>,
       );
       i = spanTo + 1;
@@ -86,7 +89,9 @@ export function Frame({ top, regions, bottom }: {
 
 function Col({ r }: { r: Region }) {
   const ref = useRef<HTMLDivElement>(null);
-  if (r.float) {
+  /* 浮层态**也要认 `show`** —— 用户主动关掉这一列时，不管它是不是让位成了浮层，
+     都该收掉。M8-28 实测：漏了这个判断，关目录反而变成「浮层开着」。 */
+  if (r.float && r.show) {
     return (
       <>
         <div className="absolute inset-0 z-20 bg-black/20" onMouseDown={r.onFloatClose} />
@@ -95,16 +100,23 @@ function Col({ r }: { r: Region }) {
       </>
     );
   }
+  if (r.float) return null;   // 让位成浮层 + 用户关掉 = 不渲染
   const flex = r.width === undefined;
   /* 包装层是**横向**容器，不是纵向 —— 一个 region 里可能并排着好几块
      （从属面板 = 面板体 + 图标轨）。纵向的话它们会叠起来。
      里面单块的组件自己带 `flex-1 min-w-0` 撑开。 */
+  const w = typeof r.width === "number" ? (r.show ? r.width : 0) : undefined;
   return (
-    <div ref={ref} data-region={r.id}
-      className={`relative min-h-0 flex ${flex ? "flex-1 min-w-0" : "shrink-0"}`}
-      style={typeof r.width === "number" ? { width: r.width } : undefined}>
-      {r.node}
-      {r.resize && <Grip r={r} />}
+    <div ref={ref} data-region={r.id} data-hidden={!r.show || undefined}
+      /* 收起时里层加 `inert`：Tab 键不会走进看不见的东西里（设计侧 §五 规矩 5） */
+      {...(!r.show ? { inert: "" as unknown as boolean } : {})}
+      className={`relative min-h-0 flex ${flex ? "flex-1 min-w-0" : "shrink-0 anim-col"}`}
+      style={w !== undefined ? { width: w, opacity: r.show ? 1 : 0 } : undefined}>
+      {/* 里层保持原来的宽度，被外层裁掉 —— 这样文字不会一帧一帧重排换行 */}
+      {w !== undefined && !flex
+        ? <div className="flex h-full" style={{ width: typeof r.width === "number" ? r.width : undefined }}>{r.node}</div>
+        : r.node}
+      {r.resize && r.show && <Grip r={r} />}
     </div>
   );
 }

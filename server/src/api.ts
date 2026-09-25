@@ -409,6 +409,15 @@ export async function handleApi(
       json(reply, 200, { ok: true, data: { templates: list.map((t) => ({ id: t.name, name: t.name, sub: t.elementCount ? `${t.elementCount} 元素` : undefined })) } });
       return true;
     }
+    if (route === "save_template" && req.method === "POST") {
+      /* 「存为模板…」（M8-28）。MCP 侧早有 `saveAsTemplate`，本地 API 没开过 ——
+         界面上一直没有入口，所以没人发现缺。第九轮给了入口。 */
+      const b = await readBody(req) as { path?: string; name?: string };
+      const { saveAsTemplate } = await import("./templates.js");
+      const r = await saveAsTemplate(p, str(b.path, "path"), str(b.name, "name"));
+      json(reply, 200, { ok: true, data: r });
+      return true;
+    }
     if (route === "dir_create" && req.method === "POST") {
       /* 目录右键菜单的「新建目录」（M8-21）。MCP 侧早就有 `create_folder`，
          本地 API 一直没开这条路由 —— 界面上没有入口，所以没人发现缺。 */
