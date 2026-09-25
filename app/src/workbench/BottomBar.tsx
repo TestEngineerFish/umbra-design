@@ -36,6 +36,11 @@ export function BottomBar({ layout, setLayout, store, chat, yieldNow, hasPanels 
     return rows.slice(-200);
   }, [chat.messages]);
 
+  /** 这一轮花了多少 —— 按量计费报 tokens / 花费，订阅报调用次数 */
+  const turnCost = chat.usage
+    ? (chat.usage.totalCostUSD != null ? `$${Number(chat.usage.totalCostUSD).toFixed(3)}` : `${(chat.usage.totalTokens ?? 0).toLocaleString()} tokens`)
+    : "";
+
   const out = debugBus.out();
   const conn = debugBus.conn();
   const errCount = out.filter((o) => o.level === "error").length;
@@ -67,6 +72,17 @@ export function BottomBar({ layout, setLayout, store, chat, yieldNow, hasPanels 
           </button>
         ))}
         <span className="flex-1" />
+        {/* 「本轮」读数（M8-25，用户第九轮第 4 条把它从会话栏底部挪过来）。
+            和右边的布局读数一样常驻在头部，不单开一页 —— 它也只有一行。
+            ⚠️ 设计侧第八轮说过 AI 用量**不该**进底栏（理由是会话栏底部已有、
+            人正是在那儿决定要不要停手）。用户第九轮明确要它进来，**以用户为准**；
+            第九轮交办单里也把这一条原样转给它了。 */}
+        {(chat.running || turnCost) && (
+          <span data-ud="turn-cost" className="font-mono text-[11px] tabular-nums shrink-0 flex items-center gap-1.5" title="这一轮的用量">
+            {chat.running && <span className="inline-block w-2 h-2 rounded-full border border-accent border-r-transparent animate-spin" />}
+            <span className={chat.running ? "text-accent" : "text-muted"}>{chat.running ? "运行中" : ""}{turnCost ? ` ${turnCost}` : ""}</span>
+          </span>
+        )}
         {/* 布局读数**常驻在头部右边，不单开一页** —— 只有一行，单开一页太浪费；
             而且调布局时要一边拖一边看，切到别的页也得看得见（设计侧的理由） */}
         <span className="font-mono text-[11px] text-muted tabular-nums truncate max-w-[45%]" title="布局读数">{layoutReadout(layout, yieldNow, hasPanels)}</span>

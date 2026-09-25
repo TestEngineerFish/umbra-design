@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { PopItem, PopSep, Popover, usePopover } from "../ui/Popover";
 import { Glyph, ICON } from "../ui/Glyph";
 import type { MenuItem, ViewContext } from "./context";
 
@@ -49,29 +49,23 @@ export function SizeBtn({ label, title, widths, zoomPct, onZoom, onFit, extra }:
   zoomPct: number;
   onZoom: (delta: number) => void;
   onFit: () => void;
-  /** 挂在缩放那一行右边的额外一颗（画布的浅/深色切换暂时放这儿，见下面注释） */
+  /** 挂在缩放那一行右边的额外一颗 */
   extra?: React.ReactNode;
 }) {
-  const [open, setOpen] = useState(false);
-  useEffect(() => {
-    if (!open) return;
-    const on = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
-    document.addEventListener("keydown", on); return () => document.removeEventListener("keydown", on);
-  }, [open]);
+  const pop = usePopover();
   return (
     <div className="relative flex shrink-0">
-      <button onClick={() => setOpen((o) => !o)} aria-expanded={open} title={title}
-        className={`flex items-center gap-1.5 h-6 pl-2 pr-1.5 rounded-sm font-mono text-[11px] tabular-nums text-text2 hover:bg-hover hover:text-text ${open ? "bg-hover" : ""}`}>
+      <button ref={pop.anchorRef as React.RefObject<HTMLButtonElement>} onClick={pop.toggle} aria-expanded={pop.open} title={title}
+        className={`flex items-center gap-1.5 h-6 pl-2 pr-1.5 rounded-sm font-mono text-[11px] tabular-nums text-text2 hover:bg-hover hover:text-text ${pop.open ? "bg-hover" : ""}`}>
         {label}
         <Glyph d={ICON.caretDown} size={11} stroke={1.6} className="text-muted" />
       </button>
-      {open && <>
-        <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-        <div className="absolute top-[29px] right-0 z-[41] w-[232px] p-1 bg-panel border border-borderStrong rounded-lg shadow-2xl text-left">
+      <Popover pop={pop} align="end" width={232}>
+        <div className="p-1">
           {widths && widths.length > 0 && <>
             <div className="px-2 pt-1.5 pb-1 text-[11px] text-muted">画布宽度</div>
             {widths.map((w) => (
-              <button key={w.label} onClick={() => { w.pick(); setOpen(false); }} aria-pressed={w.on}
+              <button key={w.label} onClick={() => { w.pick(); pop.close(); }} aria-pressed={w.on}
                 className="w-full grid grid-cols-[16px_minmax(0,1fr)_auto] gap-1.5 items-center h-7 pl-1.5 pr-2 rounded-sm hover:bg-hover text-left">
                 <Glyph d={ICON.check} size={12} stroke={1.7} className={`text-accent ${w.on ? "" : "opacity-0"}`} />
                 <span className="truncate">{w.label}</span>
@@ -85,11 +79,11 @@ export function SizeBtn({ label, title, widths, zoomPct, onZoom, onFit, extra }:
             <button className="w-6 h-6 grid place-items-center rounded-sm text-muted hover:bg-hover hover:text-text" onClick={() => onZoom(-1)} title="缩小（⌘−）" aria-label="缩小"><Glyph d={ICON.minus} size={12} /></button>
             <span className="w-[42px] text-center font-mono text-[11px] tabular-nums">{zoomPct}%</span>
             <button className="w-6 h-6 grid place-items-center rounded-sm text-muted hover:bg-hover hover:text-text" onClick={() => onZoom(1)} title="放大（⌘＋）" aria-label="放大"><Glyph d={ICON.plus} size={12} /></button>
-            <button className="h-6 px-2 rounded-sm border border-border bg-panel text-[11px] text-text2 hover:bg-hover hover:text-text whitespace-nowrap" onClick={() => { onFit(); setOpen(false); }} title="适配窗口（⌘0）">适配</button>
+            <button className="h-6 px-2 rounded-sm border border-border bg-panel text-[11px] text-text2 hover:bg-hover hover:text-text whitespace-nowrap" onClick={() => { onFit(); pop.close(); }} title="适配窗口（⌘0）">适配</button>
           </div>
           {extra && <div className="flex items-center gap-1 pl-2 pr-1 pb-1">{extra}</div>}
         </div>
-      </>}
+      </Popover>
     </div>
   );
 }
@@ -97,7 +91,7 @@ export function SizeBtn({ label, title, widths, zoomPct, onZoom, onFit, extra }:
 /** 文件 `⋯`：格式自己的几项 + **公共尾巴**（复制路径 / 在访达中显示 / 关闭页签）。
  *  尾巴写在这里而不是每个模块重复一遍 —— 它对所有格式都一样。 */
 export function FileMore({ ctx, items }: { ctx: ViewContext; items: MenuItem[] }) {
-  const [open, setOpen] = useState(false);
+  const pop = usePopover();
   const tail: MenuItem[] = [
     { label: "—" },
     { label: "复制路径", run: () => void navigator.clipboard?.writeText(`${ctx.project.dir}/${ctx.path}`).then(() => ctx.ui.toast("路径已复制", `${ctx.project.dir}/${ctx.path}`, "ok"), () => ctx.ui.toast("复制不了", "浏览器不让访问剪贴板", "error")) },
@@ -107,20 +101,19 @@ export function FileMore({ ctx, items }: { ctx: ViewContext; items: MenuItem[] }
   ];
   const all = [...items, ...(ctx.kind === "dir" ? tail.slice(1, 4) : tail)];   // 目录不是页签，也没有「关闭页签」
   return (
-    <div className="relative shrink-0">
-      <button className="ib" onClick={() => setOpen((o) => !o)} aria-expanded={open} title="更多">⋯</button>
-      {open && <>
-        <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-        <div role="menu" className="absolute top-7 right-0 z-[41] w-56 p-1 bg-panel border border-borderStrong rounded-lg shadow-2xl text-left">
+    <div className="shrink-0">
+      <button ref={pop.anchorRef as React.RefObject<HTMLButtonElement>} className="ib" onClick={pop.toggle} aria-expanded={pop.open} title="更多">⋯</button>
+      {/* ⚠️ **这里必须是 `fixed` 浮层**（`Popover` 就是）。
+          工具栏有 `overflow-hidden`（M8-18 为了防读数溢出加的），
+          `absolute` 的浮层会被它整个裁掉 —— 用户报的「Markdown 的 ⋯ 弹不出来」就是这条。 */}
+      <Popover pop={pop} align="end" width={224}>
+        <div className="p-1">
           {all.map((mi, k) => mi.label === "—"
-            ? <div key={k} className="h-px mx-1.5 my-1 bg-border" />
-            : <button key={k} disabled={!mi.run} onClick={() => { setOpen(false); mi.run?.(); }}
-                className={`w-full flex items-center gap-2 h-7 px-2 rounded-sm text-left hover:bg-hover disabled:opacity-40 ${mi.danger ? "text-err" : ""}`}>
-                <span className="flex-1 min-w-0 truncate">{mi.label}</span>
-                {mi.hint && <span className="font-mono text-[11px] text-muted shrink-0">{mi.hint}</span>}
-              </button>)}
+            ? <PopSep key={k} />
+            : <PopItem key={k} label={mi.label} hint={mi.hint} danger={mi.danger}
+                onPick={mi.run ? () => { pop.close(); mi.run!(); } : undefined} />)}
         </div>
-      </>}
+      </Popover>
     </div>
   );
 }

@@ -3,6 +3,7 @@ import { History } from "./History";
 import { SELECTION_ICON, type ChatMessage, type Selection, type ToolCall } from "../api/types";
 import type { ChatStore } from "./useChat";
 import { renderMd, renderMdInline } from "../ui/markdown";
+import { Popover, usePopover } from "../ui/Popover";
 
 /** 会话栏，形制按 S9：用户句右对齐；一个 AI 回合共用一根左栏，文本与工具行按出现顺序排；变更卡带回退；「已选中」药丸紧挨输入框上方 */
 export function ChatRail({ chat, selections, onDropSelection, onClearSelections, contextLabel, width, onResize }: { chat: ChatStore; selections: Selection[]; onDropSelection: (i: number) => void; onClearSelections: () => void; contextLabel: string | null; width: number; onResize: (w: number) => void }) {
@@ -12,17 +13,10 @@ export function ChatRail({ chat, selections, onDropSelection, onClearSelections,
      真正动手的是 Codex 还是 Cursor 得说出来（2026-09-24 用户实测提的）。
      model 可能是空的（留空 = 用那个 CLI 自己的默认），空就不显示，不写「undefined」。 */
   const [history, setHistory] = useState(false);
-  const [engineMenu, setEngineMenu] = useState(false);
+  const engPop = usePopover();
   /* 会话标题不再上顶栏（第八轮 §四）：它是第一条消息的前 40 字，给人**找会话**用，
      放在历史列表里才有用；常驻在顶栏只是占着一行。 */
   const cap = chat.caps?.[chat.channel];
-  /* 底部这行**只报这一轮花了多少**，不再重复引擎名和模型（M8-16）。
-     用户实测点出来的：同一个模型名在会话栏里出现了三次（标题下、引擎钮上、底部），
-     「一个所用模型名称，在聊天模块中显示一次就够了」。
-     会话条数也去掉 —— 那是历史列表里的事，不是当前这轮的读数。 */
-  const usage = chat.usage
-    ? (chat.usage.totalCostUSD != null ? `$${Number(chat.usage.totalCostUSD).toFixed(3)}` : `${(chat.usage.totalTokens ?? 0).toLocaleString()} tokens`)
-    : "";
   return (
     <aside className="relative flex flex-col bg-panel border-border shrink-0 min-h-0" style={{ width }}>
       <Grip onResize={onResize} width={width} side="left" />
@@ -38,19 +32,18 @@ export function ChatRail({ chat, selections, onDropSelection, onClearSelections,
             所以收成一个下拉：平时只显示当前引擎，点开按**谁在付钱**分组（设计侧第六轮 6.4 的分法）。
             ⚠️ 分组选择器的形制设计侧这一轮没画，这里是从简的临时实现，等它定稿再调。 */}
         <div className="relative shrink-0">
-          <button data-ud="engine" className="btn sm ghost max-w-[130px] flex items-center gap-1" onClick={() => setEngineMenu((v) => !v)}
+          <button data-ud="engine" ref={engPop.anchorRef as React.RefObject<HTMLButtonElement>} className="btn sm ghost max-w-[130px] flex items-center gap-1" onClick={engPop.toggle} aria-expanded={engPop.open}
             title={cap?.billing ? `${cap.engine} · ${cap.billing}` : "选引擎"}>
             <span className="truncate">{cap?.engine ?? chat.channel.toUpperCase()}</span>
             <span className="text-[9px] text-muted shrink-0">▾</span>
           </button>
-          {engineMenu && (
-            <div className="absolute right-0 top-8 z-30 w-[220px] bg-panel border border-border rounded-lg shadow-2xl overflow-hidden text-xs">
+          <Popover pop={engPop} align="start" width={220}>
               {(["b", "a", "c"] as const).map((c) => {
                 const k = chat.caps?.[c];
                 if (!k) return null;
                 return (
                   <button key={c} data-ud={`engine-opt-${c}`} aria-pressed={chat.channel === c} className={`w-full text-left px-3 py-2 hover:bg-hover flex flex-col gap-0.5 ${chat.channel === c ? "bg-accentSoft" : ""}`}
-                    onClick={() => { chat.pickChannel(c); setEngineMenu(false); }}>
+                    onClick={() => { chat.pickChannel(c); engPop.close(); }}>
                     <span className="flex items-center gap-1.5">
                       <span className={`font-semibold ${chat.channel === c ? "text-accent" : ""}`}>{k.engine ?? c.toUpperCase()}</span>
                       {k.model && <span className="text-muted font-mono text-[11px] truncate">{k.model}</span>}
@@ -59,8 +52,7 @@ export function ChatRail({ chat, selections, onDropSelection, onClearSelections,
                   </button>
                 );
               })}
-            </div>
-          )}
+          </Popover>
         </div>
         <span className="flex-1" />
         <button data-ud="history" className={`ib ${history ? "text-accent" : ""}`} onClick={() => setHistory((h) => !h)}
@@ -87,7 +79,9 @@ export function ChatRail({ chat, selections, onDropSelection, onClearSelections,
           placeholder={selections.length ? "对选中的说…（「这里字号大一点」）" : contextLabel ? (/^[\u4e00-\u9fa5]/.test(contextLabel) ? `对${contextLabel}说…` : `对 ${contextLabel} 说…`) : "输入消息… ⏎ 发送"} className="flex-1 min-h-[40px] max-h-40 px-3 py-2 rounded border border-border bg-bg text-xs outline-none focus:border-accent resize-y" />
         {chat.running ? <button className="btn danger" onClick={() => void chat.interrupt()}>中断</button> : <button className="btn primary" onClick={() => void chat.send()} disabled={!chat.input.trim()}>发送</button>}
       </div>
-      {(usage || chat.running) && <div className="px-3 h-6 flex items-center text-[11px] text-muted border-t border-border shrink-0"><span>{usage}</span><span className="flex-1" /><span>{chat.running ? "运行中" : ""}</span></div>}
+      {/* 「本轮多少 tokens」和「运行中」**挪进了底栏**（M8-25，用户第九轮第 4 条：
+          「这种调试信息希望统一到整个布局中的底部调试模块中」）。
+          AI 在跑这件事消息流里已经有一行「正在读稿、调工具、落盘…」，不缺这一处。 */}
     </aside>
   );
 }

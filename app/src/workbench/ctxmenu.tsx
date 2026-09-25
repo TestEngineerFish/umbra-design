@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { PopItem, PopSep, PopoverAt } from "../ui/Popover";
 import type { Core } from "../api/client";
 import type { HostAdapter } from "../host";
 import { toast } from "../ui/Toast";
@@ -89,36 +89,17 @@ export function itemsFor(t: CtxTarget, a: CtxActions): CtxItem[] {
   ];
 }
 
-/** 菜单浮层本体。位置跟着鼠标，**碰到窗口边就翻上去 / 靠左**，不然贴边的行右键出来一半在屏幕外。 */
+/** 右键菜单 = 位置跟着鼠标的浮层。定位、翻转、外部点击、Esc 全在 `ui/Popover` 里（M8-25）。 */
 export function CtxMenu({ x, y, items, onClose }: { x: number; y: number; items: CtxItem[]; onClose: () => void }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [pos, setPos] = useState({ left: x, top: y });
-  useLayoutEffect(() => {
-    const el = ref.current; if (!el) return;
-    const r = el.getBoundingClientRect();
-    setPos({
-      left: x + r.width > window.innerWidth - 8 ? Math.max(8, x - r.width) : x,
-      top: y + r.height > window.innerHeight - 8 ? Math.max(8, y - r.height) : y,
-    });
-  }, [x, y]);
-  useEffect(() => {
-    const on = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    document.addEventListener("keydown", on); return () => document.removeEventListener("keydown", on);
-  }, [onClose]);
   return (
-    <>
-      <div className="fixed inset-0 z-[60]" onMouseDown={onClose} onContextMenu={(e) => { e.preventDefault(); onClose(); }} />
-      <div ref={ref} role="menu" data-ud="ctxmenu" className="fixed z-[61] w-52 p-1 bg-panel border border-borderStrong rounded-lg shadow-2xl text-xs"
-        style={{ left: pos.left, top: pos.top }}>
+    <PopoverAt x={x} y={y} onClose={onClose} width={208} tag="ctxmenu">
+      <div className="p-1">
         {items.map((it, i) => it.label === "—"
-          ? <div key={i} className="h-px mx-1.5 my-1 bg-border" />
-          : <button key={i} disabled={!it.run} onClick={() => { onClose(); it.run?.(); }}
-              className={`w-full flex items-center gap-2 h-7 px-2 rounded-sm text-left hover:bg-hover disabled:opacity-40 ${it.danger ? "text-err" : ""}`}>
-              <span className="flex-1 min-w-0 truncate">{it.label}</span>
-              {it.hint && <span className="font-mono text-[11px] text-muted shrink-0">{it.hint}</span>}
-            </button>)}
+          ? <PopSep key={i} />
+          : <PopItem key={i} label={it.label} hint={it.hint} danger={it.danger}
+              onPick={it.run ? () => { onClose(); it.run!(); } : undefined} />)}
       </div>
-    </>
+    </PopoverAt>
   );
 }
 

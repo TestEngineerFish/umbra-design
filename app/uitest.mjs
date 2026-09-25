@@ -125,6 +125,12 @@ ok(await bb.count() === 1, "⌘J 打开底栏");
 const bbText = await bb.innerText().catch(() => "");
 ok(/输出/.test(bbText) && /工具调用/.test(bbText) && /连接/.test(bbText), "底栏三页：输出 / 工具调用 / 连接", bbText.split("\n").slice(0, 4).join(" · "));
 ok(/左 \d+|左 关/.test(bbText) && /详情 \d+/.test(bbText), "布局读数常驻在底栏头部（不单开一页）", (bbText.match(/左 [^\n]*/) ?? [""])[0].slice(0, 46));
+/* 用户第九轮第 4 条：会话栏底部的「运行中」和 token 数要挪进底栏。
+   ⚠️ **判据落在结构标记上，不落在「tokens」这个词上** ——
+   第一版写的是「会话栏里不含 tokens」，结果被会话内容里的工具名 `search_tokens` 蒙掉了
+   （M8-25 实测）。这和 §72.4 是同一条教训的第三次。
+   没跑过 AI 时那个读数不渲染，所以这里只测反向：它不该再出现在会话栏里。 */
+ok(await pg.locator('aside [data-ud="turn-cost"]').count() === 0, "「本轮」读数不在会话栏里了（已挪进底栏头部）");
 await pg.keyboard.press("Meta+j"); await pg.waitForTimeout(500);
 ok(await pg.locator('[data-ud="bottombar"]').count() === 0, "⌘J 再按一次收起底栏");
 
@@ -292,6 +298,37 @@ await pg.waitForTimeout(400);
   const mx = await bar.locator('button[title="更多"]').boundingBox();
   ok(!!bx && !!mx && mx.x + mx.width <= bx.x + bx.width + 1, "文件工具栏的 ⋯ 没被挤出可视区",
      bx && mx ? `⋯ 右缘 ${Math.round(mx.x + mx.width)} · 工具栏右缘 ${Math.round(bx.x + bx.width)}` : "量不到");
+}
+
+/* ── 浮层统一封装（M8-25 · 用户第九轮第 2 条）──
+   三个缺陷是同一个问题的三种长相：7 处各写各的浮层，各漏一样。
+   现在只有 `ui/Popover.tsx` 一份，这三条判据钉住它。 */
+console.log("\n浮层：不越界 / 点外面收起 / 不被 overflow 裁掉（M8-25）");
+{
+  /* ① 引擎下拉原来写死 `absolute right-0`，在 380px 的会话栏里左边会出窗口 */
+  const eng = pg.locator('aside button[data-ud="engine"]').first();
+  await eng.click(); await pg.waitForTimeout(400);
+  const pop = pg.locator('[data-ud="popover"]').first();
+  const pb = await pop.boundingBox();
+  ok(!!pb && pb.x >= 0 && pb.x + pb.width <= 1440, "浮层不越出窗口左右边界",
+     pb ? `left ${Math.round(pb.x)} · right ${Math.round(pb.x + pb.width)}` : "量不到");
+  /* ② 原来引擎下拉少了接外部点击那一层，开着就关不掉 */
+  await pg.mouse.click(700, 500); await pg.waitForTimeout(400);
+  ok(await pg.locator('[data-ud="popover"]').count() === 0, "点浮层外面就收起");
+
+  /* ③ Markdown 的 ⋯ ——「弹不出来」的根因是浮层用 absolute，
+        被文件工具栏的 overflow-hidden 整个裁掉了。现在它是 fixed。 */
+  if (await openByName(".md")) {
+    await pg.locator('[data-ud="file-toolbar"] button[title="更多"]').click();
+    await pg.waitForTimeout(400);
+    const more = pg.locator('[data-ud="popover"]').first();
+    const mb = await more.boundingBox();
+    ok(await more.count() === 1, "Markdown 的 ⋯ 弹得出来了");
+    /* 判据落在「它整个在视口里」，而不是「它存在」—— 被裁的时候它也存在 */
+    ok(!!mb && mb.height > 20 && mb.y + mb.height <= 900 + 1, "而且没被工具栏的 overflow 裁掉",
+       mb ? `高 ${Math.round(mb.height)} · 底 ${Math.round(mb.y + mb.height)}` : "量不到");
+    await pg.keyboard.press("Escape"); await pg.waitForTimeout(300);
+  } else ok(false, "项目里没有 .md");
 }
 
 /* ── 页签（M8-22 · 设计侧第八轮 §六）── */

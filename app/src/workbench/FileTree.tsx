@@ -3,6 +3,7 @@ import type { Core } from "../api/client";
 import type { Draft, FileEntry, Health, ListFilesResult } from "../api/types";
 import { Glyph, ICON } from "../ui/Glyph";
 import { CtxMenu, itemsFor, type CtxActions, type CtxTarget } from "./ctxmenu";
+import { PopoverAt } from "../ui/Popover";
 import { kindDef } from "@shared/kinds";
 
 /** 常驻目录列里的那棵树（M8-11，形制按设计侧第六轮的 S11 窄列 / S12）。
@@ -54,6 +55,7 @@ export function FileTree({ core, current, expanded, onExpandedChange, onOpenFile
   /** 正在就地改名的那一行（设计侧 §五：重命名就地改，不弹窗 ——
    *  弹窗要把视线从树里拉走，而改名的时候人正盯着这一行） */
   const [renaming, setRenaming] = useState<string | null>(null);
+  const headRef = useRef<HTMLDivElement>(null);
   /* 每一层的内容按需拉，拉过就留在内存里。`children[path] === undefined` = 还没拉过，
      这和后端约定的「children 缺省表示未拉取、[] 表示空目录」是同一套语义。 */
   const [children, setChildren] = useState<Record<string, FileEntry[]>>({});
@@ -194,7 +196,7 @@ export function FileTree({ core, current, expanded, onExpandedChange, onOpenFile
       {/* 列头：项目名（点回根）+ 两颗导航钮。钮常驻不 hover 才出 —— 键盘和触控都要够得着 */}
       {/* 高度和分隔线都跟页签条对齐（34px + border-b）——
           目录列通栏之后它和页签条并排，差 2px 或少一条线，那条横线就是断的 */}
-      <div data-ud="tree-head" className="h-[34px] pl-2.5 pr-1 flex items-center gap-1 shrink-0 text-xs relative border-b border-border">
+      <div ref={headRef} data-ud="tree-head" className="h-[34px] pl-2.5 pr-1 flex items-center gap-1 shrink-0 text-xs relative border-b border-border">
         {/* 项目名**右键 = 空白处菜单**（M8-21）。
             光靠「树的空白区」不够：树一满就没有空白可点，用户等于没法在根目录新建。
             项目名就是项目根，在它上面右键最说得通。 */}
@@ -215,7 +217,8 @@ export function FileTree({ core, current, expanded, onExpandedChange, onOpenFile
           onClick={onCollapse} title="收起目录列（⌘B）" aria-label="收起目录列">
           <Glyph d={ICON.treeCollapse} size={13} />
         </button>
-        {goto && <GotoFile q={q} setQ={setQ} drafts={drafts} indexed={indexed} current={current}
+        {goto && headRef.current && <GotoFile q={q} setQ={setQ} drafts={drafts} indexed={indexed} current={current}
+          anchor={{ x: headRef.current.getBoundingClientRect().left + 4, y: headRef.current.getBoundingClientRect().bottom - 4, w: headRef.current.getBoundingClientRect().width - 8 }}
           onPick={(f) => { setGoto(false); onOpenFile(f); }} onClose={() => setGoto(false)} />}
       </div>
       {/* 空白处 = 项目根（设计侧 §五）。所以在树的空白区右键，新建就落在根目录。 */}
@@ -233,16 +236,15 @@ export function FileTree({ core, current, expanded, onExpandedChange, onOpenFile
 
 /** 「转到文件」浮层。原来是页签条右边那颗「N 份稿 ▾」——
  *  按第七轮的分层，它变的是「在详情区看哪份文件」，属于导航，所以跟着目录列走。 */
-function GotoFile({ q, setQ, drafts, indexed, current, onPick, onClose }: {
+function GotoFile({ q, setQ, drafts, indexed, current, onPick, onClose, anchor }: {
   q: string; setQ: (v: string) => void; drafts: Draft[]; indexed: boolean; current: string | null;
-  onPick: (file: string) => void; onClose: () => void;
+  onPick: (file: string) => void; onClose: () => void; anchor: { x: number; y: number; w: number };
 }) {
   const kw = q.trim().toLowerCase();
   const rows = drafts.filter((d) => !kw || `${d.title} ${d.file}`.toLowerCase().includes(kw));
   return (
-    <>
-      <div className="fixed inset-0 z-40" onMouseDown={onClose} />
-      <div className="absolute left-1 right-1 top-[34px] z-[41] max-h-[60vh] flex flex-col bg-panel border border-borderStrong rounded-lg shadow-2xl overflow-hidden">
+      <PopoverAt x={anchor.x} y={anchor.y} onClose={onClose} width={anchor.w}>
+      <div className="max-h-[60vh] flex flex-col">
         <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="转到文件…"
           className="m-1.5 h-7 px-2 rounded border border-borderStrong bg-bg outline-none focus:border-accent text-xs"
           onKeyDown={(e) => {
@@ -260,7 +262,7 @@ function GotoFile({ q, setQ, drafts, indexed, current, onPick, onClose }: {
         </div>
         {!indexed && <div className="px-2 h-7 flex items-center border-t border-border text-[11px] text-muted">还没建索引 —— 项目菜单里「重建索引」</div>}
       </div>
-    </>
+      </PopoverAt>
   );
 }
 

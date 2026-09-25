@@ -10,6 +10,7 @@ import { useProject } from "../store/project";
 import { NewDraftSheet } from "../sheets/Sheets";
 import { toast } from "../ui/Toast";
 import { Glyph, ICON } from "../ui/Glyph";
+import { PopItem, PopSep, Popover, usePopover } from "../ui/Popover";
 import { BottomBar } from "./BottomBar";
 import { debugBus, wireDebug } from "../ui/debug";
 import { dirtyStore } from "../ui/dirty";
@@ -49,7 +50,7 @@ export function Workbench({ project, host, layout, setLayout, onHome, onSettings
      量的只有一样：整个工作台有多宽。它是最外层那个容器，不会因为格式模块换 key 而重挂。 */
   const rootRef = useRef<HTMLDivElement>(null);
   const [winW, setWinW] = useState(() => window.innerWidth);
-  const [menu, setMenu] = useState(false);
+  const projPop = usePopover();
   const file = store.selected;
   const kind = dirMode ? "dir" : kindOf(file);
   const mod = moduleFor(kind);
@@ -221,19 +222,19 @@ export function Workbench({ project, host, layout, setLayout, onHome, onSettings
           </svg>
         </button>
         <div className="relative min-w-0 flex">
-          <button className={`min-w-0 max-w-[420px] flex items-center gap-1.5 h-[26px] pl-2 pr-1.5 rounded hover:bg-hover ${menu ? "bg-hover" : ""}`}
-            onClick={() => setMenu((m) => !m)} aria-expanded={menu} aria-haspopup="menu" title={project.dir}>
+          <button ref={projPop.anchorRef as React.RefObject<HTMLButtonElement>}
+            className={`min-w-0 max-w-[420px] flex items-center gap-1.5 h-[26px] pl-2 pr-1.5 rounded hover:bg-hover ${projPop.open ? "bg-hover" : ""}`}
+            onClick={projPop.toggle} aria-expanded={projPop.open} aria-haspopup="menu" title={project.dir}>
             <span className="font-semibold truncate">{project.title || project.name}</span>
             <Glyph d={ICON.caretDown} size={11} stroke={1.6} className="text-muted" />
           </button>
-          {menu && <>
-            <div className="fixed inset-0 z-40" onClick={() => setMenu(false)} />
-            <div role="menu" className="absolute top-[31px] left-0 z-[41] w-72 p-1 bg-panel border border-borderStrong rounded-lg shadow-2xl text-left">
+          <Popover pop={projPop} align="start" width={288}>
+            <div className="p-1">
               {/* 路径**整块可点，点了就复制**（第八轮 §三）——
                   所以菜单里不再单独放一项「复制路径」。
                   项目名不写第二遍：按钮上就是它，菜单是它的展开（M8-16 用户提的 double name）。 */}
               <button className="w-full text-left px-2 pt-1.5 pb-2 mb-1 border-b border-border hover:bg-hover"
-                onClick={() => { setMenu(false); void navigator.clipboard?.writeText(project.dir).then(() => toast("路径已复制", project.dir, "ok"), () => toast("复制不了", "浏览器不让访问剪贴板", "error")); }}>
+                onClick={() => { projPop.close(); void navigator.clipboard?.writeText(project.dir).then(() => toast("路径已复制", project.dir, "ok"), () => toast("复制不了", "浏览器不让访问剪贴板", "error")); }}>
                 <div className="text-[11px] text-muted mb-0.5">项目目录 · 点击复制</div>
                 <div className="font-mono text-[11px] break-all leading-relaxed">{project.dir}</div>
               </button>
@@ -247,14 +248,10 @@ export function Workbench({ project, host, layout, setLayout, onHome, onSettings
                 { sep: true as const },
                 { label: "关闭项目", run: onHome },
               ].map((mi, k) => mi.sep
-                ? <div key={k} className="h-px mx-1.5 my-1 bg-border" />
-                : <button key={k} className="w-full flex items-center gap-2 h-7 px-2 rounded hover:bg-hover text-left"
-                    onClick={() => { setMenu(false); mi.run!(); }}>
-                    <span className="flex-1 min-w-0 truncate">{mi.label}</span>
-                    {mi.hint && <span className="font-mono text-[11px] text-muted shrink-0">{mi.hint}</span>}
-                  </button>)}
+                ? <PopSep key={k} />
+                : <PopItem key={k} label={mi.label!} hint={mi.hint} onPick={() => { projPop.close(); mi.run!(); }} />)}
             </div>
-          </>}
+          </Popover>
         </div>
         <span className="flex-1" />
         <span className={`text-[11px] ${store.wsState === "open" ? "text-muted" : "text-err"}`} title={store.lastEvent ? `最近事件 ${store.lastEvent.type} · ${store.lastEvent.at}` : "还没有事件"}>{store.wsState === "open" ? "" : "核心断开"}</span>

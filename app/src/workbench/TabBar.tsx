@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { PopItem, PopSep, Popover, usePopover } from "../ui/Popover";
 import { kindOf } from "@shared/kinds";
 import { draftTitle } from "../api/types";
 import { dirtyStore } from "../ui/dirty";
@@ -32,7 +33,7 @@ export function TabBar({ tabs, current, onPick, onClose, onCloseOthers, extra }:
 }) {
   const box = useRef<HTMLDivElement>(null);
   const [avail, setAvail] = useState(9999);
-  const [open, setOpen] = useState(false);
+  const morePop = usePopover();
   const dirtySnap = useSyncExternalStore(dirtyStore.subscribe, dirtyStore.snapshot);
   void dirtySnap;
 
@@ -90,17 +91,15 @@ export function TabBar({ tabs, current, onPick, onClose, onCloseOthers, extra }:
         })}
       </div>
       {hidden.length > 0 && (
-        <div className="relative shrink-0 flex">
-          <button data-ud="tab-more" className={`px-2.5 border-l border-border whitespace-nowrap ${open ? "bg-hover text-text" : "text-muted hover:text-text"}`}
-            onClick={() => setOpen((o) => !o)} title="所有打开的文件">+{hidden.length} ▾</button>
-          {open && <>
-            <div className="fixed inset-0 z-40" onMouseDown={() => setOpen(false)} />
-            <div className="absolute right-0 top-[34px] z-[41] w-[300px] max-h-[60vh] overflow-auto bg-panel border border-borderStrong rounded-b-lg shadow-2xl py-1">
-              {/* 列出**全部**打开的文件，包括看得见的那几个 —— 用户找的是「我开了哪些」，
-                  不是「哪些被收起来了」 */}
+        <div className="shrink-0 flex">
+          <button data-ud="tab-more" ref={morePop.anchorRef as React.RefObject<HTMLButtonElement>}
+            className={`px-2.5 border-l border-border whitespace-nowrap ${morePop.open ? "bg-hover text-text" : "text-muted hover:text-text"}`}
+            onClick={morePop.toggle} aria-expanded={morePop.open} title="所有打开的文件">+{hidden.length} ▾</button>
+          <Popover pop={morePop} align="end" width={300}>
+            <div className="max-h-[60vh] overflow-auto py-1">
               {tabs.map((t) => (
                 <button key={t} className={`w-full px-2.5 py-1.5 flex items-center gap-2 text-left hover:bg-hover ${t === current ? "bg-accentSoft" : ""}`}
-                  onClick={() => { setOpen(false); onPick(t); }}>
+                  onClick={() => { morePop.close(); onPick(t); }}>
                   <span className="w-3 shrink-0 text-accent">{t === current ? "✓" : ""}</span>
                   <span className="shrink-0 text-muted">{ICONS[kindOf(t)] ?? "▢"}</span>
                   <span className="truncate flex-1">{label(t)}</span>
@@ -108,11 +107,11 @@ export function TabBar({ tabs, current, onPick, onClose, onCloseOthers, extra }:
                 </button>
               ))}
               {current && tabs.length > 1 && <>
-                <div className="h-px mx-2 my-1 bg-border" />
-                <button className="w-full px-2.5 py-1.5 text-left hover:bg-hover text-muted" onClick={() => { setOpen(false); onCloseOthers(current); }}>关闭其他页签</button>
+                <PopSep />
+                <PopItem label="关闭其他页签" onPick={() => { morePop.close(); onCloseOthers(current); }} />
               </>}
             </div>
-          </>}
+          </Popover>
         </div>
       )}
     </div>
