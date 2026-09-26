@@ -19,7 +19,7 @@ import { dirtyStore } from "../ui/dirty";
 import { FileTree } from "./FileTree";
 /* 详情区怎么画、右边配什么面板、状态行写什么，**全在 kinds 注册表里**。
    这个文件从此不认识任何一种具体格式 —— 加 `.json` 时它一个字都没动（M8-14）。 */
-import { moduleFor, type ViewContext } from "../kinds";
+import { moduleFor, type ViewContext, useKindRegistry } from "../kinds";
 import { FileMore, ToolbarBar } from "../kinds/toolbar";
 import { makeActions } from "./ctxmenu";
 import { TabBar } from "./TabBar";
@@ -57,6 +57,10 @@ export function Workbench({ project, host, layout, setLayout, onHome, onSettings
   const projPop = usePopover();
   const file = store.selected;
   const kind = dirMode ? "dir" : kindOf(file);
+  /* ⚠️ **订阅注册表**（M11-3）：插件是启动后才装的，装完这里要重画 ——
+     不订阅的话，用户装了视频插件，正开着的那个 `.mp4` 页签还是通用文件卡，
+     得关掉重开才生效。`useKindRegistry` 返回的版本号只用来触发重渲染，值本身不看。 */
+  useKindRegistry();
   const mod = moduleFor(kind);
   const panels = [...(mod.panels ?? [])];
   const active: PanelId | null = panels.length ? (layout.panelByKind[kind] === undefined ? panels[0]! : (layout.panelByKind[kind] && panels.includes(layout.panelByKind[kind]!) ? layout.panelByKind[kind]! : null)) : null;

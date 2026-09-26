@@ -1,3 +1,4 @@
+import { useSyncExternalStore } from "react";
 import type { FC, ReactNode } from "react";
 import { kindDef, kindOf, type FileKind } from "@shared/kinds";
 import type { PanelId } from "../layout/layout";
@@ -19,6 +20,8 @@ export { kindDef, kindOf };
 export interface KindModule {
   /** 认领哪些 kind。一个模块可以管几种（文件卡就管 code / html / other） */
   ids: readonly FileKind[];
+  /** 哪个插件带来的。内置的不写。卸载插件时按它把模块摘掉（M11-3） */
+  from?: string;
   /** 右侧从属面板（R1）。不写 = 这种格式没有右侧列 */
   panels?: readonly PanelId[];
   /** 状态容器：`View` / `Toolbar` / `Panels` 三处要共享的状态放这儿
@@ -58,13 +61,47 @@ export interface KindModule {
 
 const REG = new Map<FileKind, KindModule>();
 
+/* ═══ 迟到注册（M11-3，Q37）═══
+   插件是**启动之后**才装上的，所以注册表不能只在模块加载时填一次。
+   难的不是"往 Map 里再塞一个" —— 是**塞完之后界面要重画**：
+   用户装了视频插件，正开着的那个 `.mp4` 页签应该当场从「通用文件卡」变成视频编辑器，
+   而不是要他关掉重开。
+
+   用 `useSyncExternalStore` 而不是自己发事件 + setState：
+   React 18 并发渲染下，自己发事件容易读到撕裂的状态（一半组件看到新注册表、一半看到旧的）。 */
+let version = 0;
+const listeners = new Set<() => void>();
+const bump = () => { version++; for (const l of listeners) l(); };
+
+/** 订阅注册表的变化。**只有真变了才会 bump** —— 每次渲染都 bump 会打死循环。 */
+export function useKindRegistry(): number {
+  return useSyncExternalStore(
+    (cb) => { listeners.add(cb); return () => listeners.delete(cb); },
+    () => version,
+    () => version,     // 服务端快照：和客户端一样，这个表不依赖浏览器
+  );
+}
+
 export function register(m: KindModule): void {
   for (const id of m.ids) {
     /* 撞车要当场喊出来。两个模块认领同一种 kind 时，后注册的会静默覆盖前一个，
-       而症状是「某种文件的工具栏莫名其妙变了」—— 那时候很难想到是注册撞了。 */
-    if (REG.has(id)) throw new Error(`文件类型 ${id} 被注册了两次 —— 一种 kind 只能有一个模块`);
+       而症状是「某种文件的工具栏莫名其妙变了」—— 那时候很难想到是注册撞了。
+
+       ⚠️ 插件装上时这一条更要紧：两个插件抢同一种格式，用户看到的是
+       「装了 B 之后 A 就不работает了」，而两边都没报错。 */
+    if (REG.has(id)) throw new Error(`文件类型 ${id} 被注册了两次 —— 一种 kind 只能有一个模块（先来的：${REG.get(id)!.from ?? "内置"}，后来的：${m.from ?? "内置"}）`);
     REG.set(id, m);
   }
+  bump();
+}
+
+/** 卸载插件：把它带来的模块全摘掉。返回摘了几种。
+ *  摘完 bump 一次 —— 正开着那种文件的页签要退回通用文件卡，不能停在一个已经没了的视图上。 */
+export function unregisterFrom(pluginId: string): number {
+  let n = 0;
+  for (const [id, m] of [...REG]) if (m.from === pluginId) { REG.delete(id); n++; }
+  if (n) bump();
+  return n;
 }
 
 /** 取这种 kind 的模块。**永远有返回值** —— 没人认领的一律落到 `other`（文件卡）。 */
@@ -79,5 +116,6 @@ export function panelsOf(kind: FileKind): PanelId[] {
   return [...(moduleFor(kind).panels ?? [])];
 }
 
-/** 已注册的种类 —— 只给回归用（数一数注册表和 shared 的 KINDS 对不对得上） */
+/** 已注册的种类 —— 给回归用（数一数注册表和 shared 的种类表对不对得上），
+ *  也给插件加载器用（装完之后核对它声明的 kind 真的都认领了） */
 export function registered(): FileKind[] { return [...REG.keys()]; }

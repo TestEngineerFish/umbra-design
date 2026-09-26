@@ -23,7 +23,8 @@
     "incoming": "node dist/incoming.js",
     "outgoing": "node dist/outgoing.js",
     "filetest": "node dist/filetest.js",
-    "captest": "npm run build && node dist/captest.js"
+    "captest": "npm run build && node dist/captest.js",
+    "kindtest": "npm run build && node dist/kindtest.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",

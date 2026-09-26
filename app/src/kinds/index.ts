@@ -1,4 +1,4 @@
-import { ALL_KINDS } from "@shared/kinds";
+import { allKinds, type FileKind } from "@shared/kinds";
 import { register, registered, type KindModule } from "./registry";
 import { dc } from "./dc";
 import { dir } from "./dir";
@@ -23,17 +23,26 @@ import { md } from "./md";
 const ALL: readonly KindModule[] = [dc, md, json, image, dir, fallback];
 for (const m of ALL) register(m);
 
-/* 开发期自检：`shared/kinds.ts` 里声明的每一种都得有模块认领。
-   没有这条的话，加了一种 kind 却忘了写模块，界面**不会报错** ——
-   它会静静落到 `other` 的文件卡上，看起来只是「这种文件还没做」，
-   而真相是「做了一半」。这种错最难发现，所以让它在打开界面的第一秒就炸。 */
-if (import.meta.env.DEV) {
+/** 开发期自检：种类表里声明的每一种都得有模块认领。
+ *
+ *  没有这条的话，加了一种 kind 却忘了写模块，界面**不会报错** ——
+ *  它会静静落到 `other` 的文件卡上，看起来只是「这种文件还没做」，
+ *  而真相是「做了一半」。这种错最难发现，所以让它在打开界面的第一秒就炸。
+ *
+ *  ⚠️ M11-2 之后**它必须能重复跑**：种类表是运行期的，插件装上会往里加。
+ *  原来这段是模块顶层的一次性代码 —— 插件加了种类却没给模块，一样会静静落到文件卡，
+ *  而这一次连开发期都不会炸。所以抽成函数，装完插件再调一次。 */
+export function auditKinds(): FileKind[] {
   const claimed = new Set(registered());
-  const missing = ALL_KINDS.filter((k) => !claimed.has(k));
+  return allKinds().filter((k) => !claimed.has(k));
+}
+
+if (import.meta.env.DEV) {
+  const missing = auditKinds();
   if (missing.length) throw new Error(`这些文件类型没有模块认领：${missing.join(" / ")} —— 在 app/src/kinds/ 下补一个，并在 index.ts 里注册`);
 }
 
-export { moduleFor, panelsOf, registered } from "./registry";
+export { moduleFor, panelsOf, registered, register, unregisterFrom, useKindRegistry } from "./registry";
 export type { KindModule } from "./registry";
 export type { MenuItem, ViewContext } from "./context";
 export { FileMore, Seg, SizeBtn, ToolbarBar } from "./toolbar";
