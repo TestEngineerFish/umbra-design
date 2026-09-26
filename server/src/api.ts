@@ -146,52 +146,11 @@ export async function handleApi(
   const p = ctx.project as Project;   // 非全局路由到这里一定有项目；全局路由只在下面用 p?.dir
   try {
     // ── 只读 ──
-    if (route === "drafts" && req.method === "GET") {
-      const files = (await listDrafts(p))
-        .map((a) => relative(p.dir, a).split(sep).join("/"))
-        .filter((r) => !isToolPage(r));
-      /* 应用前端的侧栏要类型 / 健康 / 元素数 / 版本（UI-2 / UI-3），这些 build_index 已经算过并存在
-         index-data.json 里 —— 直接读缓存，不在这里重新校验几十份稿。没建过索引就只有文件名。 */
-      let indexed: Record<string, unknown> = {};
-      const dataFile = join(p.dir, ".umbrastudio", "index-data.json");
-      if (existsSync(dataFile)) {
-        try {
-          const data = JSON.parse(await readFile(dataFile, "utf8")) as { drafts?: Array<{ file: string }> };
-          for (const d of data.drafts ?? []) indexed[d.file] = d;
-        } catch { indexed = {}; }
-      }
-      const drafts = files.map((f) => ({ file: f, ...(indexed[f] as object | undefined ?? {}) }));
-      json(reply, 200, { ok: true, data: { project: p.name, title: p.title, files, drafts, indexed: Object.keys(indexed).length > 0 } });
-      return true;
-    }
 
 
     // M6-3 源码只读视图：当前盘上那一版的原文（应用里看，不是给模型的 read_draft）
 
 
-    if (route === "changes" && req.method === "GET") {
-      const rel = await resolveDraft(p, str(url.searchParams.get("file"), "file"));
-      const vs = await listVersions(p, rel);
-      // 版本弹层（S2，设计侧 §3.2）每行要「来源 · 时间 · 摘要」—— 形状按它给的：versionMeta[v] = { src, time, summary }
-      const metaRaw = await readVersionMeta(p, rel);
-      const versionMeta: Record<string, { src: string; time: string; summary: string }> = {};
-      for (const [v, m] of Object.entries(metaRaw)) {
-        versionMeta[v] = { src: m.origin, time: humanTime(m.capturedAt), summary: m.summary };
-      }
-      if (vs.length < 2) {
-        json(reply, 200, { ok: true, data: { file: rel, versions: vs, versionMeta, diff: null, markdown: null,
-          note: vs.length ? "只有一版，没有可比的" : "还没有快照" } });
-        return true;
-      }
-      // since=prev 是「上一版」的简写（S6 默认比对上一版 → 最新）；不给 since 时从第一版起算（S2 / S4 的用法）
-      const sinceRaw = url.searchParams.get("since");
-      const since = sinceRaw === "prev" ? (vs[vs.length - 2] as string) : (sinceRaw || (vs[0] as string));
-      // to 给 S6 版本对比用：任意两版；不给就是 since → 最新（S2 / S4 的用法）
-      const to = url.searchParams.get("to");
-      const d = to ? await diffDrafts(p, rel, { from: since, to }) : await changesSince(p, rel, since);
-      json(reply, 200, { ok: true, data: { file: rel, versions: vs, versionMeta, diff: d, markdown: toMarkdown(d) } });
-      return true;
-    }
 
     /* 某一版的源码，按 HTML 返回 —— S6 两栏 iframe 各装一版（UI-4）。
        源码在快照旁的 .src.html.gz 里（revert_to 用的同一份）。它被从 /__ud/ 下发出，
@@ -222,28 +181,7 @@ export async function handleApi(
 
     // ── 可写 ──
 
-    if (route === "project_changes" && req.method === "GET") {
-      const files = (await listDrafts(p))
-        .map((a) => relative(p.dir, a).split(sep).join("/"))
-        .filter((r) => !isToolPage(r));
-      const since = url.searchParams.get("since");
-      const rows = await projectChangesSince(p, files, since);
-      // 只把有变更的稿给界面 —— 一个项目几十份稿，大半是「只有一版，没有可比的」，
-      // 全给过去等于让人自己在噪声里找
-      const changed = rows.filter((r) => r.diff && r.diff.changes.length > 0);
-      json(reply, 200, { ok: true, data: {
-        project: p.name, title: p.title,
-        scanned: rows.length, changed: changed.length,
-        rows: changed,
-        skipped: rows.filter((r) => !r.diff).map((r) => ({ path: r.path, note: r.note })),
-      } });
-      return true;
-    }
 
-    if (route === "index_status" && req.method === "GET") {
-      json(reply, 200, { ok: true, data: await indexStatus(p) });
-      return true;
-    }
 
     // ── 长活儿：render_check 要开 Chromium（1.4~12s），做成作业 + 轮询 ──
     if (route === "check" && req.method === "POST") {
@@ -284,29 +222,6 @@ export async function handleApi(
 
     /* AI 会话（M2-12：应用前端的会话面板走本地 API，和 MCP 的 chat_send 同一份逻辑） */
     /* ── 钉在节点上的评论（M6-2） ── */
-    if (route === "comments" && req.method === "GET") {
-      const f = url.searchParams.get("file");
-      json(reply, 200, { ok: true, data: { comments: await listComments(p.dir, f ? await resolveDraft(p, f) : undefined) } });
-      return true;
-    }
-    if (route === "comment_add" && req.method === "POST") {
-      if (!originOk(req, ctx.port)) { json(reply, 403, { ok: false, errors: [{ code: "E_API_ORIGIN", message: "Origin 不是本服务" }] }); return true; }
-      const b = await readBody(req);
-      json(reply, 200, { ok: true, data: await addComment(p.dir, { file: await resolveDraft(p, str(b.file, "file")), node: str(b.node, "node"), tag: typeof b.tag === "string" ? b.tag : undefined, text: str(b.text, "text") }) });
-      return true;
-    }
-    if (route === "comment_update" && req.method === "POST") {
-      if (!originOk(req, ctx.port)) { json(reply, 403, { ok: false, errors: [{ code: "E_API_ORIGIN", message: "Origin 不是本服务" }] }); return true; }
-      const b = await readBody(req);
-      json(reply, 200, { ok: true, data: await updateComment(p.dir, str(b.id, "id"), { text: typeof b.text === "string" ? b.text : undefined, resolved: typeof b.resolved === "boolean" ? b.resolved : undefined }) });
-      return true;
-    }
-    if (route === "comment_delete" && req.method === "POST") {
-      if (!originOk(req, ctx.port)) { json(reply, 403, { ok: false, errors: [{ code: "E_API_ORIGIN", message: "Origin 不是本服务" }] }); return true; }
-      const b = await readBody(req);
-      json(reply, 200, { ok: true, data: await deleteComment(p.dir, str(b.id, "id")) });
-      return true;
-    }
 
     if (route === "chat_list" && req.method === "GET") {
       const r = await listChats(p.dir);
@@ -563,15 +478,6 @@ export async function handleApi(
     /* ── S8 项目设置（M1-9 / M1-10 / M1-12 的界面接线，doc/00 §三十九） ── */
     /* S1「重建索引」（M5-8）。build_index 会重写入口页（S1 自己），所以界面调完要整页重载。
        serveUrl 用本服务的地址 —— 入口页里的链接都是相对路径，这个值只进 index-data 的 url 字段。 */
-    if (route === "rebuild_index" && req.method === "POST") {
-      if (!originOk(req, ctx.port)) {
-        json(reply, 403, { ok: false, errors: [{ code: "E_API_ORIGIN", message: "Origin 不是本服务" }] });
-        return true;
-      }
-      const built = await buildIndex(p, `http://127.0.0.1:${ctx.port}/`);
-      json(reply, 200, { ok: true, data: built });
-      return true;
-    }
 
     /* ═══ 能力注册表 → HTTP 面（M11-1，Q36）═══
        放在**手写路由的后面**：搬过去的能力在 `cap/` 里，还没搬的照旧走上面。

@@ -93,37 +93,6 @@ const server = new McpServer(
 
 // ─────────────────────── 引用图谱（M1-0）───────────────────────
 
-server.registerTool("list_references", {
-  title: "查询稿件的引用关系",
-  description: [
-    "回答「谁引用了我 / 我引用了谁」。dc-import 按文件名解析（doc/01 H4），",
-    "改名 / 移动 / 删除任何被引用的稿都会静默打断引用。",
-    "生命周期操作前必须先查这个工具确认影响面。",
-    "",
-    "传 file → 返回该稿的双向引用关系；",
-    "不传 file → 返回整个项目的引用图谱概览（按被引用次数排序）。",
-  ].join("\n"),
-  inputSchema: {
-    project: z.string(),
-    file: z.string().optional().describe("稿的相对路径。不给时返回整个项目的引用概览"),
-  },
-}, async ({ project, file }) => run(async () => {
-  const p = await loadProject(project);
-  const r = await listReferences(p, file);
-  const data: Record<string, unknown> = { ...r };
-  if (r.file) {
-    return envelope(data, [], {
-      imports: r.imports.length,
-      importedBy: r.importedBy.length,
-    });
-  }
-  // 没给 file 时，imports/importedBy 是空数组，重点是 overview
-  return envelope(data, [], {
-    drafts: r.overview?.length ?? 0,
-    referenced: r.overview?.filter((o) => o.importedByCount > 0).length ?? 0,
-  });
-}));
-
 // ─────────────────────── 项目创建（M1-1）───────────────────────
 
 server.registerTool("create_project", {
@@ -376,97 +345,6 @@ server.registerTool("check_browser", {
 
 // ───────────────────────── 变更交付（doc/07）─────────────────────────
 
-server.registerTool("list_versions", {
-  title: "列出一份稿的版本",
-  description: "列出这份稿的快照版本序列（v1、v2 …），以及项目有没有 git 兜底。版本在每次 write_draft 落盘时递增，按稿独立计数。",
-  inputSchema: { project: z.string(), path: z.string() },
-}, async ({ project, path }) => run(async () => {
-  const p = await loadProject(project);
-  const vs = await listVersions(p, path);
-  return envelope({ path, versions: vs, latest: vs[vs.length - 1] ?? null, gitEnabled: p.gitEnabled },
-    [], { count: vs.length });
-}));
-
-server.registerTool("snapshot_draft", {
-  title: "取一份稿的语义快照",
-  description: "把 .dc.html 抽成归一化的语义快照（props / state / 状态分支 / 列表 / 子组件 / 用到的 token / 文案 / 节点与指纹）。write_draft 会自动存快照，这个工具用来看某一版的快照内容。",
-  inputSchema: {
-    project: z.string(), path: z.string(),
-    version: z.string().optional().describe("v<N> / git ref / 「工作区」。默认「工作区」"),
-  },
-}, async ({ project, path, version }) => run(async () => {
-  const p = await loadProject(project);
-  const snap = await resolveSnapshot(p, path, version ?? "工作区");
-  return envelope(snap, [], {
-    nodes: snap.nodes.length, texts: snap.texts.length,
-    tokensUsed: snap.tokensUsed.length, branches: snap.branches.length,
-  });
-}));
-
-server.registerTool("diff_drafts", {
-  title: "两版之间的语义变更清单",
-  description: [
-    "对两版做**语义** diff，不是文本 diff —— 对 inline-style HTML 做文本 diff 没用（doc/07 §一）。",
-    "四级分类，唯一目的是回答「要不要动代码」：",
-    "  L1 契约 → 必须改代码（props / 状态分支 / 事件名 / 子组件契约变了）",
-    "  L2 取值 → 照抄新值（颜色 / 间距 / 字号 / token 引用）",
-    "  L3 文案 → 改字符串",
-    "  L4 等价 → 无需处理",
-    "节点配对不靠路径（靠指纹 + LCS），所以在模板中间插一个元素不会把后面全报成变更。",
-    "from / to 可以是 v<N>、git ref、或「工作区」。",
-  ].join("\n"),
-  inputSchema: {
-    project: z.string(), path: z.string(),
-    from: z.string().describe("v<N> / git ref / 「工作区」"),
-    to: z.string().optional().describe("默认最新的一版快照"),
-    markdown: z.boolean().optional().describe("true 时附一份给人看的纯文本清单"),
-  },
-}, async ({ project, path, from, to, markdown }) => run(async () => {
-  const p = await loadProject(project);
-  const d = await diffDrafts(p, path, { from, to });
-  const data: Record<string, unknown> = { ...d };
-  if (markdown) data.markdown = toMarkdown(d);
-  return envelope(data, [], { ...d.counts, total: d.changes.length });
-}));
-
-server.registerTool("get_changes_since", {
-  title: "跨版本净变更",
-  description: [
-    "回答「我实现的是 v217，现在最新 v221，我要改什么」—— **不是把四份 diff 拼起来**。",
-    "合并规则：同一属性多次变化只报最终值；加了又删不报；删了又加回同值不报；级别取最高。",
-    "不给 path 就出整个项目的汇总，按稿分节。",
-  ].join("\n"),
-  inputSchema: {
-    project: z.string(),
-    since: z.string().describe("起点版本，如 v3"),
-    path: z.string().optional().describe("不给就整个项目"),
-    markdown: z.boolean().optional(),
-  },
-}, async ({ project, since, path, markdown }) => run(async () => {
-  const p = await loadProject(project);
-  if (path) {
-    const d = await changesSince(p, path, since);
-    const data: Record<string, unknown> = { ...d };
-    if (markdown) data.markdown = toMarkdown(d);
-    return envelope(data, [], { ...d.counts, spans: d.spans.length });
-  }
-  const drafts = (await listDrafts(p)).map((a) => a.slice(p.dir.length + 1).split("\\").join("/"));
-  const rows = await projectChangesSince(p, drafts, since);
-  const withChange = rows.filter((r) => r.diff && r.diff.changes.length);
-  const data = {
-    since,
-    drafts: rows.map((r) => ({
-      path: r.path,
-      counts: r.diff?.counts ?? null,
-      conclusion: r.diff ? undefined : r.note,
-      changes: r.diff?.changes ?? [],
-      spans: r.diff?.spans ?? [],
-    })),
-    markdown: markdown ? withChange.map((r) => toMarkdown(r.diff!)).join("\n\n———\n\n") : undefined,
-  };
-  return envelope(data, [], { draftsScanned: rows.length, draftsChanged: withChange.length });
-}));
-
 // ───────────────────── 形态 A：入口页与静态服务（doc/01 §4.2）─────────────────────
 
 server.registerTool("serve_start", {
@@ -516,44 +394,6 @@ server.registerTool("serve_status", {
 }));
 
 // ───────────────────── 节点定位与属性级编辑（三层修改的地基） ─────────────────────
-
-server.registerTool("build_index", {
-  title: "生成项目入口页",
-  description: [
-    "扫项目目录，把工具界面部署进项目并注入数据：",
-    "  index.dc.html                 —— 入口页（设计侧 ui/S1 那份）",
-    "  S2…S5-*.dc.html               —— 其余壳页面，必须与稿同源才能点选/调 API",
-    "  .umbrastudio/index-data.json  —— 数据（doc/08 S1 的形状）",
-    "  .umbrastudio/select-bridge.js —— 预览点选桥，由壳注入 iframe",
-    "  _ds-tool/tokens.css           —— 工具皮肤",
-    "",
-    "⚠️ **先 serve_start 再 build_index**：本地 API 的令牌在这一步注入壳页面。",
-    "反了的话壳拿不到令牌，诊断与点选面板是空的（返回里 api:false 就是这个情况）。",
-    "",
-    "每份稿带上：类型、元素数、最新版本、更新时间、缩略图（有的话）、",
-    "健康状态与诊断条数、演示态清单、引用与被引用关系。",
-    "入口页优先用设计侧那份 ui/S1-稿件索引.dc.html；它缺失时才用内置过渡页兜底",
-    "（返回里的 indexSource 写明用了哪个）。",
-    "",
-    "renderCheck=true 时，对缺截图或截图过期的稿跑一次渲染体检并生成缩略图。",
-  ].join("\n"),
-  inputSchema: { project: z.string(), serve: z.boolean().optional().describe("true 时顺手起静态服务并回地址"), renderCheck: z.boolean().optional().describe("true 时对缺截图的稿跑渲染体检生成缩略图（M4-5）") },
-}, async ({ project, serve, renderCheck }) => run(async () => {
-  const p = await loadProject(project);
-  const url = serve ? (await serveStart(p)).url : null;
-  const r = await buildIndex(p, url, { renderCheck });
-  return envelope(r, [], { drafts: r.drafts, ...r.byHealth });
-}));
-
-server.registerTool("get_index_data", {
-  title: "只取索引数据，不落盘",
-  description: "按 doc/08 S1 的数据契约返回项目的稿件清单，不写任何文件。给要自己渲染索引的调用方用。",
-  inputSchema: { project: z.string() },
-}, async ({ project }) => run(async () => {
-  const p = await loadProject(project);
-  const d = await collectIndex(p);
-  return envelope(d, [], { drafts: d.drafts.length });
-}));
 
 // ──────────────────────────── AI 会话（M2） ────────────────────────────
 
@@ -610,17 +450,6 @@ server.registerTool("set_ai_config", {
   };
   await setAiConfig(updated);
   return envelope({ ok: true, channel: ch }, [], {});
-}));
-
-server.registerTool("list_comments", {
-  title: "列出钉在节点上的评论",
-  description: "评论存 .umbrastudio/comments.json（M6-2）：稿 + 节点地址（data-ud-node）+ 一句话 + 是否已处理。模型改稿前可以看看设计侧留了什么话。",
-  inputSchema: { project: z.string().describe("项目名或绝对目录"), file: z.string().optional().describe("只看这一份稿"), unresolvedOnly: z.boolean().optional().describe("只看没处理的") },
-}, async ({ project, file, unresolvedOnly }) => run(async () => {
-  const p = await loadProject(project);
-  let list = await listComments(p.dir, file);
-  if (unresolvedOnly) list = list.filter((c) => !c.resolved);
-  return envelope({ comments: list }, [], { count: list.length });
 }));
 
 server.registerTool("chat_list", {

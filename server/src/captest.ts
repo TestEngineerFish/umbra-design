@@ -4,6 +4,8 @@
  *  所以判据钉的全是**结构性质**：声明了就两面都有、名字不打架、入参没写重。
  *  功能本身有 `filetest` 管。
  */
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { allCaps, capsFor, httpRoutes } from "./cap/index.js";
 
 let pass = 0, fail = 0;
@@ -73,6 +75,37 @@ for (const n of wasHttpOnly) {
     ok(out.ok && src !== "空白骨架", `${via} 面：选模板建出来的**不是空白稿**`, `source=${src}`);
   }
   await rm(dir, { recursive: true, force: true });
+}
+
+/* ══════════ 搬迁不能丢件（M11-7 第五批差点栽）══════════
+   搬能力的动作是「在 `cap/` 里写一份 → 删掉两侧手写的」。
+   中间漏写一件的话：**编译过、回归全绿**，因为 MCP 工具是给外部客户端用的，
+   我们自己的测试一个都不会调。`get_index_data` 就这么差点没了。
+
+   这条闸拿 **git 里上一版的工具清单**当基准 —— 基准独立于「现在有什么」，
+   所以不会像 §九十一 那条一样变成循环。
+   ⚠️ 有意去掉一件工具时，把它加进 `RETIRED` 并写清为什么。 */
+{
+  const { execFileSync } = await import("node:child_process");
+  /** 有意去掉的，写清为什么 —— 不写的话下一个人只会看到判据红了却不知道是不是该红 */
+  const RETIRED: Record<string, string> = {
+    diff_drafts: "并进 list_changes（它的 from/to 是超集）",
+    get_changes_since: "并进 list_changes（单份稿）与 list_project_changes（整个项目）",
+    restore_draft: "还在，只是搬进了 cap/drafts.ts",
+  };
+  let base = "";
+  try {
+    base = execFileSync("git", ["show", "HEAD:server/src/index.ts"], { cwd: join(process.cwd(), ".."), encoding: "utf8" });
+  } catch { /* 不在 git 仓库里就跳过这一节 */ }
+  if (base) {
+    const before = [...base.matchAll(/registerTool\("([a-z_]+)"/g)].map((m) => m[1]!);
+    const now = new Set(allCaps().map((c) => c.name));
+    const src = await readFile(join(process.cwd(), "src", "index.ts"), "utf8");
+    for (const m of src.matchAll(/registerTool\("([a-z_]+)"/g)) now.add(m[1]!);
+    const lost = before.filter((t) => !now.has(t) && !(t in RETIRED));
+    ok(lost.length === 0, "**这一轮没有把 MCP 工具搬丢**（拿 git 上一版当基准）", lost.join(" · "));
+    ok(before.length > 0, "读得到上一版的工具清单", `上一版 ${before.length} 件`);
+  }
 }
 
 /* ── 按门面分的默认值（M11-7 第二批）──
