@@ -10,6 +10,7 @@ import { engineLabel } from "../chat/channel";
 import { useProject } from "../store/project";
 import { NewDraftSheet } from "../sheets/Sheets";
 import { toast } from "../ui/Toast";
+import { installHotkeys } from "../ui/hotkeys";
 import { Glyph, ICON } from "../ui/Glyph";
 import { PopItem, PopSep, Popover, usePopover } from "../ui/Popover";
 import { BottomBar } from "./BottomBar";
@@ -195,7 +196,11 @@ export function Workbench({ project, host, layout, setLayout, onHome, onSettings
         setTimeout(() => document.getElementById("chatInput")?.focus(), layout.right ? 0 : 60);
       }
     };
-    document.addEventListener("keydown", on); return () => document.removeEventListener("keydown", on);
+    /* ⚠️ **不是 `document.addEventListener`**（M8-29）：键盘事件不跨 iframe 边界，
+       焦点落进稿里之后顶层 document 收不到 —— 用户报的「⌘E 时灵时不灵、打开 html
+       刚开始不行后面又可以」就是这件事。`installHotkeys` 把同一个处理挂到顶层
+       **和每一个同源 iframe 的 document** 上，iframe 后加载 / 换稿时自动补挂。 */
+    return installHotkeys(on);
     /* ⚠️ **依赖一个都不能漏**。M8-28 栽过：漏了 `setEditOpen`（它随当前文件变），
        闭包捕获的是上一个文件的 `editKey`，于是 ⌘E 把编辑栏开在了**别的文件**上，
        症状是「按了没反应」—— 和用户第 11 条抱怨的一模一样。

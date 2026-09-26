@@ -393,6 +393,23 @@ if (await openByName(".dc.html")) {
   ok(h > 20, "编辑栏真的有高度，不是只挂着个元素", `${Math.round(h)}px`);
   await pg.keyboard.press("Meta+e"); await pg.waitForTimeout(500);
   ok(!(await pressed()), "⌘E 再按一次收起");
+  /* ⚠️ **焦点在稿里也要生效**（M8-29，用户报的「时灵时不灵」）。
+     键盘事件不跨 iframe 边界，所以快捷键挂在顶层 **和每一个同源 iframe 的 document** 上。
+     判据里把焦点真塞进最内层的稿 —— 判它进没进去只能看**顶层** `activeElement` 变成 IFRAME，
+     每个 document 自己的 `activeElement` 默认就是 BODY，拿它当判据等于没判。 */
+  const into = await pg.evaluate(() => {
+    const f = document.querySelector("iframe"); if (!f) return null;
+    const d = f.contentDocument; const g = d && d.querySelector("iframe"); const gd = g && g.contentDocument;
+    if (!gd) return null;
+    const el = gd.createElement("button"); el.style.cssText = "position:fixed;left:0;top:0;opacity:0";
+    gd.body.appendChild(el); el.focus();
+    return document.activeElement?.tagName === "IFRAME" && gd.activeElement === el;
+  });
+  if (into) {
+    await pg.keyboard.press("Meta+e"); await pg.waitForTimeout(500);
+    ok(await pressed(), "⌘E 在**焦点落进稿里**时照样生效（事件不跨 iframe，所以挂到同源 iframe 上）");
+    await pg.keyboard.press("Meta+e"); await pg.waitForTimeout(400);
+  } else ok(false, "塞不进稿里的焦点，这条没测成（不是通过）");
   ok(await pg.locator('[data-ud="corner"]').count() === 1, "正文右下角的浮块常驻（看稿用的不跟着收）");
   const propsBtn = pg.locator('[data-ud="toggle-props"]');
   const pOn = async () => (await pg.locator('[data-ud="props"]').count()) === 1;
