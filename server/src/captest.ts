@@ -92,6 +92,10 @@ for (const n of wasHttpOnly) {
     diff_drafts: "并进 list_changes（它的 from/to 是超集）",
     get_changes_since: "并进 list_changes（单份稿）与 list_project_changes（整个项目）",
     restore_draft: "还在，只是搬进了 cap/drafts.ts",
+    /* MCP 侧原来**同时有** chat_list 和 list_chats、chat_get 和（没有）——
+       前者是 HTTP 路由名混进了工具名。统一成动作在前的 list_chats / get_chat */
+    chat_list: "和 list_chats 重复，统一成 list_chats（HTTP 路由仍叫 chat_list）",
+    chat_get: "改名 get_chat（MCP 习惯动作在前；HTTP 路由仍叫 chat_get）",
   };
   let base = "";
   try {

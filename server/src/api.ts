@@ -223,22 +223,6 @@ export async function handleApi(
     /* AI 会话（M2-12：应用前端的会话面板走本地 API，和 MCP 的 chat_send 同一份逻辑） */
     /* ── 钉在节点上的评论（M6-2） ── */
 
-    if (route === "chat_list" && req.method === "GET") {
-      const r = await listChats(p.dir);
-      /* **空会话不进历史**（设计侧第六轮定的规矩）：会话是「点了新建」就建的，
-         真发出第一条消息才算数。不滤掉的话，用户每点一次「＋」列表里就多一条空壳，
-         很快就被占满。这里滤显示，盘上的文件不动 —— 删文件是另一回事，得用户说了算。 */
-      json(reply, 200, { ok: true, data: { sessions: r.sessions.filter((x) => x.msgCount > 0) } });
-      return true;
-    }
-    if (route === "chat_rename" && req.method === "POST") {
-      const b = await readBody(req) as { session?: string; title?: string };
-      const { renameChat } = await import("./chat.js");
-      const sid = str(b.session, "session");
-      const s2 = await renameChat(p.dir, sid, String(b.title ?? ""));
-      json(reply, 200, { ok: true, data: { id: s2.id, title: s2.title ?? "", titled: !!s2.title } });
-      return true;
-    }
     if (route === "templates" && req.method === "GET") {
       /* 新建稿件那一屏的「起始模板」（M8-24）。模板在**每个项目自己的**
          `.umbrastudio/templates/`，不是 design-system 目录 —— 设计侧猜错了，回执里纠正过。 */
@@ -254,30 +238,6 @@ export async function handleApi(
       const { saveAsTemplate } = await import("./templates.js");
       const r = await saveAsTemplate(p, str(b.path, "path"), str(b.name, "name"));
       json(reply, 200, { ok: true, data: r });
-      return true;
-    }
-    if (route === "chat_channel" && req.method === "POST") {
-      const b = await readBody(req) as { session?: string; channel?: string; tool?: string };
-      const { setChatChannel } = await import("./chat.js");
-      const sid = str(b.session, "session");
-      const ch = b.channel === "a" || b.channel === "b" || b.channel === "c" ? b.channel : null;
-      if (!ch) { json(reply, 400, { ok: false, errors: [{ code: "E_ARG", message: "channel 只能是 a / b / c" }] }); return true; }
-      const s2 = await setChatChannel(p.dir, sid, ch, typeof b.tool === "string" ? b.tool : undefined);
-      json(reply, 200, { ok: true, data: { id: s2.id, channel: s2.channel, tool: s2.tool ?? null } });
-      return true;
-    }
-    if (route === "chat_delete" && req.method === "POST") {
-      const b = await readBody(req) as { session?: string };
-      const { deleteChat } = await import("./chat.js");
-      const sid = str(b.session, "session");
-      await deleteChat(p.dir, sid);
-      json(reply, 200, { ok: true, data: { id: sid, deleted: true } });
-      return true;
-    }
-    if (route === "chat_get" && req.method === "GET") {
-      const s = await loadChat(p.dir, str(url.searchParams.get("session"), "session"));
-      if (!s) throw new Error("没有这个会话");
-      json(reply, 200, { ok: true, data: s });
       return true;
     }
     if (route === "chat_send" && req.method === "POST") {
@@ -349,37 +309,13 @@ export async function handleApi(
       return true;
     }
 
-    if (route === "ai_probe_image" && req.method === "POST") {
-      if (!originOk(req, ctx.port)) { json(reply, 403, { ok: false, errors: [{ code: "E_API_ORIGIN", message: "Origin 不是本服务" }] }); return true; }
-      const { probeImageSupport } = await import("./ai_probe.js");
-      const b = await readBody(req);
-      json(reply, 200, { ok: true, data: await probeImageSupport(b.channel === "c" ? "c" : "a") });
-      return true;
-    }
     /* 这台机器上装了哪些 AI CLI（M2-13）。**只回答「装了没」，不回答「登录了没」** ——
        判登录得真发一次请求，那要花钱也要花时间，不该塞在一个列清单的接口里。 */
-    if (route === "local_clis" && req.method === "GET") {
-      const { detectLocalClis } = await import("./local_cli.js");
-      const rows = await detectLocalClis();
-      json(reply, 200, { ok: true, data: { clis: rows, installed: rows.filter((r) => r.installed).length } });
-      return true;
-    }
     /* 改通道 B 用哪个本地 CLI（M2-13）。
        **只放行非密钥字段**：cli / model / maxBudgetUsd。`baseUrl` 与 `apiKey` 原样保留，
        不从这条路进也不从这条路出 —— 密钥属于机器，只在 ai_config.json 里手改（`11` Q7）。 */
     /* 问某个 CLI 有哪些模型可用。可用模型是**按账号**来的，写死在文档里一定过时 ——
        实测填 `sonnet-4` 被 cursor-agent 顶回来：Available models: auto, composer-2.5, … */
-    if (route === "local_cli_models" && req.method === "GET") {
-      const { listCliModels, CLI_SPECS } = await import("./local_cli.js");
-      const cli = url.searchParams.get("cli") ?? "";
-      if (!CLI_SPECS.some((x) => x.id === cli)) {
-        json(reply, 400, { ok: false, errors: [{ code: "E_BAD_INPUT", message: `不认识的 CLI：${cli}` }] });
-        return true;
-      }
-      const models = await listCliModels(cli as Parameters<typeof listCliModels>[0]);
-      json(reply, 200, { ok: true, data: { cli, models } });
-      return true;
-    }
     if (route === "ai_channel_b" && req.method === "POST") {
       const b = await readBody(req) as { cli?: string; model?: string; maxBudgetUsd?: number };
       const { getAiConfig, setAiConfig } = await import("./ai_config.js");

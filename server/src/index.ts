@@ -397,29 +397,6 @@ server.registerTool("serve_status", {
 
 // ──────────────────────────── AI 会话（M2） ────────────────────────────
 
-server.registerTool("get_ai_config", {
-  title: "获取 AI 配置",
-  description: "返回当前 AI 配置（通道 A 的端点和模型名）。⚠️ 密钥不回显，只显示是否已设置。",
-  inputSchema: {},
-}, async () => run(async () => {
-  const cfg = await getAiConfig();
-  const mask = (c: { baseUrl: string; apiKey: string; model: string } | null) =>
-    c ? { baseUrl: c.baseUrl, apiKeySet: !!c.apiKey, model: c.model } : null;
-  return envelope({ channelA: mask(cfg.channelA), channelB: mask(cfg.channelB), defaultChannel: cfg.defaultChannel }, [], {});
-}));
-
-server.registerTool("probe_image_support", {
-  title: "探一次通道吃不吃图",
-  description: [
-    "现场造一张随机纯色小图发给通道 A，问它什么颜色。答对了就把 supportsImage 记成 true，否则 false。",
-    "为什么不靠模型名猜：deepseek-chat 文档没写多模态，实测它能看图（doc/00 §六十一）。按名字猜一定有误判。",
-  ].join("\n"),
-  inputSchema: { channel: z.enum(["a", "c"]).optional().describe("探哪条通道，默认 a") },
-}, async ({ channel }) => run(async () => {
-  const { probeImageSupport } = await import("./ai_probe.js");
-  return envelope(await probeImageSupport(channel ?? "a"), [], {});
-}));
-
 server.registerTool("set_ai_config", {
   title: "设置 AI 配置",
   description: [
@@ -452,26 +429,6 @@ server.registerTool("set_ai_config", {
   return envelope({ ok: true, channel: ch }, [], {});
 }));
 
-server.registerTool("chat_list", {
-  title: "列出项目的 AI 会话",
-  description: "会话存 .umbrastudio/chats/，与项目绑定。返回 id / 通道 / 模型 / 更新时间 / 条数，按更新时间倒序。",
-  inputSchema: { project: z.string().describe("项目名") },
-}, async ({ project }) => run(async () => {
-  const p = await loadProject(project);
-  const r = await listChats(p.dir);
-  return envelope(r, [], { count: r.sessions.length });
-}));
-
-server.registerTool("chat_get", {
-  title: "读一个 AI 会话的全部消息",
-  inputSchema: { project: z.string().describe("项目名"), sessionId: z.string().describe("会话 ID") },
-}, async ({ project, sessionId }) => run(async () => {
-  const p = await loadProject(project);
-  const s = await loadChat(p.dir, sessionId);
-  if (!s) throw new Error(`没有会话 ${sessionId}`);
-  return envelope(s, [], { messages: s.messages.length });
-}));
-
 server.registerTool("chat_send", {
   title: "发送 AI 会话消息",
   description: [
@@ -493,27 +450,6 @@ server.registerTool("chat_send", {
 }, async ({ message, sessionId, project, channel, selectedNodeFile, selectedNodeAddress }) => run(async () => {
   const p = await loadProject(project);
   return runChatSend(p, { message, sessionId, channel, selectedNodeFile, selectedNodeAddress });
-}));
-
-server.registerTool("list_chats", {
-  title: "列出会话",
-  description: "列出当前项目的所有 AI 会话。",
-  inputSchema: { project: z.string() },
-}, async ({ project }) => run(async () => {
-  const p = await loadProject(project);
-  const r = await listChats(p.dir);
-  return envelope(r, [], {});
-}));
-
-server.registerTool("delete_chat", {
-  title: "删除会话",
-  description: "删除一个 AI 会话。",
-  inputSchema: { project: z.string(), sessionId: z.string() },
-}, async ({ project, sessionId }) => run(async () => {
-  const p = await loadProject(project);
-  const ok = await deleteChat(p.dir, sessionId);
-  const diags = ok ? [] : [err(X.IO, p.rel, { kind: "key", name: "chat" }, `会话 ${sessionId} 不存在`)];
-  return envelope({ deleted: ok }, diags, {});
 }));
 
 // ──────────────────────── M8-2：泛型文件工具 ────────────────────────
