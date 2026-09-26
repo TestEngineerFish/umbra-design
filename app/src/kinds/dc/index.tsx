@@ -79,7 +79,7 @@ function Panels({ ctx }: { ctx: ViewContext }) {
   return (
     <SidePanels core={ctx.core} store={ctx.store} file={ctx.path} picked={ctx.picked} onPicked={ctx.setPicked}
       panels={[...(dc.panels ?? [])]} active={ctx.ui.activePanel} setActive={ctx.ui.openPanel} narrow={ctx.narrow}
-      onSendToAI={(text, p) => { ctx.setPicked(p); ctx.ask(text); }} outline={[]} />
+      onSendToAI={(text, p) => { ctx.setPicked(p); ctx.ask(text); }} />
   );
 }
 

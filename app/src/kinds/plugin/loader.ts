@@ -1,4 +1,4 @@
-import { registerKind, unregisterKindsFrom } from "@shared/kinds";
+import { isBuiltinKind, registerKind, unregisterKindsFrom } from "@shared/kinds";
 import { register, unregisterFrom } from "../registry";
 import { registerPanelTitle, unregisterPanelTitles } from "../../layout/layout";
 import type { Core } from "../../api/client";
@@ -19,6 +19,8 @@ export interface PluginRow {
   id: string; name: string; version: string;
   surfaces: Array<"ui" | "tools">;
   kinds: string[];
+  /** 内置插件（跟主程序一起发、免费、卸不掉）。**只有它能认领内置类型** */
+  bundled: boolean;
   ok: boolean;
   problems: Array<{ field: string; why: string }>;
 }
@@ -49,6 +51,13 @@ export async function loadPlugins(core: Core): Promise<{ on: string[]; off: Arra
 
     try {
       for (const k of man.kinds ?? []) {
+        /* **认领**内置类型 vs **定义**新类型（M11-9b）。
+           `md` 这种类型一直是内置的 —— 插件搬走的是模块（怎么看怎么改），不是类型。
+           只有内置插件能认领；第三方认领 `dc` 就等于劫持设计稿。 */
+        if (isBuiltinKind(k.id)) {
+          if (!p.bundled) throw new Error(`${k.id} 是内置类型，第三方插件不能认领`);
+          continue;
+        }
         registerKind({
           id: k.id, label: k.label, icon: k.icon, priority: k.priority ?? 50, textual: k.textual,
           /* 只按扩展名匹配 —— 清单里**不收正则**，正则能写出灾难性回溯把界面卡死 */

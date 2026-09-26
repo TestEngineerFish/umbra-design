@@ -5,6 +5,7 @@ import { applyTheme, loadLayout, saveLayout, type LayoutState } from "./layout/l
 import { Home } from "./pages/Home";
 import { NewProjectSheet, SettingsSheet } from "./sheets/Sheets";
 import { Toasts, toast } from "./ui/Toast";
+import { auditKindsOrThrow } from "./kinds";
 import { loadPlugins } from "./kinds/plugin/loader";
 import { Workbench } from "./workbench/Workbench";
 
@@ -29,6 +30,8 @@ export default function App() {
     if (!hub) return;
     void loadPlugins(hub).then(({ off }) => {
       for (const x of off) toast(`插件 ${x.id} 没能接上`, x.why, "error");
+      /* 插件接完线才自检 —— `md` 现在由内置插件认领，接线前查必然误报 */
+      auditKindsOrThrow();
     });
   }, [hub]);
   const open = useCallback(async (dir: string) => {

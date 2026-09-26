@@ -25,6 +25,10 @@ const MIME: Record<string, string> = {
   ".webp": "image/webp", ".gif": "image/gif", ".woff2": "font/woff2", ".woff": "font/woff",
   ".ttf": "font/ttf", ".map": "application/json; charset=utf-8", ".txt": "text/plain; charset=utf-8",
   ".md": "text/markdown; charset=utf-8",
+  /* ⚠️ `.mjs` 少了会让**模块脚本**加载失败（M11-9b 实测）：浏览器对
+     `<script type="module">` 的 MIME 检查是硬性的，回 `application/octet-stream`
+     就报「Expected a JavaScript-or-Wasm module script」。插件包里全是 `.mjs`。 */
+  ".mjs": "text/javascript; charset=utf-8",
 };
 
 interface Running { server: Server; port: number; dir: string; startedAt: string; hits: number; token: string; project: Project; wss: WebSocketServer | null; watcher: FSWatcher | null; unsubscribe: (() => void) | null }
@@ -136,7 +140,17 @@ function makeServer(dir: string | null, onHit: () => void, api: () => ApiCtx | n
       /* id 只许这个字符集 —— 放行点和横杠之外的东西，`resolve` 就能被绕出插件目录 */
       if (!/^[a-z0-9]+(\.[a-z0-9-]+){1,4}$/.test(id)) { reply.writeHead(404); reply.end("bad plugin id"); return; }
       const base = pluginDirOf(id);
-      if (base && serveStatic(base, inner, reply, { "content-security-policy": PLUGIN_CSP })) return;
+      /* ⚠️ **`access-control-allow-origin` 不能省**（M11-9b 实测）：
+         插件在不透明源的 iframe 里（`origin: null`），而 `<script type="module">`
+         是用 **CORS 模式**取的 —— 不回这个头，模块脚本直接被拦，
+         控制台报「blocked by CORS policy」。经典 `<script src>` 是 no-cors，所以之前没踩到。
+
+         放开安全吗：这些文件就是我们发出去的插件代码和资源，**没有秘密**；
+         而插件**往外**发请求仍被 CSP 的 `connect-src 'none'` 挡着，这一头不影响那一边。 */
+      if (base && serveStatic(base, inner, reply, {
+        "content-security-policy": PLUGIN_CSP,
+        "access-control-allow-origin": "*",
+      })) return;
       reply.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
       reply.end(`404 plugin ${id}${inner}`);
       return;

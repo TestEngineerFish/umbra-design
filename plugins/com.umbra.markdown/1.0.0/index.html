@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<meta charset="utf-8"><title>Markdown</title>
+<link rel="stylesheet" href="./theme.css">
+<body>
+  <!-- 未落盘横条**留在正文里**，不进编辑栏：它是一条状态提示，
+       而编辑栏那一行装的是开关。混在一起的话，横条一出现编辑栏就会跳。 -->
+  <div id="dirty" class="bar" hidden>
+    <span id="diffNote"></span><span class="sp"></span>
+    <button id="discard" class="btn ghost">放弃</button>
+    <button id="save" class="btn primary">落盘 ⌘S</button>
+  </div>
+  <div id="wrap">
+    <article id="render" class="doc">
+      <div id="fm" class="fm" hidden>
+        <button id="fmBtn" class="fmHead"><span class="k">frontmatter</span><span id="fmSum" class="mono"></span><span class="sp"></span><span id="fmTip" class="muted">看原文</span></button>
+        <pre id="fmRaw" hidden></pre>
+      </div>
+      <div id="body" class="md-body"></div>
+    </article>
+    <div id="source" class="src" hidden>
+      <div id="gutter" class="gutter"></div>
+      <textarea id="area" spellcheck="false"></textarea>
+    </div>
+  </div>
+  <!-- ⚠️ 顺序要紧：`umbra.js` 是**经典脚本**（立即执行），`app.mjs` 是**模块**（自带 defer）。
+       反过来写的话模块先跑不到，但经典脚本这一行必须在前面才保证 `umbra` 已就位。 -->
+  <script src="./umbra.js"></script>
+  <script type="module" src="./app.mjs"></script>
+</body>

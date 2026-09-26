@@ -1,0 +1,54 @@
+/* 插件自己的样式。⚠️ **取值抄宿主的 token，但这是两份拷贝** ——
+   插件在不透明源的 iframe 里，取不到我们的 CSS。
+   宿主推 `theme` 过来时切 `data-theme`，深浅两套都在这儿。 */
+:root {
+  --bg: #fff; --panel: #f7f8fa; --panel2: #f1f3f7; --border: #e3e6ec;
+  --text: #1c1f26; --text2: #454b58; --muted: #7b8194; --accent: #4a5bd4;
+  --warn: #8a5a00; --warn-soft: #fff6e0; --warn-border: #f0dcae;
+}
+:root[data-theme="dark"] {
+  --bg: #16181d; --panel: #1d2026; --panel2: #23262e; --border: #2e323b;
+  --text: #e6e8ee; --text2: #b9bfcc; --muted: #868da0; --accent: #8b97f0;
+  --warn: #e0b869; --warn-soft: #2e2716; --warn-border: #4a3d1c;
+}
+* { box-sizing: border-box; }
+/* ⚠️ **这一条不能省。** `el.hidden = true` 靠的是浏览器默认样式表里的
+   `[hidden] { display: none }`，而它会被任何**显式设了 display 的作者样式**压过
+   —— `.bar{display:flex}` 就是。症状是「明明 hidden 了还显示着」，
+   而 JS 那边一切正常，最难往样式上想（M11-9b 实测踩到：未落盘横条一直挂着）。 */
+[hidden] { display: none !important; }
+html, body { height: 100%; }
+body { margin: 0; display: flex; flex-direction: column; font: 12px system-ui, -apple-system, "PingFang SC", sans-serif; color: var(--text); background: var(--bg); }
+.sp { flex: 1; }
+.muted { color: var(--muted); }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.bar { height: 36px; padding: 0 12px; display: flex; align-items: center; gap: 8px; flex: none;
+       background: var(--warn-soft); border-bottom: 1px solid var(--warn-border); color: var(--warn); }
+.btn { height: 22px; padding: 0 8px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg); color: var(--text2); font: inherit; cursor: pointer; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn.ghost { background: transparent; }
+.btn:disabled { opacity: .5; cursor: default; }
+#wrap { flex: 1; min-height: 0; overflow: auto; }
+.doc { max-width: 760px; margin: 0 auto; padding: 24px 32px; }
+.fm { margin-bottom: 20px; border: 1px solid var(--border); border-radius: 4px; background: var(--panel2); font-size: 11px; }
+.fmHead { width: 100%; display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 12px; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; text-align: left; }
+.fmHead .k { font-family: ui-monospace, monospace; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+#fmSum { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#fmRaw { margin: 0; padding: 0 12px 12px; font-family: ui-monospace, monospace; white-space: pre-wrap; color: var(--text2); }
+/* 源码档：行号 + 可编辑文本框。行号从文件第一行数起，frontmatter 计入 —— 
+   和大纲、会话药丸同一个坐标系（设计侧问过的第一件，口径不能变） */
+.src { display: flex; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; line-height: 24px; min-height: 100%; }
+.gutter { user-select: none; text-align: right; color: var(--muted); padding: 12px; background: var(--panel); border-right: 1px solid var(--border); flex: none; }
+.gutter div.on { color: var(--accent); font-weight: 600; }
+#area { flex: 1; min-width: 0; padding: 12px; background: var(--bg); color: var(--text); border: 0; outline: none; resize: none; font: inherit; line-height: 24px; min-height: 100%; }
+/* .md-body：渲染结果的样式。宿主那份在 index.css，这是插件自己的一份 */
+.md-body { line-height: 1.7; }
+.md-body h1, .md-body h2, .md-body h3 { margin: 1.4em 0 .6em; line-height: 1.35; }
+.md-body h1 { font-size: 22px; } .md-body h2 { font-size: 17px; } .md-body h3 { font-size: 14px; }
+.md-body p, .md-body ul, .md-body ol, .md-body blockquote { margin: .7em 0; }
+.md-body code { font-family: ui-monospace, monospace; font-size: .92em; background: var(--panel2); padding: 1px 4px; border-radius: 3px; }
+.md-body pre { background: var(--panel2); padding: 10px 12px; border-radius: 4px; overflow: auto; }
+.md-body pre code { background: none; padding: 0; }
+.md-body blockquote { padding-left: 12px; border-left: 2px solid var(--border); color: var(--text2); }
+.md-body table { border-collapse: collapse; } .md-body th, .md-body td { border: 1px solid var(--border); padding: 4px 8px; }
+.md-body a { color: var(--accent); }

@@ -642,9 +642,10 @@ console.log("\n插件 UI 的边界（M11-4）");
     ok(/default-src 'none'/.test(r.ui.csp ?? ""), "插件 UI 的 CSP 在**响应头**上（不是页面里的 meta）", (r.ui.csp ?? "无").slice(0, 40));
     ok(/connect-src 'none'/.test(r.ui.csp ?? ""), "CSP 禁掉外联 —— iframe sandbox 单独用挡不住 fetch/img/beacon/ws");
   } else {
-    /* 没装演示插件就跳过，但**说清楚是跳过不是通过** */
-    ok(true, "（跳过）本机没装演示插件，插件 UI 这两条没测", `GET 回 ${r.ui.s}`);
-    ok(true, "（跳过）同上");
+    /* ⚠️ **红着报，不许静静跳过。**「119/119 全过」和「127/127 全过」在输出里都是一个 ✓ ——
+       判据整块消失不会报警，它和「这些判据通过了」长得一模一样。
+       装回去的办法：`npm --prefix server run plugintest`（它跑完会把演示插件装好）。 */
+    ok(false, `**演示插件没装，插件端到端那一组（9 条）整块没跑到** —— 跑一次 plugintest 装回去`, `GET 回 ${r.ui.s}`);
   }
   ok(r.up.s === 404, "插件目录逃逸：..%2f 上不去");
   ok(r.badId.s === 404, "插件 id 逃逸：坏 id 直接 404");

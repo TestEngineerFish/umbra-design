@@ -3,7 +3,7 @@ import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { STATE_ROOT, TOOL_ROOT } from "../project.js";
 import { checkManifest, type PluginManifest } from "./manifest.js";
-import { PLUGIN_DEFAULT_PRIORITY, registerKind } from "../shared/kinds.js";
+import { PLUGIN_DEFAULT_PRIORITY, isBuiltinKind, registerKind } from "../shared/kinds.js";
 
 /** 插件在盘上住哪、怎么列（M11-4）。
  *
@@ -107,6 +107,9 @@ export async function registerPluginKinds(): Promise<{ id: string; kinds: string
     if (p.problems.length) continue;
     const ids: string[] = [];
     for (const k of p.manifest.kinds ?? []) {
+      /* **认领**内置类型：类型本来就在表里，不用（也不能）再注册一次。
+         只有内置插件能这么做 —— 第三方插件认领 `dc` 就等于劫持设计稿。 */
+      if (isBuiltinKind(k.id)) { if (p.bundled) ids.push(k.id); continue; }
       try {
         registerKind({
           id: k.id, label: k.label, icon: k.icon, priority: k.priority ?? PLUGIN_DEFAULT_PRIORITY,

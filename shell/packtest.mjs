@@ -41,6 +41,11 @@ for (const f of [
   "core/server/dist/index.js", "core/server/dist/project.js", "core/server/package.json",
   "core/app/dist/index.html", "core/runtime/support.js", "core/runtime/react.production.min.js",
   "core/ui/S1-稿件索引.dc.html", "core/ui/_ds-tool/tokens.css",
+  /* 内置插件必须进包：不进的话打包版**打开 .md 只有通用文件卡**，
+     而这在开发模式下测不出来（开发时 TOOL_ROOT 就是仓库根，插件天然在）。 */
+  "core/plugins/com.umbra.markdown/1.0.0/manifest.json",
+  "core/plugins/com.umbra.markdown/1.0.0/index.html",
+  "core/plugins/com.umbra.markdown/1.0.0/markdown-it.mjs",
   "core/doc/06-写稿规则.md", "core/doc/03-渲染与交互逻辑.md",   // get_syntax_guide 真读这两份
   "core/server/node_modules/playwright-core/index.mjs",         // 体检经 CDP 也要它
   "core/server/node_modules/@modelcontextprotocol/sdk/package.json",

@@ -26,6 +26,9 @@ import { TabBar } from "./TabBar";
 import { normalize, openTab, type Tab } from "./tabs";
 
 /** 工作台（S11 形制）：顶栏 40 · 页签 34 · 左会话 / 中画布 / 右从属面板列 · 底部状态行 24 */
+/** 没声明 `Provider` 的格式用它兜底。**定义在模块级** —— 理由见用它的地方 */
+const PassThrough = ({ children }: { ctx: ViewContext; children: React.ReactNode }) => <>{children}</>;
+
 export function Workbench({ project, host, layout, setLayout, onHome, onSettings }: { project: ProjectHandle; host: HostAdapter; layout: LayoutState; setLayout: (l: LayoutState) => void; onHome: () => void; onSettings: () => void }) {
   const core = useMemo(() => new Core(project.url, project.token, project.ws), [project]);
   const store = useProject(core, project.dir);
@@ -281,7 +284,15 @@ export function Workbench({ project, host, layout, setLayout, onHome, onSettings
   /* Provider **按 kind 挂载**（`key={kind}`）：换格式时上一种的状态跟着卸载，
      换文件时不重建 —— 否则每换一份稿 Canvas 的 iframe 都要重挂一次，会闪。
      「换文件要清什么」由各模块自己用 useEffect 决定，比一刀切的 key 精确。 */
-  const Wrap = mod.Provider ?? (({ children }: { ctx: ViewContext; children: React.ReactNode }) => <>{children}</>);
+  /* ⚠️ **兜底必须是模块级的稳定引用**（M11-9b 修）。
+     原来这里写的是 `?? (({children}) => <>{children}</>)` —— 每次渲染都是**一个新函数**，
+     React 看到组件类型变了就把整棵子树卸载重挂。
+
+     这个缺陷对 json / image / dir / 文件卡一直都在，只是**看不出来**：
+     那几个是廉价的 React 组件，重挂一次只是重新取一次数据。
+     换成插件的 iframe 就是灾难 —— 状态全丢、页面重新加载、**用户没落盘的编辑消失**。
+     插件不是引入了这个 bug，是把它从「看不见」放大成「不可接受」。 */
+  const Wrap = mod.Provider ?? PassThrough;
 
 
   /* 会话栏**固定在左**（第八轮：换边那一态有意删了），所以不再有 side / 换边 / 关闭三个 props。

@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<link rel="stylesheet" href="./theme.css">
+<body style="display:block">
+  <div id="none" class="muted" style="padding:14px">这份文档还没有标题</div>
+  <div id="list"></div>
+  <script src="./umbra.js"></script>
+  <script>
+  /* 大纲面板：**插件自己的另一张网页**，和正文是两个不透明源，够不着对方 ——
+     标题数据经宿主转发（`umbra.share`），点了也经宿主转回去。 */
+  umbra.onShare("outline", function (hs) {
+    document.getElementById("none").hidden = !!(hs && hs.length);
+    var l = document.getElementById("list"); l.innerHTML = "";
+    (hs || []).forEach(function (h) {
+      var a = document.createElement("button");
+      a.className = "olRow";
+      a.style.paddingLeft = (8 + (h.level - 1) * 12) + "px";
+      a.innerHTML = '<span class="olT"></span><span class="olL mono"></span>';
+      a.querySelector(".olT").textContent = h.text;
+      a.querySelector(".olL").textContent = "L" + h.line;
+      a.onclick = function () { umbra.share("jump", h); };
+      l.appendChild(a);
+    });
+  });
+  </script>
+  <style>
+    .olRow { width:100%; display:flex; align-items:center; gap:8px; min-height:26px; padding:3px 10px 3px 8px;
+             border:0; background:none; color:var(--text); font:inherit; text-align:left; cursor:pointer; }
+    .olRow:hover { background: var(--panel2); }
+    .olT { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .olL { flex:none; font-size:11px; color:var(--muted); }
+  </style>
+</body>

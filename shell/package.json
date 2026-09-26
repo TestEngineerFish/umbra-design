@@ -71,6 +71,10 @@
         ]
       },
       {
+        "from": "../plugins",
+        "to": "core/plugins"
+      },
+      {
         "from": "../app/dist",
         "to": "core/app/dist"
       }

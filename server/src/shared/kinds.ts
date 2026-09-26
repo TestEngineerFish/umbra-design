@@ -107,6 +107,14 @@ export const KINDS = (): readonly KindDef[] => REG;
  *  ② 优先级封顶 —— 见 `PLUGIN_MAX_PRIORITY`
  *  ③ 不许动内置 —— 插件不能重定义 `dc` / `dir` / `other` 这些
  */
+/** 这个 id 是不是**内置类型**。
+ *
+ *  ⚠️ 「定义一种新类型」和「**认领**一种已有类型」是两件事（M11-9b 分清的）：
+ *  `md` 这种类型应该**一直是内置的** —— 就算 Markdown 插件没装，
+ *  应用也该知道 `.md` 是 Markdown（显示图标、判断是文本、目录里归类）。
+ *  搬去插件的只是**模块**（怎么看、怎么改），不是**类型**。 */
+export const isBuiltinKind = (id: FileKind): boolean => !!(BUILTIN as Record<string, string>)[id];
+
 export function registerKind(def: KindDef & { from: string }): void {
   /* ⚠️ **内置这道闸要排在重名前面**（kindtest 抓到的）：
      内置的 `dc` 本来就在表里，重名那道闸会先拦下，插件收到的提示是「已经有了」——

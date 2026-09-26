@@ -5,16 +5,18 @@ import { PANEL_TITLE, type PanelId } from "../layout/layout";
 import type { ProjectStore } from "../store/project";
 import { toast } from "../ui/Toast";
 import { PropsPanel } from "./PropsPanel";
-import type { Outline } from "../kinds/md/parse";
 
 /** 从属面板列（S11 第 1 题的定稿）：40 px 图标轨常驻 + 面板体，同一时刻只开一个；图片 / 目录整列不出现。
  *  属性面板（M7-7）已是 React 的 PropsPanel，S2 嵌入时只留画布。 */
-const ICON: Record<PanelId, string> = { props: "⚙", diagnostics: "⚠", changes: "⟲", comments: "✎", outline: "≡", info: "ⓘ" };
+/** 内置面板的图标。⚠️ **`PanelId` 现在是 `string`**（M11-9），所以这是个查表不是穷举 ——
+ *  插件带来的面板查不到就用一个通用符号，不会漏画。 */
+const ICON: Record<string, string> = { props: "⚙", diagnostics: "⚠", changes: "⟲", comments: "✎", info: "ⓘ" };
+const iconOf = (id: PanelId): string => ICON[id] ?? "▤";
 export const PANEL_WIDTH = 340;
 
-export function SidePanels({ core, store, file, picked, onPicked, panels, active, setActive, narrow, onSendToAI, outline }: {
+export function SidePanels({ core, store, file, picked, onPicked, panels, active, setActive, narrow, onSendToAI }: {
   core: Core; store: ProjectStore; file: string; picked: Picked | null; onPicked: (p: Picked | null) => void; panels: PanelId[]; active: PanelId | null; setActive: (p: PanelId | null) => void; narrow: boolean;
-  onSendToAI: (text: string, picked: Picked) => void; outline: Outline[];
+  onSendToAI: (text: string, picked: Picked) => void;
 }) {
   const badge: Partial<Record<PanelId, number>> = { diagnostics: store.diags.filter((d) => d.level === "error" || d.level === "warning").length, comments: store.comments.filter((c) => !c.resolved).length };
   const body = active && (
@@ -26,14 +28,9 @@ export function SidePanels({ core, store, file, picked, onPicked, panels, active
         {active === "changes" && <Changes core={core} store={store} file={file} />}
         {active === "comments" && <Comments core={core} store={store} file={file} onSendToAI={onSendToAI} />}
         {active === "info" && <Info store={store} file={file} />}
-        {active === "outline" && (outline.length === 0
-          ? <div className="p-4 text-muted">这份文档还没有标题</div>
-          : <div className="py-1">{outline.map((h, i) => (
-              <button key={i} className="w-full text-left px-3 py-1 flex items-center gap-2 hover:bg-hover" style={{ paddingLeft: 12 + (h.level - 1) * 12 }}
-                onClick={() => window.dispatchEvent(new CustomEvent("ud-md-jump", { detail: h }))}>
-                <span className="truncate flex-1">{h.text}</span><span className="font-mono text-[11px] text-muted">L{h.line}</span>
-              </button>))}
-            </div>)}
+        {/* ⚠️ 大纲那一档**去掉了**（M11-9b）：它只有 `.md` 用，而 `.md` 搬成了插件，
+            大纲现在是插件自己的面板（它自己的一张网页）。留着是条死路。 */}
+        
       </div>
     </section>
   );
@@ -42,7 +39,7 @@ export function SidePanels({ core, store, file, picked, onPicked, panels, active
       {narrow && active && <div className="fixed inset-0 z-30 bg-black/20" onClick={() => setActive(null)} />}
       {body}
       <nav className="relative z-40 w-10 shrink-0 border-l border-border bg-panel flex flex-col items-center py-1 gap-0.5">
-        {panels.map((p) => <button key={p} className={`relative w-8 h-8 rounded grid place-items-center text-sm ${active === p ? "bg-accentSoft text-accent" : "text-muted hover:text-text hover:bg-hover"}`} onClick={() => setActive(active === p ? null : p)} title={PANEL_TITLE[p]}>{ICON[p]}{badge[p] ? <span className={`absolute -top-0.5 -right-0.5 min-w-[14px] h-[14px] px-1 rounded-full text-[9px] font-semibold text-onAccent grid place-items-center ${p === "diagnostics" ? "bg-warn" : "bg-accent"}`}>{badge[p]}</span> : null}</button>)}
+        {panels.map((p) => <button key={p} className={`relative w-8 h-8 rounded grid place-items-center text-sm ${active === p ? "bg-accentSoft text-accent" : "text-muted hover:text-text hover:bg-hover"}`} onClick={() => setActive(active === p ? null : p)} title={PANEL_TITLE[p]}>{iconOf(p)}{badge[p] ? <span className={`absolute -top-0.5 -right-0.5 min-w-[14px] h-[14px] px-1 rounded-full text-[9px] font-semibold text-onAccent grid place-items-center ${p === "diagnostics" ? "bg-warn" : "bg-accent"}`}>{badge[p]}</span> : null}</button>)}
       </nav>
     </>
   );

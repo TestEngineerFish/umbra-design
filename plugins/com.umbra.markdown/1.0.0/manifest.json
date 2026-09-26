@@ -1,0 +1,16 @@
+{
+  "id": "com.umbra.markdown",
+  "name": "Markdown 编辑",
+  "version": "1.0.0",
+  "hostApi": "^1",
+  "surfaces": ["ui", "tools"],
+  "kinds": [
+    { "id": "md", "label": "Markdown", "icon": "≡", "ext": [".md", ".markdown"], "textual": true, "priority": 90 }
+  ],
+  "panels": [
+    { "id": "outline", "label": "大纲", "entry": "outline.html" }
+  ],
+  "permissions": { "files": ["read", "write"], "scope": "project", "net": [] },
+  "ui": "index.html",
+  "tools": "tools.mjs"
+}

@@ -5,7 +5,6 @@ import { dir } from "./dir";
 import { fallback } from "./fallback";
 import { image } from "./image";
 import { json } from "./json";
-import { md } from "./md";
 
 /** **「有哪些格式」这件事只写在这里。** 加一种格式的全部工作是三步：
  *
@@ -20,7 +19,11 @@ import { md } from "./md";
  *
  *  顺序不影响行为（匹配顺序在 `shared/kinds.ts` 里定），这里按从深到浅排，方便读。
  */
-const ALL: readonly KindModule[] = [dc, md, json, image, dir, fallback];
+/* ⚠️ **`md` 不在这里了**（M11-9b）：它搬成了内置插件 `plugins/com.umbra.markdown/`。
+   一种 kind 只能有一个模块，内置模块和插件都认领 `md` 会当场抛。
+   内置插件跟主程序一起发、免费、卸不掉，所以对用户来说没有区别 —— 打开 `.md` 照样能编辑。
+   代价写在 `doc/00` §八十八：markdown 渲染器在插件包里是第二份实例。 */
+const ALL: readonly KindModule[] = [dc, json, image, dir, fallback];
 for (const m of ALL) register(m);
 
 /** 开发期自检：种类表里声明的每一种都得有模块认领。
@@ -37,9 +40,13 @@ export function auditKinds(): FileKind[] {
   return allKinds().filter((k) => !claimed.has(k));
 }
 
-if (import.meta.env.DEV) {
+/* ⚠️ 自检**不能在模块顶层跑了**（M11-9b）：`md` 现在由内置插件认领，
+   而插件是启动后异步接线的 —— 顶层这一刻它必然还没到，自检会误报。
+   改成由 `App` 在插件接完线之后调（`loadPlugins().then(...)`）。 */
+export function auditKindsOrThrow(): void {
+  if (!import.meta.env.DEV) return;
   const missing = auditKinds();
-  if (missing.length) throw new Error(`这些文件类型没有模块认领：${missing.join(" / ")} —— 在 app/src/kinds/ 下补一个，并在 index.ts 里注册`);
+  if (missing.length) throw new Error(`这些文件类型没有模块认领：${missing.join(" / ")} —— 内置的在 app/src/kinds/ 下补并在 index.ts 注册；插件带的看它装没装上`);
 }
 
 export { moduleFor, panelsOf, registered, register, unregisterFrom, useKindRegistry } from "./registry";

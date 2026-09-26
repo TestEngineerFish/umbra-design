@@ -107,7 +107,14 @@ await rm(join(tmpdir(), "x"), { recursive: true, force: true }).catch(() => {});
   const { listInstalled } = await import("./plugin/store.js");
   const installed = await listInstalled();
   ok(installed.some((x) => x.manifest.id === "com.umbra.demo" && x.problems.length === 0), "列得出来且清单没毛病");
-  await rm(join(PLUGINS_DIR, "com.umbra.demo"), { recursive: true, force: true });
+  /* ⚠️ **不删，装回去**（M11-9b 改）：`uitest` 的插件端到端那一组要靠它。
+     原来这里删掉，结果 `plugintest` 跑完再跑 `uitest`，那一组（9 条）**整块消失**，
+     而总数照样打勾 —— 「119/119 全过」和「127/127 全过」在输出里都是一个 ✓。
+     判据整块消失不会报警，它和「这些判据通过了」长得一模一样。
+     演示插件是开发期夹具，`.umbrastudio/` 不进仓库，留着没有代价。 */
+  const { cp } = await import("node:fs/promises");
+  await cp(DIR, join(PLUGINS_DIR, "com.umbra.demo", "0.1.0"), { recursive: true });
+  ok(true, "演示插件已装好（uitest 的插件端到端那一组要用它）");
 }
 
 console.log(fail === 0 ? `\n✓ 插件机制 ${pass}/${pass + fail}` : `\n✗ 插件机制 ${pass}/${pass + fail}`);
