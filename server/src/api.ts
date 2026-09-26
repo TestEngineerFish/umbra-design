@@ -165,37 +165,9 @@ export async function handleApi(
       return true;
     }
 
-    if (route === "validate" && req.method === "GET") {
-      const rel = await resolveDraft(p, str(url.searchParams.get("file"), "file"));
-      const src = await readFile(draftPath(p, rel), "utf8");
-      const v = validateDraft(p, rel, src, rel);
-      // 体检读数一起给 —— 壳的顶栏要显示「上次体检 · 耗时 · 节点数」，
-      // 不给它就只能写死演示数字（doc/00 §21.3 的教训）
-      const chk = await readCheck(p, rel);
-      const stale = !!chk && chk.srcSha256 !== sha256(src);
-      // 顶栏的版本位要回答「我看的是不是盘上那一版」（设计侧 §五 第 9 项）
-      const ws = await workspaceState(p, rel, src);
-      json(reply, 200, {
-        ok: !v.diags.some((d) => d.level === "error"),
-        data: { file: rel, diags: v.diags, stats: v.stats, check: chk, checkStale: stale, workspace: ws },
-      });
-      return true;
-    }
 
     // M6-3 源码只读视图：当前盘上那一版的原文（应用里看，不是给模型的 read_draft）
-    if (route === "source" && req.method === "GET") {
-      const rel = await resolveDraft(p, str(url.searchParams.get("file"), "file"));
-      const src = await readFile(draftPath(p, rel), "utf8");
-      json(reply, 200, { ok: true, data: { file: rel, bytes: Buffer.byteLength(src, "utf8"), lines: src.split("\n").length, source: src } });
-      return true;
-    }
 
-    if (route === "locate" && req.method === "GET") {
-      const file = str(url.searchParams.get("file"), "file");
-      const node = str(url.searchParams.get("node"), "node");
-      json(reply, 200, { ok: true, data: await locateNode(p, file, node) });
-      return true;
-    }
 
     if (route === "changes" && req.method === "GET") {
       const rel = await resolveDraft(p, str(url.searchParams.get("file"), "file"));
@@ -249,20 +221,6 @@ export async function handleApi(
 
 
     // ── 可写 ──
-    if (route === "set_prop" && req.method === "POST") {
-      if (!originOk(req, ctx.port)) {
-        json(reply, 403, { ok: false, errors: [{ code: "E_API_ORIGIN", message: "Origin 不是本服务" }] });
-        return true;
-      }
-      const b = await readBody(req);
-      const r = await setProp(p,
-        str(b.file, "file"), str(b.node, "node"),
-        str(b.kind, "kind") as SlotKind, str(b.name, "name"),
-        typeof b.value === "string" ? b.value : "",
-        "人手改");   // 本地 API 只有界面在调 —— 这一版是人落的
-      json(reply, 200, { ok: true, data: r });
-      return true;
-    }
 
     if (route === "project_changes" && req.method === "GET") {
       const files = (await listDrafts(p))
@@ -323,15 +281,6 @@ export async function handleApi(
       return true;
     }
 
-    if (route === "revert" && req.method === "POST") {
-      if (!originOk(req, ctx.port)) {
-        json(reply, 403, { ok: false, errors: [{ code: "E_API_ORIGIN", message: "Origin 不是本服务" }] });
-        return true;
-      }
-      const b = await readBody(req);
-      json(reply, 200, { ok: true, data: await revertTo(p, str(b.file, "file"), str(b.version, "version"), "人手改") });
-      return true;
-    }
 
     /* AI 会话（M2-12：应用前端的会话面板走本地 API，和 MCP 的 chat_send 同一份逻辑） */
     /* ── 钉在节点上的评论（M6-2） ── */

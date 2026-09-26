@@ -5560,3 +5560,59 @@ setTimeout(() => serveStopByName(p.name), 300);
 `selftest` 零 error · `lifecycletest` 全通 · `filetest` 19/19 · `agenttest` 4/4 · `rendertest` 15/15。
 真开首页看过：4 个项目、3 张缩略图、列表/网格切换都在。
 `index.ts` 1084 → **890** · `api.ts` 743 → **665**（起点 1367 / 858）。
+
+## 九十三、M11-7 搬能力（四）：稿件读写 —— 核心中的核心（2026-09-26）
+
+搬九件：`validate_draft` · `read_draft` · `write_draft` · `patch_draft` ·
+`locate_node` · `set_prop` · `revert_to` · `get_syntax_guide`。
+
+这一组是**三种编辑方式的公共底座**（手动改 / 选中让 AI 改 / 直接说），
+而 `write_draft` 就是纪律① 那条唯一写入口。所以这次**整段读了两侧实现**，
+没有用 grep 拼 —— 上一批正是按片段读把首页缩略图搬丢了（§92.1）。
+
+### 93.1 「谁改的」终于不再写死
+
+HTTP 侧的 `set_prop` 和 `revert` 都**写死** `"人手改"`：
+
+```ts
+await setProp(p, …, "人手改");   // 本地 API 只有界面在调 —— 这一版是人落的
+```
+
+那行注释在当时是对的。但它把「谁改的」**绑在了门面上而不是调用者上**，
+而现在有了第三类调用者：**插件**。写死的话，插件改的每一处都会记成「人手改」——
+用户翻变更清单时会以为是自己动的。
+
+改成 `originOf(c.via)`。这正是 `via` 存在的理由：
+**把「跟着门面走的差异」从写死的字面量变成一个有名字的函数。**
+
+### 93.2 界面要的三样，原来只有一边有
+
+HTTP 的 `validate` 比 MCP 的 `validate_draft` 多给三样：
+`check`（上次体检读数）· `checkStale`（体检是不是过期了）· `workspace`（我看的是不是盘上那一版）。
+
+它们是壳的顶栏要显示的 —— 「上次体检 · 耗时 · 节点数」和版本位。
+不给就只能写死演示数字（`00` §21.3 的教训）。模型那边不需要：它要体检就直接调 `render_check`。
+
+合成一份之后这变成一个**写出来的按门面分**，而不是「HTTP 那边多算了几行」。
+实打确认六个键一个不少：`check / checkStale / diags / file / stats / workspace`。
+
+### 93.3 同一件事两种严格度
+
+MCP 侧用 `draftPath`（严格：必须是相对路径），HTTP 侧用 `resolveDraft`（宽松：路径或文件名都认）。
+**宽松那种是超集**，没有理由不统一 —— 统一成 `resolveDraft`。
+
+这和 §90.3 里 `delete_draft` 那次是同一件事：
+入参的严格度不该因为走的门面不同而不同，否则同一句话在两边一个成功一个失败。
+
+### 93.4 `write_draft` / `patch_draft` **不给插件面**
+
+插件写 `.dc.html` 要走的是泛型文件层（`plugin/host.ts` 的白名单里只有那九件）。
+设计稿的写入口牵着快照、changelog、资源注入、`@ds` 展开 ——
+开给插件等于把产品最深的那层格式交出去。
+
+### 93.5 读数
+
+`captest` **158/158**（135 → 158）· `uitest` 127/127 · `plugintest` 23/23 · `kindtest` 34/34 ·
+`selftest` 零 error · `lifecycletest` 全通 · `filetest` 19/19 · `agenttest` 4/4 · `rendertest` 15/15。
+真开设计稿看过：穿两层 iframe 数到 23 个元素（纪律② 的判活）、属性区在、控制台干净。
+`index.ts` 890 → **720** · `api.ts` 665 → **614**（起点 1367 / 858）。

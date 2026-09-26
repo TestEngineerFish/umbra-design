@@ -10,6 +10,7 @@
 import "./files.js";
 import "./design.js";
 import "./drafts.js";
+import "./edit.js";
 import "./plugins.js";
 import "./projects.js";
 
