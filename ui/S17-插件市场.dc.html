@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="./_ds-tool/tokens.css">
+<style>
+  html, body { margin: 0; padding: 0; }
+  body { background: var(--tool-bg); }
+  * { box-sizing: border-box; }
+  a { color: var(--tool-accent); text-decoration: none; }
+  a:hover { color: var(--tool-accent-hover); text-decoration: underline; }
+  input, button { font: inherit; color: inherit; }
+</style>
+</helmet>
+
+<div data-tool-theme="{{ theme }}" style="min-height: 100vh; background: var(--tool-bg); color: var(--tool-text); font-family: var(--tool-sans); font-size: 13px; -webkit-font-smoothing: antialiased;">
+
+  <div style="position: sticky; top: 0; z-index: 10; background: var(--tool-panel);">
+    <div style="display: flex; align-items: center; gap: 8px; padding: 8px 16px; flex-wrap: wrap; font-size: 12px; border-bottom: 1px solid var(--tool-border); background: var(--tool-panel-2);">
+      <span style="font-size: 11px; color: var(--tool-muted); flex: none;">演示态</span>
+      <sc-for list="{{ demoStates }}" as="st" hint-placeholder-count="11">
+        <button type="button" onClick="{{ st.pick }}" title="{{ st.name }}" aria-pressed="{{ st.active }}" style="display: inline-flex; align-items: center; gap: 5px; height: 23px; padding: 0 9px 0 6px; border-radius: var(--tool-radius-sm); border: 1px solid {{ st.bd }}; cursor: pointer; font-size: 11px; white-space: nowrap; background: {{ st.bg }}; color: {{ st.fg }};">
+          <span style="font-family: var(--tool-mono); opacity: 0.6;">{{ st.n }}</span>
+          <span>{{ st.short }}</span>
+        </button>
+      </sc-for>
+      <span style="color: var(--tool-muted); min-width: 0;">{{ demoNote }}</span>
+    </div>
+
+    <div style="display: flex; align-items: stretch; height: 36px; padding: 0 12px; border-bottom: 1px solid var(--tool-border);">
+      <div role="tablist" style="display: flex; align-items: stretch; gap: 2px; flex: 1 1 auto; min-width: 0;">
+        <sc-for list="{{ pages }}" as="pg" hint-placeholder-count="3">
+          <button type="button" role="tab" aria-selected="{{ pg.on }}" onClick="{{ pg.pick }}" style="display: flex; align-items: center; gap: 6px; padding: 0 10px; border: 0; background: transparent; cursor: pointer; font-size: 12px; color: {{ pg.fg }}; font-weight: {{ pg.fw }}; box-shadow: inset 0 -2px 0 {{ pg.bar }};" style-hover="color: var(--tool-text);">
+            <span>{{ pg.label }}</span>
+            <sc-if value="{{ pg.hasCount }}" hint-placeholder-val="{{ false }}"><span style="font-family: var(--tool-mono); font-size: 11px; color: var(--tool-muted);">{{ pg.count }}</span></sc-if>
+            <sc-if value="{{ pg.alert }}" hint-placeholder-val="{{ false }}"><span title="有未签名插件" style="width: 6px; height: 6px; border-radius: 999px; background: var(--tool-err);"></span></sc-if>
+          </button>
+        </sc-for>
+      </div>
+      <button type="button" onClick="{{ goCredits }}" title="积分余额 · 点开看流水和充值" style="align-self: center; display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border: 0; border-radius: var(--tool-radius); background: transparent; cursor: pointer; font-size: 12px; color: var(--tool-text-2);" style-hover="background: var(--tool-hover);">
+        <dc-import name="IconGlyph" icon="coin" size="16" hint-size="16px,16px"></dc-import>
+        <span style="font-family: var(--tool-mono); color: var(--tool-text); font-weight: 560;">{{ balanceText }}</span>
+        <span>积分</span>
+      </button>
+    </div>
+  </div>
+
+  <sc-if value="{{ popOpen }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ closePop }}" style="position: fixed; inset: 0; z-index: 20;"></div>
+  </sc-if>
+
+  <div style="max-width: 1000px; margin: 0 auto; padding: 24px 20px 64px;">
+
+    <!-- ── 1 市场 ── -->
+    <sc-if value="{{ showList }}" hint-placeholder-val="{{ true }}">
+      <div style="display: grid; gap: 16px;">
+        <div style="display: grid; gap: 6px;">
+          <div style="font-size: 18px; font-weight: 620;">插件市场</div>
+          <div style="display: flex; align-items: flex-start; gap: 8px; color: var(--tool-text-2); line-height: 1.6; max-width: 680px; text-wrap: pretty;">
+            <span style="flex: none; margin-top: 2px; color: var(--tool-ok);"><dc-import name="IconGlyph" icon="sandbox" size="16" hint-size="16px,16px"></dc-import></span>
+            <span>每个插件都跑在沙箱里：读写文件要经过 Umbra，出不了当前项目。它要什么权限，装之前会摆给你看。</span>
+          </div>
+        </div>
+
+        <sc-if value="{{ hasMarket }}" hint-placeholder-val="{{ true }}">
+          <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+            <sc-for list="{{ filters }}" as="f" hint-placeholder-count="5">
+              <button type="button" onClick="{{ f.pick }}" aria-pressed="{{ f.on }}" style="display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 10px; border-radius: 999px; border: 1px solid {{ f.bd }}; background: {{ f.bg }}; color: {{ f.fg }}; font-size: 12px; cursor: pointer;">
+                <span>{{ f.label }}</span>
+                <span style="font-family: var(--tool-mono); font-size: 11px; opacity: 0.7;">{{ f.count }}</span>
+              </button>
+            </sc-for>
+            <div style="flex: 1 1 180px; display: flex; justify-content: flex-end; min-width: 180px;">
+              <div style="position: relative; width: 100%; max-width: 240px;">
+                <span style="position: absolute; left: 8px; top: 6px; color: var(--tool-muted);"><dc-import name="IconGlyph" icon="search" size="16" hint-size="16px,16px"></dc-import></span>
+                <input type="text" value="{{ q }}" onChange="{{ onQ }}" placeholder="按扩展名找，比如 .mp4" style="width: 100%; height: 28px; padding: 0 10px 0 30px; border-radius: var(--tool-radius); border: 1px solid var(--tool-border-strong); background: var(--tool-panel); font-size: 12px; outline: none;" style-focus="border-color: var(--tool-accent); box-shadow: 0 0 0 3px var(--tool-accent-soft);">
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ listEmpty }}" hint-placeholder-val="{{ false }}">
+          <div style="padding: 56px 20px; display: grid; justify-items: center; gap: 8px; text-align: center; border: 1px dashed var(--tool-border-strong); border-radius: var(--tool-radius-lg);">
+            <span style="color: var(--tool-muted);"><dc-import name="IconGlyph" icon="plugin" size="16" hint-size="16px,16px"></dc-import></span>
+            <div style="font-size: 14px; font-weight: 600;">{{ emptyTitle }}</div>
+            <div style="max-width: 420px; color: var(--tool-muted); font-size: 12px; line-height: 1.6; text-wrap: pretty;">{{ emptyBody }}</div>
+            <button type="button" onClick="{{ emptyAct }}" style="margin-top: 4px; height: 28px; padding: 0 12px; border-radius: var(--tool-radius); border: 1px solid var(--tool-border-strong); background: var(--tool-panel); font-size: 12px; cursor: pointer;" style-hover="background: var(--tool-hover);">{{ emptyActLabel }}</button>
+          </div>
+        </sc-if>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px;">
+          <sc-for list="{{ cards }}" as="p" hint-placeholder-count="4">
+            <button type="button" onClick="{{ p.open }}" style="display: grid; gap: 10px; align-content: start; text-align: left; padding: 14px; border: 1px solid var(--tool-border); border-radius: var(--tool-radius-lg); background: var(--tool-panel); box-shadow: var(--tool-shadow-1); cursor: pointer;" style-hover="border-color: var(--tool-border-strong);" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">
+              <div style="display: flex; align-items: flex-start; gap: 10px;">
+                <span style="flex: none; width: 32px; height: 32px; display: grid; place-items: center; border-radius: var(--tool-radius); background: var(--tool-panel-2); color: var(--tool-text-2);"><dc-import name="IconGlyph" icon="plugin" size="16" hint-size="16px,16px"></dc-import></span>
+                <div style="flex: 1 1 auto; min-width: 0;">
+                  <div style="font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ p.name }}</div>
+                  <div style="font-size: 11px; color: var(--tool-muted);">{{ p.byline }}</div>
+                </div>
+                <span style="flex: none; display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: {{ p.stFg }}; font-weight: {{ p.stFw }}; white-space: nowrap;">
+                  <sc-if value="{{ p.hasUpd }}" hint-placeholder-val="{{ false }}"><span title="有新版本" style="width: 6px; height: 6px; border-radius: 999px; background: var(--tool-accent);"></span></sc-if>
+                  {{ p.status }}
+                </span>
+              </div>
+              <div style="font-size: 12px; color: var(--tool-text-2); line-height: 1.55; text-wrap: pretty;">{{ p.brief }}</div>
+              <div style="display: flex; flex-wrap: wrap; gap: 4px;">
+                <sc-for list="{{ p.formats }}" as="fm" hint-placeholder-count="3">
+                  <span style="height: 20px; padding: 0 6px; display: inline-flex; align-items: center; border-radius: var(--tool-radius-sm); background: {{ fm.bg }}; color: {{ fm.fg }}; font-family: var(--tool-mono); font-size: 11px;">{{ fm.ext }}</span>
+                </sc-for>
+              </div>
+            </button>
+          </sc-for>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- ── 2 详情 ── -->
+    <sc-if value="{{ showDetail }}" hint-placeholder-val="{{ false }}">
+      <div style="display: grid; gap: 20px;">
+        <div>
+          <button type="button" onClick="{{ backToList }}" style="display: inline-flex; align-items: center; gap: 4px; height: 28px; padding: 0 8px 0 4px; border: 0; border-radius: var(--tool-radius); background: transparent; color: var(--tool-text-2); font-size: 12px; cursor: pointer;" style-hover="background: var(--tool-hover);">
+            <dc-import name="IconGlyph" icon="chevron-left" size="16" hint-size="16px,16px"></dc-import>
+            市场
+          </button>
+        </div>
+
+        <div style="display: flex; align-items: flex-start; gap: 14px;">
+          <span style="flex: none; width: 48px; height: 48px; display: grid; place-items: center; border-radius: var(--tool-radius-lg); background: var(--tool-panel-2); color: var(--tool-text-2);"><dc-import name="IconGlyph" icon="plugin" size="16" hint-size="16px,16px"></dc-import></span>
+          <div style="display: grid; gap: 4px; min-width: 0;">
+            <div style="font-size: 20px; font-weight: 640; letter-spacing: -0.01em;">{{ d.name }}</div>
+            <div style="font-size: 12px; color: var(--tool-muted);">{{ d.meta }}</div>
+            <div style="color: var(--tool-text-2); line-height: 1.55; text-wrap: pretty;">{{ d.brief }}</div>
+            <div style="display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px;">
+              <span style="font-size: 11px; color: var(--tool-muted); align-self: center; margin-right: 2px;">认领</span>
+              <sc-for list="{{ d.formats }}" as="fm" hint-placeholder-count="3">
+                <span style="height: 20px; padding: 0 6px; display: inline-flex; align-items: center; border-radius: var(--tool-radius-sm); background: var(--tool-panel-2); color: var(--tool-text-2); font-family: var(--tool-mono); font-size: 11px;">{{ fm.ext }}</span>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+
+        <div style="display: flex; flex-direction: row-reverse; flex-wrap: wrap; align-items: flex-start; gap: 28px;">
+
+          <div style="flex: 1 1 280px; max-width: 100%; position: sticky; top: 100px; display: grid; gap: 12px;">
+            <div style="background: var(--tool-panel); border: 1px solid var(--tool-border); border-radius: var(--tool-radius-lg); box-shadow: var(--tool-shadow-1); overflow: hidden;">
+              <div style="padding: 14px 16px 12px; display: grid; gap: 12px;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span style="color: var(--tool-ok);"><dc-import name="IconGlyph" icon="sandbox" size="16" hint-size="16px,16px"></dc-import></span>
+                  <span style="font-weight: 600;">它能碰什么</span>
+                </div>
+                <sc-for list="{{ d.perms }}" as="pm" hint-placeholder-count="3">
+                  <div style="display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 10px; align-items: start;">
+                    <span style="margin-top: 1px; color: {{ pm.iconFg }};"><dc-import name="IconGlyph" icon="{{ pm.icon }}" size="16" hint-size="16px,16px"></dc-import></span>
+                    <div style="display: grid; gap: 1px;">
+                      <span style="color: {{ pm.fg }};">{{ pm.label }}</span>
+                      <span style="font-size: 11px; color: var(--tool-muted); line-height: 1.5;">{{ pm.note }}</span>
+                    </div>
+                  </div>
+                </sc-for>
+                <div style="font-size: 11px; color: var(--tool-text-2); line-height: 1.6; padding: 8px 10px; background: var(--tool-panel-2); border-radius: var(--tool-radius); text-wrap: pretty;">界面和逻辑各关在一个隔间里。它碰文件的每一下都要经过 Umbra，碰不到项目以外的地方，也碰不到别的插件。</div>
+              </div>
+
+              <div style="padding: 14px 16px 16px; border-top: 1px solid var(--tool-border); display: grid; gap: 8px;">
+                <sc-if value="{{ d.showPrice }}" hint-placeholder-val="{{ true }}">
+                  <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 8px;">
+                    <span style="font-size: 12px; color: var(--tool-muted);">一次买断</span>
+                    <span><span style="font-family: var(--tool-mono); font-size: 16px; font-weight: 620;">{{ d.price }}</span><span style="font-size: 12px; color: var(--tool-text-2);"> 积分</span></span>
+                  </div>
+                </sc-if>
+                <button type="button" onClick="{{ d.act }}" disabled="{{ d.actDisabled }}" style="position: relative; overflow: hidden; height: 34px; border-radius: var(--tool-radius); border: 1px solid {{ d.actBd }}; background: {{ d.actBg }}; color: {{ d.actFg }}; font-size: 13px; font-weight: 580; cursor: {{ d.actCursor }};" style-focus="outline: 2px solid var(--tool-ring); outline-offset: 2px;">
+                  <span style="position: absolute; left: 0; top: 0; bottom: 0; width: {{ d.progW }}; background: var(--tool-accent); transition: width .12s linear;"></span>
+                  <span style="position: relative;">{{ d.actLabel }}</span>
+                </button>
+                <div style="font-size: 11px; line-height: 1.6; color: {{ d.noteFg }}; text-wrap: pretty;">{{ d.actNote }}</div>
+
+                <sc-if value="{{ rechargeOpen }}" hint-placeholder-val="{{ false }}">
+                  <div style="display: grid; gap: 10px; margin-top: 4px; padding-top: 12px; border-top: 1px solid var(--tool-border);">
+                    <div style="font-size: 12px; font-weight: 600;">当场充值，充完接着买</div>
+                    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px;">
+                      <sc-for list="{{ pkgs }}" as="k" hint-placeholder-count="3">
+                        <button type="button" onClick="{{ k.pick }}" aria-pressed="{{ k.on }}" style="display: grid; gap: 1px; padding: 8px 6px; border-radius: var(--tool-radius); border: 1px solid {{ k.bd }}; background: {{ k.bg }}; cursor: pointer; text-align: center;">
+                          <span style="font-family: var(--tool-mono); font-weight: 600; color: {{ k.fg }};">{{ k.pts }}</span>
+                          <span style="font-size: 11px; color: var(--tool-muted);">{{ k.money }}</span>
+                        </button>
+                      </sc-for>
+                    </div>
+                    <div style="display: flex; gap: 8px; align-items: flex-start; font-size: 12px; line-height: 1.55; color: var(--tool-text);">
+                      <span style="flex: none; margin-top: 1px; color: var(--tool-warn);"><dc-import name="IconGlyph" icon="panel-info" size="16" hint-size="16px,16px"></dc-import></span>
+                      <span>积分不能退成现金，只能用来买插件。</span>
+                    </div>
+                    <button type="button" onClick="{{ pay }}" style="height: 32px; border-radius: var(--tool-radius); border: 0; background: var(--tool-accent); color: var(--tool-on-accent); font-size: 12px; font-weight: 580; cursor: pointer;" style-hover="background: var(--tool-accent-hover);">{{ payLabel }}</button>
+                  </div>
+                </sc-if>
+              </div>
+            </div>
+          </div>
+
+          <div style="flex: 999 1 420px; min-width: 0; display: grid; gap: 28px;">
+
+            <section style="display: grid; gap: 12px;">
+              <div style="display: grid; gap: 3px;">
+                <div style="font-size: 15px; font-weight: 620;">AI 多了哪些能力</div>
+                <div style="font-size: 12px; color: var(--tool-muted); line-height: 1.55; text-wrap: pretty;">{{ d.aiSub }}</div>
+              </div>
+              <div style="background: var(--tool-panel); border: 1px solid var(--tool-border); border-radius: var(--tool-radius-lg); overflow: hidden;">
+                <sc-for list="{{ d.tools }}" as="tl" hint-placeholder-count="2">
+                  <div style="display: grid; gap: 2px; padding: 10px 14px; border-bottom: 1px solid var(--tool-border);">
+                    <div style="display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;">
+                      <span style="font-weight: 580;">{{ tl.name }}</span>
+                      <span style="font-family: var(--tool-mono); font-size: 11px; color: var(--tool-muted);">{{ tl.id }}</span>
+                    </div>
+                    <div style="font-size: 12px; color: var(--tool-text-2);">{{ tl.desc }}</div>
+                  </div>
+                </sc-for>
+
+                <div style="padding: 14px; background: var(--tool-panel-2); display: grid; gap: 12px;">
+                  <div style="display: grid; gap: 2px;">
+                    <div style="font-size: 12px; font-weight: 600;">{{ d.cmpTask }}</div>
+                    <div style="font-size: 11px; color: var(--tool-muted);">{{ d.cmpFile }}</div>
+                  </div>
+                  <sc-if value="{{ d.hasBars }}" hint-placeholder-val="{{ true }}">
+                    <div style="display: grid; gap: 12px;">
+                      <sc-for list="{{ d.cmpRows }}" as="cr" hint-placeholder-count="2">
+                        <div style="display: grid; gap: 5px;">
+                          <div style="font-size: 11px; color: {{ cr.headFg }}; font-weight: 560;">{{ cr.who }}</div>
+                          <sc-for list="{{ cr.bars }}" as="br" hint-placeholder-count="2">
+                            <div style="display: grid; grid-template-columns: 20px minmax(0, 1fr) 84px; gap: 8px; align-items: center;">
+                              <span style="font-size: 11px; color: var(--tool-muted);">{{ br.k }}</span>
+                              <div style="height: 8px; border-radius: 999px; background: var(--tool-panel-3); overflow: hidden;">
+                                <div style="height: 100%; width: {{ br.w }}; min-width: 4px; border-radius: 999px; background: {{ br.color }};"></div>
+                              </div>
+                              <span style="font-family: var(--tool-mono); font-size: 11px; text-align: right; color: var(--tool-text-2); white-space: nowrap;">{{ br.label }}</span>
+                            </div>
+                          </sc-for>
+                        </div>
+                      </sc-for>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ d.hasCmpText }}" hint-placeholder-val="{{ false }}">
+                    <div style="display: grid; gap: 8px;">
+                      <sc-for list="{{ d.cmpLines }}" as="cl" hint-placeholder-count="2">
+                        <div style="display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 8px; font-size: 12px; line-height: 1.55;">
+                          <span style="color: {{ cl.iconFg }}; margin-top: 1px;"><dc-import name="IconGlyph" icon="{{ cl.icon }}" size="16" hint-size="16px,16px"></dc-import></span>
+                          <span style="color: var(--tool-text);"><span style="color: {{ cl.headFg }}; font-weight: 560;">{{ cl.who }}</span>{{ cl.text }}</span>
+                        </div>
+                      </sc-for>
+                    </div>
+                  </sc-if>
+                  <div style="font-size: 11px; color: var(--tool-text-2); line-height: 1.6; text-wrap: pretty;">{{ d.cmpFoot }}</div>
+                </div>
+
+                <div style="padding: 12px 14px; border-top: 1px solid var(--tool-border); display: grid; gap: 8px;">
+                  <div style="font-size: 12px; color: var(--tool-text-2);">装上以后，会话里每一步用到它，工具调用那一行都会写上它的名字：</div>
+                  <div style="display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 10px; border-radius: var(--tool-radius); border: 1px solid var(--tool-border); background: var(--tool-panel); font-size: 12px; min-width: 0;">
+                    <span style="color: var(--tool-ok); flex: none;"><dc-import name="IconGlyph" icon="status-ok" size="12" hint-size="12px,12px"></dc-import></span>
+                    <span style="height: 18px; padding: 0 6px; display: inline-flex; align-items: center; border-radius: var(--tool-radius-sm); background: var(--tool-accent-soft); color: var(--tool-accent); font-size: 11px; font-weight: 560; flex: none;">{{ d.name }}</span>
+                    <span style="flex: none;">{{ d.sampleTool }}</span>
+                    <span style="font-family: var(--tool-mono); font-size: 11px; color: var(--tool-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ d.sampleArg }}</span>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section style="display: grid; gap: 12px;">
+              <div style="display: grid; gap: 3px;">
+                <div style="font-size: 15px; font-weight: 620;">预览里多了什么</div>
+                <div style="font-size: 12px; color: var(--tool-muted);">{{ d.previewSub }}</div>
+              </div>
+              <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px;">
+                <sc-for list="{{ d.shots }}" as="sh" hint-placeholder-count="3">
+                  <div style="display: grid; gap: 6px;">
+                    <div style="aspect-ratio: 16 / 10; border-radius: var(--tool-radius); border: 1px solid var(--tool-border); background: var(--tool-canvas); display: grid; place-items: center; color: var(--tool-muted); font-size: 11px;">作者提供的截图</div>
+                    <div style="font-size: 12px; color: var(--tool-text-2);">{{ sh.cap }}</div>
+                  </div>
+                </sc-for>
+              </div>
+            </section>
+
+            <section style="display: grid; gap: 8px;">
+              <div style="font-size: 15px; font-weight: 620;">说明</div>
+              <div style="color: var(--tool-text-2); line-height: 1.7; max-width: 640px; text-wrap: pretty;">{{ d.desc }}</div>
+            </section>
+
+            <section style="display: grid; gap: 8px;">
+              <div style="font-size: 15px; font-weight: 620;">版本</div>
+              <div style="border-top: 1px solid var(--tool-border);">
+                <sc-for list="{{ d.log }}" as="lg" hint-placeholder-count="3">
+                  <div style="display: grid; grid-template-columns: 64px 72px minmax(0, 1fr); gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--tool-border); font-size: 12px;">
+                    <span style="font-family: var(--tool-mono); font-weight: 560;">{{ lg.v }}</span>
+                    <span style="color: var(--tool-muted);">{{ lg.date }}</span>
+                    <span style="color: var(--tool-text-2); line-height: 1.55;">{{ lg.note }}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- ── 3 已装 ── -->
+    <sc-if value="{{ showInstalled }}" hint-placeholder-val="{{ false }}">
+      <div style="display: grid; gap: 16px;">
+        <div style="display: grid; gap: 4px;">
+          <div style="font-size: 18px; font-weight: 620;">已装插件</div>
+          <div style="color: var(--tool-text-2); line-height: 1.6; text-wrap: pretty;">旧版本装过就留在本机。切版本不用重新下载，立刻生效，所以放心更新：出了问题切回上一版就行。</div>
+        </div>
+
+        <sc-if value="{{ hasUnsigned }}" hint-placeholder-val="{{ false }}">
+          <div style="display: flex; gap: 12px; align-items: flex-start; flex-wrap: wrap; padding: 12px 14px; border-radius: var(--tool-radius-lg); border: 1px solid var(--tool-err-border); background: var(--tool-err-soft);">
+            <span style="flex: none; color: var(--tool-err); margin-top: 1px;"><dc-import name="IconGlyph" icon="status-warn" size="16" hint-size="16px,16px"></dc-import></span>
+            <div style="flex: 1 1 320px; display: grid; gap: 3px;">
+              <div style="font-weight: 600; color: var(--tool-err);">{{ unsignedTitle }}</div>
+              <div style="font-size: 12px; line-height: 1.6; color: var(--tool-text); text-wrap: pretty;">{{ unsignedBody }}</div>
+            </div>
+            <button type="button" onClick="{{ removeUnsigned }}" style="flex: none; height: 28px; padding: 0 12px; border-radius: var(--tool-radius); border: 1px solid var(--tool-err-border); background: var(--tool-panel); color: var(--tool-err); font-size: 12px; cursor: pointer;" style-hover="background: var(--tool-err-soft);">{{ unsignedBtn }}</button>
+          </div>
+        </sc-if>
+
+        <div style="background: var(--tool-panel); border: 1px solid var(--tool-border); border-radius: var(--tool-radius-lg); box-shadow: var(--tool-shadow-1);">
+          <sc-for list="{{ rows }}" as="r" hint-placeholder-count="3">
+            <div style="position: relative; padding: 12px 14px; border-bottom: 1px solid var(--tool-border); background: {{ r.bg }}; box-shadow: {{ r.ring }}; border-radius: {{ r.radius }};">
+              <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                <span style="flex: none; width: 32px; height: 32px; display: grid; place-items: center; border-radius: var(--tool-radius); background: var(--tool-panel-2); color: {{ r.iconFg }};"><dc-import name="IconGlyph" icon="plugin" size="16" hint-size="16px,16px"></dc-import></span>
+                <div style="flex: 1 1 220px; min-width: 0; display: grid; gap: 3px;">
+                  <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                    <span style="font-weight: 600;">{{ r.name }}</span>
+                    <sc-for list="{{ r.badges }}" as="bd" hint-placeholder-count="1">
+                      <span title="{{ bd.tip }}" style="height: 18px; padding: 0 6px; display: inline-flex; align-items: center; gap: 4px; border-radius: var(--tool-radius-sm); border: 1px solid {{ bd.bd }}; background: {{ bd.bg }}; color: {{ bd.fg }}; font-size: 11px; font-weight: 580;">{{ bd.label }}</span>
+                    </sc-for>
+                  </div>
+                  <div style="font-size: 11px; color: var(--tool-muted); display: flex; gap: 6px; flex-wrap: wrap;">
+                    <span>{{ r.by }}</span>
+                    <span>·</span>
+                    <span style="font-family: var(--tool-mono);">{{ r.formats }}</span>
+                  </div>
+                </div>
+                <div style="flex: none; display: flex; align-items: center; gap: 6px;">
+                  <sc-if value="{{ r.hasUpd }}" hint-placeholder-val="{{ false }}">
+                    <button type="button" onClick="{{ r.update }}" style="display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 10px; border-radius: var(--tool-radius); border: 1px solid var(--tool-accent-border); background: var(--tool-accent-soft); color: var(--tool-accent); font-size: 12px; cursor: pointer;" style-hover="border-color: var(--tool-accent);">
+                      <dc-import name="IconGlyph" icon="download" size="12" hint-size="12px,12px"></dc-import>
+                      {{ r.updLabel }}
+                    </button>
+                  </sc-if>
+                  <div style="position: relative;">
+                    <button type="button" onClick="{{ r.toggleVer }}" disabled="{{ r.single }}" title="{{ r.verTip }}" style="display: inline-flex; align-items: center; gap: 4px; height: 28px; padding: 0 6px 0 8px; border-radius: var(--tool-radius); border: 1px solid {{ r.verBd }}; background: var(--tool-panel); font-family: var(--tool-mono); font-size: 12px; cursor: {{ r.verCursor }}; color: var(--tool-text);" style-hover="background: var(--tool-hover);">
+                      {{ r.curLabel }}
+                      <sc-if value="{{ r.multi }}" hint-placeholder-val="{{ false }}"><dc-import name="IconGlyph" icon="chevron-down" size="12" hint-size="12px,12px"></dc-import></sc-if>
+                    </button>
+                    <sc-if value="{{ r.verOpen }}" hint-placeholder-val="{{ false }}">
+                      <div role="listbox" style="position: absolute; right: 0; top: 32px; z-index: 21; width: 280px; padding: 4px; border-radius: var(--tool-radius-lg); border: 1px solid var(--tool-border-strong); background: var(--tool-panel); box-shadow: var(--tool-shadow-2);">
+                        <div style="padding: 4px 8px 6px; font-size: 11px; color: var(--tool-muted);">本机装着的版本 · 点一下就切</div>
+                        <sc-for list="{{ r.vers }}" as="vv" hint-placeholder-count="2">
+                          <button type="button" role="option" aria-selected="{{ vv.on }}" onClick="{{ vv.pick }}" style="display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 8px; align-items: center; width: 100%; height: 36px; padding: 0 8px; border: 0; border-radius: var(--tool-radius-sm); background: transparent; text-align: left; cursor: pointer;" style-hover="background: var(--tool-hover);">
+                            <span style="color: var(--tool-accent);"><sc-if value="{{ vv.on }}" hint-placeholder-val="{{ false }}"><dc-import name="IconGlyph" icon="check" size="16" hint-size="16px,16px"></dc-import></sc-if></span>
+                            <span style="display: grid; gap: 1px; min-width: 0;">
+                              <span style="font-family: var(--tool-mono); font-size: 12px;">{{ vv.v }}</span>
+                              <span style="font-size: 11px; color: var(--tool-muted);">{{ vv.sub }}</span>
+                            </span>
+                          </button>
+                        </sc-for>
+                      </div>
+                    </sc-if>
+                  </div>
+                  <div style="position: relative;">
+                    <button type="button" onClick="{{ r.toggleMore }}" title="更多" style="width: 28px; height: 28px; display: grid; place-items: center; border: 0; border-radius: var(--tool-radius); background: transparent; color: var(--tool-text-2); cursor: pointer;" style-hover="background: var(--tool-hover);">
+                      <dc-import name="IconGlyph" icon="more" size="16" hint-size="16px,16px"></dc-import>
+                    </button>
+                    <sc-if value="{{ r.moreOpen }}" hint-placeholder-val="{{ false }}">
+                      <div role="menu" style="position: absolute; right: 0; top: 32px; z-index: 21; min-width: 200px; max-width: 320px; padding: 4px; border-radius: var(--tool-radius-lg); border: 1px solid var(--tool-border-strong); background: var(--tool-panel); box-shadow: var(--tool-shadow-2);">
+                        <div style="padding: 4px 8px 6px; font-size: 11px; color: var(--tool-muted);">{{ r.name }}</div>
+                        <sc-for list="{{ r.menu }}" as="mi" hint-placeholder-count="2">
+                          <sc-if value="{{ mi.sep }}" hint-placeholder-val="{{ false }}"><div style="height: 1px; margin: 4px 6px; background: var(--tool-border);"></div></sc-if>
+                          <button type="button" role="menuitem" onClick="{{ mi.act }}" disabled="{{ mi.disabled }}" style="display: flex; align-items: center; width: 100%; height: 28px; padding: 0 8px; border: 0; border-radius: var(--tool-radius-sm); background: transparent; text-align: left; font-size: 12px; color: {{ mi.fg }}; cursor: {{ mi.cursor }}; white-space: nowrap;" style-hover="background: var(--tool-hover);">{{ mi.label }}</button>
+                        </sc-for>
+                      </div>
+                    </sc-if>
+                  </div>
+                </div>
+              </div>
+
+              <sc-if value="{{ r.hasJust }}" hint-placeholder-val="{{ false }}">
+                <div style="margin: 10px 0 0 44px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 8px 8px 12px; border-radius: var(--tool-radius); background: var(--tool-panel-2); font-size: 12px;">
+                  <span style="flex: 1 1 260px; color: var(--tool-text-2); line-height: 1.55;">{{ r.justText }}</span>
+                  <button type="button" onClick="{{ r.rollback }}" style="display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 10px; border-radius: var(--tool-radius-sm); border: 1px solid var(--tool-border-strong); background: var(--tool-panel); font-size: 12px; cursor: pointer;" style-hover="background: var(--tool-hover);">
+                    <dc-import name="IconGlyph" icon="undo" size="12" hint-size="12px,12px"></dc-import>
+                    {{ r.rollbackLabel }}
+                  </button>
+                  <button type="button" onClick="{{ r.dismissJust }}" title="知道了" style="width: 26px; height: 26px; display: grid; place-items: center; border: 0; border-radius: var(--tool-radius-sm); background: transparent; color: var(--tool-muted); cursor: pointer;" style-hover="background: var(--tool-hover);">
+                    <dc-import name="IconGlyph" icon="close" size="12" hint-size="12px,12px"></dc-import>
+                  </button>
+                </div>
+              </sc-if>
+
+              <sc-if value="{{ r.arming }}" hint-placeholder-val="{{ false }}">
+                <div style="margin: 10px 0 0 44px; padding: 10px 12px; border-radius: var(--tool-radius); border: 1px solid var(--tool-err-border); background: var(--tool-err-soft); display: grid; gap: 8px;">
+                  <div style="font-size: 12px; line-height: 1.55; color: var(--tool-text);">{{ r.armText }}</div>
+                  <div style="display: flex; gap: 6px;">
+                    <button type="button" onClick="{{ r.uninstall }}" style="height: 28px; padding: 0 12px; border: 0; border-radius: var(--tool-radius-sm); background: var(--tool-err); color: var(--tool-on-accent); font-size: 12px; font-weight: 560; cursor: pointer;">卸载</button>
+                    <button type="button" onClick="{{ r.disarm }}" style="height: 28px; padding: 0 12px; border-radius: var(--tool-radius-sm); border: 1px solid var(--tool-err-border); background: transparent; color: var(--tool-err); font-size: 12px; cursor: pointer;">取消</button>
+                  </div>
+                </div>
+              </sc-if>
+            </div>
+          </sc-for>
+        </div>
+        <div style="font-size: 12px; color: var(--tool-muted);">{{ instNote }}</div>
+      </div>
+    </sc-if>
+
+    <!-- ── 4 积分 ── -->
+    <sc-if value="{{ showCredits }}" hint-placeholder-val="{{ false }}">
+      <div style="display: grid; gap: 20px; max-width: 720px;">
+        <div style="display: grid; gap: 4px;">
+          <div style="font-size: 18px; font-weight: 620;">积分</div>
+          <div style="color: var(--tool-text-2);">用来买插件。一次买断，买过的换电脑、卸了再装都不用再付。</div>
+        </div>
+
+        <div style="display: flex; align-items: baseline; gap: 8px; padding: 16px; background: var(--tool-panel); border: 1px solid var(--tool-border); border-radius: var(--tool-radius-lg);">
+          <span style="font-size: 12px; color: var(--tool-muted); margin-right: 8px;">余额</span>
+          <span style="font-family: var(--tool-mono); font-size: 28px; font-weight: 640; letter-spacing: -0.02em;">{{ balanceText }}</span>
+          <span style="color: var(--tool-text-2);">积分</span>
+        </div>
+
+        <div style="display: grid; gap: 12px; padding: 16px; background: var(--tool-panel); border: 1px solid var(--tool-border); border-radius: var(--tool-radius-lg);">
+          <div style="font-weight: 600;">充值</div>
+          <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px;">
+            <sc-for list="{{ pkgs }}" as="k" hint-placeholder-count="3">
+              <button type="button" onClick="{{ k.pick }}" aria-pressed="{{ k.on }}" style="display: grid; gap: 2px; padding: 12px 8px; border-radius: var(--tool-radius); border: 1px solid {{ k.bd }}; background: {{ k.bg }}; cursor: pointer; text-align: center;">
+                <span style="font-family: var(--tool-mono); font-size: 15px; font-weight: 620; color: {{ k.fg }};">{{ k.pts }}</span>
+                <span style="font-size: 12px; color: var(--tool-muted);">{{ k.money }}</span>
+              </button>
+            </sc-for>
+          </div>
+          <div style="display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: var(--tool-radius); background: var(--tool-warn-soft); border: 1px solid var(--tool-warn-border);">
+            <span style="flex: none; margin-top: 1px; color: var(--tool-warn);"><dc-import name="IconGlyph" icon="panel-info" size="16" hint-size="16px,16px"></dc-import></span>
+            <div style="display: grid; gap: 2px; font-size: 12px; line-height: 1.6;">
+              <span style="font-weight: 600; color: var(--tool-text);">积分不能退成现金。</span>
+              <span style="color: var(--tool-text);">充进来的积分只能用来买插件，不能提现。没用完的会一直留着，不会过期。</span>
+            </div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+            <button type="button" onClick="{{ pay }}" style="height: 32px; padding: 0 16px; border-radius: var(--tool-radius); border: 0; background: var(--tool-accent); color: var(--tool-on-accent); font-size: 12px; font-weight: 580; cursor: pointer;" style-hover="background: var(--tool-accent-hover);">{{ payLabel }}</button>
+            <span style="font-size: 11px; color: var(--tool-muted);">支付走你登录用的那一家，付完回到这里。</span>
+          </div>
+        </div>
+
+        <div style="background: var(--tool-panel); border: 1px solid var(--tool-border); border-radius: var(--tool-radius-lg); overflow: hidden;">
+          <div style="height: 36px; display: flex; align-items: center; padding: 0 14px; border-bottom: 1px solid var(--tool-border); font-weight: 600;">流水</div>
+          <sc-for list="{{ flow }}" as="fl" hint-placeholder-count="4">
+            <div style="display: grid; grid-template-columns: 84px 44px minmax(0, 1fr) 72px 64px; gap: 10px; align-items: center; padding: 9px 14px; border-bottom: 1px solid var(--tool-border); font-size: 12px;">
+              <span style="font-family: var(--tool-mono); font-size: 11px; color: var(--tool-muted);">{{ fl.t }}</span>
+              <span style="justify-self: start; height: 18px; padding: 0 6px; display: inline-flex; align-items: center; border-radius: var(--tool-radius-sm); background: {{ fl.bg }}; color: {{ fl.fg }}; font-size: 11px;">{{ fl.type }}</span>
+              <span style="color: var(--tool-text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ fl.what }}</span>
+              <span style="font-family: var(--tool-mono); text-align: right; color: {{ fl.amtFg }}; font-weight: 560;">{{ fl.amt }}</span>
+              <span style="font-family: var(--tool-mono); font-size: 11px; text-align: right; color: var(--tool-muted);">{{ fl.bal }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </sc-if>
+
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;跟随外层&quot;,&quot;dark&quot;],&quot;default&quot;:&quot;跟随外层&quot;,&quot;tsType&quot;:&quot;'dark'|null&quot;,&quot;section&quot;:&quot;工具皮肤&quot;}}">
+const fmt = (n) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+const KIND = { ".md": "文本", ".markdown": "文本", ".srt": "文本", ".csv": "表格", ".tsv": "表格", ".xlsx": "表格", ".mp4": "视频", ".mov": "视频", ".webm": "视频", ".html": "网页", ".htm": "网页", ".json": "文本" };
+const KINDS = ["文本", "网页", "视频", "表格"];
+
+const PLUGINS = [
+  { id: "umbra.markdown", name: "Markdown 编辑", author: "Umbra", ver: "1.0.0", price: 0, builtin: true, size: "随 Umbra 一起", updated: "9 月 12 日",
+    brief: "渲染阅读、源码分栏；AI 能按节读、按节改。", formats: [".md", ".markdown"], perms: { files: ["read", "write"], net: [] },
+    aiSub: "会话里的 AI 改 .md 时会用这两件事。",
+    tools: [{ name: "列出章节", id: "list_sections", desc: "只读标题和每节的位置，不读正文" }, { name: "替换某一节", id: "replace_section", desc: "只写那一节，别的节原样不动" }],
+    cmp: { task: "改其中一节，AI 要读写多少", file: "按你项目里最长的 .md 算：README.md · 3,120 字 · 14 节",
+      rows: [{ who: "没有这件能力", bars: [["读", 3120, "字"], ["写", 3120, "字"]] }, { who: "有了以后", bars: [["读", 14, "行标题"], ["写", 240, "字"]] }] },
+    cmpFoot: "整篇写回时，另外 13 节也要让 AI 重写一遍；只换一节时，别处一个字都不动。数字是按做法数出来的，不是跑分。",
+    sample: ["替换某一节", "README.md § 安装"],
+    previewSub: "打开 .md 时右边的样子。", shots: ["渲染阅读", "源码 / 分栏", "frontmatter"],
+    desc: "Umbra 自带的 Markdown 编辑。卸不掉，也不用买。",
+    log: [["1.0.0", "9 月 12 日", "随 Umbra 一起发布"]] },
+  { id: "umbra.table", name: "表格", author: "Umbra", ver: "1.2.0", price: 80, size: "1.8 MB", updated: "9 月 20 日",
+    brief: "按格子看和改 CSV / Excel；AI 能只改你指的那几格。", formats: [".csv", ".tsv", ".xlsx"], perms: { files: ["read", "write"], net: [] },
+    aiSub: "装上以后，会话里的 AI 改 .csv / .tsv / .xlsx 时会用这三件事。",
+    tools: [{ name: "读一个范围", id: "read_range", desc: "只读指定的行和列，比如 B2:B40" }, { name: "改单元格", id: "set_cells", desc: "只写指定的格子，公式和格式原样保留" }, { name: "列出工作表", id: "list_sheets", desc: ".xlsx 里有哪几张表、各有多少行" }],
+    cmp: { task: "把「单价」列里 3 个格子改成新价，AI 要读写多少", file: "按你项目里最大的 .csv 算：销量-2026Q3.csv · 4,812 行",
+      rows: [{ who: "没有这个插件", bars: [["读", 4812, "行"], ["写", 4812, "行"]] }, { who: "装了以后", bars: [["读", 4, "行"], ["写", 3, "格"]] }] },
+    cmpFoot: "整篇写回时，另外 4,809 行也要让 AI 重写一遍，改错一格也不容易看出来；只改 3 格时，别处一个字节都不动。数字是按做法数出来的，不是跑分。",
+    sample: ["改单元格", "销量-2026Q3.csv  B2:B4"],
+    previewSub: "打开表格文件时右边的样子。", shots: ["按格子看", "改一格", "切换工作表"],
+    desc: "打开 .csv / .tsv / .xlsx 时，右边显示成表格：冻结表头、按列排序、直接改格子。给 AI 的三件能力让它按范围读、按格子写，不用把整张表读进来再整张写回去。.xlsx 里的公式和单元格格式在 AI 改动时原样保留。",
+    log: [["1.2.0", "9 月 20 日", "支持 .tsv；AI 改单元格时保留原有格式"], ["1.1.0", "9 月 12 日", "加「列出工作表」；大表格打开快了"], ["1.0.0", "9 月 2 日", "第一版"]] },
+  { id: "umbra.video", name: "视频剪辑", author: "Umbra", ver: "0.9.2", price: 120, size: "6.4 MB", updated: "9 月 18 日",
+    brief: "时间轴上剪切、拼接、改字幕；AI 能按时间点裁切。", formats: [".mp4", ".mov", ".webm", ".srt"], perms: { files: ["read", "write"], net: [] },
+    aiSub: "装上以后，会话里的 AI 就能动视频和字幕文件。",
+    tools: [{ name: "列出片段", id: "list_clips", desc: "时间轴上有哪几段、各从几秒到几秒" }, { name: "按时间裁切", id: "trim", desc: "只剪指定的一段，别处不重新编码" }, { name: "改字幕行", id: "set_caption", desc: "只改某一句字幕的文字或时间码" }],
+    cmpText: { task: "把第 12 句字幕往后挪 0.5 秒", file: "发布会-剪辑.mp4 · 04:32",
+      lines: [["没有这个插件：", "AI 读不了 .mp4，只能告诉你去哪里改。"], ["装了以后：", "AI 调「改字幕行」，只动第 12 句的时间码。"]] },
+    cmpFoot: "二进制格式没有插件时，AI 一个字节都碰不了。",
+    sample: ["改字幕行", "发布会-剪辑.mp4  #12  +0.5s"],
+    previewSub: "打开视频时右边的样子。", shots: ["时间轴", "剪切一段", "字幕轨"],
+    desc: "打开视频时右边出现时间轴，可以剪切、拼接、改字幕。第一期只做剪切和字幕，不做调色和特效。",
+    log: [["0.9.2", "9 月 18 日", "修复 .mov 时间码偏移"], ["0.9.0", "9 月 8 日", "第一版"]] },
+  { id: "umbra.web", name: "网页", author: "Umbra", ver: "1.2.0", price: 60, size: "0.9 MB", updated: "9 月 25 日",
+    brief: "按区块看网页结构；AI 能只换其中一块。", formats: [".html", ".htm"], perms: { files: ["read", "write"], net: [] },
+    aiSub: "装上以后，会话里的 AI 改 .html 时会用这两件事。",
+    tools: [{ name: "列出区块", id: "list_blocks", desc: "页面有哪几块、各自的标签和位置" }, { name: "替换某个区块", id: "replace_block", desc: "只写那一块，别处的标记原样不动" }],
+    cmp: { task: "换掉页脚，AI 要读写多少", file: "按你项目里最大的 .html 算：index.html · 38 KB",
+      rows: [{ who: "没有这个插件", bars: [["读", 38, "KB"], ["写", 38, "KB"]] }, { who: "装了以后", bars: [["读", 1.2, "KB"], ["写", 2.1, "KB"]] }] },
+    cmpFoot: "整篇写回时，页面其余部分也要让 AI 重写一遍；只换一块时，别处一个字节都不动。数字是按做法数出来的，不是跑分。",
+    sample: ["替换某个区块", "index.html  <footer>"],
+    previewSub: "打开 .html 时右边的样子。", shots: ["区块大纲", "选中一块", "源码对照"],
+    desc: "打开 .html 时右边按区块显示结构。",
+    log: [["1.2.0", "9 月 25 日", "区块大纲支持 <template>"], ["1.1.0", "9 月 16 日", "选中区块时高亮源码"], ["1.0.2", "9 月 6 日", "第一版"]] }
+];
+const DEV = { id: "dev.json-viewer", name: "json-viewer", author: "本地 · ~/dev/json-viewer", formats: [".json"], unsigned: true };
+const PKGS = [[300, "¥30"], [1000, "¥100"], [3000, "¥300"]];
+
+const FLOW = [
+  ["09-24 21:07", "充值", "¥100", 1000, 1220],
+  ["09-22 10:15", "退款", "网页 · 重复扣款", 60, 220],
+  ["09-21 18:40", "消费", "网页（重复扣款）", -60, 160],
+  ["09-21 18:40", "消费", "网页", -60, 220],
+  ["09-20 10:11", "消费", "视频剪辑", -120, 280],
+  ["09-18 09:02", "赠送", "新用户", 100, 400],
+  ["09-18 09:00", "充值", "¥30", 300, 300]
+];
+
+const DEMOS = [
+  { n: 1, short: "市场", note: "价格只挂在没买的上；买过的写状态" },
+  { n: 2, short: "筛「文本」", note: "视频剪辑认领 .srt，所以也在「文本」里。筛选不是分组，重复出现不是问题" },
+  { n: 3, short: "市场空", note: "一个可买的都没有" },
+  { n: 4, short: "详情 · 没买", note: "没买也全看得见；权限紧挨着按钮" },
+  { n: 5, short: "详情 · 余额不够", note: "就地充值，充完接着买，不跳走" },
+  { n: 6, short: "详情 · 安装中", note: "进度走在按钮里" },
+  { n: 7, short: "详情 · 已装", note: "按钮换成去管理" },
+  { n: 8, short: "已装", note: "内置不能卸；网页有新版本" },
+  { n: 9, short: "已装 · 刚更新", note: "切回上一版的入口留在行里" },
+  { n: 10, short: "已装 · 未签名", note: "横幅 + 整行描红 + Tab 上的红点" },
+  { n: 11, short: "积分", note: "余额、充值、流水" }
+];
+
+const baseInst = () => ({
+  "umbra.markdown": { cur: "1.0.0", vers: [["1.0.0", "随 Umbra 一起"]] },
+  "umbra.web": { cur: "1.1.0", vers: [["1.1.0", "9 月 24 日装"], ["1.0.2", "9 月 10 日装"]], upd: "1.2.0" }
+});
+
+class Component extends DCLogic {
+  state = this.demoState(1);
+
+  demoState(n) {
+    const inst = baseInst();
+    const owned = ["umbra.markdown", "umbra.video", "umbra.web"];
+    const st = { demo: n, page: "list", filter: "全部", q: "", market: PLUGINS.slice(), detailId: "umbra.table", balance: 1220,
+      installing: null, prog: 0, recharge: false, pkg: 0, inst: inst, owned: owned, just: null, pop: null, arm: null, note: "", flow: FLOW.slice() };
+    if (n === 2) st.filter = "文本";
+    if (n === 3) st.market = [];
+    if (n >= 4 && n <= 7) st.page = "detail";
+    if (n === 5) { st.balance = 50; st.recharge = true; st.pkg = 0; }
+    if (n === 6) { st.owned = owned.concat("umbra.table"); st.installing = "umbra.table"; st.prog = 62; }
+    if (n === 7) { st.owned = owned.concat("umbra.table"); inst["umbra.table"] = { cur: "1.2.0", vers: [["1.2.0", "今天装"]] }; }
+    if (n >= 8 && n <= 10) st.page = "installed";
+    if (n >= 9) { st.owned = owned.concat("umbra.table"); inst["umbra.table"] = { cur: "1.2.0", vers: [["1.2.0", "今天更新"], ["1.1.0", "9 月 12 日装"]] }; }
+    if (n === 9) st.just = { id: "umbra.table", from: "1.1.0", to: "1.2.0", back: false };
+    if (n === 10) inst[DEV.id] = { cur: "0.0.1-dev", vers: [["0.0.1-dev", "今天 · 开发模式装"]], unsigned: true };
+    if (n === 11) st.page = "credits";
+    return st;
+  }
+
+  componentWillUnmount() { clearInterval(this.timer); }
+  setDemo(n) { clearInterval(this.timer); this.setState(this.demoState(n)); }
+  plug(id) { return id === DEV.id ? DEV : PLUGINS.find((p) => p.id === id); }
+
+  startInstall(id) {
+    clearInterval(this.timer);
+    this.setState({ installing: id, prog: 0 });
+    this.timer = setInterval(() => {
+      const p = this.state.prog + 4;
+      if (p >= 100) {
+        clearInterval(this.timer);
+        const pl = this.plug(id);
+        this.setState((s) => ({ installing: null, prog: 0, inst: Object.assign({}, s.inst, { [id]: { cur: pl.ver, vers: [[pl.ver, "今天装"]] } }) }));
+      } else this.setState({ prog: p });
+    }, 60);
+  }
+  buy(p) {
+    this.setState((s) => ({ balance: s.balance - p.price, owned: s.owned.concat(p.id), recharge: false,
+      flow: [["刚刚", "消费", p.name + " " + p.ver, -p.price, s.balance - p.price]].concat(s.flow) }));
+    this.startInstall(p.id);
+  }
+  pay() {
+    const k = PKGS[this.state.pkg];
+    const nb = this.state.balance + k[0];
+    this.setState((s) => ({ balance: nb, flow: [["刚刚", "充值", k[1], k[0], nb]].concat(s.flow) }), () => {
+      const s = this.state;
+      if (s.page === "detail" && s.recharge) {
+        const p = this.plug(s.detailId);
+        if (!s.owned.includes(p.id) && s.balance >= p.price) this.buy(p);
+        else this.setState({ recharge: false });
+      }
+    });
+  }
+  setVer(id, v) {
+    this.setState((s) => {
+      const cur = s.inst[id].cur;
+      const inst = Object.assign({}, s.inst, { [id]: Object.assign({}, s.inst[id], { cur: v }) });
+      return { inst: inst, pop: null, just: v === cur ? s.just : { id: id, from: cur, to: v, back: s.just && s.just.id === id && s.just.from === v } };
+    });
+  }
+  update(id) {
+    this.setState((s) => {
+      const i = s.inst[id], pl = this.plug(id);
+      const vers = [[i.upd, "今天更新"]].concat(i.vers);
+      return { inst: Object.assign({}, s.inst, { [id]: { cur: i.upd, vers: vers } }), just: { id: id, from: i.cur, to: i.upd, back: false } };
+    });
+  }
+  uninstall(id) {
+    this.setState((s) => {
+      const inst = Object.assign({}, s.inst); delete inst[id];
+      const pl = this.plug(id);
+      return { inst: inst, arm: null, just: s.just && s.just.id === id ? null : s.just, note: "已卸载 " + pl.name + (pl.unsigned ? "。" : "。买过的记录还在，市场里随时可以再装。") };
+    });
+  }
+
+  chip(on) {
+    return { bg: on ? "var(--tool-accent-soft)" : "var(--tool-panel)", bd: on ? "var(--tool-accent-border)" : "var(--tool-border-strong)", fg: on ? "var(--tool-accent)" : "var(--tool-text-2)" };
+  }
+
+  renderVals() {
+    const s = this.state;
+    const demo = DEMOS[s.demo - 1];
+    const installedIds = Object.keys(s.inst);
+    const hasUnsigned = installedIds.some((id) => s.inst[id].unsigned);
+    const statusOf = (p) => {
+      const i = s.inst[p.id];
+      if (p.builtin) return { status: "内置", stFg: "var(--tool-muted)", stFw: "400" };
+      if (i) return { status: "已装 " + i.cur, stFg: "var(--tool-ok)", stFw: "560", hasUpd: !!i.upd };
+      if (s.installing === p.id) return { status: "安装中", stFg: "var(--tool-accent)", stFw: "560" };
+      if (s.owned.includes(p.id)) return { status: "已购 · 未装", stFg: "var(--tool-text-2)", stFw: "400" };
+      return { status: p.price + " 积分", stFg: "var(--tool-text)", stFw: "620" };
+    };
+
+    // 市场
+    const q = s.q.trim().toLowerCase().replace(/^\.?/, ".");
+    const inKind = (p, k) => k === "全部" || p.formats.some((f) => KIND[f] === k);
+    const shown = s.market.filter((p) => inKind(p, s.filter) && (s.q.trim() === "" || p.formats.some((f) => f.indexOf(q) === 0)));
+    const kinds = ["全部"].concat(KINDS.filter((k) => s.market.some((p) => inKind(p, k))));
+    const marketEmpty = s.market.length === 0;
+
+    // 详情
+    const p = this.plug(s.detailId) || PLUGINS[1];
+    const pi = s.inst[p.id];
+    const owned = s.owned.includes(p.id);
+    let dst = pi ? "installed" : s.installing === p.id ? "installing" : owned ? "owned" : s.balance < p.price ? "short" : "buy";
+    if (p.builtin) dst = "builtin";
+    const A = {
+      buy: { label: "购买并安装 · " + p.price + " 积分", note: "余额 " + fmt(s.balance) + " 积分。点一下就买、下载、验签、装好，不用重启。以后换电脑或卸了再装，都不用再付。" },
+      short: { label: "购买并安装 · " + p.price + " 积分", note: "余额 " + fmt(s.balance) + " 积分，还差 " + (p.price - s.balance) + "。在下面充值，充完自动接着买。", warn: true },
+      owned: { label: "按这些权限安装", note: "你已经买过了，装不用再付。" },
+      installing: { label: "正在安装 " + s.prog + "%", note: "下载、验签、装好，装完立刻能用，不用重启。" },
+      installed: { label: "已安装 " + (pi ? pi.cur : "") + " · 去管理", note: "切版本、更新、卸载都在「已装」里。", done: true },
+      builtin: { label: "内置 · 已安装", note: "Umbra 自带，不用买，也卸不掉。", done: true, off: true }
+    }[dst];
+    const maxOf = (rows) => Math.max.apply(null, [].concat.apply([], rows.map((r) => r.bars.map((b) => b[1]))));
+    const cmpMax = p.cmp ? maxOf(p.cmp.rows) : 1;
+    const netTxt = (net) => net.length === 0 ? null : "只连 " + net.join("、");
+    const perms = [
+      { ok: p.perms.files.length > 0, label: p.perms.files.includes("write") ? "读写当前项目里的文件" : "读当前项目里的文件", note: "每一下都经过 Umbra，出不了项目目录" },
+      { ok: p.perms.net.length > 0, label: p.perms.net.length ? "联网 · " + netTxt(p.perms.net) : "联网 · 不允许", note: p.perms.net.length ? "只能连清单里写的地址" : "它发不出任何网络请求" },
+      { ok: false, label: "启动外部程序 · 不允许", note: "Umbra 不给任何插件这个权限" }
+    ].map((m) => ({ label: m.label, note: m.note, icon: m.ok ? "check" : "deny", iconFg: m.ok ? "var(--tool-ok)" : "var(--tool-muted)", fg: "var(--tool-text)" }));
+
+    const d = {
+      name: p.name,
+      meta: [p.author, p.ver, p.size, p.updated + "更新"].join(" · "),
+      brief: p.brief,
+      formats: p.formats.map((f) => ({ ext: f })),
+      perms: perms,
+      showPrice: !p.builtin && !owned,
+      price: p.price,
+      actLabel: A.label, actNote: A.note,
+      noteFg: A.warn ? "var(--tool-warn)" : "var(--tool-muted)",
+      actBg: A.done ? "var(--tool-panel)" : dst === "installing" ? "var(--tool-accent-soft)" : "var(--tool-accent)",
+      actBd: A.done ? "var(--tool-border-strong)" : dst === "installing" ? "var(--tool-accent-border)" : "var(--tool-accent)",
+      actFg: A.done ? "var(--tool-text)" : dst === "installing" ? "var(--tool-on-accent)" : "var(--tool-on-accent)",
+      actCursor: A.off || dst === "installing" ? "default" : "pointer",
+      actDisabled: !!A.off || dst === "installing",
+      progW: dst === "installing" ? s.prog + "%" : "0%",
+      act: () => {
+        if (dst === "buy") this.buy(p);
+        else if (dst === "short") this.setState({ recharge: !s.recharge, pkg: PKGS.findIndex((k) => k[0] >= p.price - s.balance) });
+        else if (dst === "owned") this.startInstall(p.id);
+        else if (dst === "installed") this.setState({ page: "installed" });
+      },
+      aiSub: p.aiSub,
+      tools: p.tools,
+      cmpTask: p.cmp ? p.cmp.task : p.cmpText.task,
+      cmpFile: p.cmp ? p.cmp.file : p.cmpText.file,
+      hasBars: !!p.cmp,
+      hasCmpText: !p.cmp,
+      cmpRows: p.cmp ? p.cmp.rows.map((r, ri) => ({
+        who: r.who, headFg: ri === 0 ? "var(--tool-text-2)" : "var(--tool-accent)",
+        bars: r.bars.map((b) => ({ k: b[0], w: Math.max(b[1] / cmpMax * 100, 0) + "%", label: fmt(b[1]) + " " + b[2], color: ri === 0 ? "var(--tool-border-strong)" : "var(--tool-accent)" }))
+      })) : [],
+      cmpLines: p.cmpText ? p.cmpText.lines.map((l, li) => ({ who: l[0], text: l[1], icon: li === 0 ? "deny" : "check", iconFg: li === 0 ? "var(--tool-muted)" : "var(--tool-accent)", headFg: li === 0 ? "var(--tool-text-2)" : "var(--tool-accent)" })) : [],
+      cmpFoot: p.cmpFoot,
+      sampleTool: p.sample[0], sampleArg: p.sample[1],
+      previewSub: p.previewSub,
+      shots: p.shots.map((c) => ({ cap: c })),
+      desc: p.desc,
+      log: p.log.map((l) => ({ v: l[0], date: l[1], note: l[2] }))
+    };
+
+    // 已装
+    const order = ["umbra.markdown"].concat(installedIds.filter((id) => id !== "umbra.markdown"));
+    const rows = order.filter((id) => s.inst[id]).map((id, idx, arr) => {
+      const pl = this.plug(id), i = s.inst[id];
+      const multi = i.vers.length > 1;
+      const badges = [];
+      if (pl.builtin) badges.push({ label: "内置", tip: "Umbra 自带，卸不掉", bg: "var(--tool-panel-2)", bd: "var(--tool-border)", fg: "var(--tool-text-2)" });
+      if (i.unsigned) badges.push({ label: "未签名", tip: "没有签名：没人验证过它是谁写的、有没有被改过", bg: "var(--tool-err)", bd: "var(--tool-err)", fg: "var(--tool-on-accent)" });
+      if (i.unsigned) badges.push({ label: "开发模式", tip: "", bg: "transparent", bd: "var(--tool-err-border)", fg: "var(--tool-err)" });
+      const j = s.just && s.just.id === id ? s.just : null;
+      const last = idx === arr.length - 1;
+      const menu = [{ label: "在市场里查看", act: () => this.setState({ page: "detail", detailId: id, pop: null }), hide: !!i.unsigned }];
+      if (pl.builtin) menu.push({ label: "内置插件不能卸载", disabled: true, sep: true });
+      else menu.push({ label: "卸载…", danger: true, sep: menu.filter((m) => !m.hide).length > 0, act: () => this.setState({ arm: id, pop: null }) });
+      return {
+        name: pl.name, by: pl.builtin ? "Umbra 自带" : pl.author, formats: "认领 " + pl.formats.join(" "),
+        badges: badges,
+        bg: i.unsigned ? "var(--tool-err-soft)" : "transparent",
+        ring: i.unsigned ? "inset 0 0 0 1px var(--tool-err-border)" : "none",
+        radius: i.unsigned && last ? "0 0 var(--tool-radius-lg) var(--tool-radius-lg)" : "0",
+        iconFg: i.unsigned ? "var(--tool-err)" : "var(--tool-text-2)",
+        hasUpd: !!i.upd, updLabel: "更新到 " + i.upd, update: () => this.update(id),
+        curLabel: i.cur, multi: multi, single: !multi,
+        verBd: multi ? "var(--tool-border-strong)" : "transparent", verCursor: multi ? "pointer" : "default",
+        verTip: multi ? "本机装着 " + i.vers.length + " 个版本，点开切换" : "本机只有这一版",
+        verOpen: s.pop && s.pop.id === id && s.pop.kind === "ver",
+        toggleVer: () => multi && this.setState({ pop: s.pop && s.pop.id === id && s.pop.kind === "ver" ? null : { id: id, kind: "ver" } }),
+        vers: i.vers.map((v, vi) => ({ v: v[0], on: v[0] === i.cur, sub: v[1] + (v[0] === i.cur ? " · 在用" : ""), pick: () => this.setVer(id, v[0]) })),
+        moreOpen: s.pop && s.pop.id === id && s.pop.kind === "more",
+        toggleMore: () => this.setState({ pop: s.pop && s.pop.id === id && s.pop.kind === "more" ? null : { id: id, kind: "more" } }),
+        menu: menu.filter((m) => !m.hide).map((m) => ({ label: m.label, sep: !!m.sep, disabled: !!m.disabled, act: m.act || (() => {}),
+          fg: m.disabled ? "var(--tool-muted)" : m.danger ? "var(--tool-err)" : "var(--tool-text)", cursor: m.disabled ? "default" : "pointer" })),
+        hasJust: !!j,
+        justText: j ? (j.back ? "已切回 " + j.to + "。" : j.to > j.from ? "刚更新到 " + j.to + "。用着不对就切回 " + j.from + "，不用重新下载，立刻生效。" : "已切到 " + j.to + "。") : "",
+        rollbackLabel: j ? (j.to > j.from ? "切回 " + j.from : "回到 " + j.from) : "",
+        rollback: () => j && this.setVer(id, j.from),
+        dismissJust: () => this.setState({ just: null }),
+        arming: s.arm === id,
+        armText: i.unsigned ? "卸载 " + pl.name + "？它是开发模式装的，卸掉以后要从本地目录重新装。" : "卸载 " + pl.name + "？本机的 " + i.vers.length + " 个版本一起删掉。买过的记录还在，之后在市场里随时可以免费再装。",
+        uninstall: () => this.uninstall(id),
+        disarm: () => this.setState({ arm: null })
+      };
+    });
+
+    return {
+      theme: this.props.theme === "dark" ? "dark" : null,
+      demoStates: DEMOS.map((x) => ({ n: x.n, short: x.short, name: x.note, active: x.n === s.demo,
+        bg: x.n === s.demo ? "var(--tool-accent)" : "var(--tool-panel)", bd: x.n === s.demo ? "var(--tool-accent)" : "var(--tool-border-strong)",
+        fg: x.n === s.demo ? "var(--tool-on-accent)" : "var(--tool-text-2)", pick: () => this.setDemo(x.n) })),
+      demoNote: demo.note,
+      pages: [["list", "市场"], ["installed", "已装"], ["credits", "积分"]].map((x) => {
+        const on = s.page === x[0] || (x[0] === "list" && s.page === "detail");
+        return { label: x[1], on: on, fg: on ? "var(--tool-text)" : "var(--tool-text-2)", fw: on ? "600" : "400", bar: on ? "var(--tool-accent)" : "transparent",
+          hasCount: x[0] === "installed", count: installedIds.length, alert: x[0] === "installed" && hasUnsigned,
+          pick: () => this.setState({ page: x[0], pop: null }) };
+      }),
+      balanceText: fmt(s.balance),
+      goCredits: () => this.setState({ page: "credits", pop: null }),
+      popOpen: !!s.pop,
+      closePop: () => this.setState({ pop: null }),
+
+      showList: s.page === "list",
+      hasMarket: !marketEmpty,
+      filters: kinds.map((k) => Object.assign({ label: k, on: s.filter === k, count: s.market.filter((p) => inKind(p, k)).length, pick: () => this.setState({ filter: k }) }, this.chip(s.filter === k))),
+      q: s.q,
+      onQ: (e) => this.setState({ q: e.target.value }),
+      listEmpty: shown.length === 0,
+      emptyTitle: marketEmpty ? "市场里还没有可买的插件" : "没有插件认领 " + (s.q.trim() ? q : "这一类格式"),
+      emptyBody: marketEmpty ? "现在能用的是内置的 Markdown 编辑。新插件上架后会出现在这里，不用更新 Umbra。" : "现在打不开的格式，在目录里会显示成通用文件卡。有插件上架认领它时，文件卡上会告诉你。",
+      emptyActLabel: marketEmpty ? "看已装的" : "清掉筛选",
+      emptyAct: () => marketEmpty ? this.setState({ page: "installed" }) : this.setState({ q: "", filter: "全部" }),
+      cards: shown.map((pl) => Object.assign({ name: pl.name, byline: pl.author + " · " + pl.ver, brief: pl.brief, hasUpd: false,
+        formats: pl.formats.map((f) => ({ ext: f, bg: s.filter !== "全部" && KIND[f] === s.filter ? "var(--tool-accent-soft)" : "var(--tool-panel-2)", fg: s.filter !== "全部" && KIND[f] === s.filter ? "var(--tool-accent)" : "var(--tool-text-2)" })),
+        open: () => this.setState({ page: "detail", detailId: pl.id, recharge: false }) }, statusOf(pl))),
+
+      showDetail: s.page === "detail",
+      backToList: () => this.setState({ page: "list", recharge: false }),
+      d: d,
+      rechargeOpen: s.recharge && dst === "short",
+      pkgs: PKGS.map((k, ki) => Object.assign({ pts: fmt(k[0]), money: k[1], on: s.pkg === ki, pick: () => this.setState({ pkg: ki }) }, this.chip(s.pkg === ki), { fg: s.pkg === ki ? "var(--tool-accent)" : "var(--tool-text)" })),
+      payLabel: "去支付 " + PKGS[s.pkg][1],
+      pay: () => this.pay(),
+
+      showInstalled: s.page === "installed",
+      hasUnsigned: hasUnsigned,
+      unsignedTitle: "有 1 个插件没有签名：json-viewer",
+      unsignedBody: "它是开发模式下从本地目录装的，没人验证过它是谁写的、装上以后有没有被改过。它一样关在沙箱里，但如果不是你自己装的，请卸掉它。",
+      unsignedBtn: "卸载 json-viewer",
+      removeUnsigned: () => this.setState({ arm: DEV.id }),
+      rows: rows,
+      instNote: s.note,
+
+      showCredits: s.page === "credits",
+      flow: s.flow.map((f) => {
+        const t = { "充值": ["var(--tool-accent-soft)", "var(--tool-accent)"], "消费": ["var(--tool-panel-2)", "var(--tool-text-2)"], "赠送": ["var(--tool-ok-soft)", "var(--tool-ok)"], "退款": ["var(--tool-warn-soft)", "var(--tool-warn)"] }[f[1]];
+        return { t: f[0], type: f[1], what: f[2], amt: (f[3] > 0 ? "+" : "−") + fmt(Math.abs(f[3])), amtFg: f[3] > 0 ? "var(--tool-ok)" : "var(--tool-text)", bal: fmt(f[4]), bg: t[0], fg: t[1] };
+      })
+    };
+  }
+}
+</script>
+</body>
+</html>

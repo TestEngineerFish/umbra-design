@@ -78,7 +78,13 @@
     "panel-changes": rr(2.5, 3, 4.5, 10, 1) + rr(9, 3, 4.5, 10, 1) + "M4 6.5h1.5M10.5 9.5h1.5",
     "panel-info": circ(8, 8, 5.5) + "M8 7.3v3.7M8 5h.01",
     "panel-outline": "M3 4.5h10M5.5 8h7.5M8 11.5h5",
-    "app": rr(2, 2, 12, 12, 3) + "M5 5.5h6M5 8h6M5 10.5h3.5"
+    "app": rr(2, 2, 12, 12, 3) + "M5 5.5h6M5 8h6M5 10.5h3.5",
+
+    "plugin": "M3 6.5A1.5 1.5 0 0 1 4.5 5H6a2 2 0 1 1 4 0h1.5A1.5 1.5 0 0 1 13 6.5V12a1.5 1.5 0 0 1-1.5 1.5h-7A1.5 1.5 0 0 1 3 12z",
+    "sandbox": "M8 2.5l5 1.8v3.6c0 2.9-2.1 4.9-5 5.6-2.9-.7-5-2.7-5-5.6V4.3zM5.9 8.1l1.5 1.5 2.7-2.9",
+    "deny": circ(8, 8, 5.5) + "M4.1 4.1l7.8 7.8",
+    "coin": circ(8, 8, 5.5) + circ(8, 8, 2.8),
+    "download": "M8 2.5v7.5M4.8 7l3.2 3.2L11.2 7M3 13.5h10"
   };
 
   const GROUPS = [
@@ -100,7 +106,9 @@
       ["zoom", "缩放"], ["source", "源码"], ["split", "分栏"], ["sel-region", "圈选"]] },
     { label: "面板 · 聊天 · 其他", items: [
       ["panel-props", "属性"], ["panel-changes", "变更"], ["panel-info", "信息"], ["panel-outline", "大纲"],
-      ["chat-history", "会话历史"], ["sel-range", "带进 · 片段"], ["sel-files", "带进 · 文件"], ["app", "Umbra Studio"]] }
+      ["chat-history", "会话历史"], ["sel-range", "带进 · 片段"], ["sel-files", "带进 · 文件"], ["app", "Umbra Studio"]] },
+    { label: "插件 · 第十轮", note: "「不允许」用 deny，不用 close：close 是关掉一个东西，deny 是这件事做不了", items: [
+      ["plugin", "插件"], ["sandbox", "沙箱 · 权限"], ["deny", "不允许"], ["coin", "积分"], ["download", "安装 / 下载"]] }
   ];
 
   window.UMBRA_ICONS = ICONS;
