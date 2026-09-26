@@ -75,5 +75,43 @@ for (const n of wasHttpOnly) {
   await rm(dir, { recursive: true, force: true });
 }
 
+/* ══════════ 界面稿也是调用方（M11-7 第一批栽过，`00` §九十）══════════
+   本项目的设计稿是**可运行**的：`ui/*.dc.html` 自己会 `fetch` 本地 API。
+   所以「这条路由没人调」不能只看 `app/src` —— 那只是半个世界。
+
+   M11-7 第一批就是这么栽的：判定 8 条路由「前端零调用」，
+   顺手合并了 `restore_draft`、改了 `delete_draft` 的入参，**当场把 S1 弄坏了**，
+   而全套回归照样全绿 —— 因为**没有任何判据覆盖「稿调 API」这条路**。
+
+   这一节就是补那个缺口：把稿里出现的路由名全抓出来，逐个核对它还在不在。 */
+{
+  const { readdir, readFile } = await import("node:fs/promises");
+  const { join } = await import("node:path");
+  const { httpRoutes } = await import("./cap/index.js");
+  const UI = join(process.cwd(), "..", "ui");
+  const apiSrc = await readFile(join(process.cwd(), "src", "api.ts"), "utf8");
+  const handwritten = new Set([...apiSrc.matchAll(/route === "([a-z_]+)"/g)].map((m) => m[1]!));
+  const fromCaps = httpRoutes();
+
+  let files: string[] = [];
+  try { files = (await readdir(UI)).filter((f) => f.endsWith(".dc.html")); } catch { /* 没有 ui/ 就跳过 */ }
+  ok(files.length > 0, "找得到界面稿（这一节要拿它们当调用方来核）", `${files.length} 份`);
+
+  const missing: string[] = [];
+  const seen = new Set<string>();
+  for (const f of files) {
+    const src = await readFile(join(UI, f), "utf8");
+    /* 稿里调 API 的写法是 `this.api("路由名", …)`，抓这个 */
+    for (const m of src.matchAll(/\bapi\(\s*"([a-z_]+)"/g)) {
+      const route = m[1]!;
+      if (seen.has(route)) continue;
+      seen.add(route);
+      if (!handwritten.has(route) && !fromCaps.has(route)) missing.push(`${route}（${f}）`);
+    }
+  }
+  ok(seen.size > 0, "稿里真的有调 API", `用到 ${seen.size} 条路由`);
+  ok(missing.length === 0, "**界面稿用到的路由一条都没少**（改路由前先想想稿在不在用）", missing.join(" · "));
+}
+
 console.log(fail === 0 ? `\n✓ 能力注册表 ${pass}/${pass + fail}` : `\n✗ 能力注册表 ${pass}/${pass + fail}`);
 process.exit(fail === 0 ? 0 : 1);

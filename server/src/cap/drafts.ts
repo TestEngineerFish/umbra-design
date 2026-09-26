@@ -2,6 +2,7 @@ import { z } from "zod";
 import { join } from "node:path";
 import { envelope } from "../envelope.js";
 import { createDraft, createFolder, duplicateDraft } from "../project.js";
+import { resolveDraft } from "../locate.js";
 import {
   deleteDraft, deleteDraftImpact, emptyTrash, listTrash, moveDraft, purgeTrash, renameDraft, restoreDraft,
 } from "../refs.js";
@@ -121,10 +122,14 @@ defineCap({
 defineCap({
   name: "delete_draft", title: "把稿移进回收站", scope: "project",
   summary: "不是真删 —— 进项目的回收站，可以恢复。建议先用 get_delete_impact 看影响面。",
-  input: { path: z.string() },
+  /* ⚠️ `file` 是**宽松的**：可以给相对路径，也可以只给文件名 —— `resolveDraft` 负责认。
+     S1 稿件索引的行内删除就只有文件名（`ui/S1` 第 759 行）。
+     M11-7 第一批把入参改成了严格的 `path`，**当场把 S1 弄坏了**（见 `00` §九十）。 */
+  input: { file: z.string().describe("稿的相对路径或文件名") },
   http: { method: "POST" },
-  run: async ({ path }, c) => {
-    const r = await deleteDraft(p(c), path);
+  run: async ({ file }, c) => {
+    const proj = p(c);
+    const r = await deleteDraft(proj, await resolveDraft(proj, file));
     return envelope(r, [], { trashPath: r.trashPath });
   },
 });
@@ -140,13 +145,34 @@ defineCap({
   },
 });
 
+/* ⚠️ **恢复有两件，不是重叠**（M11-7 第一批误判过，`00` §九十）：
+   - `restore_draft`（按**文件名**）：给**行内撤销**用 —— 用户刚删完点「撤销」，
+     他手上只有文件名，没有 trashPath。S1 稿件索引就是这么用的。
+   - `restore_trashed`（按 **trashPath**）：给**回收站列表**用 —— 那里每一项都带着自己的
+     trashPath，按它恢复才不会在同名多次删除时选错。
+   合成一条就得二选一，而两边都有真实用途。 */
 defineCap({
-  name: "restore_draft", title: "从回收站恢复", scope: "project",
+  name: "restore_draft", title: "撤销刚才的删除（按文件名）", scope: "project",
+  summary: "在回收站里按文件名找**最近删的那一份**恢复。行内撤销用它 —— 那时用户手上只有文件名。要精确恢复某一版请用 restore_trashed。",
+  input: { file: z.string().describe("被删的稿的文件名") },
+  http: { method: "POST" },
+  run: async ({ file }, c) => {
+    const proj = p(c);
+    const base = file.split("/").pop() ?? file;
+    /* listTrash 按时间倒序，`find` 拿到的就是**最近删的那一份** ——
+       同名删过多次时这是唯一合理的语义（用户点的是「撤销刚才那一下」）。 */
+    const hit = (await listTrash(proj)).find((t) => t.originalName === base);
+    if (!hit) return envelope(null, [{ level: "error", code: "E_TRASH_NOT_FOUND",
+      message: `回收站里没有 ${base}`, where: "(trash)", at: { kind: "key", name: base } } as never]);
+    const r = await restoreDraft(proj, hit.trashPath);
+    return envelope(r, [], { restored: r.originalPath });
+  },
+});
+
+defineCap({
+  name: "restore_trashed", title: "从回收站恢复指定的那一份", scope: "project",
   summary: "按 list_trash 给的 trashPath 恢复。原位置已被占用时会换个名字，不会覆盖。",
   input: { trashPath: z.string().describe("回收站路径，list_trash 给的那个") },
-  /* ⚠️ HTTP 侧原来有**两条**做重叠的事：`restore_draft`（按文件名在回收站里找）
-     和 `trash_restore`（按 trashPath）。合成这一条，**按 trashPath** ——
-     按文件名找会在同名多次删除时选错那一份，而那是静默的。 */
   http: { route: "trash_restore", method: "POST" },
   run: async ({ trashPath }, c) => {
     const r = await restoreDraft(p(c), trashPath);
