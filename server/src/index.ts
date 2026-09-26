@@ -89,86 +89,7 @@ const server = new McpServer(
 
 // ─────────────────────────── 项目 ───────────────────────────
 
-server.registerTool("list_projects", {
-  title: "列出设计项目",
-  description: "列出项目根下的所有设计项目（租户）。项目根默认 Umbra Studio/projects，可用 --projects-root 或 UMBRASTUDIO_PROJECTS_ROOT 指定。",
-  inputSchema: {},
-}, async () => run(async () => {
-  const dirs = await listProjectDirs();
-  const rows = [];
-  for (const d of dirs) {
-    const p = await buildProject(d);
-    rows.push({
-      name: p.name, title: p.title, dir: p.dir,
-      drafts: (await listDrafts(p)).length,
-      configured: p.config.designSystem != null,
-      gitEnabled: p.gitEnabled,
-    });
-  }
-  return envelope({ projectsRoot: projectsRoot(), projects: rows }, [], { count: rows.length });
-}));
-
-server.registerTool("get_project", {
-  title: "读项目配置与稿清单",
-  description: "取一个设计项目的配置（设计系统路径、tokens、图标、元素数限额）与全部稿清单。",
-  inputSchema: { project: z.string().describe("项目名，或项目目录名") },
-}, async ({ project }) => run(async () => {
-  const p = await loadProject(project);
-  // 自动记录到最近项目列表
-  await touchProject(p.dir, p.name, p.title);
-  const drafts = (await listDrafts(p)).map((a) => a.slice(p.dir.length + 1).split("\\").join("/"));
-  const diags = [];
-  if (!p.config.designSystem) {
-    diags.push(err(X.BAD_INPUT, p.rel, { kind: "file", name: "project.json" },
-      "这个项目还没有 project.json（或没配 designSystem）",
-      { fix: "照 doc/00 §3.1 写一份 project.json，指明 designSystem.dir / tokens / icons" }));
-  }
-  return envelope({
-    name: p.name, title: p.title, dir: p.dir,
-    designSystem: p.dsDir ? { dir: p.dsDir, alias: p.dsAlias } : null,
-    tokens: p.config.tokens ?? null,
-    icons: p.config.icons ?? null,
-    extraStyles: p.config.extraStyles ?? [],
-    limits: p.limits,
-    gitEnabled: p.gitEnabled,
-    drafts,
-  }, diags, { drafts: drafts.length });
-}));
-
 // ─────────────────────── 工作区（M1-2）────────────────────────
-
-server.registerTool("list_recent_projects", {
-  title: "最近打开过的项目",
-  description: [
-    "列出最近打开过的设计项目，按时间倒排。",
-    "每条包含目录、名称、标题、最后打开时间、打开次数、目录是否还在。",
-    "删掉的目录会标「找不到」而不是崩 —— 用户可以从列表里清掉。",
-  ].join("\n"),
-  inputSchema: {
-    limit: z.number().int().min(1).max(50).optional().describe("最多返回几条，默认全部"),
-  },
-}, async ({ limit }) => run(async () => {
-  const r = await listRecentProjects(limit);
-  return envelope(r, [], { total: r.total });
-}));
-
-server.registerTool("remove_recent_project", {
-  title: "从最近列表移除项目",
-  description: "从最近项目列表移除一个条目。不影响项目目录本身，只是列表操作。",
-  inputSchema: { dir: z.string().describe("项目目录绝对路径") },
-}, async ({ dir }) => run(async () => {
-  const r = await removeRecentProject(dir);
-  return envelope(r, [], { removed: r.removed });
-}));
-
-server.registerTool("clear_recent_projects", {
-  title: "清空最近项目列表",
-  description: "清空最近项目列表。不影响任何项目目录。",
-  inputSchema: {},
-}, async () => run(async () => {
-  await clearRecentProjects();
-  return envelope({ cleared: true });
-}));
 
 // ─────────────────────── 引用图谱（M1-0）───────────────────────
 
@@ -287,66 +208,7 @@ server.registerTool("inspect_dir", {
 
 // ─────────────────────── 项目设置（M1-9）───────────────────────
 
-server.registerTool("update_project", {
-  title: "更新项目配置",
-  description: [
-    "改项目配置：标题、设计系统路径/别名、tokens / icons 文件、元素数限额。",
-    "只改 project.json，不影响已有稿件。传 null 可清除对应字段。",
-  ].join("\n"),
-  inputSchema: {
-    project: z.string(),
-    title: z.string().optional().describe("新标题"),
-    designSystemDir: z.string().nullable().optional().describe("设计系统目录，传 null 清除"),
-    designSystemAlias: z.string().optional().describe("设计系统别名，默认 @ds"),
-    tokens: z.string().nullable().optional().describe("tokens 文件相对路径，传 null 清除"),
-    icons: z.string().nullable().optional().describe("icons 文件相对路径，传 null 清除"),
-    elementsWarn: z.number().int().optional().describe("元素数 warning 阈值"),
-    elementsHard: z.number().int().optional().describe("元素数 hard 上限"),
-  },
-}, async ({ project, title, designSystemDir, designSystemAlias, tokens, icons, elementsWarn, elementsHard }) => run(async () => {
-  const p = await loadProject(project);
-  const r = await updateProject(p, {
-    title,
-    designSystemDir,
-    designSystemAlias,
-    tokens,
-    icons,
-    elementsWarn,
-    elementsHard,
-  });
-  return envelope(r, [], { updated: r.updated.length });
-}));
-
 // ─────────────────────── 项目删除/归档（M1-10）───────────────────────
-
-server.registerTool("archive_project", {
-  title: "归档项目",
-  description: [
-    "把项目目录移到归档目录（默认 `.archived/`）。二次确认由界面处理。",
-    "归档后项目从项目列表消失，但目录仍在，可随时移回来。",
-  ].join("\n"),
-  inputSchema: {
-    project: z.string(),
-    archiveDir: z.string().optional().describe("归档目录绝对路径，默认 <工具根>/.archived"),
-  },
-}, async ({ project, archiveDir }) => run(async () => {
-  const p = await loadProject(project);
-  const r = await archiveProject(p, archiveDir);
-  return envelope(r, [], { archivePath: r.archivePath });
-}));
-
-server.registerTool("delete_project", {
-  title: "删除项目",
-  description: [
-    "删除设计项目：移到归档目录。等同于 archive_project，语义上表达「删除」意图。",
-    "二次确认由界面处理。不彻底删除，归档目录还在。",
-  ].join("\n"),
-  inputSchema: { project: z.string() },
-}, async ({ project }) => run(async () => {
-  const p = await loadProject(project);
-  const r = await deleteProject(p);
-  return envelope(r, [], { archivePath: r.archivePath });
-}));
 
 // ─────────────────────── 设计系统检索 ───────────────────────
 

@@ -11,6 +11,7 @@ import "./files.js";
 import "./design.js";
 import "./drafts.js";
 import "./plugins.js";
+import "./projects.js";
 
 export { allCaps, capsFor, httpRoutes } from "./registry.js";
 export { originOf, type Cap, type CapCtx, type Face } from "./types.js";

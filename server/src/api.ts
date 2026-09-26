@@ -118,11 +118,6 @@ const GLOBAL_ROUTES = new Set(["projects", "open_project", "create_project", "in
 /** 作业化会话的中断句柄：jobId → AbortController（作业活在进程里，这张表也是） */
 const chatAborts = new Map<string, AbortController>();
 
-/** 归档 / 删除后停掉本项目的静态服务。serve.ts 引了本文件，所以这里延迟 import 避免循环。 */
-function serveStopByName(name: string): void {
-  void import("./serve.js").then((m) => m.serveStop(name)).catch(() => { /* ignore */ });
-}
-
 /** 返回 true = 这个请求已经被 API 接手了 */
 export async function handleApi(
   req: IncomingMessage, reply: ServerResponse, ctx: ApiCtx
@@ -137,7 +132,14 @@ export async function handleApi(
     return true;
   }
 
-  if (!ctx.project && !GLOBAL_ROUTES.has(route)) {
+  /* ⚠️ **`cap/` 里 `scope: "global"` 的也算全局**（M11-7 第三批）。
+     不加这一句的话，搬过去的全局能力（列项目、新建项目、看目录…）在 hub 模式下会 404 ——
+     而 hub 就是桌面壳的首页，那等于首页整个不能用。
+     以前只有 `GLOBAL_ROUTES` 那张手写名单，搬一条就要记得往里补一条，
+     而忘了补的症状是「首页某个按钮点了报 404」，`doc/00` §八十三 记的分叉同一个病。 */
+  const capOfRoute = httpRoutes().get(route);
+  const isGlobal = GLOBAL_ROUTES.has(route) || capOfRoute?.scope === "global";
+  if (!ctx.project && !isGlobal) {
     json(reply, 404, { ok: false, errors: [{ code: "E_API_HUB", message: `hub 服务没有项目上下文，路由 ${route} 要从项目自己的服务调（open_project 会给 url / token）` }] });
     return true;
   }
@@ -470,45 +472,6 @@ export async function handleApi(
     }
 
     /* ── 应用首页（doc/12 M6-6）：全部项目 + 最近打开 + 缩略图。这是全局数据，不限于本服务的项目 ── */
-    if (route === "projects" && req.method === "GET") {
-      const recents = (await listRecentProjects()).recents;
-      const seen = new Set<string>();
-      const rows: Array<Record<string, unknown>> = [];
-      const describe = async (dir: string) => {
-        let pj: Project | null = null;
-        try { pj = await buildProject(dir); } catch { return null; }
-        const files = (await listDrafts(pj)).map((a) => relative(pj!.dir, a).split(sep).join("/")).filter((r) => !isToolPage(r));
-        let thumb: string | null = null, generatedAt: string | null = null;
-        const dataFile = join(dir, ".umbrastudio", "index-data.json");
-        if (existsSync(dataFile)) {
-          try {
-            const data = JSON.parse(await readFile(dataFile, "utf8")) as { project?: { generatedAt?: string }; drafts?: Array<{ thumb: string | null; elements: number }> };
-            generatedAt = data.project?.generatedAt ?? null;
-            const first = (data.drafts ?? []).filter((d) => d.thumb).sort((a, b) => b.elements - a.elements)[0];
-            if (first?.thumb) {
-              const png = join(dir, first.thumb);
-              if (existsSync(png) && statSync(png).size < 400 * 1024) thumb = "data:image/png;base64," + (await readFile(png)).toString("base64");
-            }
-          } catch { /* 没索引就没缩略图 */ }
-        }
-        return { name: pj.name, title: pj.title, dir: pj.dir, drafts: files.length, gitEnabled: pj.gitEnabled, generatedAt, thumb };
-      };
-      for (const r of recents) {
-        if (seen.has(r.dir)) continue;
-        seen.add(r.dir);
-        if (!r.exists) continue;   // 目录不在的最近项目（多半是回归测试留下的临时目录）不上首页，免得一屏「找不到」
-        const d = await describe(r.dir);
-        if (d) rows.push({ ...d, lastOpened: r.lastOpened, current: r.dir === p?.dir });
-      }
-      for (const dir of await listProjectDirs()) {
-        if (seen.has(dir)) continue;
-        seen.add(dir);
-        const d = await describe(dir);
-        if (d) rows.push({ ...d, lastOpened: null, current: dir === p?.dir });
-      }
-      json(reply, 200, { ok: true, data: { current: p?.dir ?? null, projects: rows } });
-      return true;
-    }
     if (route === "open_project" && req.method === "POST") {
       if (!originOk(req, ctx.port)) { json(reply, 403, { ok: false, errors: [{ code: "E_API_ORIGIN", message: "Origin 不是本服务" }] }); return true; }
       const b = await readBody(req);
@@ -649,51 +612,6 @@ export async function handleApi(
     /* ── S1 行内撤销（设计侧第三轮 §1.1）：删除到回收站 / 按稿名从回收站恢复最近那份 ── */
 
     /* ── S8 项目设置（M1-9 / M1-10 / M1-12 的界面接线，doc/00 §三十九） ── */
-    if (route === "project_settings" && req.method === "GET") {
-      const files = (await listDrafts(p)).map((a) => relative(p.dir, a).split(sep).join("/")).filter((r) => !isToolPage(r));
-      let dsStats: { tokens: number; icons: number; components: number } | null = null;
-      if (p.dsDir) {
-        try {
-          const [tk, ic, comps] = await Promise.all([
-            searchTokens(p, "", 1).then((r) => (r as { total?: number }).total ?? 0).catch(() => 0),
-            listIcons(p, undefined, 1).then((r) => r.total).catch(() => 0),
-            listComponents(p).then((r) => r.length).catch(() => 0),
-          ]);
-          dsStats = { tokens: tk, icons: ic, components: comps };
-        } catch { dsStats = null; }
-      }
-      json(reply, 200, { ok: true, data: {
-        name: p.name, title: p.title, dir: p.dir, draftCount: files.length, gitEnabled: p.gitEnabled,
-        designSystem: { dir: p.dsDir, alias: p.dsAlias, tokens: p.tokensPath, icons: p.iconsPath, stats: dsStats },
-        limits: p.limits,
-        trash: await listTrash(p),
-      } });
-      return true;
-    }
-    if (route === "project_update" && req.method === "POST") {
-      if (!originOk(req, ctx.port)) { json(reply, 403, { ok: false, errors: [{ code: "E_API_ORIGIN", message: "Origin 不是本服务" }] }); return true; }
-      const b = await readBody(req);
-      const opts: Record<string, unknown> = {};
-      for (const k of ["title", "designSystemDir", "designSystemAlias", "tokens", "icons"]) if (k in b) opts[k] = b[k];
-      for (const k of ["elementsWarn", "elementsHard"]) if (typeof b[k] === "number") opts[k] = b[k];
-      const r = await updateProject(p, opts as Parameters<typeof updateProject>[1]);
-      // 配置变了，本服务上的 Project 对象也要换 —— 否则下一次校验还用旧限额
-      const { buildProject } = await import("./project.js");
-      Object.assign(p, await buildProject(p.dir));
-      json(reply, 200, { ok: true, data: r });
-      return true;
-    }
-    if ((route === "project_archive" || route === "project_delete") && req.method === "POST") {
-      if (!originOk(req, ctx.port)) { json(reply, 403, { ok: false, errors: [{ code: "E_API_ORIGIN", message: "Origin 不是本服务" }] }); return true; }
-      const b = await readBody(req);
-      if (route === "project_delete" && b.typed !== p.name) throw new Error("要把项目名敲一遍才能删");
-      // 两条现在都是「移到 .archived/」（delete_project = 归档，doc/12 M1-10）；目录一搬走，这个服务就该停
-      const r = route === "project_delete" ? await deleteProject(p) : await archiveProject(p);
-      json(reply, 200, { ok: true, data: { ...r, note: "项目目录已移走，这个服务随即关闭" } });
-      setTimeout(() => { try { serveStopByName(p.name); } catch { /* ignore */ } }, 300);
-      return true;
-    }
-
     /* S1「重建索引」（M5-8）。build_index 会重写入口页（S1 自己），所以界面调完要整页重载。
        serveUrl 用本服务的地址 —— 入口页里的链接都是相对路径，这个值只进 index-data 的 url 字段。 */
     if (route === "rebuild_index" && req.method === "POST") {
@@ -709,7 +627,7 @@ export async function handleApi(
     /* ═══ 能力注册表 → HTTP 面（M11-1，Q36）═══
        放在**手写路由的后面**：搬过去的能力在 `cap/` 里，还没搬的照旧走上面。
        两边同名会在 `httpRoutes()` 里直接抛（重名检查），不会悄悄互相覆盖。 */
-    const cap = httpRoutes().get(route);
+    const cap = capOfRoute;
     if (cap && req.method === (cap.http!.method)) {
       /* Origin 检查是**门面自己的事**（本地 http 的 CSRF 防线），不是能力的事 ——
          MCP 面走 stdio 根本没有 Origin 这回事。写类一律查。 */
