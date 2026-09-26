@@ -1,9 +1,9 @@
 import { readFile, readdir, rm, stat } from "node:fs/promises";
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { STATE_ROOT, TOOL_ROOT } from "../project.js";
 import { checkManifest, type PluginManifest } from "./manifest.js";
-import { PLUGIN_DEFAULT_PRIORITY, isBuiltinKind, registerKind } from "../shared/kinds.js";
+import { PLUGIN_DEFAULT_PRIORITY, isBuiltinKind, registerKind, unregisterKindsFrom } from "../shared/kinds.js";
 
 /** 插件在盘上住哪、怎么列（M11-4）。
  *
@@ -47,8 +47,7 @@ async function scanRoot(root: string, bundled: boolean, out: InstalledPlugin[]):
   for (const id of await readdir(root)) {
     const idDir = join(root, id);
     if (!(await stat(idDir).catch(() => null))?.isDirectory()) continue;
-    const versions = (await readdir(idDir)).sort();
-    const v = versions[versions.length - 1];     // 先用最新一版；指针机制等 M11-6
+    const v = await pickVersion(idDir);
     if (!v) continue;
     const dir = join(idDir, v);
     let raw: unknown = null;
@@ -78,6 +77,18 @@ export async function uninstall(id: string): Promise<boolean> {
 
 /** 一个插件当前用的那一版在哪（静态托管要用）。找不到给 null。
  *  ⚠️ **同步的** —— 它在 http 请求路径上，异步会让每个静态文件多一次事件循环往返。 */
+/** 用哪一版：**先看 `current` 指针**，没有就用最新的。
+ *  指针是 M11-6 加的 —— 切版本 / 回退靠改它，所以读的地方必须认它，
+ *  不认的话「切回上一版」点了没反应（列表显示切了，加载的还是新版）。 */
+async function pickVersion(idDir: string): Promise<string | null> {
+  const versions = (await readdir(idDir)).filter((x) => x !== "current").sort();
+  try {
+    const cur = (await readFile(join(idDir, "current"), "utf8")).trim();
+    if (cur && versions.includes(cur)) return cur;
+  } catch { /* 没指针，用最新 */ }
+  return versions[versions.length - 1] ?? null;
+}
+
 export function pluginDirOf(id: string): string | null {
   /* 用户装的优先 —— 和 `listInstalled` 的覆盖顺序保持一致。
      不一致的话会出现「列表里显示新版，实际加载的是内置旧版」这种最难查的错。 */
@@ -85,8 +96,13 @@ export function pluginDirOf(id: string): string | null {
     const idDir = join(root, id);
     if (!existsSync(idDir)) continue;
     try {
-      const versions = readdirSync(idDir).sort();
-      const v = versions[versions.length - 1];
+      const versions = readdirSync(idDir).filter((x) => x !== "current").sort();
+      let v = versions[versions.length - 1];
+      /* 同步读指针 —— 这个函数在 http 请求路径上，异步会给每个静态文件多一次往返 */
+      try {
+        const cur = readFileSync(join(idDir, "current"), "utf8").trim();
+        if (cur && versions.includes(cur)) v = cur;
+      } catch { /* 没指针 */ }
       if (v) return join(idDir, v);
     } catch { /* 下一个 root */ }
   }
@@ -102,6 +118,11 @@ export function pluginDirOf(id: string): string | null {
  *  症状是「插件装上了，但文件在列表里看着没变化」。
  */
 export async function registerPluginKinds(): Promise<{ id: string; kinds: string[] }[]> {
+  /* ⚠️ **必须可重复调**（M11-10）：装完 / 切版本 / 卸完都要再跑一次。
+     先把插件加的类型全摘掉再重新注册 —— 不摘的话第二次调用会全部撞「已经有了」，
+     而那时新装的插件一种类型都注册不上，症状是「装了没反应」。
+     内置类型不受影响（`unregisterKindsFrom` 只摘带 `from` 的）。 */
+  for (const p of await listInstalled()) unregisterKindsFrom(p.manifest.id);
   const out: { id: string; kinds: string[] }[] = [];
   for (const p of await listInstalled()) {
     if (p.problems.length) continue;

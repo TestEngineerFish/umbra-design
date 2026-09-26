@@ -3,7 +3,9 @@ import { envelope } from "../envelope.js";
 import { allowedCapNames } from "../plugin/host.js";
 import { HOST_API_MAJOR } from "../plugin/manifest.js";
 import { hostCall } from "../plugin/host.js";
-import { listInstalled, uninstall } from "../plugin/store.js";
+import { listInstalled, registerPluginKinds, uninstall } from "../plugin/store.js";
+import { installFromFile, pluginVersions, switchVersion } from "../plugin/install.js";
+import { emit } from "../events.js";
 import { defineCap } from "./registry.js";
 
 /** 插件管理的能力（M11-4）。
@@ -48,6 +50,7 @@ defineCap({
         where: "(plugin)", at: { kind: "key", name: id }, fix: "内置插件免费且always在；要停用某种格式的编辑，用格式设置" } as never]);
     }
     const gone = await uninstall(id);
+    if (gone) { await registerPluginKinds(); notify("uninstalled", id); }
     return envelope({ id, removed: gone }, [], {});
   },
 });
@@ -84,5 +87,53 @@ defineCap({
     const found = (await listInstalled()).find((x) => x.manifest.id === id);
     if (!found) return envelope(null, [{ level: "error", code: "E_PLUGIN_NOT_FOUND", message: `没装插件 ${id}`, where: "(plugin)", at: { kind: "key", name: id } } as never]);
     return envelope({ manifest: found.manifest, problems: found.problems });
+  },
+});
+
+/** 装完 / 切版本 / 卸完都要让前端**重新接线** —— 类型表、模块表、面板标题都得跟着变。
+ *  不发这个事件的话，用户点完「安装」得刷新页面才看得见（M11-10 就是这条）。 */
+const notify = (what: string, id: string) => emit("plugin", null, { what, id });
+
+defineCap({
+  name: "install_plugin", title: "装一个插件", scope: "global",
+  summary: [
+    "从一个 `.umbraplugin` 文件装。顺序：解包 → 验签 → 校验清单 → 查路径逃逸 → 落盘。",
+    "**任何一步失败都不落一个字节** —— 半装的插件比没装还糟（类型认得、模块不全，界面落到文件卡上，看着像没装）。",
+    "装完立刻生效，**不用重启**。",
+  ].join("\n"),
+  input: { file: z.string().describe(".umbraplugin 文件的绝对路径") },
+  /* **不给插件面**：插件能装插件的话，一个恶意插件可以自己装个后门 */
+  faces: ["mcp", "http"],
+  http: { route: "plugin_install", method: "POST" },
+  run: async ({ file }) => {
+    const r = await installFromFile(file);
+    notify("installed", r.id);
+    return envelope(r, r.unsigned
+      ? [{ level: "warning", code: "W_PLUGIN_UNSIGNED", message: `${r.id} 是**未签名**的插件（开发模式放行）`,
+          where: "(plugin)", at: { kind: "key", name: r.id },
+          fix: "正式发布的插件都带签名；未签名的只应出现在开发机上" } as never]
+      : []);
+  },
+});
+
+defineCap({
+  name: "list_plugin_versions", title: "一个插件装了哪几版", scope: "global",
+  summary: "版本各占一个目录，**切换只改指针**，所以回退很便宜。只留最近两版。",
+  input: { id: z.string() },
+  faces: ["mcp", "http"],
+  http: { route: "plugin_versions", method: "GET" },
+  run: async ({ id }) => envelope(await pluginVersions(id)),
+});
+
+defineCap({
+  name: "switch_plugin_version", title: "切到插件的某一版（回退）", scope: "global",
+  summary: "**只改指针，不动文件**。更新之后发现不对，切回上一版就行。",
+  input: { id: z.string(), version: z.string() },
+  faces: ["mcp", "http"],
+  http: { route: "plugin_switch", method: "POST" },
+  run: async ({ id, version }) => {
+    const r = await switchVersion(id, version);
+    notify("switched", r.id);
+    return envelope(r);
   },
 });

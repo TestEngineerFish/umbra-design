@@ -6,7 +6,7 @@ export interface ProjectHandle { url: string; token: string; ws: string; name: s
 /** 信封里的一条诊断：`fix` 是给人看的改法，比 message 更可操作（doc/00 §二） */
 export interface Err { code?: string; message: string; fix?: string; level?: string }
 export interface Envelope<T = unknown> { ok: boolean; data?: T; errors?: Err[] }
-export interface UdEvent { type: "hello" | "job" | "chat" | "write" | "fs"; projectDir: string | null; payload: unknown; at: string }
+export interface UdEvent { type: "hello" | "job" | "chat" | "write" | "fs" | "plugin"; projectDir: string | null; payload: unknown; at: string }
 
 declare global { interface Window { __UD_APP?: Boot } }
 

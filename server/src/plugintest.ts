@@ -117,5 +117,72 @@ await rm(join(tmpdir(), "x"), { recursive: true, force: true }).catch(() => {});
   ok(true, "演示插件已装好（uitest 的插件端到端那一组要用它）");
 }
 
+/* ══════════ 装 / 验签 / 切版本（M11-6）══════════
+   **重点仍然是「拦不拦得住」** —— 装插件是信任边界上最危险的一步：
+   它把别人给的字节写进用户的机器。所以这里和 §85.5 一样，用攻击样本来验。 */
+{
+  const { generateKeyPairSync, sign: edSign } = await import("node:crypto");
+  const { canonical, encodePackage, decodePackage, packDir, verifyPackage } = await import("./plugin/pack.js");
+  const { installPackage, pluginVersions, switchVersion } = await import("./plugin/install.js");
+  const { PLUGINS_DIR } = await import("./plugin/store.js");
+  const { writeFile: wf, mkdir: md, rm: rmp } = await import("node:fs/promises");
+
+  const KEYS = join(process.cwd(), "..", "keys");
+  const pub = join(KEYS, "publisher.pub");
+  const { publicKey, privateKey } = generateKeyPairSync("ed25519");
+  await md(KEYS, { recursive: true });
+  await wf(pub, publicKey.export({ type: "spki", format: "pem" }));
+
+  const pkg = await packDir(DIR);
+  ok(Object.keys(pkg.files).length >= 4, "打包读到了插件的文件", `${Object.keys(pkg.files).length} 个`);
+
+  /* ① 没签名 → 拒装（本机有公钥，不是开发模式） */
+  delete process.env.UMBRASTUDIO_PLUGIN_DEV;
+  ok(verifyPackage(pkg).ok === false, "**没签名的包拒装**（默认拒绝，例外要显式打开）");
+
+  /* ② 签了 → 过 */
+  pkg.signature = edSign(null, canonical(pkg), privateKey).toString("base64");
+  ok(verifyPackage(pkg).ok === true, "签过的包验得过");
+
+  /* ③ **篡改一个字节就得验不过** —— 这是签名唯一要保证的事，
+     不验这一条的话「签名机制」可能只是把一串 base64 存了又读回来。 */
+  const tampered = { ...pkg, files: { ...pkg.files, "manifest.json": Buffer.from(
+    Buffer.from(pkg.files["manifest.json"]!, "base64").toString("utf8").replace('"read"', '"write"'), "utf8").toString("base64") } };
+  ok(verifyPackage(tampered as typeof pkg).ok === false, "**包被改过一个字节就验不过**（把权限从 read 偷改成 write）");
+
+  /* ④ 路径逃逸：包里塞一个跑到插件目录外面的路径 */
+  const evil = { ...pkg, files: { ...pkg.files, "../../../../pwned.txt": Buffer.from("x").toString("base64") } };
+  evil.signature = edSign(null, canonical(evil), privateKey).toString("base64");   // 连签名都是真的
+  let threw = "";
+  try { await installPackage(evil as typeof pkg); } catch (e) { threw = (e as Error).message; }
+  ok(threw.includes("逃出插件目录"), "**包里逃出目录的路径被拦**（签名真也不行 —— 签名只证明是谁给的，不证明它安全）", threw.slice(0, 40));
+
+  /* ⑤ 真装一次 */
+  await rmp(join(PLUGINS_DIR, "com.umbra.demo"), { recursive: true, force: true });
+  const r1 = await installPackage(pkg);
+  ok(r1.id === "com.umbra.demo" && r1.previous === null, "首次安装", `${r1.id} ${r1.version}`);
+  ok(r1.unsigned === false, "签过的包不标未签名");
+  ok(r1.kinds.includes("csv"), "**装完类型立刻注册上了，不用重启**（M11-10）", r1.kinds.join("/"));
+
+  /* ⑥ 装第二版 → 切回第一版 */
+  const v2 = JSON.parse(JSON.stringify(pkg)) as typeof pkg;
+  v2.manifest.version = "0.2.0";
+  v2.files["manifest.json"] = Buffer.from(JSON.stringify({ ...JSON.parse(Buffer.from(pkg.files["manifest.json"]!, "base64").toString("utf8")), version: "0.2.0" }), "utf8").toString("base64");
+  v2.signature = edSign(null, canonical(v2), privateKey).toString("base64");
+  const r2 = await installPackage(v2);
+  ok(r2.previous === "0.1.0", "更新时认得出上一版", `previous=${r2.previous}`);
+  let vs = await pluginVersions("com.umbra.demo");
+  ok(vs.current === "0.2.0" && vs.versions.length === 2, "两版都在，指针指向新版", `${vs.versions.join("/")} → ${vs.current}`);
+  await switchVersion("com.umbra.demo", "0.1.0");
+  vs = await pluginVersions("com.umbra.demo");
+  ok(vs.current === "0.1.0", "**切回上一版只改指针**（回退很便宜）", `→ ${vs.current}`);
+
+  /* 收尾：公钥是这一节临时造的，删掉；插件留着给 uitest 用 */
+  await rmp(KEYS, { recursive: true, force: true });
+  await rmp(join(PLUGINS_DIR, "com.umbra.demo", "0.2.0"), { recursive: true, force: true });
+  await wf(join(PLUGINS_DIR, "com.umbra.demo", "current"), "0.1.0", "utf8");
+  void decodePackage; void encodePackage;
+}
+
 console.log(fail === 0 ? `\n✓ 插件机制 ${pass}/${pass + fail}` : `\n✗ 插件机制 ${pass}/${pass + fail}`);
 process.exit(fail === 0 ? 0 : 1);

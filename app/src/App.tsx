@@ -26,7 +26,7 @@ export default function App() {
   /* 插件接线（M11-5）。**装不上的要说出来** —— 静静不显示的话，
      用户只会看到「我装的插件不见了」，而他刚付过钱。
      `loadPlugins` 可以重复调（装完 / 卸完再调一次），内部按 id 去重。 */
-  useEffect(() => {
+  const wirePlugins = useCallback(() => {
     if (!hub) return;
     void loadPlugins(hub).then(({ off }) => {
       for (const x of off) toast(`插件 ${x.id} 没能接上`, x.why, "error");
@@ -34,6 +34,19 @@ export default function App() {
       auditKindsOrThrow();
     });
   }, [hub]);
+  useEffect(() => { wirePlugins(); }, [wirePlugins]);
+  /* ⚠️ **装 / 切版本 / 卸完要当场重新接线**（M11-10）。
+     不接这一句的话，服务端那边已经生效了，界面却要刷新页面才看得见 ——
+     而用户刚点完「安装」，那一刻最不该让他刷新。 */
+  useEffect(() => {
+    if (!hub) return;
+    return hub.events((e) => {
+      if (e.type !== "plugin") return;
+      const { what, id } = (e.payload ?? {}) as { what?: string; id?: string };
+      wirePlugins();
+      toast(`插件 ${id ?? ""} ${what === "uninstalled" ? "已卸载" : what === "switched" ? "已切换版本" : "已装好"}`, undefined, "ok");
+    });
+  }, [hub, wirePlugins]);
   const open = useCallback(async (dir: string) => {
     if (!hub) return;
     if (project && dir === project.dir) { setPage("work"); return; }

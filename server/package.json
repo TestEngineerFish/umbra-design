@@ -25,7 +25,8 @@
     "filetest": "node dist/filetest.js",
     "captest": "npm run build && node dist/captest.js",
     "kindtest": "npm run build && node dist/kindtest.js",
-    "plugintest": "npm run build && node dist/plugintest.js"
+    "plugintest": "npm run build && node dist/plugintest.js",
+    "packplugin": "npm run build && node dist/packplugin.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",

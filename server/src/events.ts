@@ -8,7 +8,12 @@
  *    write  一份稿经唯一写入口落了盘          { file, version, origin }
  *    fs     项目目录里文件变了（磁盘监听）    { changes: [rel...] }
  */
-export interface UdEvent { type: "job" | "chat" | "write" | "fs" | "hello"; projectDir: string | null; payload: unknown; at: string }
+export interface UdEvent {
+  /** `plugin` 是 M11-6 加的：装 / 切版本 / 卸完要让前端重新接线
+   *  —— 类型表、模块表、面板标题都得跟着变，不然用户得刷新页面才看得见。 */
+  type: "job" | "chat" | "write" | "fs" | "hello" | "plugin";
+  projectDir: string | null; payload: unknown; at: string;
+}
 type Listener = (e: UdEvent) => void;
 const listeners = new Set<Listener>();
 
