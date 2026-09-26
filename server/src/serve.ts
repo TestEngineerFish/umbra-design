@@ -15,7 +15,8 @@ import { err, ToolError } from "./envelope.js";
 import { TOOL_ROOT, type Project } from "./project.js";
 import { isToolPage } from "./indexpage.js";
 import { API_PREFIX, handleApi, newToken, type ApiCtx } from "./api.js";
-import { pluginDirOf } from "./plugin/store.js";
+import { pluginDirOf, registerPluginKinds } from "./plugin/store.js";
+import { BUILTIN, kindOf } from "./shared/kinds.js";
 
 const MIME: Record<string, string> = {
   ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8",
@@ -211,7 +212,16 @@ function info(name: string, r: Running): ServeInfo {
   };
 }
 
+/** 插件加的文件类型只需注册一次（进程级）。
+ *  放在起服务这一步而不是模块顶层：模块顶层是同步的，而读插件目录是异步的。 */
+let kindsReady: Promise<unknown> | null = null;
+
 export async function serveStart(p: Project, wantPort?: number): Promise<ServeInfo> {
+  /* ⚠️ **服务端也要认插件加的类型**（M11-5 漏过一次）：目录列的类型列和图标
+     是服务端 `list_files` 算好给的 —— 只在前端注册的话，详情区认得出这种文件，
+     列表里却还是「其他」，看着像「插件装上了但没反应」。 */
+  kindsReady ??= registerPluginKinds().catch(() => []);
+  await kindsReady;
   const cur = running.get(p.name);
   if (cur) return info(p.name, cur);
 
@@ -321,7 +331,17 @@ function attachWs(rec: Running, hub = false): void {
       if (!name) return;
       const rel = String(name).split(sep).join("/");
       if (rel.startsWith(".") || rel.includes("/.") || rel.includes("node_modules")) return;
-      if (!/\.(dc\.html|md|html|css|js|json|png|jpe?g|webp|gif|svg)$/i.test(rel)) return;
+      /* ⚠️ **问类型表，不要在这里硬写扩展名**（M11-5 修）。
+         原来这里是一串写死的后缀，和 `shared/kinds.ts` 是同一件知识的两份拷贝 ——
+         `.csv` / `.ts` / `.py` / `.txt` 都不在那串里，于是**在别的编辑器里改了它们，
+         目录树永远不刷新**。这个缺陷今天之前就是真的，只是没人踩到。
+
+         插件会把它从「少数格式不刷」放大成「**买来的格式永远不刷**」：
+         用户装了视频插件，在别处改了视频，应用毫无反应。
+         （`CLAUDE.md` 记着「硬编码名单过时」在通道 A / B 上各犯过一次，这是第三次。）
+
+         判据换成「**这是不是一种我们认得的文件**」—— 内置和插件加的都自动算数。 */
+      if (kindOf(rel) === BUILTIN.other) return;
       pending.add(rel);
       if (!timer) timer = setTimeout(() => { const changes = [...pending]; pending = new Set(); timer = null; emit("fs", rec.dir, { changes }); }, 200);
     });

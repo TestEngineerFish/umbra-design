@@ -5,6 +5,7 @@ import { applyTheme, loadLayout, saveLayout, type LayoutState } from "./layout/l
 import { Home } from "./pages/Home";
 import { NewProjectSheet, SettingsSheet } from "./sheets/Sheets";
 import { Toasts, toast } from "./ui/Toast";
+import { loadPlugins } from "./kinds/plugin/loader";
 import { Workbench } from "./workbench/Workbench";
 
 /** 两个核心句柄：hub（托管本页的服务，首页与全局路由走它）与 project（当前项目自己的服务）。
@@ -21,6 +22,15 @@ export default function App() {
   const setLayout = useCallback((l: LayoutState) => { setLayoutRaw(l); saveLayout(l); }, []);
   useEffect(() => { applyTheme(layout.theme); const mq = window.matchMedia("(prefers-color-scheme: dark)"); const on = () => applyTheme(layout.theme); mq.addEventListener("change", on); return () => mq.removeEventListener("change", on); }, [layout.theme]);
   useEffect(() => { history.replaceState(null, "", page === "home" ? "/__app/home" : "/__app/"); }, [page]);
+  /* 插件接线（M11-5）。**装不上的要说出来** —— 静静不显示的话，
+     用户只会看到「我装的插件不见了」，而他刚付过钱。
+     `loadPlugins` 可以重复调（装完 / 卸完再调一次），内部按 id 去重。 */
+  useEffect(() => {
+    if (!hub) return;
+    void loadPlugins(hub).then(({ off }) => {
+      for (const x of off) toast(`插件 ${x.id} 没能接上`, x.why, "error");
+    });
+  }, [hub]);
   const open = useCallback(async (dir: string) => {
     if (!hub) return;
     if (project && dir === project.dir) { setPage("work"); return; }

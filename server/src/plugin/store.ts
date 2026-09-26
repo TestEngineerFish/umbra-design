@@ -3,6 +3,7 @@ import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { STATE_ROOT } from "../project.js";
 import { checkManifest, type PluginManifest } from "./manifest.js";
+import { PLUGIN_DEFAULT_PRIORITY, registerKind } from "../shared/kinds.js";
 
 /** 插件在盘上住哪、怎么列（M11-4）。
  *
@@ -66,4 +67,31 @@ export function pluginDirOf(id: string): string | null {
     const v = versions[versions.length - 1];
     return v ? join(idDir, v) : null;
   } catch { return null; }
+}
+
+/** 把装好的插件加的文件类型注册进**服务端**的类型表（M11-5）。
+ *
+ *  ⚠️ **这一步漏掉过一次。** 前端和服务端各有一份类型表（`shared/kinds.ts` 是同一份源码，
+ *  但跑在两个进程里，是两个实例）。只在前端注册的话：详情区能认出这种文件、
+ *  用插件的视图打开，但**目录列里的类型列和图标还是「其他」** ——
+ *  因为那一列是服务端 `list_files` 算好给的。
+ *  症状是「插件装上了，但文件在列表里看着没变化」。
+ */
+export async function registerPluginKinds(): Promise<{ id: string; kinds: string[] }[]> {
+  const out: { id: string; kinds: string[] }[] = [];
+  for (const p of await listInstalled()) {
+    if (p.problems.length) continue;
+    const ids: string[] = [];
+    for (const k of p.manifest.kinds ?? []) {
+      try {
+        registerKind({
+          id: k.id, label: k.label, icon: k.icon, priority: k.priority ?? PLUGIN_DEFAULT_PRIORITY,
+          textual: k.textual, match: (n) => k.ext.some((e) => n.endsWith(e)), from: p.manifest.id,
+        });
+        ids.push(k.id);
+      } catch { /* 撞车 / 想劫持内置类型：跳过这一种，别让一个坏插件把整轮注册带崩 */ }
+    }
+    if (ids.length) out.push({ id: p.manifest.id, kinds: ids });
+  }
+  return out;
 }

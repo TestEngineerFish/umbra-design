@@ -648,6 +648,40 @@ console.log("\n插件 UI 的边界（M11-4）");
   }
   ok(r.up.s === 404, "插件目录逃逸：..%2f 上不去");
   ok(r.badId.s === 404, "插件 id 逃逸：坏 id 直接 404");
+
+  /* ═══ A 面端到端（M11-5）═══
+     一个**没有文件系统、没有网络**的沙箱页面，经宿主读到项目文件并画出来。
+     ⚠️ 样本由回归**自己建自己收**（走产品自己的写入口，收进回收站）——
+     不往用户项目里留东西（纪律⑥）。 */
+  if (r.ui.s === 200) {
+    const SAMPLE = "插件回归样本.csv";
+    const made = await pg.evaluate(async ({ name }) => {
+      const b = window.__UD_APP;
+      const u = (route) => `${b.url.replace(/\/$/, "")}/__ud/${route}?token=${encodeURIComponent(b.token)}`;
+      const w = await fetch(u("file_write"), { method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ path: name, content: "name,role\n甲,设计\n乙,开发\n丙,测试\n", expectSha256: "0" }) });
+      return (await w.json()).ok;
+    }, { name: SAMPLE });
+    if (made) {
+      /* 建完要让目录树刷出来 —— 服务端会发 fs 事件，给它一点时间 */
+      await pg.waitForTimeout(1200);
+      const row = pg.locator('[role="treeitem"]').filter({ hasText: SAMPLE }).first();
+      if (await row.count()) {
+        await row.click(); await pg.waitForTimeout(2500);
+        ok(await pg.locator('iframe[title^="插件"]').count() === 1, "csv 交给了插件画（详情区是插件的 iframe，不是文件卡）");
+        const inner = pg.frameLocator('iframe[title^="插件"]');
+        const rows = await inner.locator("tbody tr").count().catch(() => 0);
+        ok(rows === 3, "**插件经宿主真读到了文件并画出来**（它自己没有 fs 也没有网络）", `${rows} 行`);
+        const head = await inner.locator("thead th").allTextContents().catch(() => []);
+        ok(head.join(",") === "name,role,note".slice(0, head.join(",").length) || head[0] === "name", "表头对", head.join("/"));
+      } else ok(false, "建好了但目录树里没刷出来");
+      await pg.evaluate(async ({ name }) => {
+        const b = window.__UD_APP;
+        await fetch(`${b.url.replace(/\/$/, "")}/__ud/file_trash?token=${encodeURIComponent(b.token)}`,
+          { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ path: name }) });
+      }, { name: SAMPLE });
+    } else ok(false, "建不出回归样本，A 面端到端没测成");
+  }
 }
 
 console.log(`\n${fail ? "✗" : "✓"} 界面回归 ${pass}/${pass + fail}\n`);

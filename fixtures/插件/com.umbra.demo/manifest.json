@@ -3,10 +3,30 @@
   "name": "演示插件 · CSV",
   "version": "0.1.0",
   "hostApi": "^1",
-  "surfaces": ["tools"],
-  "kinds": [
-    { "id": "csv", "label": "表格", "icon": "▦", "ext": [".csv", ".tsv"], "textual": true }
+  "surfaces": [
+    "ui",
+    "tools"
   ],
-  "permissions": { "files": ["read", "write"], "scope": "project", "net": [] },
-  "tools": "index.mjs"
+  "kinds": [
+    {
+      "id": "csv",
+      "label": "表格",
+      "icon": "▦",
+      "ext": [
+        ".csv",
+        ".tsv"
+      ],
+      "textual": true
+    }
+  ],
+  "permissions": {
+    "files": [
+      "read",
+      "write"
+    ],
+    "scope": "project",
+    "net": []
+  },
+  "tools": "index.mjs",
+  "ui": "index.html"
 }

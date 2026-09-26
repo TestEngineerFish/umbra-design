@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<title>CSV 表格</title>
+<style>
+  /* 插件自己配色。真插件该用宿主给的 token CSS，这里是最小验证件 */
+  body { margin: 0; font: 12px system-ui, sans-serif; color: #1c1f26; background: #fff; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { border: 1px solid #e3e6ec; padding: 4px 8px; text-align: left; white-space: nowrap; }
+  th { background: #f5f6f9; font-weight: 600; }
+  #empty { padding: 16px; color: #7b8194; }
+</style>
+<body>
+  <div id="empty">读取中…</div>
+  <table id="t" hidden><thead><tr id="h"></tr></thead><tbody id="b"></tbody></table>
+  <script src="./umbra.js"></script>
+  <script>
+    /* 这份是 A 面的验证件：证明插件能在自己的矩形里画，
+       并且**只能经宿主**读到文件（它自己没有网络，CSP connect-src 'none'）。 */
+    umbra.onContext(async function (ctx) {
+      if (!ctx.path) return;
+      var out = await umbra.call("read_file", { path: ctx.path });
+      var el = document.getElementById("empty");
+      if (!out || !out.ok) { el.textContent = "读不到：" + ((out && out.errors && out.errors[0] && out.errors[0].message) || "?"); return; }
+      var lines = String(out.data.content || "").split("\n").filter(function (l) { return l.trim(); });
+      if (!lines.length) { el.textContent = "空表"; return; }
+      var cells = lines.map(function (l) { return l.split(","); });
+      document.getElementById("h").innerHTML = cells[0].map(function (c) { return "<th></th>"; }).join("");
+      [].forEach.call(document.getElementById("h").children, function (th, i) { th.textContent = cells[0][i]; });
+      var body = document.getElementById("b");
+      body.innerHTML = "";
+      cells.slice(1).forEach(function (row) {
+        var tr = document.createElement("tr");
+        row.forEach(function (c) { var td = document.createElement("td"); td.textContent = c; tr.appendChild(td); });
+        body.appendChild(tr);
+      });
+      el.hidden = true;
+      document.getElementById("t").hidden = false;
+      /* 右键走宿主画的菜单 —— 插件自己画会被矩形裁掉 */
+      document.body.addEventListener("contextmenu", async function (e) {
+        e.preventDefault();
+        var i = await umbra.menu(e.clientX, e.clientY, [{ label: "有 " + (cells.length - 1) + " 行" }, { label: "—" }, { label: "提示一下" }]);
+        if (i === 2) umbra.toast("插件发的提示", "由宿主画，形制和别处一致");
+      });
+    });
+  </script>
+</body>
