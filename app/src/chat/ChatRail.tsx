@@ -45,7 +45,7 @@ export function ChatRail({ chat, selections, onDropSelection, onClearSelections,
                 if (!k) return null;
                 return (
                   <button key={c} data-ud={`engine-opt-${c}`} aria-pressed={chat.channel === c} className={`w-full text-left px-3 py-2 hover:bg-hover flex flex-col gap-0.5 ${chat.channel === c ? "bg-accentSoft" : ""}`}
-                    onClick={() => { chat.pickChannel(c); engPop.close(); }}>
+                    onClick={() => { chat.pickChannel(c); engPop.close("pick"); }}>
                     <span className="flex items-center gap-1.5">
                       <span className={`font-semibold ${chat.channel === c ? "text-accent" : ""}`}>{k.engine ?? c.toUpperCase()}</span>
                       {k.model && <span className="text-muted font-mono text-[11px] truncate">{k.model}</span>}

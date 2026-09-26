@@ -309,7 +309,7 @@ export function Workbench({ project, host, layout, setLayout, onHome, onSettings
                   所以菜单里不再单独放一项「复制路径」。
                   项目名不写第二遍：按钮上就是它，菜单是它的展开（M8-16 用户提的 double name）。 */}
               <button className="w-full text-left px-2 pt-1.5 pb-2 mb-1 border-b border-border hover:bg-hover"
-                onClick={() => { projPop.close(); void navigator.clipboard?.writeText(project.dir).then(() => toast("路径已复制", project.dir, "ok"), () => toast("复制不了", "浏览器不让访问剪贴板", "error")); }}>
+                onClick={() => { projPop.close("pick"); void navigator.clipboard?.writeText(project.dir).then(() => toast("路径已复制", project.dir, "ok"), () => toast("复制不了", "浏览器不让访问剪贴板", "error")); }}>
                 <div className="text-[11px] text-muted mb-0.5">项目目录 · 点击复制</div>
                 <div className="font-mono text-[11px] break-all leading-relaxed">{project.dir}</div>
               </button>
@@ -324,7 +324,7 @@ export function Workbench({ project, host, layout, setLayout, onHome, onSettings
                 { label: "关闭项目", run: onHome },
               ].map((mi, k) => mi.sep
                 ? <PopSep key={k} />
-                : <PopItem key={k} label={mi.label!} hint={mi.hint} onPick={() => { projPop.close(); mi.run!(); }} />)}
+                : <PopItem key={k} label={mi.label!} hint={mi.hint} onPick={() => { projPop.close("pick"); mi.run!(); }} />)}
             </div>
           </Popover>
         </div>
@@ -457,7 +457,13 @@ export function Workbench({ project, host, layout, setLayout, onHome, onSettings
                   等于常驻一列没人看的图标。窄了就改抽屉浮在正文右边（R2）。 */}
               {panels.length > 0 && mod.Panels && (
                 panelDrawer
-                  ? (layout.props !== null && <div data-ud="props" className="absolute right-0 top-0 bottom-0 z-30 flex shadow-2xl border-l border-border bg-panel" style={{ width: PANEL_W }}><mod.Panels ctx={ctx} /></div>)
+                  ? (layout.props !== null && <>
+                      {/* 抽屉底下的暗底。**照稿保留，18%**（设计侧第九轮回复 §一.2）——
+                          它不是接层，是在说「后面那块暂时不能用」。原来这里整个缺了。 */}
+                      <div className="absolute inset-0 z-20" style={{ background: "var(--scrim-drawer)" }}
+                        onMouseDown={() => setLayout({ ...layout, props: null })} />
+                      <div data-ud="props" className="absolute right-0 top-0 bottom-0 z-30 flex shadow-2xl border-l border-border bg-panel" style={{ width: PANEL_W }}><mod.Panels ctx={ctx} /></div>
+                    </>)
                   : (
                     /* 展开 0 ↔ 300，慢档 240ms，从正文右边推出来 */
                     <div data-ud={layout.props !== null ? "props" : undefined} className="shrink-0 anim-col border-l border-border"

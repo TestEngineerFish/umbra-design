@@ -141,7 +141,7 @@ export function TabBar({ tabs, current, busy, onPick, onOpen, onClose, onCloseMa
             <div className="max-h-[60vh] overflow-auto p-1">
               {list.map((t) => (
                 <button key={t.path} className={`w-full px-2.5 py-1.5 flex items-center gap-2 text-left hover:bg-hover ${t.path === current ? "bg-accentSoft" : ""}`}
-                  onClick={() => { morePop.close(); onPick(t.path); }}>
+                  onClick={() => { morePop.close("pick"); onPick(t.path); }}>
                   <span className="w-3 shrink-0 text-accent">{t.path === current ? "✓" : ""}</span>
                   <Glyph icon={ICON_OF[kindOf(t.path)] ?? "file"} size={13} className="shrink-0 text-muted" />
                   <span className={`truncate flex-1 ${t.preview ? "text-text2" : ""}`}>{label(t.path)}</span>
@@ -151,7 +151,7 @@ export function TabBar({ tabs, current, busy, onPick, onOpen, onClose, onCloseMa
               ))}
               {current && tabs.length > 1 && <>
                 <PopSep />
-                <PopItem label="关闭其他页签" onPick={() => { morePop.close(); onCloseMany(closable(tabs, "others", current)); }} />
+                <PopItem label="关闭其他页签" onPick={() => { morePop.close("pick"); onCloseMany(closable(tabs, "others", current)); }} />
               </>}
             </div>
           </Popover>

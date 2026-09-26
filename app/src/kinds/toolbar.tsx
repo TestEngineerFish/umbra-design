@@ -61,12 +61,14 @@ export function SizeBtn({ label, title, widths, zoomPct, onZoom, onFit, extra }:
         <Glyph d={ICON.caretDown} size={11} stroke={1.6} className="text-muted" />
       </button>
       {/* 里面是成行的控件（不是菜单项），内边距按原稿的尺寸档 `10 8 8` */}
-      <Popover pop={pop} align="end" width={232} pad="10px 8px 8px">
+      {/* `keys="off"`：信息卡里是数字框和滑块，**↑↓ 本来就是它们调值的键**，
+          被浮层接走就调不了了（设计侧第九轮回复 §二.2）。只走 Tab。 */}
+      <Popover pop={pop} align="end" width={232} pad="10px 8px 8px" keys="off">
         <div>
           {widths && widths.length > 0 && <>
             <div className="px-2 pt-1.5 pb-1 text-[11px] text-muted">画布宽度</div>
             {widths.map((w) => (
-              <button key={w.label} onClick={() => { w.pick(); pop.close(); }} aria-pressed={w.on}
+              <button key={w.label} onClick={() => { w.pick(); pop.close("pick"); }} aria-pressed={w.on}
                 className="w-full grid grid-cols-[16px_minmax(0,1fr)_auto] gap-1.5 items-center h-7 pl-1.5 pr-2 rounded-sm hover:bg-hover text-left">
                 <Glyph d={ICON.check} size={12} stroke={1.7} className={`text-accent ${w.on ? "" : "opacity-0"}`} />
                 <span className="truncate">{w.label}</span>
@@ -80,7 +82,7 @@ export function SizeBtn({ label, title, widths, zoomPct, onZoom, onFit, extra }:
             <button className="w-6 h-6 grid place-items-center rounded-sm text-muted hover:bg-hover hover:text-text" onClick={() => onZoom(-1)} title="缩小（⌘−）" aria-label="缩小"><Glyph d={ICON.minus} size={12} /></button>
             <span className="w-[42px] text-center font-mono text-[11px] tabular-nums">{zoomPct}%</span>
             <button className="w-6 h-6 grid place-items-center rounded-sm text-muted hover:bg-hover hover:text-text" onClick={() => onZoom(1)} title="放大（⌘＋）" aria-label="放大"><Glyph d={ICON.plus} size={12} /></button>
-            <button className="h-6 px-2 rounded-sm border border-border bg-panel text-[11px] text-text2 hover:bg-hover hover:text-text whitespace-nowrap" onClick={() => { onFit(); pop.close(); }} title="适配窗口（⌘0）">适配</button>
+            <button className="h-6 px-2 rounded-sm border border-border bg-panel text-[11px] text-text2 hover:bg-hover hover:text-text whitespace-nowrap" onClick={() => { onFit(); pop.close("pick"); }} title="适配窗口（⌘0）">适配</button>
           </div>
           {extra && <div className="flex items-center gap-1 pl-2 pr-1 pb-1">{extra}</div>}
         </div>
@@ -114,7 +116,7 @@ export function FileMore({ ctx, items }: { ctx: ViewContext; items: MenuItem[] }
           {all.map((mi, k) => mi.label === "—"
             ? <PopSep key={k} />
             : <PopItem key={k} label={mi.label} hint={mi.hint} danger={mi.danger}
-                onPick={mi.run ? () => { pop.close(); mi.run!(); } : undefined} />)}
+                onPick={mi.run ? () => { pop.close("pick"); mi.run!(); } : undefined} />)}
         </div>
       </Popover>
     </div>

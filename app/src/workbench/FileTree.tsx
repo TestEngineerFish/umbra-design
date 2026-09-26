@@ -268,19 +268,40 @@ function GotoFile({ q, setQ, drafts, indexed, current, onPick, onClose, anchor }
 }) {
   const kw = q.trim().toLowerCase();
   const rows = drafts.filter((d) => !kw || `${d.title} ${d.file}`.toLowerCase().includes(kw));
+  /* ═══ 带搜索框的选择器：**焦点不离开输入框**（设计侧第九轮回复 §二.1）═══
+     浮层通用的那套漫游焦点在这里不能用 —— 它会把焦点挪到行按钮上，
+     用户接着打字就打不进去了。所以 `keys="off"`，这里自己走「高亮行」：
+     焦点始终在框里，`aria-activedescendant` 指到当前行，读屏才知道选到哪了。 */
+  const [act, setAct] = useState(0);
+  const hit = Math.min(act, Math.max(0, rows.length - 1));
+  /* 关键词一变，候选就全换了 —— 高亮必须回到第一条，不然会停在一个已经不在列表里的位置 */
+  useEffect(() => { setAct(0); }, [kw]);
+  const rowId = (i: number) => `goto-row-${i}`;
   /* 转到文件自己管内边距（输入框有 `m-1.5`）和自己的滚动，所以 `pad` 给 0 */
   return (
-      <PopoverAt x={anchor.x} y={anchor.y} onClose={onClose} width={anchor.w} pad="0">
+      <PopoverAt x={anchor.x} y={anchor.y} onClose={onClose} width={anchor.w} pad="0" keys="off">
       <div className="max-h-[60vh] flex flex-col">
         <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="转到文件…"
+          role="combobox" aria-expanded aria-controls="goto-list"
+          aria-activedescendant={rows.length ? rowId(hit) : undefined}
           className="m-1.5 h-7 px-2 rounded border border-borderStrong bg-bg outline-none focus:border-accent text-xs"
           onKeyDown={(e) => {
-            if (e.key === "Escape") { if (q) setQ(""); else onClose(); }
-            if (e.key === "Enter" && rows[0]) onPick(rows[0].file);
+            if (e.key === "Escape") { if (q) setQ(""); else onClose(); return; }
+            if (!rows.length) return;
+            /* ⏎ 走的是**高亮那一条**，不是永远第一条 —— 原来是 `rows[0]`，
+               那样 ↑↓ 选了也白选。 */
+            if (e.key === "Enter") { e.preventDefault(); onPick(rows[hit]!.file); return; }
+            const mv = e.key === "ArrowDown" ? 1 : e.key === "ArrowUp" ? -1 : 0;
+            const to = e.key === "Home" ? 0 : e.key === "End" ? rows.length - 1 : mv ? (hit + mv + rows.length) % rows.length : -1;
+            if (to < 0) return;
+            e.preventDefault(); setAct(to);
+            document.getElementById(rowId(to))?.scrollIntoView({ block: "nearest" });
           }} />
-        <div className="flex-1 overflow-auto pb-1">
-          {rows.length ? rows.map((d) => (
-            <button key={d.file} className={`w-full px-2 py-1 flex items-center gap-2 text-left hover:bg-hover ${d.file === current ? "bg-accentSoft" : ""}`} onClick={() => onPick(d.file)}>
+        <div id="goto-list" role="listbox" className="flex-1 overflow-auto pb-1">
+          {rows.length ? rows.map((d, i) => (
+            <button key={d.file} id={rowId(i)} role="option" aria-selected={i === hit} tabIndex={-1}
+              onMouseEnter={() => setAct(i)}
+              className={`w-full px-2 py-1 flex items-center gap-2 text-left ${i === hit ? "bg-hover" : ""} ${d.file === current ? "bg-accentSoft" : ""}`} onClick={() => onPick(d.file)}>
               <span className={`hdot ${d.health}`} title={d.healthWhy} />
               <span className="truncate flex-1 text-xs">{d.title}</span>
               <span className="text-muted font-mono text-[11px] shrink-0">{d.version ?? ""}</span>

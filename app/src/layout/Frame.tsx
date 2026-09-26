@@ -94,7 +94,9 @@ function Col({ r }: { r: Region }) {
   if (r.float && r.show) {
     return (
       <>
-        <div className="absolute inset-0 z-20 bg-black/20" onMouseDown={r.onFloatClose} />
+        {/* ⚠️ 这层暗底**不是接层**（设计侧第九轮回复 §一.2）：它不接点击，
+            它在说「后面那块暂时不能用」。所以浮层那套 capture 监听不替换它。 */}
+        <div className="absolute inset-0 z-20" style={{ background: "var(--scrim-yield)" }} onMouseDown={r.onFloatClose} />
         <aside data-region={r.id} className="absolute left-0 top-0 bottom-0 z-30 bg-panel border-r border-border shadow-2xl"
           style={{ width: r.width ?? 280 }}>{r.node}</aside>
       </>

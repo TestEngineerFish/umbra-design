@@ -63,6 +63,12 @@ body { margin: 0; background: var(--tool-bg); color: var(--tool-text); font-fami
 
    **收起时外层收宽 / 收高，里层保持原来的尺寸被裁掉** —— 这样文字不会一帧一帧重排换行。 */
 :root {
+  /* 暗底（设计侧第九轮回复 §一.2）。⚠️ **这不是「接层」** ——
+     它不是用来接点击的，是在告诉用户「后面那块暂时不能用」。
+     所以浮层那套 capture 监听**不替换它**，这三处照稿保留。
+     取值是稿里的真数值：让位浮层 22%、抽屉 18%，而且不是纯黑。 */
+  --scrim-yield: rgba(15, 18, 24, .22);
+  --scrim-drawer: rgba(15, 18, 24, .18);
   --dur-fast: 120ms;
   --dur-mid: 180ms;
   --dur-slow: 240ms;
@@ -117,3 +123,11 @@ body:has([data-ud="tabmenu"]) iframe { pointer-events: none; }
    方向反了的话，浮层看起来是从它要盖住的那块内容里长出来的。 */
 @keyframes popDown { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
 @keyframes popUp   { from { opacity: 0; transform: translateY(4px);  } to { opacity: 1; transform: none; } }
+
+/* 「减少动态效果」：位移去掉，**淡入淡出保留**（设计侧第九轮回复 §三 末行）。
+   全都关掉的话浮层会硬切出现，比有动画更难看出它是新出来的东西。 */
+@media (prefers-reduced-motion: reduce) {
+  @keyframes popDown { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes popUp   { from { opacity: 0; } to { opacity: 1; } }
+  .anim-col, .anim-row, .anim-block { transition-duration: 1ms !important; }
+}

@@ -374,6 +374,62 @@ console.log("\n浮层形制：宽度 · 行高 · 进场方向 · 键盘（M8-28
   ok(await pg.locator('[data-ud="ctxmenu"]').count() === 0, "Esc 收掉");
 }
 
+/* ── 设计侧第九轮回复的五处纠正（M8-30）──
+   它这一轮没改稿，只给了形制答复；下面每条都对着它文件里的一句话。 */
+console.log("\n第九轮回复的五处纠正（M8-30）");
+{
+  /* ① 退场按「怎么关的」分：Esc = 淡出 80ms，选中 = 直接卸载（§三） */
+  const row = pg.locator('[role="treeitem"]').first();
+  await row.click({ button: "right" }); await pg.waitForTimeout(400);
+  ok(await pg.locator('[data-ud="ctxmenu"]').count() === 1, "右键起得出菜单");
+  await pg.keyboard.press("Escape"); await pg.waitForTimeout(30);
+  /* 刚按下 Esc 的那一瞬间它该**还在**、且已经不接指针了 —— 这就是 80ms 淡出 */
+  const fading = await pg.locator('[data-ud="ctxmenu"][data-exiting]').count();
+  ok(fading === 1, "Esc 关：先淡出 80ms（这一帧还在 DOM 里，标着 data-exiting）");
+  const noHit = await pg.locator('[data-ud="ctxmenu"]').evaluate((e) => getComputedStyle(e).pointerEvents).catch(() => "?");
+  ok(noHit === "none", "淡出期间不接指针（正在消失的菜单项不该还能点到）", noHit);
+  await pg.waitForTimeout(300);
+  ok(await pg.locator('[data-ud="ctxmenu"]').count() === 0, "淡完就没了");
+
+  /* ② 悬停跟着挪焦点（§二.3）：鼠标停在哪行，键盘焦点就在哪行 —— 不能两行同时亮 */
+  await row.click({ button: "right" }); await pg.waitForTimeout(400);
+  const items = pg.locator('[data-ud="ctxmenu"] [role="menuitem"]:not([disabled])');
+  const n = await items.count();
+  if (n >= 2) {
+    await items.nth(1).hover(); await pg.waitForTimeout(200);
+    const same = await pg.evaluate(() => {
+      const m = document.querySelector('[data-ud="ctxmenu"]');
+      const b = m && Array.from(m.querySelectorAll('[role="menuitem"]:not([disabled])'));
+      return !!b && b[1] === document.activeElement; });
+    ok(same, "悬停跟着挪焦点（悬停和键盘高亮是同一个当前行）");
+  } else ok(false, "菜单项太少，这条没测成");
+  await pg.keyboard.press("Escape"); await pg.waitForTimeout(300);
+
+  /* ③ 信息卡不接 ↑↓（§二.2）：里面是数字框和滑块，↑↓ 是它们调值的键 */
+  if (await openByName(".dc.html")) {
+    await pg.waitForTimeout(1200);
+    /* ⚠️ 信息卡在**正文右下角的浮块**里，不在编辑栏 —— 第九轮把「看稿用的」
+       （宽度 · 缩放 · 浅深）都挪去了那儿，编辑栏只留「改稿用的」。
+       第一版判据找错了地方，报「找不到信息卡钮」，看着像缺陷其实是判据的问题。 */
+    const size = pg.locator('[data-ud="corner"] button[aria-expanded]').first();
+    if (await size.count()) {
+      await size.click(); await pg.waitForTimeout(400);
+      const before = await pg.evaluate(() => document.activeElement?.tagName);
+      await pg.keyboard.press("ArrowDown"); await pg.waitForTimeout(200);
+      const after = await pg.evaluate(() => document.activeElement?.tagName);
+      ok(before === after, "信息卡不接 ↑↓（焦点没被浮层挪走，↑↓ 还归数字框/滑块）", `${before} → ${after}`);
+      await pg.keyboard.press("Escape"); await pg.waitForTimeout(300);
+    } else ok(false, "找不到信息卡钮，这条没测成");
+  }
+
+  /* ④ 暗底不是接层，照稿取真值（§一.2）：让位浮层 22%、抽屉 18%，且不是纯黑 */
+  const scrims = await pg.evaluate(() => {
+    const cs = getComputedStyle(document.documentElement);
+    return { y: cs.getPropertyValue("--scrim-yield").trim(), d: cs.getPropertyValue("--scrim-drawer").trim() }; });
+  ok(/\.22\)$/.test(scrims.y) && /15, *18, *24/.test(scrims.y), "让位浮层暗底 = 稿里的 rgba(15,18,24,.22)", scrims.y);
+  ok(/\.18\)$/.test(scrims.d) && /15, *18, *24/.test(scrims.d), "抽屉暗底 = 稿里的 rgba(15,18,24,.18)", scrims.d);
+}
+
 /* ── ⌘E / ⌘⌥B 开合（M8-28 · 设计侧第九轮 §三）──
    **这一节和默认值无关**，只问「按了会不会变」：先归一到收起，再开、再收。 */
 console.log("\n详情三层的开合：⌘E · ◨（M8-28）");

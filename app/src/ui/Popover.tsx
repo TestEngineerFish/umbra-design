@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { installAcrossFrames } from "./frames";
 
 /** 浮层：下拉、菜单、选择器共用这一份（M8-25）。
  *
@@ -22,37 +23,84 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
  *  容器 `max-w 320` · 菜单 `min-w 200` · 内边距菜单 4、尺寸档 `10 8 8` ·
  *  菜单行 28 高 / `0 8` / `gap 16` · 选项行 `min-h 36` · 进场 `popDown|popUp 120ms`。
  *
- *  ⚠️ **只有进场动画，没有退场** —— 原稿是直接卸载的。想加退场就得让浮层多活一帧，
- *  而浮层里常有「点完就换内容」的项（切引擎、切会话），多活那一帧会看到旧内容闪一下。
+ *  **退场按「怎么关的」分**（设计侧第九轮回复 §三）。我们原来一律直接卸载，理由是
+ *  「点完就换内容的项，多活一帧会闪旧内容」—— 设计侧认了这条，但指出它只对**选中**那一种成立：
+ *
+ *  | 怎么关的 | 退场 |
+ *  | --- | --- |
+ *  | 选中了一项（⏎ 或点击） | 直接卸载，不淡出 |
+ *  | Esc · 点别处 · 再点触发钮 · Tab 走出去 | 80 ms 淡出，**淡出期间不接指针** |
+ *  | 开新浮层顶掉旧的 · 窗口大小变了 | 直接卸载 |
+ *
+ *  所以 `close()` 要带**原因**。不带的按 `dismiss`（淡出）——
+ *  漏传的代价是多一次 80ms 淡出，比反过来（该淡的没淡）轻。
  */
+export type CloseReason =
+  /** 选中了一项：直接卸载。多活一帧会看到旧内容闪一下 */
+  | "pick"
+  /** Esc / 点别处 / 再点触发钮 / Tab 走出去：80ms 淡出 */
+  | "dismiss"
+  /** 被别的浮层顶掉、窗口变了：直接卸载 */
+  | "replace";
+
+/** 淡出时长。和进场的 120ms 不同 —— 设计侧给的就是不对称的两个数：
+ *  出现要让人看清它从哪儿长出来，消失只要别是硬切。 */
+const EXIT_MS = 80;
 export interface PopoverCtl {
   open: boolean;
+  /** 正在淡出：还在 DOM 里，但已经不接指针了 */
+  exiting: boolean;
   toggle: () => void;
-  close: () => void;
+  close: (why?: CloseReason) => void;
   anchorRef: React.RefObject<HTMLElement>;
 }
 
 export function usePopover(): PopoverCtl {
   const [open, setOpen] = useState(false);
+  const [exiting, setExiting] = useState(false);
   const anchorRef = useRef<HTMLElement>(null);
+  const timer = useRef<number | null>(null);
+  /* 组件卸载时把定时器清掉，否则会对着已卸载的组件 setState */
+  useEffect(() => () => { if (timer.current) window.clearTimeout(timer.current); }, []);
+  const close = useCallback((why: CloseReason = "dismiss") => {
+    if (why !== "dismiss") { setOpen(false); setExiting(false); return; }
+    setExiting(true);
+    if (timer.current) window.clearTimeout(timer.current);
+    timer.current = window.setTimeout(() => { setOpen(false); setExiting(false); }, EXIT_MS);
+  }, []);
   return {
-    open,
-    toggle: useCallback(() => setOpen((o) => !o), []),
-    close: useCallback(() => setOpen(false), []),
+    open, exiting,
+    /* 再点一次触发钮 = dismiss（要淡出）；打开时把上一次的淡出状态清掉 */
+    toggle: useCallback(() => setOpen((o) => { if (o) { close("dismiss"); return o; } setExiting(false); return true; }), [close]),
+    close,
     anchorRef,
   };
 }
 
-/** 一个不依赖 `usePopover` 的受控版本 —— 右键菜单那种「位置跟着鼠标」的用它 */
-export function PopoverAt({ x, y, onClose, width, tag, pad, children }: {
-  x: number; y: number; onClose: () => void; width?: number; tag?: string; pad?: string; children: React.ReactNode;
+/** 一个不依赖 `usePopover` 的受控版本 —— 右键菜单那种「位置跟着鼠标」的用它。
+ *
+ *  淡出由它**自己管**：外面点掉时先淡 80ms 再回调 `onClose`（那时父组件才卸载它）；
+ *  而选中一项时是父组件直接调 `onClose`，立刻卸载 —— 正好对上「选中直接卸载」那一档，
+ *  不用给每个调用处加参数。 */
+export function PopoverAt({ x, y, onClose, width, tag, pad, keys, children }: {
+  x: number; y: number; onClose: () => void; width?: number; tag?: string; pad?: string;
+  keys?: KeyMode; children: React.ReactNode;
 }) {
+  const [exiting, setExiting] = useState(false);
+  const timer = useRef<number | null>(null);
+  useEffect(() => () => { if (timer.current) window.clearTimeout(timer.current); }, []);
+  const dismiss = useCallback(() => {
+    setExiting(true);
+    if (timer.current) window.clearTimeout(timer.current);
+    timer.current = window.setTimeout(onClose, EXIT_MS);
+  }, [onClose]);
   /* 右键菜单贴着鼠标，**不留 4px 间隙**（原稿：`G = p.point ? 0 : 4`）——
      有间隙的话鼠标和菜单之间空一条，看着像没对准。 */
-  return <Layer rect={{ left: x, top: y, right: x, bottom: y, width: 0, height: 0 }} anchor={null} onClose={onClose} width={width} align="start" tag={tag} pad={pad} gap={0}>{children}</Layer>;
+  return <Layer rect={{ left: x, top: y, right: x, bottom: y, width: 0, height: 0 }} anchor={null}
+    onClose={dismiss} exiting={exiting} width={width} align="start" tag={tag} pad={pad} gap={0} keys={keys}>{children}</Layer>;
 }
 
-export function Popover({ pop, align = "end", width, tag, pad, children }: {
+export function Popover({ pop, align = "end", width, tag, pad, keys, children }: {
   pop: PopoverCtl;
   /** 相对触发元素怎么对齐：`start` 左对齐 · `end` 右对齐 · `center` 居中 */
   align?: "start" | "end" | "center";
@@ -61,6 +109,8 @@ export function Popover({ pop, align = "end", width, tag, pad, children }: {
   tag?: string;
   /** 内边距。菜单类不给（默认 4px）；里面是成行控件的给 `"10px 8px 8px"`（原稿的尺寸档） */
   pad?: string;
+  /** 键盘怎么走，见 `KeyMode` */
+  keys?: KeyMode;
   children: React.ReactNode;
 }) {
   const [rect, setRect] = useState<DOMRect | null>(null);
@@ -69,17 +119,36 @@ export function Popover({ pop, align = "end", width, tag, pad, children }: {
     const el = pop.anchorRef.current;
     if (el) setRect(el.getBoundingClientRect());
   }, [pop.open, pop.anchorRef]);
+  const dismiss = useCallback(() => pop.close("dismiss"), [pop]);
   if (!pop.open || !rect) return null;
-  return <Layer rect={rect} anchor={pop.anchorRef.current} onClose={pop.close} width={width} align={align} tag={tag} pad={pad}>{children}</Layer>;
+  return <Layer rect={rect} anchor={pop.anchorRef.current} onClose={dismiss} exiting={pop.exiting}
+    width={width} align={align} tag={tag} pad={pad} keys={keys}>{children}</Layer>;
 }
 
 const GAP = 4, EDGE = 8;
 
-function Layer({ rect, anchor, onClose, width, align, tag, pad, gap = GAP, children }: {
+/** 键盘怎么走（设计侧第九轮回复 §二，三处要跟形制对齐）。
+ *
+ *  | 模式 | 谁用 | 为什么 |
+ *  | --- | --- | --- |
+ *  | `roving`（默认） | 菜单、选择器（引擎 / 会话历史） | ↑↓ 移焦点、⏎ 原生触发 |
+ *  | `off` | **信息卡**（宽度 · 缩放）、**带搜索框的选择器**（转到文件） | 见下 |
+ *
+ *  两种 `off` 的理由不一样，都不是「不要键盘」：
+ *  - **信息卡**里是数字框和滑块，**↑↓ 本来就是它们调值的键** —— 被浮层接走就调不了了
+ *  - **带搜索框的**焦点不能离开输入框，不然用户接着打字打不进去。
+ *    那一种由调用处自己在 input 的 `onKeyDown` 里走高亮行 + `aria-activedescendant` */
+export type KeyMode = "roving" | "off";
+
+function Layer({ rect, anchor, onClose, exiting, width, align, tag, pad, gap = GAP, keys = "roving", children }: {
   rect: { left: number; top: number; right: number; bottom: number; width: number; height: number };
   /** 触发元素 —— 点它不算「点外面」，交给它自己 toggle */
   anchor: HTMLElement | null;
-  onClose: () => void; width?: number; align: "start" | "end" | "center"; tag?: string; pad?: string; gap?: number; children: React.ReactNode;
+  onClose: () => void;
+  /** 正在淡出：不接指针、透明度归零。还在 DOM 里是为了让那 80ms 看得见 */
+  exiting?: boolean;
+  width?: number; align: "start" | "end" | "center"; tag?: string; pad?: string; gap?: number;
+  keys?: KeyMode; children: React.ReactNode;
 }) {
   const box = useRef<HTMLDivElement>(null);
   /* `up` 决定进场是往下展开还是往上（`popDown` / `popUp`）；
@@ -112,6 +181,7 @@ function Layer({ rect, anchor, onClose, width, align, tag, pad, gap = GAP, child
      在盒子里查按钮、`.focus()` 过去，`Enter` 交给浏览器原生触发。
      换来的好处是引擎 / 历史 / 尺寸那几个非菜单浮层顺带也能键盘走。 */
   useEffect(() => {
+    if (keys === "off") return;
     const on = (e: KeyboardEvent) => {
       if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(e.key)) return;
       const el = box.current; if (!el) return;
@@ -125,8 +195,17 @@ function Layer({ rect, anchor, onClose, width, align, tag, pad, gap = GAP, child
       btns[next]!.scrollIntoView({ block: "nearest" });
     };
     document.addEventListener("keydown", on, true);
-    return () => document.removeEventListener("keydown", on, true);
-  }, []);
+    /* **悬停要跟着挪焦点**（设计侧 §二.3）：不然鼠标停在第 2 行、键盘焦点在第 4 行，
+       两行同时亮 —— 违反「悬停和键盘高亮是同一个当前行」。
+       用事件委托而不是给每个 `PopItem` 加 `onMouseEnter`：浮层里的行不止 `PopItem` 一种。 */
+    const el = box.current;
+    const enter = (e: Event) => {
+      const t = (e.target as HTMLElement | null)?.closest("button:not([disabled])") as HTMLElement | null;
+      if (t && el?.contains(t) && document.activeElement !== t) t.focus();
+    };
+    el?.addEventListener("mouseover", enter);
+    return () => { document.removeEventListener("keydown", on, true); el?.removeEventListener("mouseover", enter); };
+  }, [keys]);
 
   useEffect(() => {
     const on = (e: KeyboardEvent) => { if (e.key === "Escape") { e.stopPropagation(); onClose(); } };
@@ -144,14 +223,19 @@ function Layer({ rect, anchor, onClose, width, align, tag, pad, gap = GAP, child
       if (anchor?.contains(t)) return;           // 点触发钮：交给它 toggle，别在这儿抢着关
       onClose();
     };
-    document.addEventListener("mousedown", on, true);
-    document.addEventListener("contextmenu", on, true);
-    return () => { document.removeEventListener("mousedown", on, true); document.removeEventListener("contextmenu", on, true); };
+    /* ⚠️ **要挂到同源 iframe 上**（设计侧 §一.2 点名要补）：
+       浮层开着时在稿里右键或按下鼠标，事件在稿自己的 document 上冒泡，
+       顶层收不到 —— 浮层就赖着不走。和快捷键是同一个坑（`00` §八十一）。 */
+    return installAcrossFrames((doc) => {
+      doc.addEventListener("mousedown", on, true);
+      doc.addEventListener("contextmenu", on, true);
+      return () => { doc.removeEventListener("mousedown", on, true); doc.removeEventListener("contextmenu", on, true); };
+    });
   }, [onClose, anchor]);
 
   return (
     <>
-      <div ref={box} role="menu" data-ud={tag ?? "popover"} data-up={pos?.up || undefined}
+      <div ref={box} role="menu" data-ud={tag ?? "popover"} data-up={pos?.up || undefined} data-exiting={exiting || undefined}
         className="fixed z-[71] bg-panel border border-borderStrong rounded-lg shadow-2xl text-xs overflow-x-hidden overflow-y-auto"
         style={{
           left: pos?.left ?? -9999, top: pos?.top ?? -9999,
@@ -163,7 +247,10 @@ function Layer({ rect, anchor, onClose, width, align, tag, pad, gap = GAP, child
           /* 位置算出来之前先藏着 —— 不然会看到它从左上角跳过来。
              用 `visibility` 而不是 `opacity`：`opacity: 0` 的东西还能被点到。 */
           visibility: pos ? "visible" : "hidden",
-          animation: pos ? `${pos.up ? "popUp" : "popDown"} var(--dur-fast) var(--ease)` : undefined,
+          animation: pos && !exiting ? `${pos.up ? "popUp" : "popDown"} var(--dur-fast) var(--ease)` : undefined,
+          /* 淡出：80ms 归零，期间**不接指针** —— 正在消失的东西还能点到，
+             用户会点到一个他以为已经没了的菜单项。 */
+          ...(exiting ? { opacity: 0, pointerEvents: "none" as const, transition: `opacity ${EXIT_MS}ms linear` } : null),
         }}
         onMouseDown={(e) => e.stopPropagation()}>
         {children}
