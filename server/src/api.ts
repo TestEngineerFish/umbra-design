@@ -430,23 +430,6 @@ export async function handleApi(
       json(reply, 200, { ok: true, data: r });
       return true;
     }
-    if (route === "dir_create" && req.method === "POST") {
-      /* 目录右键菜单的「新建目录」（M8-21）。MCP 侧早就有 `create_folder`，
-         本地 API 一直没开这条路由 —— 界面上没有入口，所以没人发现缺。 */
-      const b = await readBody(req) as { path?: string };
-      const { createFolder } = await import("./project.js");
-      const r = await createFolder(p, str(b.path, "path"));
-      json(reply, 200, { ok: true, data: r });
-      return true;
-    }
-    if (route === "duplicate_draft" && req.method === "POST") {
-      /* 目录右键的「复制一份」（M8-21）。同 `dir_create`：MCP 侧早有，本地 API 没开过。 */
-      const b = await readBody(req) as { path?: string; name?: string };
-      const { duplicateDraft } = await import("./project.js");
-      const r = await duplicateDraft(p, str(b.path, "path"), typeof b.name === "string" ? { newName: b.name } : {});
-      json(reply, 200, { ok: true, data: r });
-      return true;
-    }
     if (route === "chat_channel" && req.method === "POST") {
       const b = await readBody(req) as { session?: string; channel?: string; tool?: string };
       const { setChatChannel } = await import("./chat.js");
@@ -663,16 +646,6 @@ export async function handleApi(
     /* ── M8：泛型文件（目录视图 / .md / 图片 / 通用文件卡都走这几条） ── */
 
     /* ── 浏览器模式的建稿 / 建项目 / 打开目录（Tauri 里走 MCP，浏览器里没有 MCP 通道，走这里；同一份实现） ── */
-    if (route === "create_draft" && req.method === "POST") {
-      if (!originOk(req, ctx.port)) { json(reply, 403, { ok: false, errors: [{ code: "E_API_ORIGIN", message: "Origin 不是本服务" }] }); return true; }
-      const b = await readBody(req);
-      const path = str(b.path, "path");
-      const source = b.source === "copy" ? { kind: "copy" as const, sourceFile: str(b.sourceFile, "sourceFile") }
-        : b.source === "component" ? { kind: "component" as const, componentName: str(b.componentName, "componentName"), title: typeof b.title === "string" ? b.title : undefined }
-        : { kind: "blank" as const, title: typeof b.title === "string" ? b.title : undefined };
-      json(reply, 200, { ok: true, data: await createDraft(p, path, source) });
-      return true;
-    }
     if (route === "create_project" && req.method === "POST") {
       if (!originOk(req, ctx.port)) { json(reply, 403, { ok: false, errors: [{ code: "E_API_ORIGIN", message: "Origin 不是本服务" }] }); return true; }
       const b = await readBody(req);
@@ -714,24 +687,6 @@ export async function handleApi(
     }
 
     /* ── S1 行内撤销（设计侧第三轮 §1.1）：删除到回收站 / 按稿名从回收站恢复最近那份 ── */
-    if (route === "delete_draft" && req.method === "POST") {
-      if (!originOk(req, ctx.port)) { json(reply, 403, { ok: false, errors: [{ code: "E_API_ORIGIN", message: "Origin 不是本服务" }] }); return true; }
-      const b = await readBody(req);
-      const rel = await resolveDraft(p, str(b.file, "file"));
-      json(reply, 200, { ok: true, data: await deleteDraft(p, rel) });
-      return true;
-    }
-    if (route === "restore_draft" && req.method === "POST") {
-      if (!originOk(req, ctx.port)) { json(reply, 403, { ok: false, errors: [{ code: "E_API_ORIGIN", message: "Origin 不是本服务" }] }); return true; }
-      const b = await readBody(req);
-      const file = str(b.file, "file");
-      const base = file.split("/").pop() as string;
-      // S1 只知道稿名不知道回收站路径：取同名里最近删的那份（listTrash 已按时间倒序）
-      const hit = (await listTrash(p)).find((t) => t.originalName === base);
-      if (!hit) throw new Error(`回收站里没有 ${base}`);
-      json(reply, 200, { ok: true, data: await restoreDraft(p, hit.trashPath) });
-      return true;
-    }
 
     /* ── S8 项目设置（M1-9 / M1-10 / M1-12 的界面接线，doc/00 §三十九） ── */
     if (route === "project_settings" && req.method === "GET") {
@@ -766,23 +721,6 @@ export async function handleApi(
       const { buildProject } = await import("./project.js");
       Object.assign(p, await buildProject(p.dir));
       json(reply, 200, { ok: true, data: r });
-      return true;
-    }
-    if (route === "trash_restore" && req.method === "POST") {
-      if (!originOk(req, ctx.port)) { json(reply, 403, { ok: false, errors: [{ code: "E_API_ORIGIN", message: "Origin 不是本服务" }] }); return true; }
-      const b = await readBody(req);
-      json(reply, 200, { ok: true, data: await restoreDraft(p, str(b.trashPath, "trashPath")) });
-      return true;
-    }
-    if (route === "trash_purge" && req.method === "POST") {
-      if (!originOk(req, ctx.port)) { json(reply, 403, { ok: false, errors: [{ code: "E_API_ORIGIN", message: "Origin 不是本服务" }] }); return true; }
-      const b = await readBody(req);
-      json(reply, 200, { ok: true, data: await purgeTrash(p, str(b.trashPath, "trashPath")) });
-      return true;
-    }
-    if (route === "trash_empty" && req.method === "POST") {
-      if (!originOk(req, ctx.port)) { json(reply, 403, { ok: false, errors: [{ code: "E_API_ORIGIN", message: "Origin 不是本服务" }] }); return true; }
-      json(reply, 200, { ok: true, data: await emptyTrash(p) });
       return true;
     }
     if ((route === "project_archive" || route === "project_delete") && req.method === "POST") {

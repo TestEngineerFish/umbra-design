@@ -246,59 +246,6 @@ server.registerTool("create_project", {
 
 // ─────────────────────── 稿件创建（M1-3）───────────────────────
 
-server.registerTool("create_draft", {
-  title: "新建一份稿",
-  description: [
-    "四种来源：",
-    "  blank        —— 空白骨架（默认）",
-    "  copy         —— 复制现有稿（不复制快照，新稿从 v1 起）",
-    "  component    —— 把组件包一层，创建只含 dc-import 的页稿",
-    "  template     —— 从模板文件复制",
-    "",
-    "path 相对项目根，必须以 .dc.html 结尾。文件已存在会报错。",
-  ].join("\n"),
-  inputSchema: {
-    project: z.string(),
-    path: z.string().describe("相对项目根的路径，必须以 .dc.html 结尾"),
-    source: z.enum(["blank", "copy", "component", "template"]).describe("稿的来源"),
-    title: z.string().optional().describe("空白稿或组件包装稿的标题，不给时用文件名"),
-    sourceFile: z.string().optional().describe("source=copy 时的源稿路径（相对项目根）"),
-    componentName: z.string().optional().describe("source=component 时的组件名（dc-import name）"),
-    templatePath: z.string().optional().describe("source=template 时的模板绝对路径"),
-    templateName: z.string().optional().describe("source=template 时的模板名（用 list_templates 可查）"),
-  },
-}, async ({ project, path, source, title, sourceFile, componentName, templatePath, templateName }) => run(async () => {
-  const p = await loadProject(project);
-
-  let src: any;
-  switch (source) {
-    case "blank":
-      src = { kind: "blank", title };
-      break;
-    case "copy":
-      if (!sourceFile) throw new Error("source=copy 时必须传 sourceFile");
-      src = { kind: "copy", sourceFile };
-      break;
-    case "component":
-      if (!componentName) throw new Error("source=component 时必须传 componentName");
-      src = { kind: "component", componentName, title };
-      break;
-    case "template": {
-      let tPath = templatePath;
-      if (templateName && !tPath) {
-        // 从模板目录解析
-        tPath = join(p.dir, ".umbrastudio/templates", `${templateName}.dc.html`);
-      }
-      if (!tPath) throw new Error("source=template 时必须传 templatePath 或 templateName");
-      src = { kind: "template", templatePath: tPath };
-      break;
-    }
-  }
-
-  const r = await createDraft(p, path, src);
-  return envelope(r, [], {});
-}));
-
 // ─────────────────────── 目录探查（应用前端新建项目面板，UI-7）───────────────────────
 server.registerTool("inspect_dir", {
   title: "探查一个目录能不能当项目",
@@ -330,139 +277,13 @@ server.registerTool("inspect_dir", {
 
 // ─────────────────────── 稿件改名（M1-4）───────────────────────
 
-server.registerTool("rename_draft", {
-  title: "重命名一份稿",
-  description: [
-    "重命名稿，并**连带更新所有引用它的 dc-import name**（doc/01 H4）。",
-    "改名只改基名，不改所在目录（移动用 move_draft）。",
-    "返回里会列出哪些稿被更新了 —— 改名前应该先看 list_references 确认影响面。",
-  ].join("\n"),
-  inputSchema: {
-    project: z.string(),
-    path: z.string().describe("当前稿的相对路径，如 组件A.dc.html"),
-    newName: z.string().describe("新基名，如 新名字（不用加 .dc.html）"),
-  },
-}, async ({ project, path, newName }) => run(async () => {
-  const p = await loadProject(project);
-  const r = await renameDraft(p, path, newName);
-  return envelope(r, [], { referencesUpdated: r.referencesUpdated });
-}));
-
 // ─────────────────────── 稿件复制（M1-5）───────────────────────
-
-server.registerTool("duplicate_draft", {
-  title: "复制一份稿",
-  description: [
-    "复制一份稿到同目录下，默认名 `<原名> 副本.dc.html`，冲突时自动加序号。",
-    "快照不跟着复制 —— 新稿从 v1 起（doc/12 M1-5）。",
-    "复制后的稿保留原有的 dc-import 引用，两份互不影响。",
-  ].join("\n"),
-  inputSchema: {
-    project: z.string(),
-    path: z.string().describe("要复制的稿的相对路径"),
-    newName: z.string().optional().describe("新稿名，不给时默认 `<原名> 副本`"),
-  },
-}, async ({ project, path, newName }) => run(async () => {
-  const p = await loadProject(project);
-  const r = await duplicateDraft(p, path, { newName });
-  return envelope(r, [], { newPath: r.newPath });
-}));
 
 // ─────────────────────── 稿件移动（M1-6）───────────────────────
 
-server.registerTool("move_draft", {
-  title: "移动稿到目标目录",
-  description: [
-    "移动稿到目标目录，跨目录移动时引用路径要跟着修（相对路径基准变了）。",
-    "目标目录不存在会自动创建。目标文件已存在会自动加序号。",
-    "返回里会列出哪些稿的 dc-import name 被更新了。",
-  ].join("\n"),
-  inputSchema: {
-    project: z.string(),
-    path: z.string().describe("当前稿的相对路径"),
-    targetDir: z.string().describe("目标目录相对项目根的路径，如 Components 或 Pages"),
-  },
-}, async ({ project, path, targetDir }) => run(async () => {
-  const p = await loadProject(project);
-  const r = await moveDraft(p, path, targetDir);
-  return envelope(r, [], { referencesUpdated: r.referencesUpdated });
-}));
-
 // ─────────────────────── 删除与回收站（M1-7）───────────────────────
 
-server.registerTool("get_delete_impact", {
-  title: "查看删除稿的影响面",
-  description: [
-    "删除前先看有哪些稿引用了它。删除后这些稿都会报 E_IMPORT_MISSING。",
-    "这个工具不实际删除，只返回影响面。确认后再调 delete_draft。",
-  ].join("\n"),
-  inputSchema: {
-    project: z.string(),
-    path: z.string().describe("要检查的稿的相对路径"),
-  },
-}, async ({ project, path }) => run(async () => {
-  const p = await loadProject(project);
-  const impact = await deleteDraftImpact(p, path);
-  return envelope(impact, [], { affectedCount: impact.affectedCount });
-}));
-
-server.registerTool("delete_draft", {
-  title: "删除稿到回收站",
-  description: [
-    "删除稿到 `.umbrastudio/trash/<时间戳>/` 目录下（回收站语义，doc/11 Q4）。",
-    "不彻底删除，随时可以恢复。删除前建议先调 get_delete_impact 看影响面。",
-    "如果稿被其他稿引用，删除后那些稿会报 E_IMPORT_MISSING。",
-  ].join("\n"),
-  inputSchema: {
-    project: z.string(),
-    path: z.string().describe("要删除的稿的相对路径"),
-  },
-}, async ({ project, path }) => run(async () => {
-  const p = await loadProject(project);
-  const r = await deleteDraft(p, path);
-  return envelope(r, [], { trashPath: r.trashPath });
-}));
-
-server.registerTool("list_trash", {
-  title: "列出回收站中的稿件",
-  description: "列出回收站（`.umbrastudio/trash/`）中的所有已删除稿。",
-  inputSchema: { project: z.string() },
-}, async ({ project }) => run(async () => {
-  const p = await loadProject(project);
-  const items = await listTrash(p);
-  return envelope({ items }, [], { count: items.length });
-}));
-
-server.registerTool("restore_draft", {
-  title: "从回收站恢复稿",
-  description: [
-    "从回收站恢复稿到原始位置（同名冲突时自动加序号）。",
-    "恢复后，引用了这份稿的其他稿不再报 E_IMPORT_MISSING。",
-  ].join("\n"),
-  inputSchema: {
-    project: z.string(),
-    trashPath: z.string().describe("回收站路径，如 .umbrastudio/trash/2026-09-20T12-00-00-000Z/组件.dc.html"),
-  },
-}, async ({ project, trashPath }) => run(async () => {
-  const p = await loadProject(project);
-  const r = await restoreDraft(p, trashPath);
-  return envelope(r, [], { restored: r.originalPath });
-}));
-
 // ─────────────────────── 文件夹（M1-8）─────────────────────────
-
-server.registerTool("create_folder", {
-  title: "创建稿件目录",
-  description: "在项目目录下创建一个子目录。稿可以用 move_draft 移进去。",
-  inputSchema: {
-    project: z.string(),
-    path: z.string().describe("目录相对项目根的路径，如 Components 或 Pages/子目录"),
-  },
-}, async ({ project, path }) => run(async () => {
-  const p = await loadProject(project);
-  const r = await createFolder(p, path);
-  return envelope(r, [], { path: r.path });
-}));
 
 // ─────────────────────── 项目设置（M1-9）───────────────────────
 
