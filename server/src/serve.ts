@@ -15,6 +15,7 @@ import { err, ToolError } from "./envelope.js";
 import { TOOL_ROOT, type Project } from "./project.js";
 import { isToolPage } from "./indexpage.js";
 import { API_PREFIX, handleApi, newToken, type ApiCtx } from "./api.js";
+import { pluginDirOf } from "./plugin/store.js";
 
 const MIME: Record<string, string> = {
   ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8",
@@ -35,13 +36,35 @@ const NO_BUILD_PAGE = `<!doctype html><meta charset="utf-8"><title>Umbra Studio<
   + `<div style="text-align:center"><p style="font-weight:620">前端还没构建</p>`
   + `<p style="color:#79818d">在仓库根跑一次：<code style="font-family:ui-monospace,Menlo,monospace">npm --prefix app install &amp;&amp; npm --prefix app run build</code></p></div>`;
 
-function serveStatic(root: string, rel: string, reply: import("node:http").ServerResponse): boolean {
+function serveStatic(root: string, rel: string, reply: import("node:http").ServerResponse, extra?: Record<string, string>): boolean {
   const f = resolve(root, "." + normalize(rel));
   if (!f.startsWith(root) || !existsSync(f) || statSync(f).isDirectory()) return false;
-  reply.writeHead(200, { "content-type": MIME[extname(f).toLowerCase()] ?? "application/octet-stream", "cache-control": "no-store" });
+  reply.writeHead(200, { "content-type": MIME[extname(f).toLowerCase()] ?? "application/octet-stream", "cache-control": "no-store", ...extra });
   createReadStream(f).pipe(reply);
   return true;
 }
+
+/** 插件 UI（A 面）的 CSP（M11-4，`doc/20` §三）。
+ *
+ *  ⚠️ **CSP 必须下在响应头上，不能只靠页面里的 `<meta>`。**
+ *  `<meta>` 版插件虽然也解不开（CSP 只能收紧不能放松），但响应头它**连碰都碰不到** ——
+ *  差别在于：插件如果能控制自己那张 HTML 的首字节（它本来就能），
+ *  `<meta>` 得排在它之前才生效，而这一点要靠我们检查它的 HTML，
+ *  等于把安全建在「插件写得规矩」上。
+ *
+ *  实测过的一条（`doc/20` §3.3）：**`iframe sandbox` 单独用不挡网络** ——
+ *  `fetch` / `<img src>` / `sendBeacon` / `WebSocket` 全都能把项目内容偷传出去。
+ *  `default-src 'none'` 把这四条全堵上。 */
+const PLUGIN_CSP = [
+  "default-src 'none'",
+  "script-src 'self' 'unsafe-inline'",     // 插件自己的脚本
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob:",            // 只看得到自己目录下的图
+  "font-src 'self'",
+  "connect-src 'none'",                    // 不许外联 —— 要数据就走 postMessage 问宿主
+  "form-action 'none'",
+  "base-uri 'none'",
+].join("; ");
 
 /** 进程级注册表：项目名 → 正在跑的服务 */
 const running = new Map<string, Running>();
@@ -100,6 +123,23 @@ function makeServer(dir: string | null, onHit: () => void, api: () => ApiCtx | n
       return;
     }
     if (raw.startsWith("/__app/") && serveStatic(APP_DIST, raw.slice("/__app".length), reply)) return;
+    /* ═══ 插件 UI（M11-4）═══ `/__plugin/<id>/<路径>`
+       每个插件的静态文件从它自己的目录出，**带 CSP 响应头**。
+       前端把它装进 `<iframe sandbox="allow-scripts">`（不给 allow-same-origin）——
+       两样合起来才是边界：sandbox 管 DOM 和存储，CSP 管网络。 */
+    if (raw.startsWith("/__plugin/")) {
+      const rest = raw.slice("/__plugin/".length);
+      const slash = rest.indexOf("/");
+      const id = slash < 0 ? rest : rest.slice(0, slash);
+      const inner = slash < 0 ? "/index.html" : rest.slice(slash);
+      /* id 只许这个字符集 —— 放行点和横杠之外的东西，`resolve` 就能被绕出插件目录 */
+      if (!/^[a-z0-9]+(\.[a-z0-9-]+){1,4}$/.test(id)) { reply.writeHead(404); reply.end("bad plugin id"); return; }
+      const base = pluginDirOf(id);
+      if (base && serveStatic(base, inner, reply, { "content-security-policy": PLUGIN_CSP })) return;
+      reply.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
+      reply.end(`404 plugin ${id}${inner}`);
+      return;
+    }
     if (raw === "/" || raw.endsWith("/")) raw += "index.dc.html";
     if (dir === null) {   // hub：没有项目目录，只有 /__app/ 与全局 API
       reply.writeHead(302, { location: "/__app/home" }); reply.end(); return;

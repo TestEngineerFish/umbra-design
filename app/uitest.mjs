@@ -618,6 +618,38 @@ else {
 console.log("\n控制台");
 ok(errs.length === 0, "零 error（已排除解析期的模板洞噪声）", errs[0] ?? "");
 
+/* ── 插件 UI 的边界（M11-4）──
+   这是整套插件机制唯一的**安全**断言，所以钉在这儿：
+   ① CSP 要在**响应头**上（插件碰不到那一层，页面里的 meta 它能抢在前面）
+   ② 路径逃不出插件目录
+   ⚠️ 判据本身要有**对照组**才算数 —— 沙箱那一半的对照组在 `doc/20` §3.3 记着读数：
+   不加 CSP 时 fetch / img / sendBeacon / WebSocket 四条外传通道全部打得通。 */
+console.log("\n插件 UI 的边界（M11-4）");
+/* ⚠️ **这一节必须排在「控制台零 error」之后**：下面那两次逃逸探测本来就该是 404，
+   而 404 会在控制台留一条 `Failed to load resource` —— 放前面会把那条判据打挂，
+   看起来像产品有缺陷，其实是判据自己污染了仪器（M11-4 当场栽过）。 */
+{
+  const origin = new URL(pg.url()).origin;
+  const r = await pg.evaluate(async (o) => {
+    const one = async (u) => { try { const x = await fetch(o + u); return { s: x.status, csp: x.headers.get("content-security-policy") }; } catch (e) { return { s: 0, csp: null }; } };
+    return {
+      ui: await one("/__plugin/com.umbra.demo/index.html"),
+      up: await one("/__plugin/com.umbra.demo/..%2f..%2f..%2fpackage.json"),
+      badId: await one("/__plugin/..%2f..%2fetc/passwd"),
+    };
+  }, origin);
+  if (r.ui.s === 200) {
+    ok(/default-src 'none'/.test(r.ui.csp ?? ""), "插件 UI 的 CSP 在**响应头**上（不是页面里的 meta）", (r.ui.csp ?? "无").slice(0, 40));
+    ok(/connect-src 'none'/.test(r.ui.csp ?? ""), "CSP 禁掉外联 —— iframe sandbox 单独用挡不住 fetch/img/beacon/ws");
+  } else {
+    /* 没装演示插件就跳过，但**说清楚是跳过不是通过** */
+    ok(true, "（跳过）本机没装演示插件，插件 UI 这两条没测", `GET 回 ${r.ui.s}`);
+    ok(true, "（跳过）同上");
+  }
+  ok(r.up.s === 404, "插件目录逃逸：..%2f 上不去");
+  ok(r.badId.s === 404, "插件 id 逃逸：坏 id 直接 404");
+}
+
 console.log(`\n${fail ? "✗" : "✓"} 界面回归 ${pass}/${pass + fail}\n`);
 await b.close();
 process.exit(fail ? 1 : 0);

@@ -8,6 +8,7 @@
  *  `captest` 里钉了一条判据防这个。
  */
 import "./files.js";
+import "./plugins.js";
 
 export { allCaps, capsFor, httpRoutes } from "./registry.js";
 export { originOf, type Cap, type CapCtx, type Face } from "./types.js";

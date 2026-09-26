@@ -45,8 +45,14 @@ for (const f of [
   "core/server/node_modules/playwright-core/index.mjs",         // 体检经 CDP 也要它
   "core/server/node_modules/@modelcontextprotocol/sdk/package.json",
 ]) ok(existsSync(join(RES, f)), f);
-// 不该在包里的：编译期依赖、我们的回归基准、收设计侧稿的暂存处
-for (const f of ["core/server/node_modules/typescript", "core/server/node_modules/@types", "core/fixtures", "core/ui/_incoming"])
+// 不该在包里的：编译期依赖、我们的回归基准、收设计侧稿的暂存处、插件
+/* `core/.umbrastudio` 是 M11-4 加的**预防闸**（当时并没有漏进去 —— 打包配置逐项列目录，
+   没有拷仓库根的项）。钉它是因为：**插件装在 STATE_ROOT，开发时那就是仓库根**，
+   将来谁为了省事加一条「把仓库根某处也拷进去」，插件就会跟着进包，
+   变成 `.app` 里的只读文件 —— 卸不掉也更新不了，而这在开发模式下测不出来
+   （开发时两个 root 都可写，`doc/00` §63.1 同一个坑）。 */
+for (const f of ["core/server/node_modules/typescript", "core/server/node_modules/@types",
+                 "core/fixtures", "core/ui/_incoming", "core/.umbrastudio"])
   ok(!existsSync(join(RES, f)), `${f} 没进包`);
 
 if (!IS_MAC) {
