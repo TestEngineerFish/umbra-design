@@ -1,0 +1,30 @@
+{
+  "_note": "插件市场的目录（M11-6）。现在是本地固定清单，以后换成服务端接口。⚠️ 这里的 permissions 只是给用户装之前看一眼的，权威出处是包里的 manifest —— 两者不一致时以包里的为准。",
+  "plugins": [
+    {
+      "id": "com.umbra.markdown",
+      "name": "Markdown 编辑",
+      "author": "Umbra",
+      "version": "1.0.0",
+      "price": 0,
+      "builtin": true,
+      "size": "随 Umbra 一起",
+      "updated": "9 月 26 日",
+      "brief": "渲染阅读、源码分栏；AI 能按节读、按节改。",
+      "formats": [".md", ".markdown"],
+      "permissions": { "files": ["read", "write"], "net": [] },
+      "tools": [
+        {
+          "name": "列出章节", "id": "outline",
+          "desc": "只读标题和每节的位置，不读正文",
+          "sample": { "task": "改其中一节，AI 要读写多少", "without": "whole", "with": "只读标题行" }
+        },
+        {
+          "name": "替换某一节", "id": "replace_section",
+          "desc": "只写那一节，别的节原样不动",
+          "sample": { "task": "改其中一节，AI 要读写多少", "without": "whole", "with": "那一节" }
+        }
+      ]
+    }
+  ]
+}

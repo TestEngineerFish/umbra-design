@@ -28,7 +28,7 @@ defineCap({
       plugins: list.map((p) => ({
         id: p.manifest.id, name: p.manifest.name, version: p.manifest.version,
         surfaces: p.manifest.surfaces, kinds: (p.manifest.kinds ?? []).map((k) => k.id), bundled: p.bundled,
-        permissions: p.manifest.permissions, ok: p.problems.length === 0, problems: p.problems,
+        permissions: p.manifest.permissions, unsigned: p.unsigned, ok: p.problems.length === 0, problems: p.problems,
       })),
     }, [], { count: list.length });
   },

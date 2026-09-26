@@ -355,7 +355,14 @@ function attachWs(rec: Running, hub = false): void {
          （`CLAUDE.md` 记着「硬编码名单过时」在通道 A / B 上各犯过一次，这是第三次。）
 
          判据换成「**这是不是一种我们认得的文件**」—— 内置和插件加的都自动算数。 */
-      if (kindOf(rel) === BUILTIN.other) return;
+      /* ⚠️ **不按类型过滤**（M11-6 修）。M11-5 把这里从「一串硬编码扩展名」改成了
+         `kindOf(rel) !== "other"`，修掉了「别的编辑器改 .ts 树不刷新」那条真缺陷。
+         但那个判据**选错了维度**：「认不认得这种文件」决定的是**怎么显示**，
+         不该决定**要不要告诉界面它出现了**。
+         症状：新建一个 `.mp4`（落到 other），目录树不刷新 —— 而用户明明刚建了它。
+
+         现在只滤工具自己的产物（上面那一行），别的一律报。
+         代价是二进制大文件改动也会发事件 —— 200ms 已经合并过一次，不心疼。 */
       pending.add(rel);
       if (!timer) timer = setTimeout(() => { const changes = [...pending]; pending = new Set(); timer = null; emit("fs", rec.dir, { changes }); }, 200);
     });

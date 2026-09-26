@@ -65,6 +65,27 @@ export function Workbench({ project, host, layout, setLayout, onHome, onSettings
      得关掉重开才生效。`useKindRegistry` 返回的版本号只用来触发重渲染，值本身不看。 */
   useKindRegistry();
   const mod = moduleFor(kind);
+  /** 点了 ✎ 但这种格式没有编辑能力：**去问市场有没有插件能编辑它**。
+   *
+   *  三种回答（设计侧第十轮要画的三个态，这里先给行为）：
+   *  市场里有 → 引导去买；本机装着但过期 → 引导去续（**授权层还没做，M11-12**）；
+   *  市场里也没有 → 照实说，**不要把人送进一个空市场**。 */
+  const askForEditor = useCallback(() => {
+    const ext = (file ?? "").toLowerCase().replace(/^.*(?=\.)/, "");
+    if (!ext) { toast("这个还不能编辑", undefined, "ok"); return; }
+    void core.get<{ plugins: Array<{ name: string; price: number }> }>(`who_handles?ext=${encodeURIComponent(ext)}`)
+      .then((r) => {
+        const hits = r.data?.plugins ?? [];
+        if (!hits.length) {
+          /* ⚠️ **不送进空市场**。第一期只有三五个插件，大多数格式都落在这里，
+             说「去市场看看」然后什么都没有，比直接说清楚更伤。 */
+          toast(`还没有能编辑 ${ext} 的插件`, "有了会出现在插件市场里，不用更新 Umbra", "ok");
+          return;
+        }
+        const one = hits[0]!;
+        toast(`「${one.name}」能编辑 ${ext}`, one.price ? `${one.price} 积分 · 在插件市场里` : "在插件市场里", "ok");
+      }, () => toast("问不到市场", "本地服务没响应", "error"));
+  }, [file, core]);
   const panels = [...(mod.panels ?? [])];
   const active: PanelId | null = panels.length ? (layout.panelByKind[kind] === undefined ? panels[0]! : (layout.panelByKind[kind] && panels.includes(layout.panelByKind[kind]!) ? layout.panelByKind[kind]! : null)) : null;
   const setActive = useCallback((p: PanelId | null) => setLayout({ ...layout, panelByKind: { ...layout.panelByKind, [kind]: p } }), [layout, setLayout, kind]);
@@ -417,10 +438,23 @@ export function Workbench({ project, host, layout, setLayout, onHome, onSettings
                   {/* ═══ Tab 条右端三颗（第九轮 §三）═══ 位置固定，不跟着格式变。
                       ✎ **按下 = 编辑态，抬起 = 预览态** —— 它顺手吃掉了原来「编辑 / 预览」两档，
                       所以看稿时切来切去的那一下并没有多点一次。 */}
-                  {mod.Toolbar && (
-                    <button data-ud="toggle-edit" onClick={() => setEditOpen((o) => !o)} aria-pressed={editOpen}
-                      title={`${editOpen ? "收起" : "展开"}编辑栏（⌘E）`}
-                      className={`w-7 h-7 grid place-items-center rounded ${editOpen ? "bg-accentSoft text-accent" : "text-muted hover:text-text hover:bg-hover"}`}>
+                  {/* ⚠️ **✎ 永远显示**（用户 2026-09-26 定）。
+                      原来是 `mod.Toolbar && (…)` —— 没有编辑能力就不画，
+                      而「不画」和「这个格式本来就不能编辑」长得一模一样，
+                      用户打开 `.mp4` 看到一张文件卡，没有任何东西告诉他这其实能编辑。
+
+                      新模型：**✎ 始终是一件事 —— 编辑这份文件**，
+                      变的只是「你有没有这个能力」。那是一道闸，不是第二种动作。
+                      位置恒定还带来发现性：学会「编辑在右上角」之后，
+                      遇到不能编辑的格式时顺手就知道去哪买。 */}
+                  {(dirMode || file) && (
+                    <button data-ud="toggle-edit" onClick={() => (mod.Toolbar ? setEditOpen((o) => !o) : askForEditor())}
+                      aria-pressed={mod.Toolbar ? editOpen : undefined}
+                      data-locked={mod.Toolbar ? undefined : true}
+                      title={mod.Toolbar ? `${editOpen ? "收起" : "展开"}编辑栏（⌘E）` : "编辑这种文件需要插件"}
+                      className={`w-7 h-7 grid place-items-center rounded ${
+                        !mod.Toolbar ? "text-muted/60 hover:text-text hover:bg-hover"
+                          : editOpen ? "bg-accentSoft text-accent" : "text-muted hover:text-text hover:bg-hover"}`}>
                       <Glyph icon="edit" />
                     </button>
                   )}

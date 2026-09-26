@@ -13,6 +13,7 @@ import "./design.js";
 import "./drafts.js";
 import "./edit.js";
 import "./history.js";
+import "./market.js";
 import "./plugins.js";
 import "./projects.js";
 

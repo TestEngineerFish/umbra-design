@@ -29,6 +29,10 @@ export interface InstalledPlugin {
   dir: string;
   /** 内置的（跟主程序一起发）：免费、卸不掉 */
   bundled: boolean;
+  /** **未签名**（开发模式装的）。装的时候写了个 `.unsigned` 标记文件，这里读回来。
+   *  ⚠️ 写了标记却不读回来等于没写 —— 界面要靠它显示「未签名」，
+   *  而设计侧第十轮把这一条定成了三处显眼提示（横幅 / 行底色 / 页签红点）。 */
+  unsigned: boolean;
   /** 清单有毛病时装不上，但要**列得出来**并说清为什么 —— 
    *  静静不显示的话，用户只会看到「我装的插件不见了」 */
   problems: Array<{ field: string; why: string }>;
@@ -52,13 +56,17 @@ async function scanRoot(root: string, bundled: boolean, out: InstalledPlugin[]):
     const dir = join(idDir, v);
     let raw: unknown = null;
     try { raw = JSON.parse(await readFile(join(dir, "manifest.json"), "utf8")); }
-    catch (e) { out.push({ manifest: { id } as PluginManifest, dir, bundled, problems: [{ field: "manifest.json", why: `读不了或不是合法 JSON：${(e as Error).message}` }] }); continue; }
+    catch (e) { out.push({ manifest: { id } as PluginManifest, dir, bundled, unsigned: existsSync(join(dir, ".unsigned")), problems: [{ field: "manifest.json", why: `读不了或不是合法 JSON：${(e as Error).message}` }] }); continue; }
     const r = checkManifest(raw);
     /* 清单里的 id 必须和目录名一致 —— 不一致的话，同一个插件会按两个身份存在：
        按目录名卸载，按清单 id 注册能力，卸不干净。 */
     const idMismatch = r.ok && r.manifest!.id !== id
       ? [{ field: "id", why: `清单里写的是 ${r.manifest!.id}，但装在 ${id} 目录下` }] : [];
-    const row = { manifest: (r.manifest ?? { id } as PluginManifest), dir, bundled, problems: [...r.problems, ...idMismatch] };
+    const row = {
+      manifest: (r.manifest ?? { id } as PluginManifest), dir, bundled,
+      unsigned: existsSync(join(dir, ".unsigned")),
+      problems: [...r.problems, ...idMismatch],
+    };
     /* 同 id 覆盖：用户装的那一份压过内置 —— 他可能装了更新的一版 */
     const at = out.findIndex((x) => x.manifest.id === row.manifest.id);
     if (at >= 0) out[at] = row; else out.push(row);

@@ -342,6 +342,55 @@ await pg.waitForTimeout(400);
      bx && mx ? `⋯ 右缘 ${Math.round(mx.x + mx.width)} · Tab 条右缘 ${Math.round(bx.x + bx.width)}` : "量不到");
 }
 
+/* ── ✎ 永远显示（M11-6，用户 2026-09-26 定的模型）──
+   原来是「没有编辑能力就不画」，而**「不画」和「这个格式本来就不能编辑」长得一模一样**。
+   新模型：✎ 始终是「编辑这份文件」，变的只是你有没有这个能力 —— 那是一道闸。
+   ⚠️ 这一节自己建样本自己收（走回收站再精确清掉），不往用户项目里留东西。 */
+console.log("\n✎ 永远显示：有能力直接编辑，没能力引导去市场（M11-6）");
+{
+  const LOCKED = "✎回归样本.mp4";
+  const made = await pg.evaluate(async ({ name }) => {
+    const b = window.__UD_APP;
+    const w = await fetch(`${b.url.replace(/\/$/, "")}/__ud/file_write?token=${encodeURIComponent(b.token)}`,
+      { method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ path: name, content: "回归样本，只是拿个扩展名", expectSha256: "0" }) });
+    return (await w.json()).ok;
+  }, { name: LOCKED });
+  if (made) {
+    await pg.waitForTimeout(1200);
+    const row = pg.locator('[role="treeitem"]').filter({ hasText: LOCKED }).first();
+    /* 顺带钉住 M11-6 修的那条：**不认得的格式，树也要刷新** ——
+       新建一个 .mp4 之后它得出现在树里（磁盘监听原来按类型过滤，落到 other 的不报） */
+    ok(await row.count() === 1, "新建一个**不认得的格式**，目录树照样刷出来（监听不按类型过滤）");
+    if (await row.count()) {
+      await row.click(); await pg.waitForTimeout(1600);
+      const btn = pg.locator('[data-ud="toggle-edit"]');
+      ok(await btn.count() === 1, "**没有编辑能力也显示 ✎**（不画和「本来就不能编辑」长得一样）");
+      ok(await btn.getAttribute("data-locked") === "true", "这一颗是锁定态", await btn.getAttribute("title") ?? "");
+      await btn.click(); await pg.waitForTimeout(1200);
+      const txt = await pg.locator("body").innerText();
+      /* ⚠️ **不把人送进空市场**：第一期只有三五个插件，大多数格式都落在这里，
+         说「去市场看看」然后什么都没有，比直接说清楚更伤。 */
+      ok(/还没有能编辑 \.mp4 的插件/.test(txt), "市场里没有时**照实说**，不把人送进空市场");
+    }
+    await pg.evaluate(async ({ name }) => {
+      const b = window.__UD_APP;
+      const u = (r) => `${b.url.replace(/\/$/, "")}/__ud/${r}?token=${encodeURIComponent(b.token)}`;
+      const post = (r, x) => fetch(u(r), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(x) }).then((y) => y.json());
+      await post("file_trash", { path: name });
+      const t = await fetch(u("trash")).then((y) => y.json()).catch(() => null);
+      for (const it of t?.data?.items ?? []) if (it.originalName === name) await post("trash_purge", { trashPath: it.trashPath });
+    }, { name: LOCKED });
+  } else ok(false, "建不出锁定态的样本，这一组没测成");
+
+  /* 有能力的那一态：.md（内置插件给的） */
+  if (await openByName(".md")) {
+    await pg.waitForTimeout(1500);
+    const btn = pg.locator('[data-ud="toggle-edit"]');
+    ok(await btn.count() === 1 && !(await btn.getAttribute("data-locked")), "有插件的格式：✎ 不是锁定态，点了直接进编辑");
+  }
+}
+
 /* ── 浮层形制（M8-28 · 设计侧第九轮 §四）──
    判据钉的是**会回归的那几样**：菜单类没写死宽度（写死过 224，长项被截）、
    菜单行 28 高、进场动画认方向、键盘 ↑↓ 能走。
