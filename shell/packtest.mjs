@@ -110,24 +110,64 @@ let win = await mainWindow(app);
 await win.waitForFunction(() => /最近打开|还没有项目/.test(document.body.innerText), null, { timeout: 90000 });
 ok(true, "启动到首页", `${Date.now() - t0} ms`);
 
-const probe = await app.evaluate(({ app }) => ({
+/* ⚠️ CDP 端口和那行日志都是**主进程起来之后才写的**，而「窗口出现」比它们早。
+   2026-09-26 实测过一次偶发：同样的产物，一次没有 CDP、一次有 ——
+   那不是产品的问题，是判据抢跑。**等它，别抢**（最多 15 秒）。
+   抢跑的判据比没有判据更糟：它偶尔红一次，人就开始怀疑判据而不是怀疑产品。 */
+const waitFor = async (label, read, ms = 15000) => {
+  const t = Date.now();
+  for (;;) {
+    const v = await read().catch(() => null);
+    if (v) return v;
+    if (Date.now() - t > ms) return null;
+    await new Promise((r) => setTimeout(r, 300));
+  }
+};
+const probe = await waitFor("cdp", async () => {
+  const x = await app.evaluate(({ app }) => ({
+    packaged: app.isPackaged, stateDir: process.env.UMBRASTUDIO_STATE_DIR ?? null,
+    userData: app.getPath("userData"), cdp: process.env.UMBRASTUDIO_CDP ?? null, electron: process.versions.electron,
+  }));
+  return x.cdp ? x : null;
+}) ?? await app.evaluate(({ app }) => ({
   packaged: app.isPackaged, stateDir: process.env.UMBRASTUDIO_STATE_DIR ?? null,
   userData: app.getPath("userData"), cdp: process.env.UMBRASTUDIO_CDP ?? null, electron: process.versions.electron,
 }));
 ok(probe.packaged === true, "主进程认得自己是打包版", `Electron ${probe.electron}`);
 ok(probe.stateDir === probe.userData, "状态目录 = userData（不是 .app 内部）", probe.stateDir ?? "(没设)");
 ok(!!probe.cdp, "自带 Chromium 的 CDP 端口已就绪", probe.cdp ?? "(没有)");
-const coreRoot = JSON.parse((await readFile(logFile, "utf8")).trim().split("\n").pop()).coreRoot;
-ok(coreRoot.startsWith(appCopy), "核心根指着拷过来的产物，没指回仓库", coreRoot.replace(sandbox, "<sandbox>"));
+
+/* 日志同理要等。**而且读不到时要报红，不能让整个测试崩** ——
+   崩掉的话后面二十条判据一条都不跑，而输出里只有一个 ENOENT 栈，
+   看不出「是坏了还是没跑到」。 */
+const logLine = await waitFor("log", async () => {
+  const txt = await readFile(logFile, "utf8").catch(() => "");
+  const last = txt.trim().split("\n").pop();
+  return last && last.startsWith("{") ? last : null;
+});
+const coreRoot = logLine ? (JSON.parse(logLine).coreRoot ?? "") : "";
+ok(!!coreRoot && coreRoot.startsWith(appCopy), "核心根指着拷过来的产物，没指回仓库",
+  coreRoot ? coreRoot.replace(sandbox, "<sandbox>") : "(等不到主进程那行日志)");
 
 await app.evaluate(({ BrowserWindow }, dir) => {
   BrowserWindow.getAllWindows().find((w) => w.isVisible()).webContents.send("host:event", { type: "open-dir", dir });
 }, projCopy);
-// 判据要认 [1-9]：「0 份稿」是加载中的瞬时态，拿它当通过等于什么都没验
-await win.waitForFunction(() => /[1-9]\d* 份稿/.test(document.body.innerText) && !/核心断开/.test(document.body.innerText), null, { timeout: 90000 }).catch(() => {});
-const shown = await win.evaluate(() => (document.body.innerText.match(/(\d+) 份稿/) ?? [])[1] ?? "?");
-ok(Number(shown) > 0, "打开一个从没建过索引的目录（索引现建）", `界面报 ${shown} 份稿`);
-if (!(Number(shown) > 0)) { dumpErr(); await app.close(); rmSync(sandbox, { recursive: true, force: true }); bye("卡在索引这一步，后面没跑"); }
+/* ⚠️ **判据钉在结构上，不钉文案**（2026-09-26 修）。
+   原来等的是页面里出现「N 份稿」—— 那串字在第八/九轮重画时从工作台移走了
+   （现在只在首页的项目卡上，而打开项目之后首页就不在了）。
+   于是这条判据从那时起一直红着，而**打包版其实是好的**。
+
+   它躲了两天没被发现，是因为**这条判据跑一次要先打包**（几分钟）——
+   代价高的判据人就不会顺手跑，不跑的判据就会悄悄过期。
+   这是「判据成本」本身带来的盲区，记一笔。
+
+   现在钉：目录树里真的列出了条目（`role="treeitem"`）。
+   这是「项目打开了、索引现建成功了」的结构证据，重画不会动它。 */
+await win.waitForFunction(() => document.querySelectorAll('[role="treeitem"]').length > 0
+  && !/核心断开/.test(document.body.innerText), null, { timeout: 90000 }).catch(() => {});
+const rows = await win.evaluate(() => document.querySelectorAll('[role="treeitem"]').length);
+ok(rows > 0, "打开一个从没建过索引的目录（索引现建）", `目录树 ${rows} 条`);
+if (!(rows > 0)) { dumpErr(); await app.close(); rmSync(sandbox, { recursive: true, force: true }); bye("卡在索引这一步，后面没跑"); }
 
 /* 体检：自带 Chromium 那条路的唯一硬判据。渲染不出来和渲染对了长得一样，只有读数能分。
    判活认 `alive`（页面里 1+1===2 算得出来），走的哪个浏览器认 `browser.from` ——

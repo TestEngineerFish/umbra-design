@@ -702,10 +702,21 @@ console.log("\n插件 UI 的边界（M11-4）");
         }
         await pg.locator('[data-ud="toggle-props"]').click(); await pg.waitForTimeout(400);
       } else ok(false, "建好了但目录树里没刷出来");
+      /* ⚠️ **扔进回收站不算清干净**：回收站是用户的东西，每跑一次回归就往里堆一条，
+         跑二十次之后用户打开回收站看到二十份「插件回归样本.csv」——
+         那是我们弄脏了他的项目。所以扔完再**彻底清掉那一条**。
+         2026-09-26 发现时已经堆了 18 条（`00` §九十七）。 */
       await pg.evaluate(async ({ name }) => {
         const b = window.__UD_APP;
-        await fetch(`${b.url.replace(/\/$/, "")}/__ud/file_trash?token=${encodeURIComponent(b.token)}`,
-          { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ path: name }) });
+        const u = (r) => `${b.url.replace(/\/$/, "")}/__ud/${r}?token=${encodeURIComponent(b.token)}`;
+        const post = (r, body) => fetch(u(r), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }).then((x) => x.json());
+        await post("file_trash", { path: name });
+        /* 找到刚扔进去的那一份，按 trashPath 精确清掉 —— 不能清空整个回收站，
+           那里面可能有用户自己删的东西。 */
+        const t = await fetch(u("trash")).then((x) => x.json()).catch(() => null);
+        for (const it of t?.data?.items ?? []) {
+          if (it.originalName === name) await post("trash_purge", { trashPath: it.trashPath });
+        }
       }, { name: SAMPLE });
     } else ok(false, "建不出回归样本，A 面端到端没测成");
   }
