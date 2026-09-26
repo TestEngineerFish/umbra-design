@@ -44,6 +44,8 @@ import { setTokenValue } from "./token_edit.js";
 import { listTemplates, saveAsTemplate, deleteTemplate } from "./templates.js";
 import { exportProject, importProject } from "./export.js";
 
+import { capsFor, type CapCtx } from "./cap/index.js";
+
 const VERSION = "0.1.0";
 
 /** 把工具实现包成统一信封；ToolError 转成 errors，其它异常也不许漏成裸崩。 */
@@ -1293,74 +1295,28 @@ server.registerTool("delete_chat", {
    `.dc.html` 在 write_file / move_file 里被显式拒绝并指回 write_draft / move_draft ——
    那条路做的归一化、@ds 展开、__resources、节点地址、语义快照，这条路一样都不做。 */
 
-server.registerTool("list_files", {
-  title: "列目录",
-  description: [
-    "列一层目录里的所有文件（不只设计稿）。目录在前，其余按更新时间倒序。",
-    "每项带 kind（dir / dc / md / image / code / html / other）、大小、更新时间；",
-    "图片带原始尺寸，文本带第一行摘录，改过的文件带最新快照号。",
-    "工具自己产的东西（索引页、壳页面、运行时副本、.umbrastudio/）不列。",
-  ].join("\n"),
-  inputSchema: { project: z.string(), dir: z.string().optional().describe("相对项目根的子目录，不给就是项目根") },
-}, async ({ project, dir }) => run(async () => {
-  const p = await loadProject(project);
-  return envelope(await listFiles(p, dir ?? ""), [], {});
-}));
-
-server.registerTool("read_file", {
-  title: "读一个文件",
-  description: [
-    "读文本文件的正文（md / json / css / js / svg 等），并给出 sha256 —— 写回去时带上它就能防并发覆盖。",
-    "二进制（图片、zip）只给元数据：kind、大小、尺寸、快照号，content 为 null 并说明原因。",
-    "设计稿也能读，但改稿请用 write_draft。",
-  ].join("\n"),
-  inputSchema: { project: z.string(), path: z.string().describe("相对项目根的文件路径") },
-}, async ({ project, path }) => run(async () => {
-  const p = await loadProject(project);
-  return envelope(await readAnyFile(p, path), [], {});
-}));
-
-server.registerTool("write_file", {
-  title: "写一个文件（非设计稿）",
-  description: [
-    "写文本文件，顺序是：写前 sha256 校验 → 存旧版快照 → 原子写 → 存新版快照 → 返回快照号。",
-    "**不归一化、不改编码、不动换行、不碰 frontmatter** —— 写进去什么样，盘上就什么样。",
-    "expectSha256 传 read_file 给的那个值：盘上被别人改过就拒绝，不会把改动盖掉。新建文件传 \"0\"。",
-    "`.dc.html` 会被拒绝并指向 write_draft。",
-  ].join("\n"),
-  inputSchema: {
-    project: z.string(), path: z.string(), content: z.string(),
-    expectSha256: z.string().optional().describe("read_file 返回的 sha256；新建文件给 \"0\"。不给就不做写前校验"),
-    note: z.string().optional().describe("这一版为什么改，记进快照元数据"),
-  },
-}, async ({ project, path, content, expectSha256, note }) => run(async () => {
-  const p = await loadProject(project);
-  const r = await writeAnyFile(p, path, content, { expectSha256, origin: "AI", note });
-  return envelope(r, [], {});
-}));
-
-server.registerTool("move_file", {
-  title: "改名 / 移动一个文件（非设计稿）",
-  description: [
-    "移动文件，并把稿里指向它的 href / src / url() 一起改掉（改稿经 write_draft，照样留快照）。",
-    "稿自己的改名 / 移动请用 rename_draft / move_draft。",
-  ].join("\n"),
-  inputSchema: { project: z.string(), from: z.string(), to: z.string() },
-}, async ({ project, from, to }) => run(async () => {
-  const p = await loadProject(project);
-  return envelope(await moveFile(p, from, to), [], {});
-}));
-
-server.registerTool("list_file_versions", {
-  title: "列一个文件的快照",
-  description: "非设计稿的版本历史（s1 / s2 …），每条带来源与时间。稿的版本用 list_versions。",
-  inputSchema: { project: z.string(), path: z.string() },
-}, async ({ project, path }) => run(async () => {
-  const p = await loadProject(project);
-  return envelope({ path, snapshots: await listSnapshotMeta(p, path) }, [], {});
-}));
-
 // ──────────────────────────── 启动 ────────────────────────────
+
+/* ═══════════════════ 能力注册表 → MCP 面（M11-1，Q36）═══════════════════
+   以前每件能力在这里手写一个 `registerTool`，在 `api.ts` 里再手写一条路由 ——
+   **没有任何机制保证两边一致**，M8 那批就补过五条 MCP 侧早有、本地侧漏掉的能力。
+   现在一件能力在 `cap/` 里声明一次，两个门面各自遍历生成。
+
+   上面那些还没搬过来的 `registerTool` 照旧 —— 一次全搬 66 个风险太大，
+   分批搬，`captest` 钉着「声明了就必须两面都有」。 */
+for (const cap of capsFor("mcp")) {
+  /* `scope: "project"` 的能力入参里**没有** `project`（见 `Cap.input` 的告诫），
+     这里统一注入 —— MCP 的调用方是外部客户端，它没有「当前打开了哪个项目」这回事。 */
+  const inputSchema = cap.scope === "project"
+    ? { project: z.string().describe("项目名，或项目目录名"), ...cap.input }
+    : cap.input;
+  server.registerTool(cap.name, { title: cap.title, description: cap.summary, inputSchema },
+    async (args: Record<string, unknown>) => run(async () => {
+      const { project, ...rest } = args as { project?: string };
+      const ctx: CapCtx = { project: cap.scope === "project" ? await loadProject(project!) : null, via: "mcp" };
+      return cap.run(rest as never, ctx);
+    }));
+}
 
 const transport = new StdioServerTransport();
 await server.connect(transport);

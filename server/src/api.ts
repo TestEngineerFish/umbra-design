@@ -43,6 +43,8 @@ import { resolveDraft } from "./locate.js";
 import { readFile } from "node:fs/promises";
 import { relative, sep } from "node:path";
 import { ToolError } from "./envelope.js";
+import { httpRoutes, type CapCtx } from "./cap/index.js";
+import { z } from "zod";
 import { buildIndex, indexStatus, isToolPage } from "./indexpage.js";
 import { countTypes, listFiles, listSnapshotMeta, moveFile, readAnyFile, referencesOf, revertFile, trashFile, writeAnyFile } from "./files.js";
 import { runChatSend } from "./chat_run.js";
@@ -92,6 +94,16 @@ function originOk(req: IncomingMessage, port: number): boolean {
   // 所以本机任何端口的 127.0.0.1 / localhost 都放行 —— 真正的门槛是随机令牌，Origin 只挡跨站页面。
   if (o === "tauri://localhost" || o === "http://tauri.localhost" || o === "https://tauri.localhost") return true;
   return /^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(o);
+}
+
+/** 一个 zod schema 是不是 number（含 `.optional()` 包了一层的）。
+ *  ⚠️ 不能只看最外层 —— `z.number().optional()` 的 `typeName` 是 `ZodOptional`，
+ *  照那个判会把所有可选数字当成字符串传进去。 */
+function isNumberSchema(d: unknown): boolean {
+  const def = (d as { _def?: { typeName?: string; innerType?: unknown } })._def;
+  if (!def) return false;
+  if (def.typeName === "ZodNumber") return true;
+  return def.innerType ? isNumberSchema(def.innerType) : false;
 }
 
 export interface ApiCtx { project: Project | null; token: string; port: number }
@@ -649,55 +661,6 @@ export async function handleApi(
     }
 
     /* ── M8：泛型文件（目录视图 / .md / 图片 / 通用文件卡都走这几条） ── */
-    if (route === "files" && req.method === "GET") {
-      /* limit=0 表示「全部给我」——「还有 N 项 · 全部显示」那个入口点下去时用 */
-      const lim = url.searchParams.has("limit") ? Number(url.searchParams.get("limit")) : undefined;
-      json(reply, 200, { ok: true, data: await listFiles(p, url.searchParams.get("dir") ?? "", Number.isFinite(lim) ? lim! : undefined) });
-      return true;
-    }
-    if (route === "file" && req.method === "GET") {
-      json(reply, 200, { ok: true, data: await readAnyFile(p, str(url.searchParams.get("path"), "path")) });
-      return true;
-    }
-    if (route === "file_write" && req.method === "POST") {
-      if (!originOk(req, ctx.port)) { json(reply, 403, { ok: false, errors: [{ code: "E_API_ORIGIN", message: "Origin 不是本服务" }] }); return true; }
-      const b = await readBody(req);
-      json(reply, 200, { ok: true, data: await writeAnyFile(p, str(b.path, "path"), typeof b.content === "string" ? b.content : "",
-        { expectSha256: typeof b.expectSha256 === "string" ? b.expectSha256 : undefined, origin: "人手改", note: typeof b.note === "string" ? b.note : undefined }) });
-      return true;
-    }
-    if (route === "file_versions" && req.method === "GET") {
-      const path = str(url.searchParams.get("path"), "path");
-      json(reply, 200, { ok: true, data: { path, snapshots: await listSnapshotMeta(p, path) } });
-      return true;
-    }
-    if (route === "file_revert" && req.method === "POST") {
-      if (!originOk(req, ctx.port)) { json(reply, 403, { ok: false, errors: [{ code: "E_API_ORIGIN", message: "Origin 不是本服务" }] }); return true; }
-      const b = await readBody(req);
-      json(reply, 200, { ok: true, data: await revertFile(p, str(b.path, "path"), str(b.version, "version")) });
-      return true;
-    }
-    if (route === "file_move" && req.method === "POST") {
-      if (!originOk(req, ctx.port)) { json(reply, 403, { ok: false, errors: [{ code: "E_API_ORIGIN", message: "Origin 不是本服务" }] }); return true; }
-      const b = await readBody(req);
-      json(reply, 200, { ok: true, data: await moveFile(p, str(b.from, "from"), str(b.to, "to")) });
-      return true;
-    }
-    if (route === "file_trash" && req.method === "POST") {
-      if (!originOk(req, ctx.port)) { json(reply, 403, { ok: false, errors: [{ code: "E_API_ORIGIN", message: "Origin 不是本服务" }] }); return true; }
-      const b = await readBody(req);
-      json(reply, 200, { ok: true, data: await trashFile(p, str(b.path, "path")) });
-      return true;
-    }
-    if (route === "file_refs" && req.method === "GET") {
-      const path = str(url.searchParams.get("path"), "path");
-      json(reply, 200, { ok: true, data: { path, referencedBy: await referencesOf(p, path) } });
-      return true;
-    }
-    if (route === "file_types" && req.method === "GET") {
-      json(reply, 200, { ok: true, data: { types: await countTypes(p) } });
-      return true;
-    }
 
     /* ── 浏览器模式的建稿 / 建项目 / 打开目录（Tauri 里走 MCP，浏览器里没有 MCP 通道，走这里；同一份实现） ── */
     if (route === "create_draft" && req.method === "POST") {
@@ -842,6 +805,34 @@ export async function handleApi(
       }
       const built = await buildIndex(p, `http://127.0.0.1:${ctx.port}/`);
       json(reply, 200, { ok: true, data: built });
+      return true;
+    }
+
+    /* ═══ 能力注册表 → HTTP 面（M11-1，Q36）═══
+       放在**手写路由的后面**：搬过去的能力在 `cap/` 里，还没搬的照旧走上面。
+       两边同名会在 `httpRoutes()` 里直接抛（重名检查），不会悄悄互相覆盖。 */
+    const cap = httpRoutes().get(route);
+    if (cap && req.method === (cap.http!.method)) {
+      /* Origin 检查是**门面自己的事**（本地 http 的 CSRF 防线），不是能力的事 ——
+         MCP 面走 stdio 根本没有 Origin 这回事。写类一律查。 */
+      if (cap.http!.method === "POST" && !originOk(req, ctx.port)) {
+        json(reply, 403, { ok: false, errors: [{ code: "E_API_ORIGIN", message: "Origin 不是本服务" }] });
+        return true;
+      }
+      const raw: Record<string, unknown> = cap.http!.method === "GET"
+        ? Object.fromEntries(url.searchParams.entries())
+        : await readBody(req) as Record<string, unknown>;
+      /* GET 的查询串**全是字符串** —— zod 里声明成 number 的会当场失败。
+         先按 schema 把数字转回来；这一步漏了的症状是 `limit=50` 报「期望 number 得到 string」。 */
+      const shape = cap.input as Record<string, { _def?: unknown }>;
+      const input: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(raw)) {
+        const def = shape[k];
+        input[k] = def && z.number().safeParse(Number(v)).success && isNumberSchema(def) ? Number(v) : v;
+      }
+      const capCtx: CapCtx = { project: cap.scope === "project" ? p : null, via: "http", port: ctx.port, token: ctx.token };
+      const out = await cap.run(input as never, capCtx);
+      json(reply, out.ok ? 200 : 400, out);
       return true;
     }
 

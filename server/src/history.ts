@@ -16,7 +16,10 @@ import { conclusion, diffSnapshots, mergeDiffs, toMarkdown, type DiffResult } fr
 export const CHANGELOG = "CHANGELOG-设计侧.md";
 
 /** 一版是谁落的。设计侧 §3.2 的版本弹层按它区分「我改的还是模型改的」——三个取值，不加第四个 */
-export type VersionOrigin = "AI" | "人手改" | "新建";
+/** 谁改的这一版。⚠️ **「插件」是独立的一类**（Q37）——
+ *  买来装上的格式插件也会写盘，把它算进 AI 或人手改，变更清单就会说谎：
+ *  用户看到「AI 改的」会去翻会话记录，而那一次根本没有会话。 */
+export type VersionOrigin = "AI" | "人手改" | "新建" | "插件";
 export interface VersionMeta { origin: VersionOrigin; capturedAt: string; summary: string }
 
 function metaFile(p: Project, relPath: string): string {

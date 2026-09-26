@@ -19,7 +19,7 @@ import { basename, dirname, extname, join, relative, sep } from "node:path";
 import { gunzipSync, gzipSync } from "node:zlib";
 import { X } from "./codes.js";
 import { err, ToolError } from "./envelope.js";
-import { snapDir } from "./history.js";
+import { type VersionOrigin, snapDir } from "./history.js";
 import { isToolPage } from "./indexpage.js";
 import { writeAtomic } from "./normalize.js";
 import { listDrafts, type Project } from "./project.js";
@@ -183,7 +183,7 @@ export interface WriteFileOptions {
   /** 写前校验：盘上现在的 sha256 必须等于它，否则拒绝（Q8）。新建文件传 "0" 或不传 */
   expectSha256?: string;
   /** 记在快照元数据里，给版本历史那一列看 */
-  origin?: "人手改" | "AI" | "新建";
+  origin?: VersionOrigin;
   note?: string;
 }
 
