@@ -1,46 +1,74 @@
 <!DOCTYPE html>
-<meta charset="utf-8">
-<title>CSV 表格</title>
+<meta charset="utf-8"><title>CSV 表格</title>
 <style>
-  /* 插件自己配色。真插件该用宿主给的 token CSS，这里是最小验证件 */
-  body { margin: 0; font: 12px system-ui, sans-serif; color: #1c1f26; background: #fff; }
-  table { border-collapse: collapse; width: 100%; }
-  th, td { border: 1px solid #e3e6ec; padding: 4px 8px; text-align: left; white-space: nowrap; }
-  th { background: #f5f6f9; font-weight: 600; }
-  #empty { padding: 16px; color: #7b8194; }
+  body { margin:0; font:12px system-ui,sans-serif; color:#1c1f26; background:#fff; }
+  table { border-collapse:collapse; width:100%; } thead th { position:sticky; top:0; }
+  th,td { border:1px solid #e3e6ec; padding:4px 8px; text-align:left; white-space:nowrap; }
+  th { background:#f5f6f9; font-weight:600; } #empty { padding:16px; color:#7b8194; }
+  pre { margin:0; padding:8px; font:11px ui-monospace,monospace; white-space:pre; }
 </style>
 <body>
   <div id="empty">读取中…</div>
+  <pre id="raw" hidden></pre>
   <table id="t" hidden><thead><tr id="h"></tr></thead><tbody id="b"></tbody></table>
   <script src="./umbra.js"></script>
   <script>
-    /* 这份是 A 面的验证件：证明插件能在自己的矩形里画，
-       并且**只能经宿主**读到文件（它自己没有网络，CSP connect-src 'none'）。 */
-    umbra.onContext(async function (ctx) {
-      if (!ctx.path) return;
-      var out = await umbra.call("read_file", { path: ctx.path });
-      var el = document.getElementById("empty");
-      if (!out || !out.ok) { el.textContent = "读不到：" + ((out && out.errors && out.errors[0] && out.errors[0].message) || "?"); return; }
-      var lines = String(out.data.content || "").split("\n").filter(function (l) { return l.trim(); });
-      if (!lines.length) { el.textContent = "空表"; return; }
-      var cells = lines.map(function (l) { return l.split(","); });
-      document.getElementById("h").innerHTML = cells[0].map(function (c) { return "<th></th>"; }).join("");
-      [].forEach.call(document.getElementById("h").children, function (th, i) { th.textContent = cells[0][i]; });
-      var body = document.getElementById("b");
-      body.innerHTML = "";
-      cells.slice(1).forEach(function (row) {
-        var tr = document.createElement("tr");
-        row.forEach(function (c) { var td = document.createElement("td"); td.textContent = c; tr.appendChild(td); });
-        body.appendChild(tr);
-      });
-      el.hidden = true;
-      document.getElementById("t").hidden = false;
-      /* 右键走宿主画的菜单 —— 插件自己画会被矩形裁掉 */
-      document.body.addEventListener("contextmenu", async function (e) {
-        e.preventDefault();
-        var i = await umbra.menu(e.clientX, e.clientY, [{ label: "有 " + (cells.length - 1) + " 行" }, { label: "—" }, { label: "提示一下" }]);
-        if (i === 2) umbra.toast("插件发的提示", "由宿主画，形制和别处一致");
-      });
+  /* 演示插件的正文面。它**同时是契约的验证件** —— 用到了宿主代画的全部四样：
+     编辑栏（表格/源码两档 + 一颗钮）、状态行、⋯ 菜单、属性面板（经 share 喂数据）。 */
+  var cells = [], mode = "table", path = null;
+
+  function chrome() {
+    umbra.setChrome({
+      toolbar: [{ label: "视图", items: [
+        { label: "表格", active: mode === "table", title: "按列对齐地看" },
+        { label: "源码", active: mode === "source", title: "原始文本" },
+      ] }],
+      buttons: [{ label: "把表头给 AI", title: "带进会话" }],
+      status: cells.length ? (cells.length - 1) + " 行 · " + (cells[0] || []).length + " 列" : "",
+      menu: [{ label: "复制为 Markdown 表格" }, { label: "—" }, { label: "行数", disabled: true, hint: String(Math.max(0, cells.length - 1)) }],
+    }, function (kind, a, b) {
+      if (kind === "seg" && a === 0) { mode = b === 0 ? "table" : "source"; draw(); }
+      if (kind === "button" && a === 0) umbra.ask("这张表的列是：" + (cells[0] || []).join("、"));
+      if (kind === "menu" && a === 0) umbra.toast("复制了", "（演示，没真复制）");
     });
+  }
+
+  function draw() {
+    var t = document.getElementById("t"), raw = document.getElementById("raw");
+    t.hidden = mode !== "table"; raw.hidden = mode !== "source";
+    document.getElementById("empty").hidden = true;
+    if (mode === "source") { raw.textContent = cells.map(function (r) { return r.join(","); }).join("\n"); chrome(); return; }
+    var h = document.getElementById("h"); h.innerHTML = "";
+    (cells[0] || []).forEach(function (c) { var th = document.createElement("th"); th.textContent = c; h.appendChild(th); });
+    var body = document.getElementById("b"); body.innerHTML = "";
+    cells.slice(1).forEach(function (row) {
+      var tr = document.createElement("tr");
+      row.forEach(function (c) { var td = document.createElement("td"); td.textContent = c; tr.appendChild(td); });
+      body.appendChild(tr);
+    });
+    chrome();
+    /* 喂给面板。**经宿主转发** —— 两个 frame 是两个不透明源，直接够不着对方 */
+    umbra.share("cols", (cells[0] || []).map(function (c, i) {
+      return { name: c, filled: cells.slice(1).filter(function (r) { return (r[i] || "").trim(); }).length };
+    }));
+  }
+
+  async function load() {
+    if (!path) return;
+    var out = await umbra.call("read_file", { path: path });
+    if (!out || !out.ok) { document.getElementById("empty").textContent = "读不到：" + ((out && out.errors && out.errors[0] || {}).message || "?"); return; }
+    var lines = String(out.data.content || "").split("\n").filter(function (l) { return l.trim(); });
+    cells = lines.map(function (l) { return l.split(","); });
+    draw();
+  }
+
+  umbra.onContext(function (ctx) { path = ctx.path; load(); });
+  /* 盘上变了就重读 —— 插件自己发现不了，它没有文件系统也没有事件流 */
+  umbra.onChanged(function () { load(); });
+  document.body.addEventListener("contextmenu", async function (e) {
+    e.preventDefault();
+    var i = await umbra.menu(e.clientX, e.clientY, [{ label: "有 " + Math.max(0, cells.length - 1) + " 行" }, { label: "—" }, { label: "提示一下" }]);
+    if (i === 2) umbra.toast("插件发的提示", "由宿主画，形制和别处一致");
+  });
   </script>
 </body>

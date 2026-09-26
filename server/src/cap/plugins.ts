@@ -25,7 +25,7 @@ defineCap({
       allowedCaps: allowedCapNames(),
       plugins: list.map((p) => ({
         id: p.manifest.id, name: p.manifest.name, version: p.manifest.version,
-        surfaces: p.manifest.surfaces, kinds: (p.manifest.kinds ?? []).map((k) => k.id),
+        surfaces: p.manifest.surfaces, kinds: (p.manifest.kinds ?? []).map((k) => k.id), bundled: p.bundled,
         permissions: p.manifest.permissions, ok: p.problems.length === 0, problems: p.problems,
       })),
     }, [], { count: list.length });
@@ -39,6 +39,14 @@ defineCap({
   faces: ["mcp", "http"],
   http: { route: "plugin_uninstall", method: "POST" },
   run: async ({ id }) => {
+    /* 内置插件卸不掉。**在这里挡，不在删的时候挡** —— 到了删那一步再报错，
+       用户已经点过「确定卸载」了，体验上是「点了没反应」。 */
+    const found = (await listInstalled()).find((x) => x.manifest.id === id);
+    if (found?.bundled) {
+      return envelope({ id, removed: false }, [{ level: "error", code: "E_PLUGIN_BUNDLED",
+        message: `${id} 是内置插件，跟主程序一起发的，卸不掉`,
+        where: "(plugin)", at: { kind: "key", name: id }, fix: "内置插件免费且always在；要停用某种格式的编辑，用格式设置" } as never]);
+    }
     const gone = await uninstall(id);
     return envelope({ id, removed: gone }, [], {});
   },

@@ -28,5 +28,12 @@
     "net": []
   },
   "tools": "index.mjs",
-  "ui": "index.html"
+  "ui": "index.html",
+  "panels": [
+    {
+      "id": "cols",
+      "label": "列",
+      "entry": "panel.html"
+    }
+  ]
 }

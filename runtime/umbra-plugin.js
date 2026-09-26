@@ -53,3 +53,46 @@
   };
   parent.postMessage({ t: "ready" }, "*");
 })(window);
+
+/* ── chrome：编辑栏 / 状态 / `⋯` 菜单**由宿主画**（M11-9）──
+   插件只有正文那一块矩形，这三样都在它够不着的地方；
+   而且就算够得着也不该自己画 —— 每个插件的按钮高度、圆角、hover 底色都不一样的话，
+   并排一眼就看出不是一套。给数据，宿主照自己的形制画。 */
+(function (u) {
+  var hit = null;
+  window.addEventListener("message", function (e) {
+    var m = e.data;
+    if (!m || typeof m !== "object") return;
+    if (m.t === "chrome-hit" && hit) hit(m.kind, m.a, m.b);
+    if (m.t === "share" && shareCbs[m.key]) shareCbs[m.key].forEach(function (cb) { cb(m.value); });
+  });
+  var shareCbs = {};
+
+  /** 设 chrome。**全量覆盖不是增量** —— 增量的话「这次没给 buttons」会被理解成
+   *  「保持上次的 buttons」，而插件切了档位之后旧钮还在，是最难查的那种错。
+   *  `onHit(kind, a, b)`：`kind` 是 seg / button / menu，a 是下标，seg 的 b 是档位下标。 */
+  u.setChrome = function (c, onHit) {
+    hit = onHit || null;
+    parent.postMessage({ t: "chrome", toolbar: c.toolbar || [], buttons: c.buttons || [], status: c.status || "", menu: c.menu || [] }, "*");
+  };
+  /** 同一个插件的几个 frame 之间互通（正文 ⇄ 面板）。**宿主只转发，不看内容** */
+  u.share = function (key, value) { parent.postMessage({ t: "share", key: key, value: value }, "*"); };
+  u.onShare = function (key, cb) { (shareCbs[key] = shareCbs[key] || []).push(cb); };
+})(window.umbra);
+
+/* ── 剩下三件（M11-9）── */
+(function (u) {
+  var changedCbs = [];
+  window.addEventListener("message", function (e) {
+    var m = e.data;
+    if (m && m.t === "changed") changedCbs.forEach(function (cb) { cb(m.path); });
+  });
+  /** 有没有没落盘的改动。**归宿主管** —— 关页签要拦、退出要拦，
+   *  这些都发生在插件的矩形之外，插件拦不住。 */
+  u.setDirty = function (on) { parent.postMessage({ t: "dirty", on: !!on }, "*"); };
+  /** 把一段文字带进会话（「选中这段给 AI」） */
+  u.ask = function (text) { parent.postMessage({ t: "ask", text: String(text) }, "*"); };
+  /** 文件在盘上变了（AI 改的、别的编辑器改的）。**插件自己发现不了** ——
+   *  它没有文件系统也没有事件流。收到就重读一次。 */
+  u.onChanged = function (cb) { changedCbs.push(cb); };
+})(window.umbra);

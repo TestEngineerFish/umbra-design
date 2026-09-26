@@ -1,7 +1,7 @@
 import { readFile, readdir, rm, stat } from "node:fs/promises";
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { STATE_ROOT } from "../project.js";
+import { STATE_ROOT, TOOL_ROOT } from "../project.js";
 import { checkManifest, type PluginManifest } from "./manifest.js";
 import { PLUGIN_DEFAULT_PRIORITY, registerKind } from "../shared/kinds.js";
 
@@ -16,21 +16,36 @@ import { PLUGIN_DEFAULT_PRIORITY, registerKind } from "../shared/kinds.js";
  */
 export const PLUGINS_DIR = join(STATE_ROOT, ".umbrastudio", "plugins");
 
+/** **内置插件**：跟主程序一起发、免费、卸不掉（`doc/20` §七：「默认我们会提供文本的编辑插件」）。
+ *
+ *  ⚠️ 它在 `TOOL_ROOT` 而不是 `STATE_ROOT` —— 打包后那是 `.app` 里的**只读**位置，
+ *  正好对：内置插件本来就不该能删能改。用户买的插件才进 `STATE_ROOT`（可写）。
+ *  **两个 root 混了在开发模式下测不出来**（开发时都可写，`00` §63.1 栽过）。 */
+export const BUNDLED_DIR = join(TOOL_ROOT, "plugins");
+
 export interface InstalledPlugin {
   manifest: PluginManifest;
   /** 这一版在盘上的绝对路径 */
   dir: string;
+  /** 内置的（跟主程序一起发）：免费、卸不掉 */
+  bundled: boolean;
   /** 清单有毛病时装不上，但要**列得出来**并说清为什么 —— 
    *  静静不显示的话，用户只会看到「我装的插件不见了」 */
   problems: Array<{ field: string; why: string }>;
 }
 
-/** 扫一遍装了什么。坏的也列出来，带上毛病。 */
+/** 扫一遍装了什么。坏的也列出来，带上毛病。
+ *  **内置的排在前面**，用户装的在后 —— 同 id 时以用户装的为准（他可能装了更新的一版）。 */
 export async function listInstalled(): Promise<InstalledPlugin[]> {
-  if (!existsSync(PLUGINS_DIR)) return [];
   const out: InstalledPlugin[] = [];
-  for (const id of await readdir(PLUGINS_DIR)) {
-    const idDir = join(PLUGINS_DIR, id);
+  for (const root of [BUNDLED_DIR, PLUGINS_DIR]) await scanRoot(root, root === BUNDLED_DIR, out);
+  return out;
+}
+
+async function scanRoot(root: string, bundled: boolean, out: InstalledPlugin[]): Promise<void> {
+  if (!existsSync(root)) return;
+  for (const id of await readdir(root)) {
+    const idDir = join(root, id);
     if (!(await stat(idDir).catch(() => null))?.isDirectory()) continue;
     const versions = (await readdir(idDir)).sort();
     const v = versions[versions.length - 1];     // 先用最新一版；指针机制等 M11-6
@@ -38,18 +53,22 @@ export async function listInstalled(): Promise<InstalledPlugin[]> {
     const dir = join(idDir, v);
     let raw: unknown = null;
     try { raw = JSON.parse(await readFile(join(dir, "manifest.json"), "utf8")); }
-    catch (e) { out.push({ manifest: { id } as PluginManifest, dir, problems: [{ field: "manifest.json", why: `读不了或不是合法 JSON：${(e as Error).message}` }] }); continue; }
+    catch (e) { out.push({ manifest: { id } as PluginManifest, dir, bundled, problems: [{ field: "manifest.json", why: `读不了或不是合法 JSON：${(e as Error).message}` }] }); continue; }
     const r = checkManifest(raw);
     /* 清单里的 id 必须和目录名一致 —— 不一致的话，同一个插件会按两个身份存在：
        按目录名卸载，按清单 id 注册能力，卸不干净。 */
     const idMismatch = r.ok && r.manifest!.id !== id
       ? [{ field: "id", why: `清单里写的是 ${r.manifest!.id}，但装在 ${id} 目录下` }] : [];
-    out.push({ manifest: (r.manifest ?? { id } as PluginManifest), dir, problems: [...r.problems, ...idMismatch] });
+    const row = { manifest: (r.manifest ?? { id } as PluginManifest), dir, bundled, problems: [...r.problems, ...idMismatch] };
+    /* 同 id 覆盖：用户装的那一份压过内置 —— 他可能装了更新的一版 */
+    const at = out.findIndex((x) => x.manifest.id === row.manifest.id);
+    if (at >= 0) out[at] = row; else out.push(row);
   }
-  return out;
 }
 
 export async function uninstall(id: string): Promise<boolean> {
+  /* 内置的卸不掉。**这里要挡住** —— 不挡的话打包后它会去删 `.app` 里的目录，
+     在 macOS 上那会毁掉签名，应用下次打开就「已损坏」（`00` §六十三 栽过同类的）。 */
   const dir = join(PLUGINS_DIR, id);
   if (!existsSync(dir)) return false;
   /* 只删插件自己的目录。**插件改过的文件不动** —— 那是用户的东西（`doc/20` §6.4） */
@@ -60,13 +79,18 @@ export async function uninstall(id: string): Promise<boolean> {
 /** 一个插件当前用的那一版在哪（静态托管要用）。找不到给 null。
  *  ⚠️ **同步的** —— 它在 http 请求路径上，异步会让每个静态文件多一次事件循环往返。 */
 export function pluginDirOf(id: string): string | null {
-  const idDir = join(PLUGINS_DIR, id);
-  if (!existsSync(idDir)) return null;
-  try {
-    const versions = readdirSync(idDir).sort();
-    const v = versions[versions.length - 1];
-    return v ? join(idDir, v) : null;
-  } catch { return null; }
+  /* 用户装的优先 —— 和 `listInstalled` 的覆盖顺序保持一致。
+     不一致的话会出现「列表里显示新版，实际加载的是内置旧版」这种最难查的错。 */
+  for (const root of [PLUGINS_DIR, BUNDLED_DIR]) {
+    const idDir = join(root, id);
+    if (!existsSync(idDir)) continue;
+    try {
+      const versions = readdirSync(idDir).sort();
+      const v = versions[versions.length - 1];
+      if (v) return join(idDir, v);
+    } catch { /* 下一个 root */ }
+  }
+  return null;
 }
 
 /** 把装好的插件加的文件类型注册进**服务端**的类型表（M11-5）。

@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<style>
+  body { margin:0; font:12px system-ui,sans-serif; color:#1c1f26; background:#fff; }
+  .row { display:flex; align-items:center; gap:8px; padding:5px 10px; border-bottom:1px solid #f0f2f6; }
+  .n { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; }
+  .c { font:11px ui-monospace,monospace; color:#7b8194; }
+  #none { padding:14px; color:#7b8194; }
+</style>
+<body>
+  <div id="none">还没有数据</div><div id="list"></div>
+  <script src="./umbra.js"></script>
+  <script>
+  /* 面板是**插件自己的另一张网页**，和正文是两个不透明源 ——
+     它们够不着对方，数据经宿主转发（`umbra.share`）。 */
+  umbra.onShare("cols", function (cols) {
+    document.getElementById("none").hidden = !!(cols && cols.length);
+    var l = document.getElementById("list"); l.innerHTML = "";
+    (cols || []).forEach(function (c) {
+      var d = document.createElement("div"); d.className = "row";
+      var n = document.createElement("div"); n.className = "n"; n.textContent = c.name;
+      var v = document.createElement("div"); v.className = "c"; v.textContent = c.filled + " 项";
+      d.appendChild(n); d.appendChild(v); l.appendChild(d);
+    });
+  });
+  </script>
+</body>

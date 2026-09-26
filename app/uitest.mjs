@@ -668,12 +668,38 @@ console.log("\n插件 UI 的边界（M11-4）");
       const row = pg.locator('[role="treeitem"]').filter({ hasText: SAMPLE }).first();
       if (await row.count()) {
         await row.click(); await pg.waitForTimeout(2500);
-        ok(await pg.locator('iframe[title^="插件"]').count() === 1, "csv 交给了插件画（详情区是插件的 iframe，不是文件卡）");
-        const inner = pg.frameLocator('iframe[title^="插件"]');
+        ok(await pg.locator('iframe[data-role="body"]').count() === 1, "csv 交给了插件画（详情区是插件的 iframe，不是文件卡）");
+        const inner = pg.frameLocator('iframe[data-role="body"]');
         const rows = await inner.locator("tbody tr").count().catch(() => 0);
         ok(rows === 3, "**插件经宿主真读到了文件并画出来**（它自己没有 fs 也没有网络）", `${rows} 行`);
         const head = await inner.locator("thead th").allTextContents().catch(() => []);
-        ok(head.join(",") === "name,role,note".slice(0, head.join(",").length) || head[0] === "name", "表头对", head.join("/"));
+        ok(head[0] === "name", "表头对", head.join("/"));
+
+        /* ═══ chrome 由宿主代画（M11-9a）═══
+           插件只有正文那块矩形，编辑栏 / 属性面板 / `⋯` 都在它够不着的地方。
+           这几条钉的是「插件给数据 → 宿主照自己的形制画出来」这条路通不通。 */
+        const eb = pg.locator('[data-ud="toggle-edit"]');
+        ok(await eb.count() === 1, "插件声明了编辑栏 → ✎ 这颗钮出现了");
+        if ((await eb.getAttribute("aria-pressed")) !== "true") { await eb.click(); await pg.waitForTimeout(500); }
+        const segs = await pg.locator('[data-ud="file-toolbar"] [role="group"] button').allTextContents();
+        ok(segs.includes("表格") && segs.includes("源码"), "编辑栏的段组是宿主画的（和内置格式同一套形制）", segs.join("/"));
+        /* 点一下要真的传回插件并改变正文 —— 只画出来不通电等于没做 */
+        const srcBtn = pg.locator('[data-ud="file-toolbar"] [role="group"] button').filter({ hasText: "源码" });
+        await srcBtn.click(); await pg.waitForTimeout(700);
+        const raw = await inner.locator("pre").textContent().catch(() => "");
+        ok((raw ?? "").startsWith("name,role"), "点段组真的传回了插件（正文换成源码档）", (raw ?? "").slice(0, 16));
+
+        await pg.locator('[data-ud="toggle-props"]').click(); await pg.waitForTimeout(800);
+        const pfs = await pg.locator('iframe[data-role="panel"]').count();
+        ok(pfs === 1, "插件的属性面板是它自己的一张网页（另一个沙箱 iframe）");
+        if (pfs) {
+          /* 面板和正文是**两个不透明源**，够不着对方 —— 数据经宿主转发（`umbra.share`）。
+             这一条钉的就是那条转发路：面板里有内容 = 转发通了。 */
+          const rows = await pg.frameLocator('iframe[data-role="panel"]').locator(".row").allTextContents().catch(() => []);
+          /* 样本是两列（name,role），所以是 2 行。⚠️ 第一版这里写了 3 —— 判据自己记错了样本 */
+          ok(rows.length === 2 && rows[0].startsWith("name"), "面板的数据经宿主在两个 frame 间转发过来了", rows.join(" / "));
+        }
+        await pg.locator('[data-ud="toggle-props"]').click(); await pg.waitForTimeout(400);
       } else ok(false, "建好了但目录树里没刷出来");
       await pg.evaluate(async ({ name }) => {
         const b = window.__UD_APP;

@@ -42,6 +42,10 @@ export interface PluginManifest {
   };
   /** UI 面的入口 HTML（相对插件目录）。`surfaces` 含 `ui` 时必须有 */
   ui?: string;
+  /** 属性区里的面板，**每个是它自己的一张网页**（M11-9）。
+   *  为什么不像编辑栏那样「给数据、宿主画」：面板里装什么千变万化
+   *  （大纲是树、颜色板是网格、时间轴是时间轴），给不出一套够用又不臃肿的词汇。 */
+  panels?: Array<{ id: string; label: string; entry: string }>;
   /** 工具面的入口 JS（相对插件目录）。`surfaces` 含 `tools` 时必须有 */
   tools?: string;
 }
@@ -89,6 +93,14 @@ export function checkManifest(m: unknown): { ok: boolean; problems: ManifestProb
     if (typeof v === "string" && (v.startsWith("/") || v.includes("..") || v.includes("\\"))) {
       bad(k, "入口路径只能是插件目录内的相对路径，不许有 .. 或绝对路径");
     }
+  }
+
+  for (const [i, pl0] of (Array.isArray(x.panels) ? x.panels : []).entries()) {
+    const pl = pl0 as Record<string, unknown>;
+    const at = `panels[${i}]`;
+    if (typeof pl.id !== "string" || !/^[a-z0-9_-]+$/.test(pl.id)) bad(at + ".id", "小写字母数字下划线横杠");
+    if (typeof pl.label !== "string" || !pl.label) bad(at + ".label", "必填 —— 图标轨上要显示它");
+    if (typeof pl.entry !== "string" || pl.entry.startsWith("/") || pl.entry.includes("..")) bad(at + ".entry", "插件目录内的相对路径，不许 .. 或绝对路径");
   }
 
   const kinds = Array.isArray(x.kinds) ? x.kinds : [];

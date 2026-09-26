@@ -17,7 +17,17 @@
 import type { FileKind } from "@shared/kinds";
 export { kindOf } from "@shared/kinds";
 export type { FileKind };
-export type PanelId = "props" | "diagnostics" | "changes" | "comments" | "outline" | "info";
+/** 从属面板 id。**是 `string` 不是联合类型**（M11-9，和 `FileKind` 同一个理由）——
+ *  插件可以带自己的面板（Markdown 插件的大纲就是），而插件是装完才存在的，
+ *  编译期不可能知道它叫什么。
+ *
+ *  内置的那几个用 `PANEL` 常量引用，拼错了编译期照样报。 */
+export type PanelId = string;
+
+export const PANEL = {
+  props: "props", diagnostics: "diagnostics", changes: "changes",
+  comments: "comments", outline: "outline", info: "info",
+} as const;
 export interface LayoutState {
   /** 左栏 = **目录**（⌘B）。第八轮这里是会话，第九轮换了 —— 键名按「屏幕的哪条边」命名，
    *  所以键不用改名，改的是它管哪一块。 */
@@ -133,7 +143,17 @@ export function computeYield(l: LayoutState, winW: number, hasPanels: boolean): 
 export function saveLayout(s: LayoutState): void { try { localStorage.setItem(KEY, JSON.stringify(s)); } catch { /* 隐私模式 */ } }
 /* R1「按类型决定有哪些从属面板」搬去 `kinds/registry.ts` 的 `panelsOf()` 了 ——
    那里每种格式自己声明，不再在这里写一串 if。 */
-export const PANEL_TITLE: Record<PanelId, string> = { props: "属性", diagnostics: "诊断", changes: "变更", comments: "评论", outline: "大纲", info: "稿件信息" };
+const TITLES: Record<string, string> = { props: "属性", diagnostics: "诊断", changes: "变更", comments: "评论", outline: "大纲", info: "稿件信息" };
+
+/** 插件带来的面板也要有标题。**注册进来而不是各处硬写** ——
+ *  硬写的话插件的面板在图标轨上会显示成 id（`com.umbra.md.outline`）。 */
+export function registerPanelTitle(id: PanelId, title: string): void { TITLES[id] = title; }
+export function unregisterPanelTitles(prefix: string): void {
+  for (const k of Object.keys(TITLES)) if (k.startsWith(prefix + ".")) delete TITLES[k];
+}
+/** ⚠️ **是函数不是常量**（M11-9）：常量在模块加载时就定死了，插件后注册的看不到。 */
+export const panelTitle = (id: PanelId): string => TITLES[id] ?? id;
+export const PANEL_TITLE = new Proxy({} as Record<string, string>, { get: (_t, k) => panelTitle(String(k)) });
 export function applyTheme(t: LayoutState["theme"]): void {
   const dark = t === "dark" || (t === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
   document.documentElement.setAttribute("data-tool-theme", dark ? "dark" : "light");
