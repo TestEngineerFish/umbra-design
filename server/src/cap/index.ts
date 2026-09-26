@@ -8,6 +8,7 @@
  *  `captest` 里钉了一条判据防这个。
  */
 import "./files.js";
+import "./design.js";
 import "./drafts.js";
 import "./plugins.js";
 

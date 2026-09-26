@@ -350,100 +350,9 @@ server.registerTool("delete_project", {
 
 // ─────────────────────── 设计系统检索 ───────────────────────
 
-server.registerTool("search_tokens", {
-  title: "检索设计 token",
-  description: "按路径或取值模糊检索 token。**没有 list_tokens** —— tokens 有 1,200+ 个叶子，全量返回会吃掉上下文。长散文类判据会截断，用 get_token 取全文。",
-  inputSchema: {
-    project: z.string(),
-    query: z.string().describe("路径片段或取值片段，如 danger / #E8590C / 行高"),
-    limit: z.number().int().min(1).max(200).optional(),
-  },
-}, async ({ project, query, limit }) => run(async () => {
-  const p = await loadProject(project);
-  const r = await searchTokens(p, query, limit ?? 30);
-  return envelope({ query, hits: r.hits }, [], { total: r.total, returned: r.hits.length, truncated: r.truncated });
-}));
-
-server.registerTool("get_token", {
-  title: "取 token 全文",
-  description: "按点号路径取单个 token 的完整取值，或取整棵子树（不截断）。",
-  inputSchema: { project: z.string(), path: z.string().describe("点号路径，如 color.light.bg 或 color.light") },
-}, async ({ project, path }) => run(async () => {
-  const p = await loadProject(project);
-  return envelope(await getToken(p, path));
-}));
-
-server.registerTool("list_icons", {
-  title: "列出图标",
-  description: "按名字 / 中文名 / 分组 / 用途检索图标，返回名字与元数据（不含 path 数据）。",
-  inputSchema: { project: z.string(), query: z.string().optional(), limit: z.number().int().min(1).max(300).optional() },
-}, async ({ project, query, limit }) => run(async () => {
-  const p = await loadProject(project);
-  const r = await listIcons(p, query, limit ?? 60);
-  return envelope({ viewBox: r.viewBox, icons: r.icons }, [], { total: r.total, truncated: r.truncated });
-}));
-
-server.registerTool("get_icon", {
-  title: "取图标",
-  description: "取一个图标的 SVG 内容（body + viewBox + strokeWidth），可直接贴进稿子。",
-  inputSchema: { project: z.string(), name: z.string() },
-}, async ({ project, name }) => run(async () => {
-  const p = await loadProject(project);
-  return envelope(await getIcon(p, name));
-}));
-
 // ─────────────────────── 全局搜索 ───────────────────────
 
-server.registerTool("global_search", {
-  title: "跨稿搜索",
-  description: [
-    "在一份项目的所有稿里搜索。返回匹配的稿、行号与上下文。",
-    "能搜：",
-    "  - token 引用：var(--xxx)、@ds.xxx",
-    "  - 组件引用：dc-import name=\"X\"",
-    "  - CSS 引用：stylesheet",
-    "  - 任意文案（忽略大小写）",
-    "没有匹配时会返回空数组；limit 控制最大返回条数。",
-  ].join("\n"),
-  inputSchema: {
-    project: z.string(),
-    query: z.string().describe("搜索词，如 token 名 / 组件名 / 任意文案"),
-    limit: z.number().int().min(1).max(500).optional().describe("最大返回条数，默认 100"),
-  },
-}, async ({ project, query, limit }) => run(async () => {
-  const p = await loadProject(project);
-  const r = await globalSearch(p, query, limit ?? 100);
-  return envelope({ hits: r.hits }, [], {
-    total: r.total,
-    scanned: r.scanned,
-    query: r.query,
-  });
-}));
-
 // ─────────────────────── 设计系统编辑 ─────────────────────
-
-server.registerTool("set_token_value", {
-  title: "修改 token 取值",
-  description: [
-    "只改 token 的取值，不改结构（不增删 token、不改层级）。",
-    "改之前自动分析影响面：哪些稿引用了这个 token。",
-    "改完后受影响的稿在下一次渲染时会反映新值。",
-    "新旧值相同时不会写入文件，直接返回。",
-  ].join("\n"),
-  inputSchema: {
-    project: z.string(),
-    path: z.string().describe("token 的点号路径，如 color.light.danger"),
-    value: z.string().describe("新取值（字符串）"),
-  },
-}, async ({ project, path, value }) => run(async () => {
-  const p = await loadProject(project);
-  const r = await setTokenValue(p, path, value);
-  const diags = r.changed ? [] : [
-    err(X.IO, p.rel, { kind: "key", name: "token" },
-      `token ${path} 的取值未改变：${r.oldValue}`),
-  ];
-  return envelope(r, diags, { affected: r.affectedDrafts });
-}));
 
 // ─────────────────────── 稿件模板 ─────────────────────
 
@@ -526,31 +435,6 @@ server.registerTool("import_project", {
 }));
 
 // ───────────────────────── 组件契约 ─────────────────────────
-
-server.registerTool("list_components", {
-  title: "列出组件与页稿",
-  description: "列出项目里所有稿：名字、文件、元素数、props 签名、状态清单。只给签名，要全文用 get_component。",
-  inputSchema: { project: z.string() },
-}, async ({ project }) => run(async () => {
-  const p = await loadProject(project);
-  const list = await listComponents(p);
-  return envelope({ components: list }, [], {
-    total: list.length,
-    withProps: list.filter((c) => c.props.length > 0).length,
-  });
-}));
-
-server.registerTool("get_component", {
-  title: "取组件契约或全文",
-  description: "mode='contract' 给 props 与状态清单；mode='full' 给源码全文（可能很大，先用 contract）。",
-  inputSchema: {
-    project: z.string(), name: z.string(),
-    mode: z.enum(["contract", "full"]).optional(),
-  },
-}, async ({ project, name, mode }) => run(async () => {
-  const p = await loadProject(project);
-  return envelope(await getComponent(p, name, mode ?? "contract"));
-}));
 
 // ───────────────────────── 写稿规则 ─────────────────────────
 

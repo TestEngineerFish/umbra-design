@@ -75,6 +75,31 @@ for (const n of wasHttpOnly) {
   await rm(dir, { recursive: true, force: true });
 }
 
+/* ── 按门面分的默认值（M11-7 第二批）──
+   `list_icons` 的 `withPath` 默认值跟着 `via` 走：界面**必须**有 path 才画得出图标，
+   MCP 那边 60 个 path 是白占上下文。
+   以前这个差别藏在 HTTP 那一行多传的 `true` 里，**MCP 侧完全不知道有这回事** ——
+   合成一份之后它变成了一个写出来的决定。 */
+{
+  const { mkdtemp, rm, writeFile } = await import("node:fs/promises");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const { buildProject } = await import("./project.js");
+  const cap = allCaps().find((c) => c.name === "list_icons")!;
+  ok(!!cap, "list_icons 搬进 cap/ 了");
+  const dir = await mkdtemp(join(tmpdir(), "umbrastudio-icons-"));
+  await writeFile(join(dir, "project.json"), JSON.stringify({ name: "icontest", title: "图标回归" }));
+  const proj = await buildProject(dir);
+  const got: Record<string, unknown> = {};
+  for (const via of ["http", "mcp"] as const) {
+    const out = await cap.run({} as never, { project: proj, via });
+    got[via] = (out.stats as { withPath?: boolean }).withPath;
+  }
+  ok(got.http === true && got.mcp === false,
+    "**同一份声明，两个门面拿到不同的默认值**（界面带 path，模型不带）", `http=${got.http} mcp=${got.mcp}`);
+  await rm(dir, { recursive: true, force: true });
+}
+
 /* ══════════ 界面稿也是调用方（M11-7 第一批栽过，`00` §九十）══════════
    本项目的设计稿是**可运行**的：`ui/*.dc.html` 自己会 `fetch` 本地 API。
    所以「这条路由没人调」不能只看 `app/src` —— 那只是半个世界。
@@ -97,16 +122,27 @@ for (const n of wasHttpOnly) {
   try { files = (await readdir(UI)).filter((f) => f.endsWith(".dc.html")); } catch { /* 没有 ui/ 就跳过 */ }
   ok(files.length > 0, "找得到界面稿（这一节要拿它们当调用方来核）", `${files.length} 份`);
 
+  /* ⚠️ **候选名单必须独立于「现在有什么」**（M11-7 第二批栽过）。
+     第一版是「拿现存路由表去稿里搜」—— 那是**循环的**：
+     路由一改名就从名单里消失，判据永远不会检查它，于是永远绿着。
+     它看起来在工作（30 条全过），实际上**对它要防的那件事完全免疫**。
+
+     改成按**调用写法**从稿里抽候选。目前两种：
+     ① `this.api("路由名", …)` ② 存进数据再调（`{ route: "project_archive" }`）。
+     稿里换新写法时要在这里补一条 —— 抓不到的那一条就是下一个盲区。 */
+  const PATTERNS = [/\bapi\(\s*["'`]([a-z][a-z0-9_]*)["'`]/g, /\broute\s*:\s*["'`]([a-z][a-z0-9_]*)["'`]/g];
+
   const missing: string[] = [];
   const seen = new Set<string>();
   for (const f of files) {
     const src = await readFile(join(UI, f), "utf8");
-    /* 稿里调 API 的写法是 `this.api("路由名", …)`，抓这个 */
-    for (const m of src.matchAll(/\bapi\(\s*"([a-z_]+)"/g)) {
-      const route = m[1]!;
-      if (seen.has(route)) continue;
-      seen.add(route);
-      if (!handwritten.has(route) && !fromCaps.has(route)) missing.push(`${route}（${f}）`);
+    for (const re of PATTERNS) {
+      for (const m of src.matchAll(re)) {
+        const route = m[1]!;
+        if (seen.has(route)) continue;
+        seen.add(route);
+        if (!handwritten.has(route) && !fromCaps.has(route)) missing.push(`${route}（${f}）`);
+      }
     }
   }
   ok(seen.size > 0, "稿里真的有调 API", `用到 ${seen.size} 条路由`);

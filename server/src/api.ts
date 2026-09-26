@@ -239,52 +239,12 @@ export async function handleApi(
       return true;
     }
 
-    if (route === "tokens" && req.method === "GET") {
-      const q = url.searchParams.get("q") ?? "";
-      const r = await searchTokens(p, q, Number(url.searchParams.get("limit") ?? 40));
-      // S5 的契约要 resolved 与 note。`var(--x)` 这类别名我们**解不开** ——
-      // 那要把整条 CSS 变量链跟下去。解不开就给 null，S5 会显示「链没解开」，
-      // **不猜一个值糊上去**（doc/00 §22.2）。
-      json(reply, 200, {
-        ok: true,
-        data: {
-          total: r.total, truncated: r.truncated,
-          hits: r.hits.map((t) => ({
-            path: t.path,
-            value: typeof t.value === "string" ? t.value : JSON.stringify(t.value),
-            resolved: typeof t.value === "string" && !/^var\(/.test(t.value) ? t.value : null,
-            kind: t.kind,
-            note: t.preview ?? null,
-          })),
-        },
-      });
-      return true;
-    }
 
     /* 颜色控件的候选：这份稿自己声明的 CSS 变量（doc/00 §二十七）。
        不是 token 路径 —— 那是另一套命名空间，按 token 拼 var(--…) 有一成多
        会写出这份稿里没定义的变量，静默失效。判据见 cssvars.ts 的头注。 */
-    if (route === "cssvars" && req.method === "GET") {
-      const f = url.searchParams.get("file");
-      if (!f) { json(reply, 400, { ok: false, errors: [{ code: "E_API_BAD_INPUT", message: "缺 file" }] }); return true; }
-      json(reply, 200, { ok: true,
-        data: await listCssVars(p, f, url.searchParams.get("q") ?? undefined,
-          Number(url.searchParams.get("limit") ?? 40)) });
-      return true;
-    }
 
-    if (route === "icons" && req.method === "GET") {
-      json(reply, 200, { ok: true,
-        data: await listIcons(p, url.searchParams.get("q") ?? undefined,
-          Number(url.searchParams.get("limit") ?? 60), true) });   // 界面要画图标，带 path
-      return true;
-    }
 
-    if (route === "components" && req.method === "GET") {
-      const all = await listComponents(p);
-      json(reply, 200, { ok: true, data: { total: all.length, components: all } });
-      return true;
-    }
 
     // ── 可写 ──
     if (route === "set_prop" && req.method === "POST") {
